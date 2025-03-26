@@ -183,13 +183,19 @@ def pretty_print(contents: list[types.Content]) -> str:
     #  - role: part type: {content}, part type: {content}, etc
     # etc
     buff = ''
+    counter = 0
     for content in contents:
-        buff += f'\n - {content.role}: '
-        for part in content.parts:
-            buff += ". ".join(
-                [attribute + ": " + str(value).strip()
-                 for attribute, value in part.__dict__.items()
-                 if value is not None])
+        buff += f'\nContent {counter + 1}:'
+        if not content:
+            buff += '\nNONE'
+        else:
+            buff += f'\n - {content.role}: '
+            for part in content.parts:
+                buff += ", ".join(
+                    [attribute + ": " + str(value).strip()
+                    for attribute, value in part.__dict__.items()
+                    if value is not None])
+        counter += 1
     return buff
 
 def generate_with_tool(prompt, conversation_history =None):
@@ -235,7 +241,7 @@ def generate_with_tool(prompt, conversation_history =None):
             logging.info(
                 f"Starting chunk processing {request_count} with "
                 f"{len(contents)} content items and {token_count} tokens.")
-            logging.debug("Start generatiohn with contents:\n%s", contents)
+            logging.debug("Start generation with contents:\n%s", pretty_print(contents))
             for chunk in client.models.generate_content_stream(
                 model='gemini-2.0-flash-001',
                 contents=contents,
@@ -302,7 +308,8 @@ def generate_with_tool(prompt, conversation_history =None):
                           ansi_colors.RESET)
         except Exception as e:
             logging.error(f"Error during content generation: {e}")
-            logging.error(f"Last contents: {contents}")
+            logging.error(f"Last contents: {pretty_print(contents)}")
+            logging.debug(f"Last raw contents: {contents}")
             print(ansi_colors.MODELERROR +
                   "\nError during content generation. See logs for details." +
                   ansi_colors.RESET)
@@ -321,10 +328,12 @@ def generate_with_tool(prompt, conversation_history =None):
                 parts=response_parts)
 
         contents.append(model_response_content)
-        contents.append(tool_response_content)
-
         conversation_history.append(model_response_content)
-        conversation_history.append(tool_response_content)
+        
+        if tool_response_content:
+            contents.append(tool_response_content)
+            conversation_history.append(tool_response_content)
+
         cont = len(response_parts) > 0
     print(ansi_colors.MODEL + finish_reason + ": " + finish_message +
           ansi_colors.RESET)

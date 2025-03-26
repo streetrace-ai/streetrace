@@ -5,14 +5,14 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="gemini_package",
+    name="streetrace",
     version="0.0.1",
-    author="Your Name",
-    author_email="your.email@example.com",
-    description="A package for interacting with the Gemini API",
+    author="krmrn42",
+    author_email="hello@krmrn42.com",
+    description="Streetrace is an agentic AI coding partner that enables engineers to leverage AI from the command line to create software.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/yourusername/gemini_package",
+    url="https://github.com/krmrn42/streetrace",
     packages=find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
