@@ -3,11 +3,12 @@ import tools.read_directory_structure as rds
 import tools.read_file as rf
 import tools.write_file as wf
 import tools.cli_tool as cli
+import tools.search as s
 
 def _clean_input(input_str):
     return input_str.strip('"\'\r\n\t ')
 
-def list_directory(path=None):
+def list_directory(path):
     """Read directory structure while honoring .gitignore rules.
     
     Args:
@@ -70,6 +71,26 @@ def execute_cli_command(command):
     """
     try:
         result = cli.execute_cli_command(_clean_input(command))
+        return json.dumps({"success": True, "output": result}, indent=2)
+    except (ValueError, TypeError, IOError, OSError) as e:
+        return json.dumps({"error": str(e)}, indent=2)
+
+def search_files(pattern, search_string):
+    """
+    Searches for text occurrences in files given a glob pattern and a search
+    string.
+
+    Args:
+        pattern (str): Glob pattern to match files (relative to root_dir).
+        search_string (str): The string to search for.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary represents a match.
+            Each dictionary contains the file path, line number, and a snippet
+            of the line where the match was found.
+    """
+    try:
+        result = s.search_files(_clean_input(pattern), _clean_input(search_string))
         return json.dumps({"success": True, "output": result}, indent=2)
     except (ValueError, TypeError, IOError, OSError) as e:
         return json.dumps({"error": str(e)}, indent=2)

@@ -1,9 +1,8 @@
 import os
+import logging
 from google import genai  # https://googleapis.github.io/python-genai/genai.html
 from google.genai import types
 import tools.fs_tool as fs_tool
-import tools.search as search
-import logging
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s',
@@ -112,7 +111,7 @@ tools = [
                         description='Text encoding to use. Defaults to \"utf-8\".'
                     )
                 },
-                required=['path']  # corrected required parameter name
+                required=['path', 'content']  # corrected required parameter name
             )
         )
     ]),
@@ -135,7 +134,7 @@ tools = [
     ]),
     types.Tool(function_declarations=[
         types.FunctionDeclaration(
-            name='search.search_files',
+            name='fs_tool.search_files',
             description='Searches for text occurrences in files given a glob pattern and a search string.',
             parameters=types.Schema(
                 type='OBJECT',
@@ -161,17 +160,8 @@ tools_dict = {
     'fs_tool.read_file': fs_tool.read_file,
     'fs_tool.write_file': fs_tool.write_file,
     'fs_tool.execute_cli_command': fs_tool.execute_cli_command,
-    'search.search_files': search.search_files
+    'fs_tool.search_files': fs_tool.search_files
 }
-
-
-def get_non_empty_fields(obj):
-    non_empty_fields = {}
-    for attribute, value in obj.__dict__.items():
-        if value:  # Checks for truthiness (not None, not empty string/list/dict, not 0, not False)
-            non_empty_fields[attribute] = value
-    return non_empty_fields
-
 
 
 def pretty_print(contents: list[types.Content]) -> str:
@@ -242,6 +232,7 @@ def generate_with_tool(prompt, conversation_history =None):
                 f"Starting chunk processing {request_count} with "
                 f"{len(contents)} content items and {token_count} tokens.")
             logging.debug("Start generation with contents:\n%s", pretty_print(contents))
+            logging.debug("Raw contents:\n%s", contents)
             for chunk in client.models.generate_content_stream(
                 model='gemini-2.0-flash-001',
                 contents=contents,
@@ -263,7 +254,7 @@ def generate_with_tool(prompt, conversation_history =None):
                         print(ansi_colors.MODEL + chunk.text + ansi_colors.RESET, end='')
                         response_text += chunk.text
                     if chunk.function_calls:
-                        if len(response_text) > 0:
+                        if len(response_text.strip()) > 0:
                             request_parts += [types.Part(text=response_text)]
                             response_text = ''
                         for function_call in chunk.function_calls:
@@ -315,7 +306,7 @@ def generate_with_tool(prompt, conversation_history =None):
                   ansi_colors.RESET)
             break  # Stop the loop if there's an error during content generation
 
-        if len(response_text) > 0:
+        if len(response_text.strip()) > 0:
             request_parts += [types.Part(text=response_text)]
             response_text = ''
         model_response_content = types.Content(
