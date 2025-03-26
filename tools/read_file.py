@@ -1,0 +1,84 @@
+import os
+import codecs
+
+def is_binary_file(file_path, sample_size=1024):
+    """
+    Detect if a file is binary by examining a sample of its content.
+    
+    Args:
+        file_path (str): Path to the file to check.
+        sample_size (int, optional): Number of bytes to sample. Defaults to 8192.
+    
+    Returns:
+        bool: True if the file appears to be binary, False otherwise.
+    """
+    try:
+        with open(file_path, 'rb') as f:
+            sample = f.read(sample_size)
+            
+        # Check for null bytes, which are rare in text files
+        if b'\x00' in sample:
+            return True
+            
+        # Check for high ratio of non-text characters
+        text_chars = bytearray({7, 8, 9, 10, 12, 13, 27} | set(range(0x20, 0x7F)) | set(range(0x80, 0x100)))
+        non_text_chars = sum(1 for byte in sample if byte not in text_chars)
+        return non_text_chars / len(sample) > 0.3 if sample else False
+    except:
+        # If we can't read the file, assume it's not binary
+        return False
+
+def read_file(file_path, root_path=None, encoding='utf-8'):
+    """
+    Securely read a file's contents, ensuring the path is within the allowed root path.
+    
+    Args:
+        file_path (str): Path to the file to read. Can be relative or absolute.
+        root_path (str, optional): Root path that restricts access. If None, uses current directory.
+            The file_path must be within this root_path for security.
+        encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
+    
+    Returns:
+        str or bytes: Contents of the file as a string (in text mode) or bytes (in binary mode)
+        
+    Raises:
+        ValueError: If the file path is outside the allowed root path or doesn't exist
+        IOError: If there are issues reading the file
+        UnicodeDecodeError: If the file can't be decoded using the specified encoding in text mode
+    """
+    # Default root_path to current directory if not specified
+    if root_path is None:
+        root_path = os.getcwd()
+    
+    # Get absolute paths for security comparison
+    abs_root_path = os.path.abspath(os.path.normpath(root_path))
+    abs_file_path = os.path.abspath(os.path.normpath(file_path))
+    
+    # Security check: ensure the file path is within the root path
+    if not abs_file_path.startswith(abs_root_path):
+        raise ValueError(f"Security error: Requested file path '{file_path}' is outside the allowed root path.")
+    
+    # Check if file exists
+    if not os.path.exists(abs_file_path):
+        raise ValueError(f"File not found: '{file_path}'")
+    
+    # Check if path is actually a file (not a directory)
+    if not os.path.isfile(abs_file_path):
+        raise ValueError(f"Path is not a file: '{file_path}'")
+    
+    # Auto-detect binary if requested and we're not in binary mode already
+    if is_binary_file(abs_file_path):
+        return "<binary>"
+    
+    # Read and return file contents
+    try:
+        with codecs.open(abs_file_path, 'r', encoding=encoding) as f:
+            return f.read()
+    except IOError as e:
+        raise IOError(f"Error reading file '{file_path}': {str(e)}")
+    except UnicodeDecodeError as e:
+        raise UnicodeDecodeError(
+            f"Failed to decode '{file_path}' with encoding '{encoding}'. "
+            f"Try opening in binary mode or specify a different encoding. Error: {str(e)}",
+            e.object, e.start, e.end, e.reason
+        )
