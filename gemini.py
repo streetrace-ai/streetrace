@@ -33,18 +33,6 @@ def initialize_client():
         raise ValueError("GEMINI_API_KEY environment variable not set.")
     return genai.Client(api_key=api_key)
 
-# System prompt
-system_message_path = '.streetrace/system_message.txt'
-if os.path.exists(system_message_path):
-    try:
-        with open(system_message_path, 'r', encoding='utf-8') as f:
-            SYSTEM = f.read()
-    except Exception as e:
-        print(f"Error reading system message file: {e}")
-        SYSTEM = "You are an experienced software engineer implementing code for a project working as a peer engineer\nwith the user. Fullfill all your peer user's requests completely and following best practices and intentions.\nIf can't understand a task, ask for clarifications.\nFor every step, remember to adhere to the SYSTEM MESSAGE.\nYou are working with source code in the current directory (./) that you can access using the provided tools.\nFor every request, understand what needs to be done, then execute the next appropriate action.\n\n1. Please use provided functions to retrieve the required information.\n2. Please use provided functions to apply the necessary changes to the project.\n3. When you need to implement code, follow best practices for the given programming language.\n4. When applicable, follow software and integration design patterns.\n5. When applicable, follow SOLID principles.\n6. Document all the code you implement.\n7. If there is no README.md file, create it describing the project.\n8. Create other documentation files as necessary, for example to describe setting up the environment.\n9. Create unit tests when applicable. If you can see existing unit tests in the codebase, always create unit tests for new code, and maintain the existing tests.\n10. Run the unit tests and static analysis checks, such as lint, to make sure the task is completed.\n11. After completing the task, please provide a summary of the changes made and update the documentation.\n\nRemember, the code is located in the current directory (./) that you can access using the provided tools.\nRemember, if you can't find a specific location in code, try searching through files for close matches.\nRemember, always think step by step and execute one step at a time.\nRemember, never commit the changes."
-else:
-    SYSTEM = "You are an experienced software engineer implementing code for a project working as a peer engineer\nwith the user. Fullfill all your peer user's requests completely and following best practices and intentions.\nIf can't understand a task, ask for clarifications.\nFor every step, remember to adhere to the SYSTEM MESSAGE.\nYou are working with source code in the current directory (./) that you can access using the provided tools.\nFor every request, understand what needs to be done, then execute the next appropriate action.\n\n1. Please use provided functions to retrieve the required information.\n2. Please use provided functions to apply the necessary changes to the project.\n3. When you need to implement code, follow best practices for the given programming language.\n4. When applicable, follow software and integration design patterns.\n5. When applicable, follow SOLID principles.\n6. Document all the code you implement.\n7. If there is no README.md file, create it describing the project.\n8. Create other documentation files as necessary, for example to describe setting up the environment.\n9. Create unit tests when applicable. If you can see existing unit tests in the codebase, always create unit tests for new code, and maintain the existing tests.\n10. Run the unit tests and static analysis checks, such as lint, to make sure the task is completed.\n11. After completing the task, please provide a summary of the changes made and update the documentation.\n\nRemember, the code is located in the current directory (./) that you can access using the provided tools.\nRemember, if you can't find a specific location in code, try searching through files for close matches.\nRemember, always think step by step and execute one step at a time.\nRemember, never commit the changes."
-
 # Tool definitions
 TOOLS = [
     types.Tool(function_declarations=[
@@ -255,7 +243,7 @@ def handle_function_call(function_call):
         logging.warning(error_msg)
         return {'error': str(e)}, error_msg
 
-def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME):
+def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME, system_message=None):
     """
     Generates content using the Gemini model with the custom tool,
     maintaining conversation history.
@@ -263,7 +251,8 @@ def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME)
     Args:
         prompt (str): The user's input prompt
         conversation_history (list, optional): The history of the conversation. Defaults to None.
-        model_name (str, optional): The name of the Gemini model to use. Defaults to \"gemini-2.0-flash-001\".
+        model_name (str, optional): The name of the Gemini model to use. Defaults to "gemini-2.0-flash-001".
+        system_message (str, optional): The system message to use. If None, a default will be used.
     
     Returns:
         list: The updated conversation history
@@ -272,6 +261,12 @@ def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME)
     client = initialize_client()
     if conversation_history is None:
         conversation_history = []
+        
+    # Use default system message if none is provided
+    if system_message is None:
+        system_message = """You are an experienced software engineer implementing code for a project working as a peer engineer
+with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
+If can't understand a task, ask for clarifications."""
 
     # Log and display user prompt
     print(AnsiColors.USER + prompt + AnsiColors.RESET)
@@ -295,7 +290,7 @@ def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME)
         # Set up generation configuration
         generation_config = types.GenerateContentConfig(
             tools=TOOLS,
-            system_instruction=SYSTEM,
+            system_instruction=system_message,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             tool_config=types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(mode='AUTO')
@@ -378,7 +373,7 @@ def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME)
             conversation_history.append(tool_response_content)
             
             # Continue with function call results
-            return generate_with_tool('', conversation_history)
+            return generate_with_tool('', conversation_history, model_name, system_message)
         
         # Output finish information
         print(AnsiColors.MODEL + f"{finish_reason}: {finish_message}" + AnsiColors.RESET)

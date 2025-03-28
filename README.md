@@ -51,6 +51,28 @@ If no model is specified, Streetrace will automatically select an AI model based
 2. Gemini (if GEMINI_API_KEY is set)
 3. OpenAI (if OPENAI_API_KEY is set - not yet implemented)
 
+### System Message Customization
+
+Streetrace now centralizes system message handling in `main.py` and passes it to the model-specific functions. By default, it looks for a system message in `.streetrace/system_message.txt` and uses a default message if not found.
+
+You can also programmatically specify a custom system message when using the `generate_with_tool` function:
+
+```python
+from claude import generate_with_tool
+
+# Define a custom system message
+system_message = """You are a helpful AI assistant specializing in Python development.
+You provide clear, concise explanations and write clean, well-documented code."""
+
+# Use the custom system message
+conversation_history = generate_with_tool(
+    "Create a simple hello world script",
+    system_message=system_message
+)
+```
+
+See `example_claude.py` and `example_gemini.py` for complete examples of how to use custom system messages.
+
 ## Environment Setup
 
 To use these tools, you need to set one of the following environment variables:

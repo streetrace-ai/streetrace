@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-Example usage of the claude.py module.
-This script demonstrates how to interact with Claude 3 Sonnet using the generate_with_tool function.
+Example usage of the gemini.py module.
+This script demonstrates how to interact with Gemini using the generate_with_tool function.
 """
 
-from claude import generate_with_tool
+from gemini import generate_with_tool
 
 def main():
     """
-    Main function that demonstrates a conversation with Claude.
+    Main function that demonstrates a conversation with Gemini.
     """
-    print("Starting a conversation with Claude...")
+    print("Starting a conversation with Gemini...")
     
     # Define a custom system message
     system_message = """You are a helpful AI assistant specializing in Python development.

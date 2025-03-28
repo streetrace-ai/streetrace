@@ -1,6 +1,46 @@
 import os
 import argparse
 
+def read_system_message():
+    """
+    Read the system message from a file or return the default message.
+    
+    Returns:
+        str: The system message content
+    """
+    system_message_path = '.streetrace/system_message.txt'
+    if os.path.exists(system_message_path):
+        try:
+            with open(system_message_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            print(f"Error reading system message file: {e}")
+    
+    # Default system message
+    return """You are an experienced software engineer implementing code for a project working as a peer engineer
+with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
+If can't understand a task, ask for clarifications.
+For every step, remember to adhere to the SYSTEM MESSAGE.
+You are working with source code in the current directory (./) that you can access using the provided tools.
+For every request, understand what needs to be done, then execute the next appropriate action.
+
+1. Please use provided functions to retrieve the required information.
+2. Please use provided functions to apply the necessary changes to the project.
+3. When you need to implement code, follow best practices for the given programming language.
+4. When applicable, follow software and integration design patterns.
+5. When applicable, follow SOLID principles.
+6. Document all the code you implement.
+7. If there is no README.md file, create it describing the project.
+8. Create other documentation files as necessary, for example to describe setting up the environment.
+9. Create unit tests when applicable. If you can see existing unit tests in the codebase, always create unit tests for new code, and maintain the existing tests.
+10. Run the unit tests and static analysis checks, such as lint, to make sure the task is completed.
+11. After completing the task, please provide a summary of the changes made and update the documentation.
+
+Remember, the code is located in the current directory (./) that you can access using the provided tools.
+Remember, if you can't find a specific location in code, try searching through files for close matches.
+Remember, always think step by step and execute one step at a time.
+Remember, never commit the changes."""
+
 def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Run AI assistant with different models')
@@ -28,6 +68,9 @@ def main():
         else:
             print(f"Model name '{args.model_name}' provided but no model type (--model) specified")
             exit(1)
+
+    # Read the system message
+    system_message = read_system_message()
 
     # Use command line argument if provided
     if args.model:
@@ -71,7 +114,7 @@ def main():
         user_input = input("You: ")
         if user_input.lower() == "exit":
             break
-        conversation_history = generate_with_tool(user_input, conversation_history, model_name)
+        conversation_history = generate_with_tool(user_input, conversation_history, model_name, system_message)
 
 if __name__ == "__main__":
     main()

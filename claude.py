@@ -32,17 +32,6 @@ class ansi_colors:
 
 MAX_TOKENS = 200000  # Claude 3 Sonnet has a context window of approximately 200K tokens
 
-system_message_path = '.streetrace/system_message.txt'
-if os.path.exists(system_message_path):
-    try:
-        with open(system_message_path, 'r', encoding='utf-8') as f:
-            SYSTEM = f.read()
-    except Exception as e:
-        print(f"Error reading system message file: {e}")
-        SYSTEM = "You are an experienced software engineer implementing code for a project working as a peer engineer\nwith the user. Fullfill all your peer user's requests completely and following best practices and intentions.\nIf can't understand a task, ask for clarifications.\nFor every step, remember to adhere to the SYSTEM MESSAGE.\nYou are working with source code in the current directory (./) that you can access using the provided tools.\nFor every request, understand what needs to be done, then execute the next appropriate action.\n\n1. Please use provided functions to retrieve the required information.\n2. Please use provided functions to apply the necessary changes to the project.\n3. When you need to implement code, follow best practices for the given programming language.\n4. When applicable, follow software and integration design patterns.\n5. When applicable, follow SOLID principles.\n6. Document all the code you implement.\n7. If there is no README.md file, create it describing the project.\n8. Create other documentation files as necessary, for example to describe setting up the environment.\n9. Create unit tests when applicable. If you can see existing unit tests in the codebase, always create unit tests for new code, and maintain the existing tests.\n10. Run the unit tests and static analysis checks, such as lint, to make sure the task is completed.\n11. After completing the task, please provide a summary of the changes made and update the documentation.\n\nRemember, the code is located in the current directory (./) that you can access using the provided tools.\nRemember, if you can't find a specific location in code, try searching through files for close matches.\nRemember, always think step by step and execute one step at a time.\nRemember, never commit the changes."
-else:
-    SYSTEM = "You are an experienced software engineer implementing code for a project working as a peer engineer\nwith the user. Fullfill all your peer user's requests completely and following best practices and intentions.\nIf can't understand a task, ask for clarifications.\nFor every step, remember to adhere to the SYSTEM MESSAGE.\nYou are working with source code in the current directory (./) that you can access using the provided tools.\nFor every request, understand what needs to be done, then execute the next appropriate action.\n\n1. Please use provided functions to retrieve the required information.\n2. Please use provided functions to apply the necessary changes to the project.\n3. When you need to implement code, follow best practices for the given programming language.\n4. When applicable, follow software and integration design patterns.\n5. When applicable, follow SOLID principles.\n6. Document all the code you implement.\n7. If there is no README.md file, create it describing the project.\n8. Create other documentation files as necessary, for example to describe setting up the environment.\n9. Create unit tests when applicable. If you can see existing unit tests in the codebase, always create unit tests for new code, and maintain the existing tests.\n10. Run the unit tests and static analysis checks, such as lint, to make sure the task is completed.\n11. After completing the task, please provide a summary of the changes made and update the documentation.\n\nRemember, the code is located in the current directory (./) that you can access using the provided tools.\nRemember, if you can't find a specific location in code, try searching through files for close matches.\nRemember, always think step by step and execute one step at a time.\nRemember, never commit the changes."
-
 # Define the tools
 tools = [{
     "type": "custom",
@@ -149,7 +138,7 @@ tools_dict = {
 }
 
 
-def generate_with_tool(prompt, conversation_history=None, model_name="claude-3-7-sonnet-20250219"):
+def generate_with_tool(prompt, conversation_history=None, model_name="claude-3-7-sonnet-20250219", system_message=None):
     """
     Generates content using the Claude model with tools,
     maintaining conversation history.
@@ -158,6 +147,7 @@ def generate_with_tool(prompt, conversation_history=None, model_name="claude-3-7
         prompt (str): The user's input prompt
         conversation_history (list, optional): The history of the conversation. Defaults to None.
         model_name (str, optional): The name of the Claude model to use. Defaults to \"claude-3-7-sonnet-20250219\".
+        system_message (str, optional): The system message to use. If None, a default will be used.
     
     Returns:
         list: The updated conversation history
@@ -165,6 +155,12 @@ def generate_with_tool(prompt, conversation_history=None, model_name="claude-3-7
     # Initialize conversation history if it's None
     if conversation_history is None:
         conversation_history = []
+
+    # Use default system message if none is provided
+    if system_message is None:
+        system_message = """You are an experienced software engineer implementing code for a project working as a peer engineer
+with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
+If can't understand a task, ask for clarifications."""
 
     print(ansi_colors.USER + prompt + ansi_colors.RESET)
     logging.info("User prompt: %s", prompt)
@@ -200,7 +196,7 @@ def generate_with_tool(prompt, conversation_history=None, model_name="claude-3-7
                 last_response = client.messages.create(
                     model=model_name,
                     max_tokens=20000,
-                    system=SYSTEM,
+                    system=system_message,
                     messages=messages,
                     tools=tools)
 
