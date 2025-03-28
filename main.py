@@ -1,7 +1,16 @@
+import logging
 import os
 import argparse
 from tools.fs_tool import TOOLS
 from messages import SYSTEM
+from colors import AnsiColors
+
+# Configure logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filename='generation.log'
+)
 
 
 def read_system_message():
@@ -105,6 +114,39 @@ def setup_model(args):
             
     return generate_with_tool, model_name
 
+    
+def call_tool(tool_name, args, original_call):
+    """
+    Call the appropriate tool function based on the tool name.
+    
+    Args:
+        tool_name: Name of the tool to call
+        args: Dictionary of arguments to pass to the function
+        original_call: The original function call object from the model
+        
+    Returns:
+        tuple: (function_response, result_text)
+    """
+    logging.debug(f"Calling tool {tool_name} with arguments: {args}")
+    try:
+        for tool in TOOLS:
+            if tool['name'] == tool_name:
+                result = tool['function'](**args)
+                print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
+                logging.info(f"Function result: {result}")
+                return {"result": result}
+    except Exception as e:
+        error_msg = f"Error in {tool_name.name}: {str(e)}"
+        print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
+        logging.warning(error_msg)
+        return {"error": str(e)}
+    
+    
+    error_msg = f"Tool not found: {tool_name}"
+    print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
+    logging.error(error_msg)
+    return {'error': error_msg}
+
 def main():
     """Main entry point for the application"""
     # Parse command line arguments
@@ -122,7 +164,7 @@ def main():
     # Non-interactive mode with --prompt argument
     if args.prompt:
         print(f"Running in non-interactive mode with prompt: {args.prompt}")
-        generate_with_tool(args.prompt, TOOLS, conversation_history, model_name, system_message)
+        generate_with_tool(args.prompt, TOOLS, call_tool, conversation_history, model_name, system_message)
         return
     
     # Interactive mode
@@ -131,7 +173,7 @@ def main():
         user_input = input("You: ")
         if user_input.lower() == "exit":
             break
-        conversation_history = generate_with_tool(user_input, TOOLS, conversation_history, model_name, system_message)
+        conversation_history = generate_with_tool(user_input, TOOLS, call_tool, conversation_history, model_name, system_message)
 
 if __name__ == "__main__":
     main()

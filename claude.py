@@ -3,24 +3,7 @@ import logging
 import anthropic  # pip install anthropic
 import json
 import time
-
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='claude_generation.log'
-)
-
-# ANSI color codes for terminal output
-class AnsiColors:
-    USER = '\x1b[1;32;40m'
-    MODEL = '\x1b[1;37;40m'
-    MODELERROR = '\x1b[1;37;41m'
-    TOOL = '\x1b[1;34;40m'
-    TOOLERROR = '\x1b[1;34;41m'
-    DEBUG = '\x1b[0;35;40m'
-    RESET = '\x1b[0m'
-    WARNING = '\x1b[1;33;40m'
+from colors import AnsiColors
 
 # Constants
 MAX_TOKENS = 200000  # Claude 3 Sonnet has a context window of approximately 200K tokens
@@ -34,7 +17,7 @@ def initialize_client():
         raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
     return anthropic.Anthropic(api_key=api_key)
 
-def transform_tools_to_claude_format(tools):
+def transform_tools(tools):
     """
     Transform tools from common format to Claude-specific format.
     
@@ -45,7 +28,6 @@ def transform_tools_to_claude_format(tools):
         list: List of tool definitions in Claude format
     """
     claude_tools = []
-    tools_dict = {tool['name']: tool['function'] for tool in tools}
     
     for tool in tools:
         claude_tool = {
@@ -68,7 +50,7 @@ def transform_tools_to_claude_format(tools):
         
         claude_tools.append(claude_tool)
     
-    return claude_tools, tools_dict
+    return claude_tools
 
 def pretty_print(messages):
     """
@@ -87,34 +69,6 @@ def pretty_print(messages):
         parts.append(f"Message {i + 1}:\n - {role}: {content_str}")
         
     return "\n".join(parts)
-
-def handle_tool_call(content_block, tools_dict):
-    """
-    Process a tool call and return its result.
-    
-    Args:
-        content_block: The tool call object from Claude
-        
-    Returns:
-        dict: Result of the tool call
-    """
-    if content_block.name not in tools_dict:
-        error_msg = f"Missing function: {content_block.name}"
-        print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
-        logging.error(error_msg)
-        return {"error": error_msg}
-        
-    try:
-        logging.debug(f"Calling function {content_block.name} with arguments: {content_block.input}")
-        result = tools_dict[content_block.name](**content_block.input)
-        print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
-        logging.info(f"Function result: {result}")
-        return {"result": result}
-    except Exception as e:
-        error_msg = f"Error in {content_block.name}: {str(e)}"
-        print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
-        logging.warning(error_msg)
-        return {"error": str(e)}
 
 def manage_conversation_history(conversation_history, max_tokens=MAX_TOKENS):
     """
@@ -158,7 +112,7 @@ def manage_conversation_history(conversation_history, max_tokens=MAX_TOKENS):
         logging.error(f"Error managing tokens: {e}")
         return False
 
-def generate_with_tool(prompt, tools, conversation_history=None, model_name=MODEL_NAME, system_message=None):
+def generate_with_tool(prompt, tools, call_tool, conversation_history=None, model_name=MODEL_NAME, system_message=None):
     """
     Generates content using the Claude model with tools,
     maintaining conversation history.
@@ -166,6 +120,7 @@ def generate_with_tool(prompt, tools, conversation_history=None, model_name=MODE
     Args:
         prompt (str): The user's input prompt
         tools (list): List of tool definitions in common format.
+        call_tool (function): Function to call for tool execution.
         conversation_history (list, optional): The history of the conversation. Defaults to None.
         model_name (str, optional): The name of the Claude model to use. Defaults to MODEL_NAME.
         system_message (str, optional): The system message to use. If None, a default will be used.
@@ -183,9 +138,6 @@ def generate_with_tool(prompt, tools, conversation_history=None, model_name=MODE
         system_message = """You are an experienced software engineer implementing code for a project working as a peer engineer
 with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
 If can't understand a task, ask for clarifications."""
-
-    # Transform tools to Claude format if provided, otherwise use default
-    claude_tools, tools_dict = transform_tools_to_claude_format(tools)
 
     # Log and display user prompt
     print(AnsiColors.USER + prompt + AnsiColors.RESET)
@@ -229,7 +181,7 @@ If can't understand a task, ask for clarifications."""
                     max_tokens=20000,
                     system=system_message,
                     messages=messages,
-                    tools=claude_tools)
+                    tools=transform_tools(tools))
 
                 logging.debug("Full API response: %s", last_response)
                 
@@ -268,12 +220,13 @@ If can't understand a task, ask for clarifications."""
                 print(AnsiColors.MODEL + content_block.text +
                     AnsiColors.RESET, end='')
             elif content_block.type == 'tool_use':
-                print(AnsiColors.TOOL + content_block.name + ": " +
-                      str(content_block.input) + AnsiColors.RESET)
-                logging.info(f"Tool call: {content_block}")
+                call_name = content_block.name
+                call_args = content_block.input
+                print(AnsiColors.TOOL + f"{call_name}: {call_args}" + AnsiColors.RESET)
+                logging.info(f"Tool call: {call_name} with {call_args}")
 
                 # Execute the tool
-                tool_result = handle_tool_call(content_block, tools_dict)
+                tool_result = call_tool(call_name, call_args, content_block)
 
                 # Add tool result to outputs
                 tool_results.append({

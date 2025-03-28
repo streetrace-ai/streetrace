@@ -2,23 +2,7 @@ import os
 import logging
 from google import genai
 from google.genai import types
-
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='generation.log'
-)
-
-# ANSI color codes for terminal output
-class AnsiColors:
-    USER = '\x1b[1;32;40m'
-    MODEL = '\x1b[1;37;40m'
-    MODELERROR = '\x1b[1;37;41m'
-    TOOL = '\x1b[1;34;40m'
-    TOOLERROR = '\x1b[1;34;41m'
-    DEBUG = '\x1b[0;35;40m'
-    RESET = '\x1b[0m'
+from colors import AnsiColors
 
 # Constants
 MAX_TOKENS = 2**20
@@ -33,7 +17,7 @@ def initialize_client():
     return genai.Client(api_key=api_key)
 
 
-def transform_tools_to_gemini_format(tools):
+def transform_tools(tools):
     """
     Transform tools from common format to Gemini-specific format.
     
@@ -44,7 +28,6 @@ def transform_tools_to_gemini_format(tools):
         list: List of tool definitions in Gemini format
     """
     gemini_tools = []
-    tools_dict = {tool['name']: tool['function'] for tool in tools}
     
     for tool in tools:
         # Convert properties to Gemini Schema format
@@ -69,7 +52,7 @@ def transform_tools_to_gemini_format(tools):
         # Add the tool to the list
         gemini_tools.append(types.Tool(function_declarations=[function_declaration]))
     
-    return gemini_tools, tools_dict
+    return gemini_tools
 
 def pretty_print(contents: list[types.Content]) -> str:
     """
@@ -140,35 +123,7 @@ def manage_token_count(client, contents, model_name):
         logging.error(f"Error managing tokens: {e}")
         return False
 
-def handle_function_call(function_call, tools_dict):
-    """
-    Process a function call and return its result.
-    
-    Args:
-        function_call: The function call object from Gemini
-        
-    Returns:
-        tuple: (function_response, result_text)
-    """
-    if function_call.name not in tools_dict:
-        error_msg = f'Missing function: {function_call.name}'
-        print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
-        logging.error(error_msg)
-        return {'error': error_msg}, error_msg
-        
-    try:
-        logging.debug(f"Calling function {function_call.name} with arguments: {function_call.args}")
-        result = tools_dict[function_call.name](**function_call.args)
-        print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
-        logging.info(f"Function result: {result}")
-        return {'result': result}, str(result)
-    except Exception as e:
-        error_msg = f"Error in {function_call.name}: {str(e)}"
-        print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
-        logging.warning(error_msg)
-        return {'error': str(e)}, error_msg
-
-def generate_with_tool(prompt, tools, conversation_history=None, model_name=MODEL_NAME, system_message=None):
+def generate_with_tool(prompt, tools, call_tool, conversation_history=None, model_name=MODEL_NAME, system_message=None):
     """
     Generates content using the Gemini model with the custom tool,
     maintaining conversation history.
@@ -176,6 +131,7 @@ def generate_with_tool(prompt, tools, conversation_history=None, model_name=MODE
     Args:
         prompt (str): The user's input prompt
         tools (list): List of tool definitions in common format.
+        call_tool (function): Function to call for tool execution.
         conversation_history (list, optional): The history of the conversation. Defaults to None.
         model_name (str, optional): The name of the Gemini model to use. Defaults to "gemini-2.0-flash-001".
         system_message (str, optional): The system message to use. If None, a default will be used.
@@ -193,9 +149,6 @@ def generate_with_tool(prompt, tools, conversation_history=None, model_name=MODE
         system_message = """You are an experienced software engineer implementing code for a project working as a peer engineer
 with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
 If can't understand a task, ask for clarifications."""
-
-    # Transform tools to Gemini format if provided, otherwise use default
-    gemini_tools, tools_dict = transform_tools_to_gemini_format(tools)
 
     if prompt:
         # Log and display user prompt
@@ -219,7 +172,7 @@ If can't understand a task, ask for clarifications."""
     try:
         # Set up generation configuration
         generation_config = types.GenerateContentConfig(
-            tools=gemini_tools,
+            tools=transform_tools(tools),
             system_instruction=system_message,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             tool_config=types.ToolConfig(
@@ -262,15 +215,15 @@ If can't understand a task, ask for clarifications."""
                 # Process all function calls in the chunk
                 for function_call in chunk.function_calls:
                     call_name = function_call.name
-                    call_args = str(function_call.args)
+                    call_args = function_call.args
                     print(AnsiColors.TOOL + f"{call_name}: {call_args}" + AnsiColors.RESET)
-                    logging.info(f"Function call: {call_name} with {call_args}")
+                    logging.info(f"Tool call: {call_name} with {call_args}")
                     
                     # Add the function call to request parts
                     request_parts.append(types.Part(function_call=function_call))
                     
-                    # Execute the function call
-                    function_response, _ = handle_function_call(function_call, tools_dict)
+                    # Execute the tool
+                    tool_result = call_tool(call_name, call_args, function_call)
                     
                     # Add the function response to response parts
                     response_parts.append(
@@ -278,7 +231,7 @@ If can't understand a task, ask for clarifications."""
                             function_response=types.FunctionResponse(
                                 id=function_call.id,
                                 name=function_call.name,
-                                response=function_response
+                                response=tool_result
                             )
                         )
                     )
@@ -303,7 +256,7 @@ If can't understand a task, ask for clarifications."""
             conversation_history.append(tool_response_content)
             
             # Continue with function call results
-            return generate_with_tool('', tools, conversation_history, model_name, system_message)
+            return generate_with_tool('', tools, call_tool, conversation_history, model_name, system_message)
         
         # Output finish information
         print("\n" + AnsiColors.MODEL + f"{finish_reason}: {finish_message}" + AnsiColors.RESET)
