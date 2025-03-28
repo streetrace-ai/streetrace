@@ -208,10 +208,13 @@ def generate_with_tool(prompt, conversation_history =None):
     conversation_history.append(user_prompt_content)
     contents = conversation_history.copy()
 
-    cont = True
+    continue_generation = True
     request_count = 0
-    # Set a maximum token limit
-    while cont:
+    total_input_tokens = 0
+    total_output_tokens = 0
+    last_response = None
+    
+    while continue_generation:
         request_parts = []
         response_parts = []
         response_text = ''
@@ -325,7 +328,7 @@ def generate_with_tool(prompt, conversation_history =None):
             contents.append(tool_response_content)
             conversation_history.append(tool_response_content)
 
-        cont = len(response_parts) > 0
+        continue_generation = len(response_parts) > 0
     print(ansi_colors.MODEL + finish_reason + ": " + finish_message +
           ansi_colors.RESET)
     logging.info(

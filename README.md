@@ -4,11 +4,12 @@ Streetrace is an agentic AI coding partner that enables engineers to leverage AI
 
 **Project Description:**
 
-Streetrace defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic resides in `gemini.py`, which defines the `generate_with_tool` function. This function takes a user prompt and conversation history as input, sends it to the AI model, and handles function calls from the model based on the defined tools. The `main.py` script provides a simple command-line interface for interacting with the `generate_with_tool` function.
+Streetrace defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic resides in `gemini.py` and `claude.py`, which define the `generate_with_tool` function for their respective models. This function takes a user prompt and conversation history as input, sends it to the AI model, and handles function calls from the model based on the defined tools. The `main.py` script provides a simple command-line interface for interacting with the `generate_with_tool` function.
 
 **Key Components:**
 
-*   `gemini.py`: Contains the core logic for interacting with the AI model, defining tools, and handling function calls.
+*   `gemini.py`: Contains the core logic for interacting with the Gemini AI model, defining tools, and handling function calls.
+*   `claude.py`: Contains the core logic for interacting with the Claude AI model, defining tools, and handling function calls.
 *   `main.py`: Provides a command-line interface for interacting with the `generate_with_tool` function.
 *   `tools/fs_tool.py`: Implements file system tools (list directory, read file, write file, execute CLI command).
 *   `tools/search.py`: Implements a tool for searching text within files.
@@ -17,7 +18,7 @@ Streetrace defines a set of tools that the AI model can use to interact with the
 **Workflow:**
 
 1.  The user provides a prompt through the command-line interface in `main.py`. 
-2.  The prompt is passed to the `generate_with_tool` function in `gemini.py`. 
+2.  The prompt is passed to the `generate_with_tool` function in either `gemini.py` or `claude.py`. 
 3.  The `generate_with_tool` function sends the prompt and conversation history to the AI model.
 4.  The AI model processes the input and may call one of the defined tools.
 5.  If a tool is called, the `generate_with_tool` function executes the corresponding function in `tools/fs_tool.py` or `tools/search.py`. 
@@ -37,9 +38,25 @@ Streetrace defines a set of tools that the AI model can use to interact with the
 
 The tools can be used with the AI model to perform various tasks, such as reading and writing files, executing commands, and searching for information within files. The `search.search_files` tool searches for text in files within a given root directory, defaulting to the current directory.
 
+### Command Line Arguments
+
+Streetrace now supports command line arguments to specify which AI model to use:
+
+```
+python main.py --model [claude|gemini]
+```
+
+If no model is specified, Streetrace will automatically select an AI model based on the available API keys in the following order:
+1. Claude (if ANTHROPIC_API_KEY is set)
+2. Gemini (if GEMINI_API_KEY is set)
+3. OpenAI (if OPENAI_API_KEY is set - not yet implemented)
+
 ## Environment Setup
 
-To use these tools, you need to set the `GEMINI_API_KEY` environment variable with your Gemini API key.
+To use these tools, you need to set one of the following environment variables:
+- `ANTHROPIC_API_KEY` for Claude AI model
+- `GEMINI_API_KEY` for Gemini AI model
+- `OPENAI_API_KEY` for OpenAI (not implemented yet)
 
 ## Running tests
 
