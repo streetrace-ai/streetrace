@@ -1,5 +1,8 @@
 import os
 import argparse
+from tools.fs_tool import TOOLS
+from messages import SYSTEM
+
 
 def read_system_message():
     """
@@ -17,29 +20,7 @@ def read_system_message():
             print(f"Error reading system message file: {e}")
     
     # Default system message
-    return """You are an experienced software engineer implementing code for a project working as a peer engineer
-with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
-If can't understand a task, ask for clarifications.
-For every step, remember to adhere to the SYSTEM MESSAGE.
-You are working with source code in the current directory (./) that you can access using the provided tools.
-For every request, understand what needs to be done, then execute the next appropriate action.
-
-1. Please use provided functions to retrieve the required information.
-2. Please use provided functions to apply the necessary changes to the project.
-3. When you need to implement code, follow best practices for the given programming language.
-4. When applicable, follow software and integration design patterns.
-5. When applicable, follow SOLID principles.
-6. Document all the code you implement.
-7. If there is no README.md file, create it describing the project.
-8. Create other documentation files as necessary, for example to describe setting up the environment.
-9. Create unit tests when applicable. If you can see existing unit tests in the codebase, always create unit tests for new code, and maintain the existing tests.
-10. Run the unit tests and static analysis checks, such as lint, to make sure the task is completed.
-11. After completing the task, please provide a summary of the changes made and update the documentation.
-
-Remember, the code is located in the current directory (./) that you can access using the provided tools.
-Remember, if you can't find a specific location in code, try searching through files for close matches.
-Remember, always think step by step and execute one step at a time.
-Remember, never commit the changes."""
+    return SYSTEM
 
 def parse_arguments():
     """
@@ -49,9 +30,9 @@ def parse_arguments():
         argparse.Namespace: The parsed arguments
     """
     parser = argparse.ArgumentParser(description='Run AI assistant with different models')
-    parser.add_argument('--model', type=str, choices=['claude', 'gemini'], 
-                        help='Choose AI model (claude or gemini)')
-    parser.add_argument('--model-name', type=str,
+    parser.add_argument('--engine', type=str, choices=['claude', 'gemini'], 
+                        help='Choose AI engine (claude or gemini)')
+    parser.add_argument('--model', type=str,
                         help='Specific model name to use (e.g., claude-3-7-sonnet-20250219 or gemini-2.0-flash-001)')
     parser.add_argument('--prompt', type=str,
                         help='Prompt to send to the AI model (skips interactive mode if provided)')
@@ -59,7 +40,7 @@ def parse_arguments():
 
 def setup_model(args):
     """
-    Set up the appropriate AI model based on arguments and available API keys.
+    Set up the appropriate AI engine based on arguments and available API keys.
     
     Args:
         args: Command line arguments
@@ -77,29 +58,29 @@ def setup_model(args):
     gemini_model_name = "gemini-2.0-flash-001"
     
     # Override default model name if provided through command line
-    if args.model_name:
-        if args.model == 'claude':
-            claude_model_name = args.model_name
-        elif args.model == 'gemini':
-            gemini_model_name = args.model_name
+    if args.model:
+        if args.engine == 'claude':
+            claude_model_name = args.model
+        elif args.engine == 'gemini':
+            gemini_model_name = args.model
         else:
-            print(f"Model name '{args.model_name}' provided but no model type (--model) specified")
+            print(f"Model name '{args.model}' provided but no engine type (--engine) specified")
             exit(1)
 
     # Use command line argument if provided
-    if args.model:
-        if args.model == 'claude':
+    if args.engine:
+        if args.engine == 'claude':
             if not anthropic_api_key:
                 print("ANTHROPIC_API_KEY is required but not set")
                 exit(1)
-            print(f"Using Claude AI model: {claude_model_name}")
+            print(f"Using Claude AI engine: {claude_model_name}")
             from claude import generate_with_tool
             model_name = claude_model_name
-        elif args.model == 'gemini':
+        elif args.engine == 'gemini':
             if not gemini_api_key:
                 print("GEMINI_API_KEY is required but not set")
                 exit(1)
-            print(f"Using Gemini AI model: {gemini_model_name}")
+            print(f"Using Gemini AI engine: {gemini_model_name}")
             from gemini import generate_with_tool
             model_name = gemini_model_name
     else:
@@ -141,7 +122,7 @@ def main():
     # Non-interactive mode with --prompt argument
     if args.prompt:
         print(f"Running in non-interactive mode with prompt: {args.prompt}")
-        generate_with_tool(args.prompt, conversation_history, model_name, system_message)
+        generate_with_tool(args.prompt, TOOLS, conversation_history, model_name, system_message)
         return
     
     # Interactive mode
@@ -150,7 +131,7 @@ def main():
         user_input = input("You: ")
         if user_input.lower() == "exit":
             break
-        conversation_history = generate_with_tool(user_input, conversation_history, model_name, system_message)
+        conversation_history = generate_with_tool(user_input, TOOLS, conversation_history, model_name, system_message)
 
 if __name__ == "__main__":
     main()

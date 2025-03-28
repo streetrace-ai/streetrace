@@ -2,7 +2,6 @@ import os
 import logging
 from google import genai
 from google.genai import types
-import tools.fs_tool as fs_tool
 
 # Configure logging
 logging.basicConfig(
@@ -33,118 +32,44 @@ def initialize_client():
         raise ValueError("GEMINI_API_KEY environment variable not set.")
     return genai.Client(api_key=api_key)
 
-# Tool definitions
-TOOLS = [
-    types.Tool(function_declarations=[
-        types.FunctionDeclaration(
-            name='fs_tool.list_directory',
-            description='List information about the files and directories in the requested directory.',
-            parameters=types.Schema(
-                type='OBJECT',
-                properties={
-                    'path': types.Schema(
-                        type='STRING',
-                        description='Path to the directory to retrieve the contents from.'
-                    )
-                },
-                required=['path']
-            )
-        )
-    ]),
 
-    types.Tool(function_declarations=[
-        types.FunctionDeclaration(
-            name='fs_tool.read_file',
-            description='Read file contents.',
-            parameters=types.Schema(
-                type='OBJECT',
-                properties={
-                    'path': types.Schema(
-                        type='STRING',
-                        description='Path to the file to retrieve the contents from.'
-                    ),
-                    'encoding': types.Schema(
-                        type='STRING',
-                        description='Text encoding to use. Defaults to \"utf-8\".'
-                    )
-                },
-                required=['path']
-            )
-        )
-    ]),
-
-    types.Tool(function_declarations=[
-        types.FunctionDeclaration(
-            name='fs_tool.write_file',
-            description='Write content to a file. Overwrites the file if it already exists.',
-            parameters=types.Schema(
-                type='OBJECT',
-                properties={
-                    'path': types.Schema(
-                        type='STRING',
-                        description='Path to the file to write to.'
-                    ),
-                    'content': types.Schema(
-                        type='STRING',
-                        description='New content of the file.'
-                    ),
-                    'encoding': types.Schema(
-                        type='STRING',
-                        description='Text encoding to use. Defaults to \"utf-8\".'
-                    )
-                },
-                required=['path', 'content']
-            )
-        )
-    ]),
-
-    types.Tool(function_declarations=[
-        types.FunctionDeclaration(
-            name='fs_tool.execute_cli_command',
-            description='Executes a CLI command and returns the output, error, and return code.',
-            parameters=types.Schema(
-                type='OBJECT',
-                properties={
-                    'command': types.Schema(
-                        type='STRING',
-                        description='The CLI command to execute.'
-                    )
-                },
-                required=['command']
-            )
-        )
-    ]),
+def transform_tools_to_gemini_format(tools):
+    """
+    Transform tools from common format to Gemini-specific format.
     
-    types.Tool(function_declarations=[
-        types.FunctionDeclaration(
-            name='fs_tool.search_files',
-            description='Searches for text occurrences in files given a glob pattern and a search string.',
+    Args:
+        tools (list): List of tool definitions in common format
+        
+    Returns:
+        list: List of tool definitions in Gemini format
+    """
+    gemini_tools = []
+    tools_dict = {tool['name']: tool['function'] for tool in tools}
+    
+    for tool in tools:
+        # Convert properties to Gemini Schema format
+        gemini_properties = {}
+        for param_name, param_def in tool['parameters']['properties'].items():
+            gemini_properties[param_name] = types.Schema(
+                type=param_def['type'].upper(),  # Gemini uses uppercase type names
+                description=param_def['description']
+            )
+        
+        # Create the function declaration
+        function_declaration = types.FunctionDeclaration(
+            name=tool['name'],
+            description=tool['description'],
             parameters=types.Schema(
                 type='OBJECT',
-                properties={
-                    'pattern': types.Schema(
-                        type='STRING',
-                        description='Glob pattern to match files.'
-                    ),
-                    'search_string': types.Schema(
-                        type='STRING',
-                        description='The string to search for.'
-                    )
-                },
-                required=['pattern', 'search_string']
+                properties=gemini_properties,
+                required=tool['parameters']['required']
             )
         )
-    ]),
-]
-
-# Map function names to implementations
-TOOLS_DICT = {
-    'fs_tool.list_directory': fs_tool.list_directory,
-    'fs_tool.read_file': fs_tool.read_file,
-    'fs_tool.write_file': fs_tool.write_file,
-    'fs_tool.execute_cli_command': fs_tool.execute_cli_command,
-    'fs_tool.search_files': fs_tool.search_files
-}
+        
+        # Add the tool to the list
+        gemini_tools.append(types.Tool(function_declarations=[function_declaration]))
+    
+    return gemini_tools, tools_dict
 
 def pretty_print(contents: list[types.Content]) -> str:
     """
@@ -215,7 +140,7 @@ def manage_token_count(client, contents, model_name):
         logging.error(f"Error managing tokens: {e}")
         return False
 
-def handle_function_call(function_call):
+def handle_function_call(function_call, tools_dict):
     """
     Process a function call and return its result.
     
@@ -225,7 +150,7 @@ def handle_function_call(function_call):
     Returns:
         tuple: (function_response, result_text)
     """
-    if function_call.name not in TOOLS_DICT:
+    if function_call.name not in tools_dict:
         error_msg = f'Missing function: {function_call.name}'
         print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
         logging.error(error_msg)
@@ -233,7 +158,7 @@ def handle_function_call(function_call):
         
     try:
         logging.debug(f"Calling function {function_call.name} with arguments: {function_call.args}")
-        result = TOOLS_DICT[function_call.name](**function_call.args)
+        result = tools_dict[function_call.name](**function_call.args)
         print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
         logging.info(f"Function result: {result}")
         return {'result': result}, str(result)
@@ -243,13 +168,14 @@ def handle_function_call(function_call):
         logging.warning(error_msg)
         return {'error': str(e)}, error_msg
 
-def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME, system_message=None):
+def generate_with_tool(prompt, tools, conversation_history=None, model_name=MODEL_NAME, system_message=None):
     """
     Generates content using the Gemini model with the custom tool,
     maintaining conversation history.
     
     Args:
         prompt (str): The user's input prompt
+        tools (list): List of tool definitions in common format.
         conversation_history (list, optional): The history of the conversation. Defaults to None.
         model_name (str, optional): The name of the Gemini model to use. Defaults to "gemini-2.0-flash-001".
         system_message (str, optional): The system message to use. If None, a default will be used.
@@ -268,16 +194,20 @@ def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME,
 with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
 If can't understand a task, ask for clarifications."""
 
-    # Log and display user prompt
-    print(AnsiColors.USER + prompt + AnsiColors.RESET)
-    logging.info(f"User prompt: {prompt}")
+    # Transform tools to Gemini format if provided, otherwise use default
+    gemini_tools, tools_dict = transform_tools_to_gemini_format(tools)
 
-    # Add the user's prompt to the conversation history
-    user_prompt_content = types.Content(
-        role='user',
-        parts=[types.Part.from_text(text=prompt)]
-    )
-    conversation_history.append(user_prompt_content)
+    if prompt:
+        # Log and display user prompt
+        print(AnsiColors.USER + prompt + AnsiColors.RESET)
+        logging.info(f"User prompt: {prompt}")
+
+        # Add the user's prompt to the conversation history
+        user_prompt_content = types.Content(
+            role='user',
+            parts=[types.Part.from_text(text=prompt)]
+        )
+        conversation_history.append(user_prompt_content)
     contents = conversation_history.copy()
 
     # Ensure contents are within token limits
@@ -289,7 +219,7 @@ If can't understand a task, ask for clarifications."""
     try:
         # Set up generation configuration
         generation_config = types.GenerateContentConfig(
-            tools=TOOLS,
+            tools=gemini_tools,
             system_instruction=system_message,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             tool_config=types.ToolConfig(
@@ -340,7 +270,7 @@ If can't understand a task, ask for clarifications."""
                     request_parts.append(types.Part(function_call=function_call))
                     
                     # Execute the function call
-                    function_response, _ = handle_function_call(function_call)
+                    function_response, _ = handle_function_call(function_call, tools_dict)
                     
                     # Add the function response to response parts
                     response_parts.append(
@@ -373,10 +303,10 @@ If can't understand a task, ask for clarifications."""
             conversation_history.append(tool_response_content)
             
             # Continue with function call results
-            return generate_with_tool('', conversation_history, model_name, system_message)
+            return generate_with_tool('', tools, conversation_history, model_name, system_message)
         
         # Output finish information
-        print(AnsiColors.MODEL + f"{finish_reason}: {finish_message}" + AnsiColors.RESET)
+        print("\n" + AnsiColors.MODEL + f"{finish_reason}: {finish_message}" + AnsiColors.RESET)
         logging.info(f"Model finished with reason {finish_reason}: {finish_message}")
     
     except Exception as e:

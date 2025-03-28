@@ -3,7 +3,6 @@ import logging
 import anthropic  # pip install anthropic
 import json
 import time
-import tools.fs_tool as fs_tool
 
 # Configure logging
 logging.basicConfig(
@@ -35,110 +34,41 @@ def initialize_client():
         raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
     return anthropic.Anthropic(api_key=api_key)
 
-# Tool definitions
-TOOLS = [{
-    "type": "custom",
-    "name": "search_files",
-    "description":
-    "Searches for text occurrences in files given a glob pattern and a search string.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "pattern": {
-                "type": "string",
-                "description": "Glob pattern to match files."
-            },
-            "search_string": {
-                "type": "string",
-                "description": "The string to search for."
+def transform_tools_to_claude_format(tools):
+    """
+    Transform tools from common format to Claude-specific format.
+    
+    Args:
+        tools (list): List of tool definitions in common format
+        
+    Returns:
+        list: List of tool definitions in Claude format
+    """
+    claude_tools = []
+    tools_dict = {tool['name']: tool['function'] for tool in tools}
+    
+    for tool in tools:
+        claude_tool = {
+            "type": "custom",
+            "name": tool["name"],
+            "description": tool["description"],
+            "input_schema": {
+                "type": "object",
+                "properties": {},
+                "required": tool["parameters"]["required"]
             }
-        },
-        "required": ["pattern", "search_string"]
-    }
-}, {
-    "type": "custom",
-    "name": "execute_cli_command",
-    "description":
-    "Executes a CLI command and returns the output, error, and return code.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "command": {
-                "type": "string",
-                "description": "The CLI command to execute."
+        }
+        
+        # Transform parameters
+        for param_name, param_def in tool["parameters"]["properties"].items():
+            claude_tool["input_schema"]["properties"][param_name] = {
+                "type": param_def["type"],
+                "description": param_def["description"]
             }
-        },
-        "required": ["command"]
-    }
-}, {
-    "type": "custom",
-    "name": "write_file",
-    "description":
-    "Write content to a file. Overwrites the file if it already exists.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description": "Path to the file to write to."
-            },
-            "content": {
-                "type": "string",
-                "description": "New content of the file."
-            },
-            "encoding": {
-                "type": "string",
-                "description": "Text encoding to use. Defaults to \"utf-8\"."
-            }
-        },
-        "required": ["path", "content"]
-    }
-}, {
-    "type": "custom",
-    "name": "read_file",
-    "description": "Read file contents.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "path": {
-                "type": "string",
-                "description":
-                "Path to the file to retrieve the contents from."
-            },
-            "encoding": {
-                "type": "string",
-                "description": "Text encoding to use. Defaults to \"utf-8\"."
-            }
-        },
-        "required": ["path"]
-    }
-}, {
-    "type": "custom",
-    "name": "list_directory",
-    "description":
-    "List information about the files and directories in the requested directory.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "path": {
-                "type":
-                "string",
-                "description":
-                "Path to the directory to retrieve the contents from."
-            }
-        },
-        "required": ["path"]
-    }
-}]
-
-# Map tool names to functions
-TOOLS_DICT = {
-    'list_directory': fs_tool.list_directory,
-    'read_file': fs_tool.read_file,
-    'write_file': fs_tool.write_file,
-    'execute_cli_command': fs_tool.execute_cli_command,
-    'search_files': fs_tool.search_files
-}
+        
+        claude_tools.append(claude_tool)
+    
+    return claude_tools, tools_dict
 
 def pretty_print(messages):
     """
@@ -158,7 +88,7 @@ def pretty_print(messages):
         
     return "\n".join(parts)
 
-def handle_tool_call(content_block):
+def handle_tool_call(content_block, tools_dict):
     """
     Process a tool call and return its result.
     
@@ -168,7 +98,7 @@ def handle_tool_call(content_block):
     Returns:
         dict: Result of the tool call
     """
-    if content_block.name not in TOOLS_DICT:
+    if content_block.name not in tools_dict:
         error_msg = f"Missing function: {content_block.name}"
         print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
         logging.error(error_msg)
@@ -176,7 +106,7 @@ def handle_tool_call(content_block):
         
     try:
         logging.debug(f"Calling function {content_block.name} with arguments: {content_block.input}")
-        result = TOOLS_DICT[content_block.name](**content_block.input)
+        result = tools_dict[content_block.name](**content_block.input)
         print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
         logging.info(f"Function result: {result}")
         return {"result": result}
@@ -228,13 +158,14 @@ def manage_conversation_history(conversation_history, max_tokens=MAX_TOKENS):
         logging.error(f"Error managing tokens: {e}")
         return False
 
-def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME, system_message=None):
+def generate_with_tool(prompt, tools, conversation_history=None, model_name=MODEL_NAME, system_message=None):
     """
     Generates content using the Claude model with tools,
     maintaining conversation history.
     
     Args:
         prompt (str): The user's input prompt
+        tools (list): List of tool definitions in common format.
         conversation_history (list, optional): The history of the conversation. Defaults to None.
         model_name (str, optional): The name of the Claude model to use. Defaults to MODEL_NAME.
         system_message (str, optional): The system message to use. If None, a default will be used.
@@ -252,6 +183,9 @@ def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME,
         system_message = """You are an experienced software engineer implementing code for a project working as a peer engineer
 with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
 If can't understand a task, ask for clarifications."""
+
+    # Transform tools to Claude format if provided, otherwise use default
+    claude_tools, tools_dict = transform_tools_to_claude_format(tools)
 
     # Log and display user prompt
     print(AnsiColors.USER + prompt + AnsiColors.RESET)
@@ -295,7 +229,7 @@ If can't understand a task, ask for clarifications."""
                     max_tokens=20000,
                     system=system_message,
                     messages=messages,
-                    tools=TOOLS)
+                    tools=claude_tools)
 
                 logging.debug("Full API response: %s", last_response)
                 
@@ -339,7 +273,7 @@ If can't understand a task, ask for clarifications."""
                 logging.info(f"Tool call: {content_block}")
 
                 # Execute the tool
-                tool_result = handle_tool_call(content_block)
+                tool_result = handle_tool_call(content_block, tools_dict)
 
                 # Add tool result to outputs
                 tool_results.append({
@@ -361,7 +295,7 @@ If can't understand a task, ask for clarifications."""
         continue_generation = last_response.stop_reason == 'tool_use'
 
     if last_response:
-        print(AnsiColors.MODEL + f"Stop reason: {last_response.stop_reason}" +
+        print("\n" + AnsiColors.MODEL + f"Stop reason: {last_response.stop_reason}" +
               AnsiColors.RESET)
         logging.info(f"Model has finished with reason: {last_response.stop_reason}")
 

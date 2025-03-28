@@ -94,3 +94,94 @@ def search_files(pattern, search_string):
         return json.dumps({"success": True, "output": result}, indent=2)
     except (ValueError, TypeError, IOError, OSError) as e:
         return json.dumps({"error": str(e)}, indent=2)
+    
+
+# Define common tools list
+TOOLS = [
+    {
+        "name": "search_files",
+        "description": "Searches for text occurrences in files given a glob pattern and a search string.",
+        "parameters": {
+            "properties": {
+                "pattern": {
+                    "type": "string",
+                    "description": "Glob pattern to match files."
+                },
+                "search_string": {
+                    "type": "string",
+                    "description": "The string to search for."
+                }
+            },
+            "required": ["pattern", "search_string"]
+        },
+        "function": search_files
+    },
+    {
+        "name": "execute_cli_command",
+        "description": "Executes a CLI command and returns the output, error, and return code.",
+        "parameters": {
+            "properties": {
+                "command": {
+                    "type": "string",
+                    "description": "The CLI command to execute."
+                }
+            },
+            "required": ["command"]
+        },
+        "function": execute_cli_command
+    },
+    {
+        "name": "write_file",
+        "description": "Write content to a file. Overwrites the file if it already exists.",
+        "parameters": {
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Path to the file to write to."
+                },
+                "content": {
+                    "type": "string",
+                    "description": "New content of the file."
+                },
+                "encoding": {
+                    "type": "string",
+                    "description": "Text encoding to use. Defaults to \"utf-8\"."
+                }
+            },
+            "required": ["path", "content"]
+        },
+        "function": write_file
+    },
+    {
+        "name": "read_file",
+        "description": "Read file contents.",
+        "parameters": {
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Path to the file to retrieve the contents from."
+                },
+                "encoding": {
+                    "type": "string",
+                    "description": "Text encoding to use. Defaults to \"utf-8\"."
+                }
+            },
+            "required": ["path"]
+        },
+        "function": read_file
+    },
+    {
+        "name": "list_directory",
+        "description": "List information about the files and directories in the requested directory.",
+        "parameters": {
+            "properties": {
+                "path": {
+                    "type": "string",
+                    "description": "Path to the directory to retrieve the contents from."
+                }
+            },
+            "required": ["path"]
+        },
+        "function": list_directory
+    }
+]
