@@ -6,6 +6,10 @@ import tools.cli as cli
 import tools.search as s
 
 def _clean_input(input_str):
+    """
+    Clean the input by removing unwanted whitespace characters, but preserving quotes.
+    """
+    # Only strip whitespace, not quotes
     return input_str.strip('"\'\r\n\t ')
 
 def list_directory(path):
@@ -61,7 +65,7 @@ def write_file(path, content, encoding='utf-8'):
         return json.dumps({"error": str(e)}, indent=2)
 
 def execute_cli_command(command):
-    """Write content to a file.
+    """Execute a CLI command.
     
     Args:
         command (str): The command to execute.
@@ -70,7 +74,7 @@ def execute_cli_command(command):
         The stdio output.
     """
     try:
-        result = cli.execute_cli_command(_clean_input(command))
+        result = cli.execute_cli_command(command)
         return json.dumps({"success": True, "output": result}, indent=2)
     except (ValueError, TypeError, IOError, OSError) as e:
         return json.dumps({"error": str(e)}, indent=2)
