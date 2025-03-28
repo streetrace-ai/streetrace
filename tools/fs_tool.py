@@ -2,7 +2,7 @@ import json
 import tools.read_directory_structure as rds
 import tools.read_file as rf
 import tools.write_file as wf
-import tools.cli_tool as cli
+import tools.cli as cli
 import tools.search as s
 
 def _clean_input(input_str):
