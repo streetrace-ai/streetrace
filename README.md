@@ -40,16 +40,31 @@ The tools can be used with the AI model to perform various tasks, such as readin
 
 ### Command Line Arguments
 
-Streetrace now supports command line arguments to specify which AI model to use:
+Streetrace supports the following command line arguments:
 
 ```
-python main.py --model [claude|gemini]
+python main.py [--model {claude|gemini}] [--model-name MODEL_NAME] [--prompt PROMPT]
 ```
+
+Options:
+- `--model` - Choose AI model (claude or gemini)
+- `--model-name` - Specific model name to use (e.g., claude-3-7-sonnet-20250219 or gemini-2.0-flash-001)
+- `--prompt` - Prompt to send to the AI model (skips interactive mode if provided)
 
 If no model is specified, Streetrace will automatically select an AI model based on the available API keys in the following order:
 1. Claude (if ANTHROPIC_API_KEY is set)
 2. Gemini (if GEMINI_API_KEY is set)
 3. OpenAI (if OPENAI_API_KEY is set - not yet implemented)
+
+#### Non-interactive Mode
+
+You can use the `--prompt` argument to run Streetrace in non-interactive mode:
+
+```
+python main.py --prompt "List all Python files in the current directory"
+```
+
+This will execute the prompt once and exit, which is useful for scripting or one-off commands.
 
 ### System Message Customization
 

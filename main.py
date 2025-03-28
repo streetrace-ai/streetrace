@@ -41,15 +41,32 @@ Remember, if you can't find a specific location in code, try searching through f
 Remember, always think step by step and execute one step at a time.
 Remember, never commit the changes."""
 
-def main():
-    # Parse command line arguments
+def parse_arguments():
+    """
+    Parse command line arguments.
+    
+    Returns:
+        argparse.Namespace: The parsed arguments
+    """
     parser = argparse.ArgumentParser(description='Run AI assistant with different models')
     parser.add_argument('--model', type=str, choices=['claude', 'gemini'], 
                         help='Choose AI model (claude or gemini)')
     parser.add_argument('--model-name', type=str,
                         help='Specific model name to use (e.g., claude-3-7-sonnet-20250219 or gemini-2.0-flash-001)')
-    args = parser.parse_args()
+    parser.add_argument('--prompt', type=str,
+                        help='Prompt to send to the AI model (skips interactive mode if provided)')
+    return parser.parse_args()
 
+def setup_model(args):
+    """
+    Set up the appropriate AI model based on arguments and available API keys.
+    
+    Args:
+        args: Command line arguments
+        
+    Returns:
+        tuple: (generate_with_tool function, model_name to use)
+    """
     # Check which API keys are available
     anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY')
     gemini_api_key = os.environ.get('GEMINI_API_KEY')
@@ -68,9 +85,6 @@ def main():
         else:
             print(f"Model name '{args.model_name}' provided but no model type (--model) specified")
             exit(1)
-
-    # Read the system message
-    system_message = read_system_message()
 
     # Use command line argument if provided
     if args.model:
@@ -107,9 +121,31 @@ def main():
             print("- GEMINI_API_KEY for Gemini")
             print("- OPENAI_API_KEY for OpenAI (not implemented yet)")
             exit(1)
+            
+    return generate_with_tool, model_name
 
-    # Example usage:
+def main():
+    """Main entry point for the application"""
+    # Parse command line arguments
+    args = parse_arguments()
+    
+    # Set up the appropriate AI model
+    generate_with_tool, model_name = setup_model(args)
+
+    # Read the system message
+    system_message = read_system_message()
+
+    # Initialize conversation history
     conversation_history = []
+    
+    # Non-interactive mode with --prompt argument
+    if args.prompt:
+        print(f"Running in non-interactive mode with prompt: {args.prompt}")
+        generate_with_tool(args.prompt, conversation_history, model_name, system_message)
+        return
+    
+    # Interactive mode
+    print("Starting interactive session. Type 'exit' to quit.")
     while True:
         user_input = input("You: ")
         if user_input.lower() == "exit":
