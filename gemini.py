@@ -1,21 +1,18 @@
 import os
 import logging
-from google import genai  # https://googleapis.github.io/python-genai/genai.html
+from google import genai
 from google.genai import types
 import tools.fs_tool as fs_tool
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s',
-                    filename='generation.log')
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filename='generation.log'
+)
 
-# Configure your API key
-api_key = os.environ.get('GEMINI_API_KEY')  # Get the API key from the environment variable
-if not api_key:
-    raise ValueError("GEMINI_API_KEY environment variable not set.")
-client = genai.Client(api_key=api_key)
-
-# https://en.wikipedia.org/wiki/ANSI_escape_code#Colors
-class ansi_colors:
+# ANSI color codes for terminal output
+class AnsiColors:
     USER = '\x1b[1;32;40m'
     MODEL = '\x1b[1;37;40m'
     MODELERROR = '\x1b[1;37;41m'
@@ -24,35 +21,32 @@ class ansi_colors:
     DEBUG = '\x1b[0;35;40m'
     RESET = '\x1b[0m'
 
+# Constants
 MAX_TOKENS = 2**20
-SYSTEM = """
-You are an experienced software engineer implementing code for a project working as a peer engineer
-with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
-If can't understand a task, ask for clarifications.
-For every step, remember to adhere to the SYSTEM MESSAGE.
-You are working with source code in the current directory (./) that you can access using the provided tools.
-For every request, understand what needs to be done, then execute the next appropriate action.
+MODEL_NAME = 'gemini-2.0-flash-001'
 
-1. Please use provided functions to retrieve the required information.
-2. Please use provided functions to apply the necessary changes to the project.
-3. When you need to implement code, follow best practices for the given programming language.
-4. When applicable, follow software and integration design patterns.
-5. When applicable, follow  SOLID principles.
-6. Document all the code you implement.
-7. If there is no README.md file, create it describing the project.
-8. Create other documentation files as necessary, for example to describe setting up the environment.
-9. Create unit tests when applicable. If you can see existing unit tests in the codebase, always create unit tests for new code, and maintain the existing tests.
-10. Run the unit tests and static analysis checks, such as lint, to make sure the task is completed.
-11. After completing the task, please provide a summary of the changes made and update the documentation.
+# Initialize API client
+def initialize_client():
+    """Initialize and return the Gemini API client."""
+    api_key = os.environ.get('GEMINI_API_KEY')
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY environment variable not set.")
+    return genai.Client(api_key=api_key)
 
-Remember, the code is located in the current directory (./) that you can access using the provided tools.
-Remember, if you can't find a specific location in code, try searching through files for close matches.
-Remember, always think step by step and execute one step at a time.
-Remember, never commit the changes.
-"""
+# System prompt
+system_message_path = '.streetrace/system_message.txt'
+if os.path.exists(system_message_path):
+    try:
+        with open(system_message_path, 'r', encoding='utf-8') as f:
+            SYSTEM = f.read()
+    except Exception as e:
+        print(f"Error reading system message file: {e}")
+        SYSTEM = "You are an experienced software engineer implementing code for a project working as a peer engineer\nwith the user. Fullfill all your peer user's requests completely and following best practices and intentions.\nIf can't understand a task, ask for clarifications.\nFor every step, remember to adhere to the SYSTEM MESSAGE.\nYou are working with source code in the current directory (./) that you can access using the provided tools.\nFor every request, understand what needs to be done, then execute the next appropriate action.\n\n1. Please use provided functions to retrieve the required information.\n2. Please use provided functions to apply the necessary changes to the project.\n3. When you need to implement code, follow best practices for the given programming language.\n4. When applicable, follow software and integration design patterns.\n5. When applicable, follow SOLID principles.\n6. Document all the code you implement.\n7. If there is no README.md file, create it describing the project.\n8. Create other documentation files as necessary, for example to describe setting up the environment.\n9. Create unit tests when applicable. If you can see existing unit tests in the codebase, always create unit tests for new code, and maintain the existing tests.\n10. Run the unit tests and static analysis checks, such as lint, to make sure the task is completed.\n11. After completing the task, please provide a summary of the changes made and update the documentation.\n\nRemember, the code is located in the current directory (./) that you can access using the provided tools.\nRemember, if you can't find a specific location in code, try searching through files for close matches.\nRemember, always think step by step and execute one step at a time.\nRemember, never commit the changes."
+else:
+    SYSTEM = "You are an experienced software engineer implementing code for a project working as a peer engineer\nwith the user. Fullfill all your peer user's requests completely and following best practices and intentions.\nIf can't understand a task, ask for clarifications.\nFor every step, remember to adhere to the SYSTEM MESSAGE.\nYou are working with source code in the current directory (./) that you can access using the provided tools.\nFor every request, understand what needs to be done, then execute the next appropriate action.\n\n1. Please use provided functions to retrieve the required information.\n2. Please use provided functions to apply the necessary changes to the project.\n3. When you need to implement code, follow best practices for the given programming language.\n4. When applicable, follow software and integration design patterns.\n5. When applicable, follow SOLID principles.\n6. Document all the code you implement.\n7. If there is no README.md file, create it describing the project.\n8. Create other documentation files as necessary, for example to describe setting up the environment.\n9. Create unit tests when applicable. If you can see existing unit tests in the codebase, always create unit tests for new code, and maintain the existing tests.\n10. Run the unit tests and static analysis checks, such as lint, to make sure the task is completed.\n11. After completing the task, please provide a summary of the changes made and update the documentation.\n\nRemember, the code is located in the current directory (./) that you can access using the provided tools.\nRemember, if you can't find a specific location in code, try searching through files for close matches.\nRemember, always think step by step and execute one step at a time.\nRemember, never commit the changes."
 
-# Define the tool configuration
-tools = [
+# Tool definitions
+TOOLS = [
     types.Tool(function_declarations=[
         types.FunctionDeclaration(
             name='fs_tool.list_directory',
@@ -65,7 +59,7 @@ tools = [
                         description='Path to the directory to retrieve the contents from.'
                     )
                 },
-                required=['path']  # corrected required parameter name
+                required=['path']
             )
         )
     ]),
@@ -86,7 +80,7 @@ tools = [
                         description='Text encoding to use. Defaults to \"utf-8\".'
                     )
                 },
-                required=['path']  # corrected required parameter name
+                required=['path']
             )
         )
     ]),
@@ -104,14 +98,14 @@ tools = [
                     ),
                     'content': types.Schema(
                         type='STRING',
-                        description='New copntent of the file.'
+                        description='New content of the file.'
                     ),
                     'encoding': types.Schema(
                         type='STRING',
                         description='Text encoding to use. Defaults to \"utf-8\".'
                     )
                 },
-                required=['path', 'content']  # corrected required parameter name
+                required=['path', 'content']
             )
         )
     ]),
@@ -132,6 +126,7 @@ tools = [
             )
         )
     ]),
+    
     types.Tool(function_declarations=[
         types.FunctionDeclaration(
             name='fs_tool.search_files',
@@ -154,8 +149,8 @@ tools = [
     ]),
 ]
 
-
-tools_dict = {
+# Map function names to implementations
+TOOLS_DICT = {
     'fs_tool.list_directory': fs_tool.list_directory,
     'fs_tool.read_file': fs_tool.read_file,
     'fs_tool.write_file': fs_tool.write_file,
@@ -163,42 +158,124 @@ tools_dict = {
     'fs_tool.search_files': fs_tool.search_files
 }
 
-
 def pretty_print(contents: list[types.Content]) -> str:
     """
-    Pretty print the content of the response.
+    Format content list for readable logging.
+    
+    Args:
+        contents: List of content objects to format
+        
+    Returns:
+        Formatted string representation
     """
-    # result:
-    #  - role: part type: {content}, part type: {content}, etc
-    #  - role: part type: {content}, part type: {content}, etc
-    # etc
-    buff = ''
-    counter = 0
-    for content in contents:
-        buff += f'\nContent {counter + 1}:'
+    parts = []
+    for i, content in enumerate(contents):
         if not content:
-            buff += '\nNONE'
-        else:
-            buff += f'\n - {content.role}: '
-            for part in content.parts:
-                buff += ", ".join(
-                    [attribute + ": " + str(value).strip()
-                    for attribute, value in part.__dict__.items()
-                    if value is not None])
-        counter += 1
-    return buff
+            parts.append(f"Content {i + 1}:\nNONE")
+            continue
+            
+        content_parts = []
+        for part in content.parts:
+            part_attrs = ", ".join(
+                [f"{attr}: {str(val).strip()}" 
+                 for attr, val in part.__dict__.items() 
+                 if val is not None]
+            )
+            content_parts.append(part_attrs)
+            
+        parts.append(f"Content {i + 1}:\n - {content.role}: {'; '.join(content_parts)}")
+        
+    return "\n".join(parts)
 
-def generate_with_tool(prompt, conversation_history =None):
+def manage_token_count(client, contents, model_name):
+    """
+    Ensure contents are within token limits by intelligently pruning when needed.
+    
+    Args:
+        client: Gemini API client
+        contents: List of content objects to manage
+        
+    Returns:
+        True if successful, False if pruning failed
+    """
+    try:
+        token_count = client.models.count_tokens(model=model_name, contents=contents)
+        
+        # If within limits, no action needed
+        if token_count.total_tokens <= MAX_TOKENS:
+            return True
+            
+        logging.info(f"Token count {token_count.total_tokens} exceeds limit {MAX_TOKENS}, pruning...")
+        
+        # Keep first item (usually system message) and last N exchanges
+        if len(contents) > 3:
+            # Keep important context - first message and recent exchanges
+            preserve_count = min(5, len(contents) // 2)
+            contents[:] = [contents[0]] + contents[-preserve_count:]
+            
+            # Recheck token count
+            token_count = client.models.count_tokens(model=model_name, contents=contents)
+            logging.info(f"After pruning: {token_count.total_tokens} tokens with {len(contents)} items")
+            
+            return token_count.total_tokens <= MAX_TOKENS
+        
+        # If conversation is small but still exceeding, we have a problem
+        logging.warning(f"Cannot reduce token count sufficiently: {token_count.total_tokens}")
+        return False
+        
+    except Exception as e:
+        logging.error(f"Error managing tokens: {e}")
+        return False
+
+def handle_function_call(function_call):
+    """
+    Process a function call and return its result.
+    
+    Args:
+        function_call: The function call object from Gemini
+        
+    Returns:
+        tuple: (function_response, result_text)
+    """
+    if function_call.name not in TOOLS_DICT:
+        error_msg = f'Missing function: {function_call.name}'
+        print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
+        logging.error(error_msg)
+        return {'error': error_msg}, error_msg
+        
+    try:
+        logging.debug(f"Calling function {function_call.name} with arguments: {function_call.args}")
+        result = TOOLS_DICT[function_call.name](**function_call.args)
+        print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
+        logging.info(f"Function result: {result}")
+        return {'result': result}, str(result)
+    except Exception as e:
+        error_msg = f"Error in {function_call.name}: {str(e)}"
+        print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
+        logging.warning(error_msg)
+        return {'error': str(e)}, error_msg
+
+def generate_with_tool(prompt, conversation_history=None, model_name=MODEL_NAME):
     """
     Generates content using the Gemini model with the custom tool,
     maintaining conversation history.
+    
+    Args:
+        prompt (str): The user's input prompt
+        conversation_history (list, optional): The history of the conversation. Defaults to None.
+        model_name (str, optional): The name of the Gemini model to use. Defaults to \"gemini-2.0-flash-001\".
+    
+    Returns:
+        list: The updated conversation history
     """
-    # Initialize conversation history if it's None
+    # Initialize client and conversation history
+    client = initialize_client()
     if conversation_history is None:
         conversation_history = []
 
-    print(ansi_colors.USER + prompt + ansi_colors.RESET)
-    logging.info("User prompt: %s", prompt)
+    # Log and display user prompt
+    print(AnsiColors.USER + prompt + AnsiColors.RESET)
+    logging.info(f"User prompt: {prompt}")
 
     # Add the user's prompt to the conversation history
     user_prompt_content = types.Content(
@@ -208,129 +285,108 @@ def generate_with_tool(prompt, conversation_history =None):
     conversation_history.append(user_prompt_content)
     contents = conversation_history.copy()
 
-    continue_generation = True
-    request_count = 0
-    total_input_tokens = 0
-    total_output_tokens = 0
-    last_response = None
-    
-    while continue_generation:
+    # Ensure contents are within token limits
+    if not manage_token_count(client, contents, model_name):
+        print(AnsiColors.MODELERROR + "Conversation too large, cannot continue." + AnsiColors.RESET)
+        return conversation_history
+
+    # Process generation requests
+    try:
+        # Set up generation configuration
+        generation_config = types.GenerateContentConfig(
+            tools=TOOLS,
+            system_instruction=SYSTEM,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            tool_config=types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(mode='AUTO')
+            )
+        )
+        
+        # Stream and process the response
         request_parts = []
         response_parts = []
         response_text = ''
-        finish_reason = ''
-        finish_message = ''
-        try:
-            token_count = client.models.count_tokens(
-                model='gemini-2.0-flash-001', contents=contents)
-            while token_count.total_tokens > MAX_TOKENS:
-                logging.debug(
-                    f"Exceeding token limit ({token_count} > {MAX_TOKENS}), "
-                    "removing the oldest content item.")
-                contents.pop(0)
-                token_count = client.models.count_tokens(
-                    model='gemini-2.0-flash-001', contents=contents)
-            request_count += 1
-            logging.info(
-                f"Starting chunk processing {request_count} with "
-                f"{len(contents)} content items and {token_count} tokens.")
-            logging.debug("Start generation with contents:\n%s", pretty_print(contents))
-            logging.debug("Raw contents:\n%s", contents)
-            for chunk in client.models.generate_content_stream(
-                model='gemini-2.0-flash-001',
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    tools=tools,
-                    system_instruction=SYSTEM,
-                    automatic_function_calling=
-                    types.AutomaticFunctionCallingConfig(disable=True),
-                    tool_config=types.ToolConfig(
-                        function_calling_config=types.FunctionCallingConfig(
-                            mode='AUTO'))
-                )
-            ):
-                logging.debug("Generated chunk:\n%s", chunk)
-                try:
-                    finish_reason = chunk.candidates[0].finish_reason or 'None'
-                    finish_message = chunk.candidates[0].finish_message or 'None'
-                    if chunk.text:
-                        print(ansi_colors.MODEL + chunk.text + ansi_colors.RESET, end='')
-                        response_text += chunk.text
-                    if chunk.function_calls:
-                        if len(response_text.strip()) > 0:
-                            request_parts += [types.Part(text=response_text)]
-                            response_text = ''
-                        for function_call in chunk.function_calls:
-                            print(ansi_colors.TOOL + function_call.name + ": " + str(function_call.args) + ansi_colors.RESET)
-                            logging.info(f"Function call: {function_call}")
-                            request_parts.append(
-                                types.Part(function_call=function_call))
-                            # Validate the function call against the tool definitions
-                            if function_call.name not in tools_dict:
-                                function_response = {
-                                    'error': f'Missing function: {function_call.name}'
-                                }
-                                print(ansi_colors.TOOLERROR + f"Missing function: {function_call.name}" + ansi_colors.RESET)
-                                logging.error(
-                                    f"Missing function: {function_call.name}")
-                            else:
-                                try:
-                                    logging.debug(
-                                        f"Calling function {function_call.name} "
-                                        f"with arguments: {function_call.args}")  # Added logging here
-                                    result = tools_dict[function_call.name](**function_call.args)
-                                    function_response = {'result': result}
-                                    print(ansi_colors.TOOL + str(result) + ansi_colors.RESET)
-                                    logging.info(f"Function result: {result}")
-                                except Exception as e:
-                                    function_response = {'error': str(e)}
-                                    print(ansi_colors.TOOLERROR + str(e) + ansi_colors.RESET)
-                                    logging.warning(
-                                        f"Function call error in "
-                                        f"{function_call.name}: {e}")  # Added function name to the log
-                            response_parts.append(
-                                types.Part(
-                                    function_response=types.FunctionResponse(
-                                        id=function_call.id,
-                                        name=function_call.name,
-                                        response=function_response)))
-                except Exception as e:
-                    logging.error(f"Error processing chunk: {e}")
-                    logging.debug(f"Chunk when error occurred: {chunk}")  # Added logging here
-                    print(ansi_colors.MODELERROR +
-                          "\nError processing chunk. See logs for details." +
-                          ansi_colors.RESET)
-        except Exception as e:
-            logging.error(f"Error during content generation: {e}")
-            logging.error(f"Last contents: {pretty_print(contents)}")
-            logging.debug(f"Last raw contents: {contents}")
-            print(ansi_colors.MODELERROR +
-                  "\nError during content generation. See logs for details." +
-                  ansi_colors.RESET)
-            break  # Stop the loop if there's an error during content generation
-
-        if len(response_text.strip()) > 0:
-            request_parts += [types.Part(text=response_text)]
-            response_text = ''
+        
+        for chunk in client.models.generate_content_stream(
+            model=model_name,
+            contents=contents,
+            config=generation_config
+        ):
+            logging.debug(f"Chunk received: {type(chunk)}")
+            
+            # Track finish information
+            try:
+                finish_reason = chunk.candidates[0].finish_reason or 'None'
+                finish_message = chunk.candidates[0].finish_message or 'None'
+            except (AttributeError, IndexError):
+                finish_reason = 'unknown'
+                finish_message = 'unknown'
+            
+            # Handle text output
+            if hasattr(chunk, 'text') and chunk.text:
+                print(AnsiColors.MODEL + chunk.text + AnsiColors.RESET, end='')
+                response_text += chunk.text
+            
+            # Handle function calls
+            if hasattr(chunk, 'function_calls') and chunk.function_calls:
+                # If we have text, add it to the request parts
+                if response_text.strip():
+                    request_parts.append(types.Part(text=response_text))
+                    response_text = ''
+                
+                # Process all function calls in the chunk
+                for function_call in chunk.function_calls:
+                    call_name = function_call.name
+                    call_args = str(function_call.args)
+                    print(AnsiColors.TOOL + f"{call_name}: {call_args}" + AnsiColors.RESET)
+                    logging.info(f"Function call: {call_name} with {call_args}")
+                    
+                    # Add the function call to request parts
+                    request_parts.append(types.Part(function_call=function_call))
+                    
+                    # Execute the function call
+                    function_response, _ = handle_function_call(function_call)
+                    
+                    # Add the function response to response parts
+                    response_parts.append(
+                        types.Part(
+                            function_response=types.FunctionResponse(
+                                id=function_call.id,
+                                name=function_call.name,
+                                response=function_response
+                            )
+                        )
+                    )
+        
+        # Capture any remaining text
+        if response_text.strip():
+            request_parts.append(types.Part(text=response_text))
+        
+        # Create content objects for model and tool responses
         model_response_content = types.Content(
             role='model',
-            parts=request_parts)
-        tool_response_content = None
-        if len(response_parts) > 0:
-            tool_response_content = types.Content(
-                role='tool',
-                parts=response_parts)
-
-        contents.append(model_response_content)
+            parts=request_parts
+        )
         conversation_history.append(model_response_content)
         
-        if tool_response_content:
-            contents.append(tool_response_content)
+        # If there were function calls, add tool responses to history
+        if response_parts:
+            tool_response_content = types.Content(
+                role='tool',
+                parts=response_parts
+            )
             conversation_history.append(tool_response_content)
-
-        continue_generation = len(response_parts) > 0
-    print(ansi_colors.MODEL + finish_reason + ": " + finish_message +
-          ansi_colors.RESET)
-    logging.info(
-        f"Model has finished with reason {finish_reason}: {finish_message}")
+            
+            # Continue with function call results
+            return generate_with_tool('', conversation_history)
+        
+        # Output finish information
+        print(AnsiColors.MODEL + f"{finish_reason}: {finish_message}" + AnsiColors.RESET)
+        logging.info(f"Model finished with reason {finish_reason}: {finish_message}")
+    
+    except Exception as e:
+        error_msg = f"Error during content generation: {e}"
+        logging.error(error_msg)
+        print(AnsiColors.MODELERROR + "\nError during content generation. See logs for details." + AnsiColors.RESET)
+    
     return conversation_history
