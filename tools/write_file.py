@@ -1,15 +1,15 @@
 import os
 import codecs
 
-def write_file(file_path, content, root_path=None, encoding='utf-8', binary_mode=False):
+def write_file(file_path, content, work_dir, encoding='utf-8', binary_mode=False):
     """
     Securely write content to a file, ensuring the path is within the allowed root path.
     
     Args:
         file_path (str): Path to the file to write. Can be relative or absolute.
         content (str or bytes): Content to write to the file.
-        root_path (str, optional): Root path that restricts access. If None, uses current directory.
-            The file_path must be within this root_path for security.
+        work_dir (str, optional): Root path that restricts access. If None, uses current directory.
+            The file_path must be within this work_dir for security.
         encoding (str, optional): Text encoding to use when writing text. Defaults to 'utf-8'.
             This is ignored if binary_mode is True.
         binary_mode (bool, optional): If True, write the file in binary mode. Defaults to False.
@@ -24,16 +24,12 @@ def write_file(file_path, content, root_path=None, encoding='utf-8', binary_mode
         IOError: If there are issues writing the file
         OSError: If directory creation fails
     """
-    # Default root_path to current directory if not specified
-    if root_path is None:
-        root_path = os.getcwd()
-    
     # Get absolute paths for security comparison
-    abs_root_path = os.path.abspath(os.path.normpath(root_path))
+    abs_work_dir = os.path.abspath(os.path.normpath(work_dir))
     abs_file_path = os.path.abspath(os.path.normpath(file_path))
     
     # Security check: ensure the file path is within the root path
-    if not abs_file_path.startswith(abs_root_path):
+    if not abs_file_path.startswith(abs_work_dir):
         raise ValueError(f"Security error: Requested file path '{file_path}' is outside the allowed root path.")
     
     # Check content type

@@ -43,18 +43,35 @@ The tools can be used with the AI model to perform various tasks, such as readin
 Streetrace supports the following command line arguments:
 
 ```
-python main.py [--model {claude|gemini}] [--model-name MODEL_NAME] [--prompt PROMPT]
+python main.py [--engine {claude|gemini}] [--model MODEL_NAME] [--prompt PROMPT] [--path PATH]
 ```
 
 Options:
-- `--model` - Choose AI model (claude or gemini)
-- `--model-name` - Specific model name to use (e.g., claude-3-7-sonnet-20250219 or gemini-2.0-flash-001)
+- `--engine` - Choose AI engine (claude or gemini)
+- `--model` - Specific model name to use (e.g., claude-3-7-sonnet-20250219 or gemini-2.0-flash-001)
 - `--prompt` - Prompt to send to the AI model (skips interactive mode if provided)
+- `--path` - Specify which path to use as the working directory for all file operations
 
-If no model is specified, Streetrace will automatically select an AI model based on the available API keys in the following order:
+If no engine is specified, Streetrace will automatically select an AI model based on the available API keys in the following order:
 1. Claude (if ANTHROPIC_API_KEY is set)
 2. Gemini (if GEMINI_API_KEY is set)
 3. OpenAI (if OPENAI_API_KEY is set - not yet implemented)
+
+#### Working with Files in Another Directory
+
+The `--path` argument allows you to specify a different working directory for all file operations:
+
+```
+python main.py --path /path/to/your/project
+```
+
+This path will be used as the working directory (work_dir) for all tools that interact with the file system, including:
+- list_directory
+- read_file
+- write_file
+- search_files
+
+This feature makes it easier to work with files in another location without changing your current directory.
 
 #### Non-interactive Mode
 

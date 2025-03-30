@@ -57,8 +57,8 @@ class TestReadDirectoryStructureGlob(unittest.TestCase):
             self.assertNotIn(basename, actual_files)
             
     def test_relative_paths(self):
-        """Test that paths are returned relative to root_path"""
-        # Set root_path to parent of temp_dir
+        """Test that paths are returned relative to work_dir"""
+        # Set work_dir to parent of temp_dir
         parent_dir = os.path.dirname(self.temp_dir)
         result = read_directory_structure(self.temp_dir, parent_dir)
         

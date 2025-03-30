@@ -10,12 +10,12 @@ class TestSecurityPath(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory structure for testing
         self.temp_dir = tempfile.mkdtemp()
-        self.root_dir = os.path.join(self.temp_dir, 'root')
-        self.allowed_dir = os.path.join(self.root_dir, 'allowed')
+        self.work_dir = os.path.join(self.temp_dir, 'root')
+        self.allowed_dir = os.path.join(self.work_dir, 'allowed')
         self.sibling_dir = os.path.join(self.temp_dir, 'sibling')
         
         # Create directory structure
-        for d in [self.root_dir, self.allowed_dir, self.sibling_dir]:
+        for d in [self.work_dir, self.allowed_dir, self.sibling_dir]:
             os.makedirs(d, exist_ok=True)
             
         # Create some files
@@ -31,21 +31,21 @@ class TestSecurityPath(unittest.TestCase):
         
     def test_valid_path(self):
         """Test accessing a valid path within the root path"""
-        # This should work - allowed_dir is within root_dir
-        result = read_directory_structure(self.allowed_dir, self.root_dir)
+        # This should work - allowed_dir is within work_dir
+        result = read_directory_structure(self.allowed_dir, self.work_dir)
         self.assertIn('allowed/allowed_file.txt', result['files'])
         
-    def test_same_as_root_path(self):
+    def test_same_as_work_dir(self):
         """Test accessing the root path itself"""
-        # This should work - path is the same as root_path
-        result = read_directory_structure(self.root_dir, self.root_dir)
+        # This should work - path is the same as work_dir
+        result = read_directory_structure(self.work_dir, self.work_dir)
         self.assertIn('allowed', result['dirs'])
         
     def test_directory_traversal(self):
         """Test that directory traversal is prevented"""
-        # Try to access a sibling directory (outside root_dir)
+        # Try to access a sibling directory (outside work_dir)
         with self.assertRaises(ValueError) as context:
-            read_directory_structure(self.sibling_dir, self.root_dir)
+            read_directory_structure(self.sibling_dir, self.work_dir)
             
         # Check that the error message is helpful
         self.assertIn("Security error", str(context.exception))
@@ -54,10 +54,10 @@ class TestSecurityPath(unittest.TestCase):
     def test_parent_directory_traversal(self):
         """Test that parent directory traversal is prevented"""
         # Try to access parent directory using ..
-        parent_path = os.path.join(self.root_dir, '..')
+        parent_path = os.path.join(self.work_dir, '..')
         
         with self.assertRaises(ValueError) as context:
-            read_directory_structure(parent_path, self.root_dir)
+            read_directory_structure(parent_path, self.work_dir)
             
         self.assertIn("Security error", str(context.exception))
         
@@ -65,7 +65,7 @@ class TestSecurityPath(unittest.TestCase):
         """Test that absolute path outside root is prevented"""
         # Try to access an absolute path outside root
         with self.assertRaises(ValueError) as context:
-            read_directory_structure('/tmp', self.root_dir)
+            read_directory_structure('/tmp', self.work_dir)
             
         self.assertIn("Security error", str(context.exception))
 

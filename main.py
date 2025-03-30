@@ -45,6 +45,8 @@ def parse_arguments():
                         help='Specific model name to use (e.g., claude-3-7-sonnet-20250219 or gemini-2.0-flash-001)')
     parser.add_argument('--prompt', type=str,
                         help='Prompt to send to the AI model (skips interactive mode if provided)')
+    parser.add_argument('--path', type=str, default=None,
+                        help='Specify which path to use as the working directory for all file operations')
     return parser.parse_args()
 
 def setup_model(args):
@@ -115,7 +117,7 @@ def setup_model(args):
     return generate_with_tool, model_name
 
     
-def call_tool(tool_name, args, original_call):
+def call_tool(tool_name, args, original_call, work_dir):
     """
     Call the appropriate tool function based on the tool name.
     
@@ -123,6 +125,7 @@ def call_tool(tool_name, args, original_call):
         tool_name: Name of the tool to call
         args: Dictionary of arguments to pass to the function
         original_call: The original function call object from the model
+        work_dir: Path to use as the working directory for file operations
         
     Returns:
         tuple: (function_response, result_text)
@@ -131,12 +134,14 @@ def call_tool(tool_name, args, original_call):
     try:
         for tool in TOOLS:
             if tool['name'] == tool_name:
+                if 'work_dir' in tool['function'].__code__.co_varnames:
+                    args['work_dir'] = work_dir
                 result = tool['function'](**args)
                 print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
                 logging.info(f"Function result: {result}")
                 return {"result": result}
     except Exception as e:
-        error_msg = f"Error in {tool_name.name}: {str(e)}"
+        error_msg = f"Error in {tool_name}: {str(e)}"
         print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
         logging.warning(error_msg)
         return {"error": str(e)}
@@ -161,10 +166,25 @@ def main():
     # Initialize conversation history
     conversation_history = []
     
+    # Get the working directory path
+    working_dir = args.path if args.path else os.getcwd()
+    if working_dir:
+        print(f"Using working directory: {working_dir}")
+        
+    def call_tool_f(tool_name, args, original_call):
+        call_tool(tool_name, args, original_call, working_dir)
+    
     # Non-interactive mode with --prompt argument
     if args.prompt:
         print(f"Running in non-interactive mode with prompt: {args.prompt}")
-        generate_with_tool(args.prompt, TOOLS, call_tool, conversation_history, model_name, system_message)
+        generate_with_tool(
+            args.prompt, 
+            TOOLS, 
+           call_tool_f,
+            conversation_history, 
+            model_name, 
+            system_message
+        )
         return
     
     # Interactive mode
@@ -173,7 +193,14 @@ def main():
         user_input = input("You: ")
         if user_input.lower() == "exit":
             break
-        conversation_history = generate_with_tool(user_input, TOOLS, call_tool, conversation_history, model_name, system_message)
+        conversation_history = generate_with_tool(
+            user_input, 
+            TOOLS, 
+           call_tool_f,
+            conversation_history, 
+            model_name, 
+            system_message
+        )
 
 if __name__ == "__main__":
     main()

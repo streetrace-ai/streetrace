@@ -42,30 +42,25 @@ def is_ignored(path, base_path, spec):
 
 
 # Custom tool: read current directory structure honoring .gitignore correctly
-def read_directory_structure(path='.', root_path=None):
+def read_directory_structure(path, work_dir):
     """Read directory structure at a specific level (non-recursive) honoring .gitignore rules.
     
     Args:
-        path (str): The path to scan, defaults to current directory.
-        root_path (str, optional): The root path that restricts access. If None, uses current directory.
-            The path parameter must be within this root path for security.
+        path (str): The path to scan.
+        work_dir (str): The working directory.
     
     Returns:
-        dict: Dictionary with 'dirs' and 'files' lists containing paths relative to root_path
+        dict: Dictionary with 'dirs' and 'files' lists containing paths relative to work_dir
         
     Raises:
         ValueError: If the requested path is outside the allowed root path or doesn't exist.
     """
-    # Default root_path to current directory if not specified
-    if root_path is None:
-        root_path = os.getcwd()
-    
     # Get absolute paths for security comparison
-    abs_root_path = os.path.abspath(root_path)
+    abs_work_dir = os.path.abspath(work_dir)
     abs_path = os.path.abspath(path)
     
     # Security check: ensure the requested path is within the root path
-    if not abs_path.startswith(abs_root_path):
+    if not abs_path.startswith(abs_work_dir):
         raise ValueError(f"Security error: Requested path '{path}' is outside the allowed root path.")
     
     if not os.path.exists(path):
@@ -86,8 +81,8 @@ def read_directory_structure(path='.', root_path=None):
         if is_ignored(item, path, spec):
             continue
             
-        # Get path relative to root_path
-        rel_path = os.path.relpath(item, root_path)
+        # Get path relative to work_dir
+        rel_path = os.path.relpath(item, work_dir)
         
         # Add to appropriate list
         if os.path.isdir(item):

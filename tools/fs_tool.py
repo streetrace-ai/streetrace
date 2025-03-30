@@ -10,13 +10,14 @@ def _clean_input(input_str):
     Clean the input by removing unwanted whitespace characters, but preserving quotes.
     """
     # Only strip whitespace, not quotes
-    return input_str.strip('"\'\r\n\t ')
+    return input_str.strip('\"\'\r\n\t ')
 
-def list_directory(path):
+def list_directory(path, work_dir):
     """Read directory structure while honoring .gitignore rules.
     
     Args:
-        path (str): The path to scan within current directory, defaults to current directory.
+        path (str): The path to scan. Must be within the work_dir.
+        work_dir (str): The working directory.
     
     Returns:
         dict: Directory structure with files and subdirectories.
@@ -25,68 +26,71 @@ def list_directory(path):
         ValueError: If the requested path is outside the allowed root path.
     """
     try:
-        structure = rds.read_directory_structure(_clean_input(path))
+        structure = rds.read_directory_structure(_clean_input(path), work_dir)
         return json.dumps(structure, indent=2)
     except ValueError as e:
         return json.dumps({"error": str(e)}, indent=2)
 
-def read_file(path, encoding='utf-8'):
+def read_file(path, work_dir, encoding='utf-8'):
     """Read file contents.
     
     Args:
-        path (str): The path to the file to read.
+        path (str): The path to the file to read. Must be within the work_dir.
+        work_dir (str): The working directory. 
         encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
     
     Returns:
         File contents.
     """
     try:
-        contents = rf.read_file(_clean_input(path), encoding=encoding)
+        contents = rf.read_file(_clean_input(path), work_dir, encoding)
         return json.dumps(contents, indent=2)
     except ValueError as e:
         return json.dumps({"error": str(e)}, indent=2)
 
-def write_file(path, content, encoding='utf-8'):
+def write_file(path, content, work_dir, encoding='utf-8'):
     """Write content to a file.
     
     Args:
-        path (str): The path to the file to write.
+        path (str): The path to the file to write. Must be within the work_dir.
         content (str or bytes): Content to write to the file.
+        work_dir (str): The working directory. 
         encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
-        binary_mode (bool, optional): If True, write in binary mode. Defaults to False.
     
     Returns:
         Result of the operation.
     """
     try:
-        result = wf.write_file(_clean_input(path), content, encoding=encoding, binary_mode=False)
+        result = wf.write_file(_clean_input(path), content, work_dir, encoding, binary_mode=False)
         return json.dumps({"success": True, "path": result}, indent=2)
     except (ValueError, TypeError, IOError, OSError) as e:
         return json.dumps({"error": str(e)}, indent=2)
 
-def execute_cli_command(command):
+def execute_cli_command(command, work_dir):
     """Execute a CLI command.
     
     Args:
         command (str): The command to execute.
+        work_dir (str): The working directory.
     
     Returns:
         The stdio output.
     """
     try:
-        result = cli.execute_cli_command(command)
+        result = cli.execute_cli_command(command, work_dir)
         return json.dumps({"success": True, "output": result}, indent=2)
     except (ValueError, TypeError, IOError, OSError) as e:
         return json.dumps({"error": str(e)}, indent=2)
 
-def search_files(pattern, search_string):
+def search_files(pattern, search_string, work_dir):
     """
     Searches for text occurrences in files given a glob pattern and a search
     string.
 
     Args:
-        pattern (str): Glob pattern to match files (relative to root_dir).
+        pattern (str): Glob pattern to match files (relative to work_dir).
         search_string (str): The string to search for.
+        work_dir (str): The working directory for the glob pattern.
 
     Returns:
         list: A list of dictionaries, where each dictionary represents a match.
@@ -94,7 +98,9 @@ def search_files(pattern, search_string):
             of the line where the match was found.
     """
     try:
-        result = s.search_files(_clean_input(pattern), _clean_input(search_string))
+        # Use work_dir as the work_dir for search_files
+        result = s.search_files(_clean_input(pattern), _clean_input(search_string), 
+                              work_dir=work_dir)
         return json.dumps({"success": True, "output": result}, indent=2)
     except (ValueError, TypeError, IOError, OSError) as e:
         return json.dumps({"error": str(e)}, indent=2)

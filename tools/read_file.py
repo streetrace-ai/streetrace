@@ -28,14 +28,13 @@ def is_binary_file(file_path, sample_size=1024):
         # If we can't read the file, assume it's not binary
         return False
 
-def read_file(file_path, root_path=None, encoding='utf-8'):
+def read_file(file_path, work_dir, encoding='utf-8'):
     """
     Securely read a file's contents, ensuring the path is within the allowed root path.
     
     Args:
         file_path (str): Path to the file to read. Can be relative or absolute.
-        root_path (str, optional): Root path that restricts access. If None, uses current directory.
-            The file_path must be within this root_path for security.
+        work_dir (str): The working directory.
         encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
     
     Returns:
@@ -46,16 +45,12 @@ def read_file(file_path, root_path=None, encoding='utf-8'):
         IOError: If there are issues reading the file
         UnicodeDecodeError: If the file can't be decoded using the specified encoding in text mode
     """
-    # Default root_path to current directory if not specified
-    if root_path is None:
-        root_path = os.getcwd()
-    
     # Get absolute paths for security comparison
-    abs_root_path = os.path.abspath(os.path.normpath(root_path))
+    abs_work_dir = os.path.abspath(os.path.normpath(work_dir))
     abs_file_path = os.path.abspath(os.path.normpath(file_path))
     
     # Security check: ensure the file path is within the root path
-    if not abs_file_path.startswith(abs_root_path):
+    if not abs_file_path.startswith(abs_work_dir):
         raise ValueError(f"Security error: Requested file path '{file_path}' is outside the allowed root path.")
     
     # Check if file exists

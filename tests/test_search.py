@@ -26,7 +26,7 @@ class TestSearchFiles(unittest.TestCase):
         # Test when the search string is found in the files
         pattern = '*.txt'
         search_string = 'test'
-        matches = search.search_files(pattern, search_string, root_dir=self.test_dir)
+        matches = search.search_files(pattern, search_string, work_dir=self.test_dir)
         self.assertEqual(len(matches), 2)
         self.assertEqual(matches[0]['filepath'], self.file1_path)
         self.assertEqual(matches[1]['filepath'], self.file2_path)
@@ -35,14 +35,14 @@ class TestSearchFiles(unittest.TestCase):
         # Test when the search string is not found in the files
         pattern = '*.txt'
         search_string = 'nonexistent'
-        matches = search.search_files(pattern, search_string, root_dir=self.test_dir)
+        matches = search.search_files(pattern, search_string, work_dir=self.test_dir)
         self.assertEqual(len(matches), 0)
 
     def test_search_files_glob_pattern(self):
         # Test with a specific glob pattern
         pattern = 'file1.txt'
         search_string = 'first'
-        matches = search.search_files(pattern, search_string, root_dir=self.test_dir)
+        matches = search.search_files(pattern, search_string, work_dir=self.test_dir)
         self.assertEqual(len(matches), 1)
         self.assertEqual(matches[0]['filepath'], self.file1_path)
 
@@ -50,7 +50,7 @@ class TestSearchFiles(unittest.TestCase):
         # Test with an empty search string
         pattern = '*.txt'
         search_string = ''
-        matches = search.search_files(pattern, search_string, root_dir=self.test_dir)
+        matches = search.search_files(pattern, search_string, work_dir=self.test_dir)
         self.assertGreater(len(matches), 0)  # Assuming every line will match
 
 

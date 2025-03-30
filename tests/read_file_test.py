@@ -71,7 +71,7 @@ class TestReadFile(unittest.TestCase):
         content = read_file(self.empty_file_path, self.temp_dir)
         self.assertEqual(content, "")
     
-    def test_default_root_path(self):
+    def test_default_work_dir(self):
         """Test with default root path"""
         # Save current directory and change to temp directory
         original_dir = os.getcwd()
@@ -80,7 +80,7 @@ class TestReadFile(unittest.TestCase):
             
             # Should work with relative path when we're in the right directory
             filename = os.path.basename(self.root_file_path)
-            content = read_file(filename)  # No root_path specified
+            content = read_file(filename)  # No work_dir specified
             self.assertEqual(content, "This is content in the root file.")
             
         finally:
@@ -99,7 +99,7 @@ class TestReadFile(unittest.TestCase):
     
     def test_directory_traversal_prevention(self):
         """Test that directory traversal attempts are blocked"""
-        # Attempt to access a file outside root_path using relative path (parent directory traversal)
+        # Attempt to access a file outside work_dir using relative path (parent directory traversal)
         parent_dir = os.path.dirname(self.temp_dir)
         with self.assertRaises(ValueError) as context:
             # Create a path that attempts to go up and out of the allowed directory
@@ -108,7 +108,7 @@ class TestReadFile(unittest.TestCase):
             
         self.assertIn("Security error", str(context.exception))
         
-        # Attempt to access a file outside root_path using absolute path
+        # Attempt to access a file outside work_dir using absolute path
         with self.assertRaises(ValueError) as context:
             # Directly try to access a path outside the temp directory
             outside_path = os.path.join(parent_dir, "some_file.txt")

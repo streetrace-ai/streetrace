@@ -39,7 +39,7 @@ class TestDirectoryStructureTool(unittest.TestCase):
             # Change to temp directory
             os.chdir(self.temp_dir)
             
-            # Call the tool with no argument, root_path is default (current dir)
+            # Call the tool with no argument, work_dir is default (current dir)
             structure = read_directory_structure()
             
             # Verify the structure
@@ -58,7 +58,7 @@ class TestDirectoryStructureTool(unittest.TestCase):
             f.write('marker')
             
         try:
-            # Call the tool with temp directory path and set root_path to include it
+            # Call the tool with temp directory path and set work_dir to include it
             structure = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
             
             # Verify the structure
@@ -77,7 +77,7 @@ class TestDirectoryStructureTool(unittest.TestCase):
         """Test that tool works with a subdirectory path"""
         sub_dir_path = os.path.join(self.temp_dir, 'sub_dir')
         
-        # Call the tool with subdirectory path, using temp_dir as root_path
+        # Call the tool with subdirectory path, using temp_dir as work_dir
         result = read_directory_structure(sub_dir_path, self.temp_dir)
         
         # Verify the structure only includes the subdirectory contents
@@ -86,15 +86,15 @@ class TestDirectoryStructureTool(unittest.TestCase):
         # Verify root directory files aren't included
         self.assertNotIn('root_file.txt', result.get('.', {}).get('files', []))
         
-    def test_with_explicit_root_path(self):
-        """Test that tool respects the root_path restriction"""
-        # Set root_path explicitly to the temp directory
+    def test_with_explicit_work_dir(self):
+        """Test that tool respects the work_dir restriction"""
+        # Set work_dir explicitly to the temp directory
         result = read_directory_structure(self.temp_dir, self.temp_dir)
         
         # Verify the structure
         self.assertIn('root_file.txt', result['files'])
         
-        # Now try to access a path outside of root_path
+        # Now try to access a path outside of work_dir
         parent_dir = os.path.dirname(self.temp_dir)
         
         with self.assertRaises(ValueError) as context:

@@ -75,7 +75,7 @@ class TestWriteFile(unittest.TestCase):
         self.assertEqual(read_content, content)
         
     def test_security_restriction(self):
-        """Test that writing outside root_path is prevented"""
+        """Test that writing outside work_dir is prevented"""
         # Try to write to a path outside the allowed root
         parent_dir = os.path.dirname(self.temp_dir)
         outside_path = os.path.join(parent_dir, 'test_file.txt')
