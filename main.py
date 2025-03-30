@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import argparse
@@ -159,12 +160,12 @@ def call_tool(tool_name, args, original_call, work_dir):
                     result = tool['function'](**args)
                 print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
                 logging.info(f"Function result: {result}")
-                return {"result": result}
+                return result
     except Exception as e:
         error_msg = f"Error in {tool_name}: {str(e)}"
         print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
         logging.warning(error_msg)
-        return {"error": str(e)}
+        return json.dumps({"error": str(e)})
 
     error_msg = f"Tool not found: {tool_name}"
     print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)

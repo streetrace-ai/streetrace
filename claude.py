@@ -227,7 +227,7 @@ If can't understand a task, ask for clarifications."""
 
                 # Execute the tool
                 tool_result = call_tool(call_name, call_args, content_block)
-
+                
                 # Add tool result to outputs
                 tool_results.append({
                     'type': 'tool_result',

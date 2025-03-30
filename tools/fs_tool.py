@@ -27,7 +27,7 @@ def list_directory(path, work_dir):
     """
     try:
         result = rds.read_directory_structure(_clean_input(path), work_dir)
-        return json.dumps({"success": True, "path": result}, indent=2)
+        return json.dumps({"success": True, "result": result}, indent=2)
     except ValueError as e:
         return json.dumps({"error": str(e)}, indent=2)
 
@@ -44,7 +44,7 @@ def read_file(path, work_dir, encoding='utf-8'):
     """
     try:
         result = rf.read_file(_clean_input(path), work_dir, encoding)
-        return json.dumps({"success": True, "path": result}, indent=2)
+        return json.dumps({"success": True, "result": result}, indent=2)
     except ValueError as e:
         return json.dumps({"error": str(e)}, indent=2)
 
@@ -67,10 +67,10 @@ def write_file(path, content, work_dir, encoding='utf-8'):
         return json.dumps({"error": str(e)}, indent=2)
 
 def execute_cli_command(command, work_dir):
-    """Execute a CLI command.
+    """Execute a CLI command interactively. Does not provide shell access.
     
     Args:
-        command (str): The command to execute.
+        command (list or str): The command to execute.
         work_dir (str): The working directory.
     
     Returns:
@@ -78,7 +78,7 @@ def execute_cli_command(command, work_dir):
     """
     try:
         result = cli.execute_cli_command(command, work_dir)
-        return json.dumps({"success": True, "path": result}, indent=2)
+        return json.dumps({"success": True, "result": result}, indent=2)
     except (ValueError, TypeError, IOError, OSError) as e:
         return json.dumps({"error": str(e)}, indent=2)
 
@@ -100,7 +100,7 @@ def search_files(pattern, search_string, work_dir):
     try:
         result = s.search_files(_clean_input(pattern), _clean_input(search_string), 
                               work_dir=work_dir)
-        return json.dumps({"success": True, "path": result}, indent=2)
+        return json.dumps({"success": True, "result": result}, indent=2)
     except (ValueError, TypeError, IOError, OSError) as e:
         return json.dumps({"error": str(e)}, indent=2)
     
@@ -127,11 +127,14 @@ TOOLS = [
     },
     {
         "name": "execute_cli_command",
-        "description": "Executes a CLI command and returns the output, error, and return code.",
+        "description": "Executes a CLI command in interactive mode and returns the output, error, and return code. Does not provide shell access.",
         "parameters": {
             "properties": {
                 "command": {
-                    "type": "string",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
                     "description": "The CLI command to execute."
                 }
             },

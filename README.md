@@ -31,7 +31,7 @@ Streetrace defines a set of tools that the AI model can use to interact with the
 *   `fs_tool.list_directory`: Lists files and directories in a given path.
 *   `fs_tool.read_file`: Reads the content of a file.
 *   `fs_tool.write_file`: Writes content to a file.
-*   `fs_tool.execute_cli_command`: Executes a CLI command.
+*   `fs_tool.execute_cli_command`: Executes a CLI command with full interactive capabilities.
 *   `search.search_files`: Searches for text in files matching a glob pattern.
 
 ## Usage
@@ -83,6 +83,32 @@ python main.py --prompt "List all Python files in the current directory"
 
 This will execute the prompt once and exit, which is useful for scripting or one-off commands.
 
+### Interactive CLI Execution
+
+The `execute_cli_command` tool now supports fully interactive subprocesses:
+
+- Standard input/output/error of the subprocess are connected to the application's standard input/output/error
+- Users can see real-time output from the subprocess
+- Users can provide input when the subprocess prompts for it
+- All output is still captured and returned in the result for the AI model to analyze
+
+This allows for interactive use of command-line tools, such as text editors, REPLs, or any program that expects user input. For example, the AI can run a Python interpreter and let you interactively test code:
+
+```
+> Please run a Python interpreter so I can test some code
+Running Python interpreter...
+Type Python code at the prompt:
+
+Python 3.8.10 (default, Nov 14 2022, 12:59:47) 
+[GCC 9.4.0] on linux
+Type "help", "copyright", "credits" or "license" for more information.
+>>> print("Hello, interactive world!")
+Hello, interactive world!
+>>> 
+```
+
+To exit interactive processes, use the standard method for that program (such as Ctrl-D for Python REPL or `:q` for vim).
+
 ### System Message Customization
 
 Streetrace now centralizes system message handling in `main.py` and passes it to the model-specific functions. By default, it looks for a system message in `.streetrace/system_message.txt` and uses a default message if not found.
@@ -115,3 +141,5 @@ To use these tools, you need to set one of the following environment variables:
 ## Running tests
 
 To run the tests, execute `python -m unittest tests/*test*.py`.
+
+To test the interactive CLI functionality, run `python tools/test_cli.py`.
