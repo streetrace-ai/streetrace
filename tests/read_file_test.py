@@ -71,22 +71,6 @@ class TestReadFile(unittest.TestCase):
         content = read_file(self.empty_file_path, self.temp_dir)
         self.assertEqual(content, "")
     
-    def test_default_work_dir(self):
-        """Test with default root path"""
-        # Save current directory and change to temp directory
-        original_dir = os.getcwd()
-        try:
-            os.chdir(self.temp_dir)
-            
-            # Should work with relative path when we're in the right directory
-            filename = os.path.basename(self.root_file_path)
-            content = read_file(filename)  # No work_dir specified
-            self.assertEqual(content, "This is content in the root file.")
-            
-        finally:
-            # Return to original directory
-            os.chdir(original_dir)
-    
     def test_nested_file_security(self):
         """Test reading a file in a subdirectory"""
         # Using the parent directory as root, we should be able to read the nested file

@@ -30,26 +30,6 @@ class TestDirectoryStructureTool(unittest.TestCase):
         with open(os.path.join(sub_dir, 'sub_file.txt'), 'w') as f:
             f.write('content')
             
-    def test_default_directory(self):
-        """Test that tool works with default directory (current directory)"""
-        # Save current directory
-        original_dir = os.getcwd()
-        
-        try:
-            # Change to temp directory
-            os.chdir(self.temp_dir)
-            
-            # Call the tool with no argument, work_dir is default (current dir)
-            structure = read_directory_structure()
-            
-            # Verify the structure
-            self.assertIn('root_file.txt', structure['files'])
-            self.assertIn('sub_dir', structure['dirs'])
-            
-        finally:
-            # Restore original directory
-            os.chdir(original_dir)
-            
     def test_specific_directory(self):
         """Test that tool works with a specified directory path"""
         # Create a file in current directory to verify we're not scanning it

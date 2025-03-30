@@ -6,11 +6,9 @@ from messages import SYSTEM
 from colors import AnsiColors
 
 # Configure logging
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='generation.log'
-)
+logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s',
+                    filename='generation.log')
 
 
 def read_system_message():
@@ -27,9 +25,10 @@ def read_system_message():
                 return f.read()
         except Exception as e:
             print(f"Error reading system message file: {e}")
-    
+
     # Default system message
     return SYSTEM
+
 
 def parse_arguments():
     """
@@ -38,16 +37,32 @@ def parse_arguments():
     Returns:
         argparse.Namespace: The parsed arguments
     """
-    parser = argparse.ArgumentParser(description='Run AI assistant with different models')
-    parser.add_argument('--engine', type=str, choices=['claude', 'gemini'], 
+    parser = argparse.ArgumentParser(
+        description='Run AI assistant with different models')
+    parser.add_argument('--engine',
+                        type=str,
+                        choices=['claude', 'gemini'],
                         help='Choose AI engine (claude or gemini)')
-    parser.add_argument('--model', type=str,
-                        help='Specific model name to use (e.g., claude-3-7-sonnet-20250219 or gemini-2.0-flash-001)')
-    parser.add_argument('--prompt', type=str,
-                        help='Prompt to send to the AI model (skips interactive mode if provided)')
-    parser.add_argument('--path', type=str, default=None,
-                        help='Specify which path to use as the working directory for all file operations')
+    parser.add_argument(
+        '--model',
+        type=str,
+        help=
+        'Specific model name to use (e.g., claude-3-7-sonnet-20250219 or gemini-2.0-flash-001)'
+    )
+    parser.add_argument(
+        '--prompt',
+        type=str,
+        help=
+        'Prompt to send to the AI model (skips interactive mode if provided)')
+    parser.add_argument(
+        '--path',
+        type=str,
+        default=None,
+        help=
+        'Specify which path to use as the working directory for all file operations'
+    )
     return parser.parse_args()
+
 
 def setup_model(args):
     """
@@ -67,7 +82,7 @@ def setup_model(args):
     # Default model names
     claude_model_name = "claude-3-7-sonnet-20250219"
     gemini_model_name = "gemini-2.0-flash-001"
-    
+
     # Override default model name if provided through command line
     if args.model:
         if args.engine == 'claude':
@@ -75,7 +90,9 @@ def setup_model(args):
         elif args.engine == 'gemini':
             gemini_model_name = args.model
         else:
-            print(f"Model name '{args.model}' provided but no engine type (--engine) specified")
+            print(
+                f"Model name '{args.model}' provided but no engine type (--engine) specified"
+            )
             exit(1)
 
     # Use command line argument if provided
@@ -108,15 +125,17 @@ def setup_model(args):
             print("OpenAI integration is not implemented yet")
             exit(1)
         else:
-            print("No API keys found. Please set one of the following environment variables:")
+            print(
+                "No API keys found. Please set one of the following environment variables:"
+            )
             print("- ANTHROPIC_API_KEY for Claude")
             print("- GEMINI_API_KEY for Gemini")
             print("- OPENAI_API_KEY for OpenAI (not implemented yet)")
             exit(1)
-            
+
     return generate_with_tool, model_name
 
-    
+
 def call_tool(tool_name, args, original_call, work_dir):
     """
     Call the appropriate tool function based on the tool name.
@@ -135,8 +154,9 @@ def call_tool(tool_name, args, original_call, work_dir):
         for tool in TOOLS:
             if tool['name'] == tool_name:
                 if 'work_dir' in tool['function'].__code__.co_varnames:
-                    args['work_dir'] = work_dir
-                result = tool['function'](**args)
+                    result = tool['function'](**{**args, 'work_dir': work_dir})
+                else:
+                    result = tool['function'](**args)
                 print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
                 logging.info(f"Function result: {result}")
                 return {"result": result}
@@ -145,18 +165,18 @@ def call_tool(tool_name, args, original_call, work_dir):
         print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
         logging.warning(error_msg)
         return {"error": str(e)}
-    
-    
+
     error_msg = f"Tool not found: {tool_name}"
     print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
     logging.error(error_msg)
     return {'error': error_msg}
 
+
 def main():
     """Main entry point for the application"""
     # Parse command line arguments
     args = parse_arguments()
-    
+
     # Set up the appropriate AI model
     generate_with_tool, model_name = setup_model(args)
 
@@ -165,42 +185,33 @@ def main():
 
     # Initialize conversation history
     conversation_history = []
-    
+
     # Get the working directory path
     working_dir = args.path if args.path else os.getcwd()
     if working_dir:
         print(f"Using working directory: {working_dir}")
-        
+
     def call_tool_f(tool_name, args, original_call):
-        call_tool(tool_name, args, original_call, working_dir)
-    
+        return call_tool(tool_name, args, original_call, working_dir)
+
     # Non-interactive mode with --prompt argument
     if args.prompt:
         print(f"Running in non-interactive mode with prompt: {args.prompt}")
-        generate_with_tool(
-            args.prompt, 
-            TOOLS, 
-           call_tool_f,
-            conversation_history, 
-            model_name, 
-            system_message
-        )
+        generate_with_tool(args.prompt, TOOLS, call_tool_f,
+                           conversation_history, model_name, system_message)
         return
-    
+
     # Interactive mode
     print("Starting interactive session. Type 'exit' to quit.")
     while True:
         user_input = input("You: ")
         if user_input.lower() == "exit":
             break
-        conversation_history = generate_with_tool(
-            user_input, 
-            TOOLS, 
-           call_tool_f,
-            conversation_history, 
-            model_name, 
-            system_message
-        )
+        conversation_history = generate_with_tool(user_input, TOOLS,
+                                                  call_tool_f,
+                                                  conversation_history,
+                                                  model_name, system_message)
+
 
 if __name__ == "__main__":
     main()
