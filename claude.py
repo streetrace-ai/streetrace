@@ -232,7 +232,7 @@ If can't understand a task, ask for clarifications."""
                 tool_results.append({
                     'type': 'tool_result',
                     'tool_use_id': content_block.id,
-                    'content': json.dumps(tool_result) 
+                    'content': tool_result
                 })
                 
         messages.append({

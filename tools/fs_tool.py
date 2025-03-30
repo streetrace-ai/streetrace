@@ -26,8 +26,8 @@ def list_directory(path, work_dir):
         ValueError: If the requested path is outside the allowed root path.
     """
     try:
-        structure = rds.read_directory_structure(_clean_input(path), work_dir)
-        return json.dumps(structure, indent=2)
+        result = rds.read_directory_structure(_clean_input(path), work_dir)
+        return json.dumps({"success": True, "path": result}, indent=2)
     except ValueError as e:
         return json.dumps({"error": str(e)}, indent=2)
 
@@ -43,8 +43,8 @@ def read_file(path, work_dir, encoding='utf-8'):
         File contents.
     """
     try:
-        contents = rf.read_file(_clean_input(path), work_dir, encoding)
-        return json.dumps(contents, indent=2)
+        result = rf.read_file(_clean_input(path), work_dir, encoding)
+        return json.dumps({"success": True, "path": result}, indent=2)
     except ValueError as e:
         return json.dumps({"error": str(e)}, indent=2)
 
@@ -78,7 +78,7 @@ def execute_cli_command(command, work_dir):
     """
     try:
         result = cli.execute_cli_command(command, work_dir)
-        return json.dumps({"success": True, "output": result}, indent=2)
+        return json.dumps({"success": True, "path": result}, indent=2)
     except (ValueError, TypeError, IOError, OSError) as e:
         return json.dumps({"error": str(e)}, indent=2)
 
@@ -98,10 +98,9 @@ def search_files(pattern, search_string, work_dir):
             of the line where the match was found.
     """
     try:
-        # Use work_dir as the work_dir for search_files
         result = s.search_files(_clean_input(pattern), _clean_input(search_string), 
                               work_dir=work_dir)
-        return json.dumps({"success": True, "output": result}, indent=2)
+        return json.dumps({"success": True, "path": result}, indent=2)
     except (ValueError, TypeError, IOError, OSError) as e:
         return json.dumps({"error": str(e)}, indent=2)
     
