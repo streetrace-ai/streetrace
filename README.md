@@ -4,12 +4,13 @@ Streetrace is an agentic AI coding partner that enables engineers to leverage AI
 
 **Project Description:**
 
-Streetrace defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic resides in `gemini.py` and `claude.py`, which define the `generate_with_tool` function for their respective models. This function takes a user prompt and conversation history as input, sends it to the AI model, and handles function calls from the model based on the defined tools. The `main.py` script provides a simple command-line interface for interacting with the `generate_with_tool` function.
+Streetrace defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic resides in `gemini.py`, `claude.py`, and `ollama_client.py`, which define the `generate_with_tool` function for their respective models. This function takes a user prompt and conversation history as input, sends it to the AI model, and handles function calls from the model based on the defined tools. The `main.py` script provides a simple command-line interface for interacting with the `generate_with_tool` function.
 
 **Key Components:**
 
 *   `gemini.py`: Contains the core logic for interacting with the Gemini AI model, defining tools, and handling function calls.
 *   `claude.py`: Contains the core logic for interacting with the Claude AI model, defining tools, and handling function calls.
+*   `ollama_client.py`: Contains the core logic for interacting with locally hosted models via Ollama, defining tools, and handling function calls.
 *   `main.py`: Provides a command-line interface for interacting with the `generate_with_tool` function.
 *   `tools/fs_tool.py`: Implements file system tools (list directory, read file, write file, execute CLI command).
 *   `tools/search.py`: Implements a tool for searching text within files.
@@ -18,7 +19,7 @@ Streetrace defines a set of tools that the AI model can use to interact with the
 **Workflow:**
 
 1.  The user provides a prompt through the command-line interface in `main.py`. 
-2.  The prompt is passed to the `generate_with_tool` function in either `gemini.py` or `claude.py`. 
+2.  The prompt is passed to the `generate_with_tool` function in either `gemini.py`, `claude.py`, or `ollama_client.py`. 
 3.  The `generate_with_tool` function sends the prompt and conversation history to the AI model.
 4.  The AI model processes the input and may call one of the defined tools.
 5.  If a tool is called, the `generate_with_tool` function executes the corresponding function in `tools/fs_tool.py` or `tools/search.py`. 
@@ -43,19 +44,20 @@ The tools can be used with the AI model to perform various tasks, such as readin
 Streetrace supports the following command line arguments:
 
 ```
-python main.py [--engine {claude|gemini}] [--model MODEL_NAME] [--prompt PROMPT] [--path PATH]
+python main.py [--engine {claude|gemini|ollama}] [--model MODEL_NAME] [--prompt PROMPT] [--path PATH]
 ```
 
 Options:
-- `--engine` - Choose AI engine (claude or gemini)
-- `--model` - Specific model name to use (e.g., claude-3-7-sonnet-20250219 or gemini-2.0-flash-001)
+- `--engine` - Choose AI engine (claude, gemini, or ollama)
+- `--model` - Specific model name to use (e.g., claude-3-7-sonnet-20250219, gemini-2.0-flash-001, or llama3:8b)
 - `--prompt` - Prompt to send to the AI model (skips interactive mode if provided)
 - `--path` - Specify which path to use as the working directory for all file operations
 
 If no engine is specified, Streetrace will automatically select an AI model based on the available API keys in the following order:
 1. Claude (if ANTHROPIC_API_KEY is set)
 2. Gemini (if GEMINI_API_KEY is set)
-3. OpenAI (if OPENAI_API_KEY is set - not yet implemented)
+3. Ollama (if OLLAMA_API_URL is set or Ollama is installed locally)
+4. OpenAI (if OPENAI_API_KEY is set - not yet implemented)
 
 #### Working with Files in Another Directory
 
@@ -137,6 +139,52 @@ To use these tools, you need to set one of the following environment variables:
 - `ANTHROPIC_API_KEY` for Claude AI model
 - `GEMINI_API_KEY` for Gemini AI model
 - `OPENAI_API_KEY` for OpenAI (not implemented yet)
+
+### Using with Ollama
+
+Streetrace supports integration with [Ollama](https://ollama.ai/), allowing you to use locally hosted open-source models. 
+
+#### Setup for Ollama
+
+1. Install Ollama on your system. Visit [ollama.ai](https://ollama.ai/) for installation instructions.
+2. Pull the model you want to use, for example:
+   ```
+   ollama pull llama3:8b
+   ```
+3. Ensure Ollama is running on your system:
+   ```
+   ollama serve
+   ```
+
+#### Configuration Options
+
+- **OLLAMA_API_URL**: (Optional) Set this environment variable to specify a custom URL for the Ollama API. By default, Streetrace will use `http://localhost:11434`.
+  ```
+  export OLLAMA_API_URL="http://my-ollama-server:11434"
+  ```
+
+- **Default Model**: By default, Streetrace uses the `llama3:8b` model. You can specify a different model using the `--model` argument.
+  ```
+  python main.py --engine ollama --model mistral:7b
+  ```
+
+#### Usage Examples
+
+Using default Ollama model (automatic detection if Ollama is installed):
+```
+python main.py
+```
+
+Explicitly selecting Ollama with a specific model:
+```
+python main.py --engine ollama --model codellama:13b
+```
+
+Setting a different Ollama API URL and running with a specific prompt:
+```
+export OLLAMA_API_URL="http://192.168.1.100:11434"
+python main.py --engine ollama --model llama3:70b --prompt "Create a simple HTTP server in Python"
+```
 
 ## Running tests
 
