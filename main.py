@@ -42,13 +42,13 @@ def parse_arguments():
         description='Run AI assistant with different models')
     parser.add_argument('--engine',
                         type=str,
-                        choices=['claude', 'gemini'],
-                        help='Choose AI engine (claude or gemini)')
+                        choices=['claude', 'gemini', 'ollama'],
+                        help='Choose AI engine (claude, gemini, or ollama)')
     parser.add_argument(
         '--model',
         type=str,
         help=
-        'Specific model name to use (e.g., claude-3-7-sonnet-20250219 or gemini-2.0-flash-001)'
+        'Specific model name to use (e.g., claude-3-7-sonnet-20250219, gemini-2.0-flash-001, or llama3:8b)'
     )
     parser.add_argument(
         '--prompt',
@@ -79,10 +79,13 @@ def setup_model(args):
     anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY')
     gemini_api_key = os.environ.get('GEMINI_API_KEY')
     openai_api_key = os.environ.get('OPENAI_API_KEY')
+    # For Ollama, we don't need an API key, but we can check for the base URL
+    ollama_url = os.environ.get('OLLAMA_API_URL')
 
     # Default model names
     claude_model_name = "claude-3-7-sonnet-20250219"
     gemini_model_name = "gemini-2.0-flash-001"
+    ollama_model_name = "llama3:8b"
 
     # Override default model name if provided through command line
     if args.model:
@@ -90,6 +93,8 @@ def setup_model(args):
             claude_model_name = args.model
         elif args.engine == 'gemini':
             gemini_model_name = args.model
+        elif args.engine == 'ollama':
+            ollama_model_name = args.model
         else:
             print(
                 f"Model name '{args.model}' provided but no engine type (--engine) specified"
@@ -112,6 +117,11 @@ def setup_model(args):
             print(f"Using Gemini AI engine: {gemini_model_name}")
             from gemini import generate_with_tool
             model_name = gemini_model_name
+        elif args.engine == 'ollama':
+            print(f"Using Ollama AI engine: {ollama_model_name}")
+            print(f"Ollama API URL: {ollama_url or 'http://localhost:11434 (default)'}")
+            from ollama_client import generate_with_tool
+            model_name = ollama_model_name
     else:
         # Select the appropriate AI model based on available API keys (original behavior)
         if anthropic_api_key:
@@ -122,6 +132,10 @@ def setup_model(args):
             print(f"Using Gemini AI model: {gemini_model_name}")
             from gemini import generate_with_tool
             model_name = gemini_model_name
+        elif ollama_url or os.path.exists('/usr/bin/ollama') or os.path.exists('/usr/local/bin/ollama'):
+            print(f"Using Ollama AI model: {ollama_model_name}")
+            from ollama_client import generate_with_tool
+            model_name = ollama_model_name
         elif openai_api_key:
             print("OpenAI integration is not implemented yet")
             exit(1)
@@ -131,6 +145,7 @@ def setup_model(args):
             )
             print("- ANTHROPIC_API_KEY for Claude")
             print("- GEMINI_API_KEY for Gemini")
+            print("- OLLAMA_API_URL for Ollama (optional, defaults to http://localhost:11434)")
             print("- OPENAI_API_KEY for OpenAI (not implemented yet)")
             exit(1)
 

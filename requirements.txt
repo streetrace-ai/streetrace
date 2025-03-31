@@ -35,6 +35,7 @@ Markdown==3.7
 markdownify==1.1.0
 MarkupSafe==3.0.2
 oauthlib==3.2.2
+ollama==0.4.7
 openai==1.66.3
 packaging==24.2
 pathspec==0.12.1
