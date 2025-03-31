@@ -1,6 +1,7 @@
 import queue
 import subprocess
 import threading
+import os
 
 def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
     """
@@ -24,6 +25,16 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
     stdout_lines = []
     stderr_lines = []
     process = None
+    
+    # Validate work_dir exists and is a directory
+    if not os.path.exists(work_dir):
+        raise ValueError(f"Working directory '{work_dir}' does not exist")
+    if not os.path.isdir(work_dir):
+        raise ValueError(f"Path '{work_dir}' is not a directory")
+    
+    # Normalize the working directory
+    abs_work_dir = os.path.abspath(os.path.normpath(work_dir))
+    
     try:
         def pipe_data(text_stream, msg_queue, lines_buffer):
             for line in iter(text_stream.readline, ''):
@@ -32,7 +43,7 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
             msg_queue.put(None)
 
         process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                        universal_newlines=True)
+                        universal_newlines=True, cwd=abs_work_dir)
         
         stdout_queue = queue.Queue()
         stdout_thread = threading.Thread(target=pipe_data, args=(process.stdout, stdout_queue, stdout_lines))

@@ -1,6 +1,7 @@
 import os
 import pathspec
 import glob
+from tools.path_utils import normalize_and_validate_path, validate_directory_exists
 
 def load_gitignore_for_directory(path):
     gitignore_files = []
@@ -46,7 +47,7 @@ def read_directory_structure(path, work_dir):
     """Read directory structure at a specific level (non-recursive) honoring .gitignore rules.
     
     Args:
-        path (str): The path to scan.
+        path (str): The path to scan. Can be relative to work_dir or absolute.
         work_dir (str): The working directory.
     
     Returns:
@@ -55,22 +56,20 @@ def read_directory_structure(path, work_dir):
     Raises:
         ValueError: If the requested path is outside the allowed root path or doesn't exist.
     """
-    # Get absolute paths for security comparison
-    abs_work_dir = os.path.abspath(work_dir)
-    abs_path = os.path.abspath(path)
+    # Normalize and validate the path
+    abs_path = normalize_and_validate_path(path, work_dir)
     
-    # Security check: ensure the requested path is within the root path
-    if not abs_path.startswith(abs_work_dir):
-        raise ValueError(f"Security error: Requested path '{path}' is outside the allowed root path.")
-    
-    if not os.path.exists(path):
-        raise ValueError(f"Requested path '{path}' was not found.")
+    # Check if directory exists
+    validate_directory_exists(abs_path)
 
     # Get gitignore spec for the current directory
-    spec = load_gitignore_for_directory(path)
+    spec = load_gitignore_for_directory(abs_path)
+    
+    # Normalize work_dir to be able to get relative paths later
+    abs_work_dir = os.path.abspath(work_dir)
     
     # Use glob to get all items in the current directory
-    items = glob.glob(os.path.join(path, '*'))
+    items = glob.glob(os.path.join(abs_path, '*'))
     
     dirs = []
     files = []
@@ -78,11 +77,11 @@ def read_directory_structure(path, work_dir):
     # Filter items and classify them as directories or files
     for item in items:
         # Skip if item is ignored by gitignore rules
-        if is_ignored(item, path, spec):
+        if is_ignored(item, abs_path, spec):
             continue
             
         # Get path relative to work_dir
-        rel_path = os.path.relpath(item, work_dir)
+        rel_path = os.path.relpath(item, abs_work_dir)
         
         # Add to appropriate list
         if os.path.isdir(item):

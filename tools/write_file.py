@@ -1,14 +1,15 @@
 import os
 import codecs
+from tools.path_utils import normalize_and_validate_path, ensure_directory_exists
 
 def write_file(file_path, content, work_dir, encoding='utf-8', binary_mode=False):
     """
     Securely write content to a file, ensuring the path is within the allowed root path.
     
     Args:
-        file_path (str): Path to the file to write. Can be relative or absolute.
+        file_path (str): Path to the file to write. Can be relative to work_dir or absolute.
         content (str or bytes): Content to write to the file.
-        work_dir (str, optional): Root path that restricts access. If None, uses current directory.
+        work_dir (str): Root path that restricts access.
             The file_path must be within this work_dir for security.
         encoding (str, optional): Text encoding to use when writing text. Defaults to 'utf-8'.
             This is ignored if binary_mode is True.
@@ -24,13 +25,8 @@ def write_file(file_path, content, work_dir, encoding='utf-8', binary_mode=False
         IOError: If there are issues writing the file
         OSError: If directory creation fails
     """
-    # Get absolute paths for security comparison
-    abs_work_dir = os.path.abspath(os.path.normpath(work_dir))
-    abs_file_path = os.path.abspath(os.path.normpath(file_path))
-    
-    # Security check: ensure the file path is within the root path
-    if not abs_file_path.startswith(abs_work_dir):
-        raise ValueError(f"Security error: Requested file path '{file_path}' is outside the allowed root path.")
+    # Normalize and validate the path
+    abs_file_path = normalize_and_validate_path(file_path, work_dir)
     
     # Check content type
     if binary_mode and not isinstance(content, bytes):
@@ -39,12 +35,7 @@ def write_file(file_path, content, work_dir, encoding='utf-8', binary_mode=False
         raise TypeError("Content must be str when binary_mode is False")
     
     # Create directory if it doesn't exist
-    directory = os.path.dirname(abs_file_path)
-    if directory and not os.path.exists(directory):
-        try:
-            os.makedirs(directory, exist_ok=True)
-        except OSError as e:
-            raise OSError(f"Failed to create directory '{directory}': {str(e)}")
+    ensure_directory_exists(abs_file_path)
     
     # Write the content to the file
     try:
@@ -56,4 +47,4 @@ def write_file(file_path, content, work_dir, encoding='utf-8', binary_mode=False
                 f.write(content)
         return file_path
     except IOError as e:
-        raise IOError(f"Error writing to file '{file_path}': {str(e)}") 
+        raise IOError(f"Error writing to file '{file_path}': {str(e)}")

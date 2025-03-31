@@ -1,5 +1,5 @@
-import os
 import codecs
+from tools.path_utils import normalize_and_validate_path, validate_file_exists
 
 def is_binary_file(file_path, sample_size=1024):
     """
@@ -7,7 +7,7 @@ def is_binary_file(file_path, sample_size=1024):
     
     Args:
         file_path (str): Path to the file to check.
-        sample_size (int, optional): Number of bytes to sample. Defaults to 8192.
+        sample_size (int, optional): Number of bytes to sample. Defaults to 1024.
     
     Returns:
         bool: True if the file appears to be binary, False otherwise.
@@ -33,7 +33,7 @@ def read_file(file_path, work_dir, encoding='utf-8'):
     Securely read a file's contents, ensuring the path is within the allowed root path.
     
     Args:
-        file_path (str): Path to the file to read. Can be relative or absolute.
+        file_path (str): Path to the file to read. Can be relative to work_dir or absolute.
         work_dir (str): The working directory.
         encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
     
@@ -45,21 +45,11 @@ def read_file(file_path, work_dir, encoding='utf-8'):
         IOError: If there are issues reading the file
         UnicodeDecodeError: If the file can't be decoded using the specified encoding in text mode
     """
-    # Get absolute paths for security comparison
-    abs_work_dir = os.path.abspath(os.path.normpath(work_dir))
-    abs_file_path = os.path.abspath(os.path.normpath(file_path))
+    # Normalize and validate the path
+    abs_file_path = normalize_and_validate_path(file_path, work_dir)
     
-    # Security check: ensure the file path is within the root path
-    if not abs_file_path.startswith(abs_work_dir):
-        raise ValueError(f"Security error: Requested file path '{file_path}' is outside the allowed root path.")
-    
-    # Check if file exists
-    if not os.path.exists(abs_file_path):
-        raise ValueError(f"File not found: '{file_path}'")
-    
-    # Check if path is actually a file (not a directory)
-    if not os.path.isfile(abs_file_path):
-        raise ValueError(f"Path is not a file: '{file_path}'")
+    # Check if file exists and is a file (not a directory)
+    validate_file_exists(abs_file_path)
     
     # Auto-detect binary if requested and we're not in binary mode already
     if is_binary_file(abs_file_path):

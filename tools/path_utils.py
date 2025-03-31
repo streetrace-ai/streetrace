@@ -1,0 +1,85 @@
+import os
+
+def normalize_and_validate_path(path, work_dir):
+    """
+    Normalizes and validates a file or directory path to ensure it's within the working directory.
+    
+    This function performs the following:
+    1. Normalizes both the path and work_dir (resolves '..', '.' etc.)
+    2. Converts relative paths to absolute based on work_dir
+    3. Validates that the resulting path is within work_dir
+    
+    Args:
+        path (str): Path to normalize and validate. Can be relative or absolute.
+        work_dir (str): The working directory that serves as the root for relative paths
+                       and as a security boundary for all paths.
+    
+    Returns:
+        str: The normalized absolute path.
+        
+    Raises:
+        ValueError: If the normalized path is outside the working directory.
+    """
+    # Normalize and get absolute paths
+    abs_work_dir = os.path.abspath(os.path.normpath(work_dir))
+    
+    # If path is relative, make it absolute relative to work_dir
+    if not os.path.isabs(path):
+        abs_path = os.path.abspath(os.path.join(abs_work_dir, os.path.normpath(path)))
+    else:
+        abs_path = os.path.abspath(os.path.normpath(path))
+    
+    # Security check: ensure the path is within the work_dir
+    if not abs_path.startswith(abs_work_dir):
+        raise ValueError(f"Security error: Path '{path}' resolves to a location outside the allowed working directory.")
+    
+    return abs_path
+
+def validate_file_exists(abs_path):
+    """
+    Validates that a file exists at the given path.
+    
+    Args:
+        abs_path (str): Absolute path to check.
+        
+    Raises:
+        ValueError: If the file doesn't exist or is not a file.
+    """
+    if not os.path.exists(abs_path):
+        raise ValueError(f"File not found: '{abs_path}'")
+    
+    if not os.path.isfile(abs_path):
+        raise ValueError(f"Path is not a file: '{abs_path}'")
+
+def validate_directory_exists(abs_path):
+    """
+    Validates that a directory exists at the given path.
+    
+    Args:
+        abs_path (str): Absolute path to check.
+        
+    Raises:
+        ValueError: If the directory doesn't exist or is not a directory.
+    """
+    if not os.path.exists(abs_path):
+        raise ValueError(f"Directory not found: '{abs_path}'")
+    
+    if not os.path.isdir(abs_path):
+        raise ValueError(f"Path is not a directory: '{abs_path}'")
+
+def ensure_directory_exists(abs_path):
+    """
+    Ensures a directory exists at the given path, creating it if necessary.
+    
+    Args:
+        abs_path (str): Absolute path to the directory.
+        
+    Raises:
+        OSError: If the directory cannot be created.
+    """
+    directory = os.path.dirname(abs_path)
+    if directory and not os.path.exists(directory):
+        try:
+            os.makedirs(directory, exist_ok=True)
+        except OSError as e:
+            raise OSError(f"Failed to create directory '{directory}': {str(e)}")
