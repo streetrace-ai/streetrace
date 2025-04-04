@@ -32,20 +32,30 @@ def transform_tools(tools):
     for tool in tools:
         # Convert properties to Gemini Schema format
         gemini_properties = {}
-        for param_name, param_def in tool['parameters']['properties'].items():
-            gemini_properties[param_name] = types.Schema(
-                type=param_def['type'].upper(),  # Gemini uses uppercase type names
-                description=param_def['description']
-            )
+        for param_name, param_def in tool['function']['parameters']['properties'].items():
+            if 'items' in param_def:
+                gemini_properties[param_name] = types.Schema(
+                    type=param_def['type'].upper(),  # Gemini uses uppercase type names
+                    items=types.Schema(
+                        type=param_def['items']['type'].upper(),  # Gemini uses uppercase type names
+                    ),
+                    description=param_def['description']
+                )
+            else:
+                gemini_properties[param_name] = types.Schema(
+                    type=param_def['type'].upper(),  # Gemini uses uppercase type names
+                    description=param_def['description']
+                )
         
         # Create the function declaration
         function_declaration = types.FunctionDeclaration(
-            name=tool['name'],
-            description=tool['description'],
+            name=tool['function']['name'],
+            description=tool['function']['description'],
             parameters=types.Schema(
+                description=f'Parameters for the {tool['function']['name']} function',
                 type='OBJECT',
                 properties=gemini_properties,
-                required=tool['parameters']['required']
+                required=tool['function']['parameters']['required']
             )
         )
         
@@ -190,7 +200,7 @@ If can't understand a task, ask for clarifications."""
             contents=contents,
             config=generation_config
         ):
-            logging.debug(f"Chunk received: {type(chunk)}")
+            logging.debug(f"Chunk received: {chunk}")
             
             # Track finish information
             try:
@@ -265,6 +275,6 @@ If can't understand a task, ask for clarifications."""
     except Exception as e:
         error_msg = f"Error during content generation: {e}"
         logging.error(error_msg)
-        print(AnsiColors.MODELERROR + "\nError during content generation. See logs for details." + AnsiColors.RESET)
+        print(AnsiColors.MODELERROR + error_msg + AnsiColors.RESET)
     
     return conversation_history

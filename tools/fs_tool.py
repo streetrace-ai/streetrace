@@ -1,4 +1,3 @@
-import json
 import tools.read_directory_structure as rds
 import tools.read_file as rf
 import tools.write_file as wf
@@ -25,11 +24,7 @@ def list_directory(path, work_dir):
     Raises:
         ValueError: If the requested path is outside the allowed root path.
     """
-    try:
-        result = rds.read_directory_structure(_clean_input(path), work_dir)
-        return json.dumps({"success": True, "result": result}, indent=2)
-    except ValueError as e:
-        return json.dumps({"error": str(e)}, indent=2)
+    return rds.read_directory_structure(_clean_input(path), work_dir)
 
 def read_file(path, work_dir, encoding='utf-8'):
     """Read file contents.
@@ -42,11 +37,7 @@ def read_file(path, work_dir, encoding='utf-8'):
     Returns:
         File contents.
     """
-    try:
-        result = rf.read_file(_clean_input(path), work_dir, encoding)
-        return json.dumps({"success": True, "result": result}, indent=2)
-    except ValueError as e:
-        return json.dumps({"error": str(e)}, indent=2)
+    return rf.read_file(_clean_input(path), work_dir, encoding)
 
 def write_file(path, content, work_dir, encoding='utf-8'):
     """Write content to a file.
@@ -60,11 +51,7 @@ def write_file(path, content, work_dir, encoding='utf-8'):
     Returns:
         Result of the operation.
     """
-    try:
-        result = wf.write_file(_clean_input(path), content, work_dir, encoding, binary_mode=False)
-        return json.dumps({"success": True, "path": result}, indent=2)
-    except (ValueError, TypeError, IOError, OSError) as e:
-        return json.dumps({"error": str(e)}, indent=2)
+    return wf.write_file(_clean_input(path), content, work_dir, encoding, binary_mode=False)
 
 def execute_cli_command(command, work_dir):
     """Execute a CLI command interactively. Does not provide shell access.
@@ -76,11 +63,7 @@ def execute_cli_command(command, work_dir):
     Returns:
         The stdio output.
     """
-    try:
-        result = cli.execute_cli_command(command, work_dir)
-        return json.dumps({"success": True, "result": result}, indent=2)
-    except (ValueError, TypeError, IOError, OSError) as e:
-        return json.dumps({"error": str(e)}, indent=2)
+    return cli.execute_cli_command(command, work_dir)
 
 def search_files(pattern, search_string, work_dir):
     """
@@ -97,103 +80,132 @@ def search_files(pattern, search_string, work_dir):
             Each dictionary contains the file path, line number, and a snippet
             of the line where the match was found.
     """
-    try:
-        result = s.search_files(_clean_input(pattern), _clean_input(search_string), 
+    return s.search_files(_clean_input(pattern), _clean_input(search_string), 
                               work_dir=work_dir)
-        return json.dumps({"success": True, "result": result}, indent=2)
-    except (ValueError, TypeError, IOError, OSError) as e:
-        return json.dumps({"error": str(e)}, indent=2)
     
 
 # Define common tools list
 TOOLS = [
     {
-        "name": "search_files",
-        "description": "Searches for text occurrences in files given a glob pattern and a search string.",
-        "parameters": {
-            "properties": {
-                "pattern": {
-                    "type": "string",
-                    "description": "Glob pattern to match files."
-                },
-                "search_string": {
-                    "type": "string",
-                    "description": "The string to search for."
-                }
-            },
-            "required": ["pattern", "search_string"]
-        },
-        "function": search_files
-    },
-    {
-        "name": "execute_cli_command",
-        "description": "Executes a CLI command in interactive mode and returns the output, error, and return code. Does not provide shell access.",
-        "parameters": {
-            "properties": {
-                "command": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
+        "type": "function",
+        "function": {
+            "name": "search_files",
+            "description": "Searches for text occurrences in files given a glob pattern and a search string.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "pattern": {
+                        "type": "string",
+                        "description": "Glob pattern to match files."
                     },
-                    "description": "The CLI command to execute."
-                }
+                    "search_string": {
+                        "type": "string",
+                        "description": "The string to search for."
+                    }
+                },
+                "required": ["pattern", "search_string"],
+                "additionalProperties": False,
             },
-            "required": ["command"]
+            "strict": True,
         },
-        "function": execute_cli_command
     },
     {
-        "name": "write_file",
-        "description": "Write content to a file. Overwrites the file if it already exists.",
-        "parameters": {
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the file to write to."
+        "type": "function",
+        "function": {
+            "name": "execute_cli_command",
+            "description": "Executes a CLI command in interactive mode and returns the output, error, and return code. Does not provide shell access.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "The CLI command to execute."
+                    }
                 },
-                "content": {
-                    "type": "string",
-                    "description": "New content of the file."
-                },
-                "encoding": {
-                    "type": "string",
-                    "description": "Text encoding to use. Defaults to \"utf-8\"."
-                }
+                "required": ["command"],
+                "additionalProperties": False,
             },
-            "required": ["path", "content"]
+            "strict": True,
         },
-        "function": write_file
     },
     {
-        "name": "read_file",
-        "description": "Read file contents.",
-        "parameters": {
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the file to retrieve the contents from."
+        "type": "function",
+        "function": {
+            "name": "write_file",
+            "description": "Write content to a file. Overwrites the file if it already exists.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to write to."
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "New content of the file."
+                    },
+                    "encoding": {
+                        "type": "string",
+                        "description": "Text encoding to use. Defaults to \"utf-8\"."
+                    }
                 },
-                "encoding": {
-                    "type": "string",
-                    "description": "Text encoding to use. Defaults to \"utf-8\"."
-                }
+                "required": ["path", "content", "encoding"],
+                "additionalProperties": False,
             },
-            "required": ["path"]
+            "strict": True,
         },
-        "function": read_file
     },
     {
-        "name": "list_directory",
-        "description": "List information about the files and directories in the requested directory.",
-        "parameters": {
-            "properties": {
-                "path": {
-                    "type": "string",
-                    "description": "Path to the directory to retrieve the contents from."
-                }
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Read file contents.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to retrieve the contents from."
+                    },
+                    "encoding": {
+                        "type": "string",
+                        "description": "Text encoding to use. Defaults to \"utf-8\"."
+                    }
+                },
+                "required": ["path", "encoding"],
+                "additionalProperties": False,
             },
-            "required": ["path"]
+            "strict": True,
         },
-        "function": list_directory
-    }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_directory",
+            "description": "List information about the files and directories in the requested directory.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the directory to retrieve the contents from."
+                    }
+                },
+                "required": ["path"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
 ]
+
+TOOL_IMPL = {
+    "search_files": search_files,
+    "execute_cli_command": execute_cli_command,
+    "write_file": write_file,
+    "read_file": read_file,
+    "list_directory": list_directory
+}

@@ -27,28 +27,15 @@ def transform_tools(tools):
     Returns:
         list: List of tool definitions in Claude format
     """
-    claude_tools = []
-    
-    for tool in tools:
-        claude_tool = {
+    claude_tools = [
+        {
             "type": "custom",
-            "name": tool["name"],
-            "description": tool["description"],
-            "input_schema": {
-                "type": "object",
-                "properties": {},
-                "required": tool["parameters"]["required"]
-            }
-        }
-        
-        # Transform parameters
-        for param_name, param_def in tool["parameters"]["properties"].items():
-            claude_tool["input_schema"]["properties"][param_name] = {
-                "type": param_def["type"],
-                "description": param_def["description"]
-            }
-        
-        claude_tools.append(claude_tool)
+            "name": tool["function"]["name"],
+            "description": tool["function"]["description"],
+            "input_schema": tool["function"]["parameters"]
+        } for tool in tools
+    ]
+    print(claude_tools)
     
     return claude_tools
 
@@ -232,7 +219,7 @@ If can't understand a task, ask for clarifications."""
                 tool_results.append({
                     'type': 'tool_result',
                     'tool_use_id': content_block.id,
-                    'content': tool_result
+                    'content': json.dumps(tool_result)
                 })
                 
         messages.append({

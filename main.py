@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import argparse
-from tools.fs_tool import TOOLS
+from tools.fs_tool import TOOLS, TOOL_IMPL
 from messages import SYSTEM
 from colors import AnsiColors
 
@@ -177,26 +177,26 @@ def call_tool(tool_name, args, original_call, work_dir):
         tuple: (function_response, result_text)
     """
     logging.debug(f"Calling tool {tool_name} with arguments: {args}")
-    try:
-        for tool in TOOLS:
-            if tool['name'] == tool_name:
-                if 'work_dir' in tool['function'].__code__.co_varnames:
-                    result = tool['function'](**{**args, 'work_dir': work_dir})
-                else:
-                    result = tool['function'](**args)
-                print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
-                logging.info(f"Function result: {result}")
-                return result
-    except Exception as e:
-        error_msg = f"Error in {tool_name}: {str(e)}"
+    if tool_name in TOOL_IMPL:
+        tool = TOOL_IMPL[tool_name]
+        if 'work_dir' in tool.__code__.co_varnames:
+            args = { **args, 'work_dir': work_dir }
+        try:
+            result = tool(**args)
+            print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
+            logging.info(f"Function result: {result}")
+            return {"success": True, "result": json.dumps(result)}
+        except Exception as e:
+            error_msg = f"Error in {tool_name}: {str(e)}"
+            print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
+            logging.warning(error_msg)
+            return {"error": str(e)}
+    else:
+        error_msg = f"Tool not found: {tool_name}"
         print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
-        logging.warning(error_msg)
-        return json.dumps({"error": str(e)})
+        logging.error(error_msg)
+        return {'error': error_msg}
 
-    error_msg = f"Tool not found: {tool_name}"
-    print(AnsiColors.TOOLERROR + error_msg + AnsiColors.RESET)
-    logging.error(error_msg)
-    return {'error': error_msg}
 
 
 def main():
