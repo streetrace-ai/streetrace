@@ -35,30 +35,30 @@ def transform_tools(tools):
     Returns:
         list: List of tool definitions in Ollama format
     """
-    ollama_tools = []
+    ollama_tools = tools
     
-    for tool in tools:
-        ollama_tool = {
-            "type": "function",
-            "function": {
-                "name": tool["name"],
-                "description": tool["description"],
-                "parameters": {
-                    "type": "object",
-                    "properties": {},
-                    "required": tool["parameters"]["required"]
-                }
-            }
-        }
+    # for tool in tools:
+    #     ollama_tool = {
+    #         "type": "function",
+    #         "function": {
+    #             "name": tool["name"],
+    #             "description": tool["description"],
+    #             "parameters": {
+    #                 "type": "object",
+    #                 "properties": {},
+    #                 "required": tool["parameters"]["required"]
+    #             }
+    #         }
+    #     }
         
-        # Transform parameters
-        for param_name, param_def in tool["parameters"]["properties"].items():
-            ollama_tool["function"]["parameters"]["properties"][param_name] = {
-                "type": param_def["type"],
-                "description": param_def["description"]
-            }
+    #     # Transform parameters
+    #     for param_name, param_def in tool["parameters"]["properties"].items():
+    #         ollama_tool["function"]["parameters"]["properties"][param_name] = {
+    #             "type": param_def["type"],
+    #             "description": param_def["description"]
+    #         }
         
-        ollama_tools.append(ollama_tool)
+    #     ollama_tools.append(ollama_tool)
     
     return ollama_tools
 
@@ -67,7 +67,7 @@ def tools_system_message(tools):
     
     for tool in tools:
         parameters = ""
-        for param_name, param_def in tool["parameters"]["properties"].items():
+        for param_name, param_def in tool["function"]["parameters"]["properties"].items():
             parameters += f"""
                         <property>
                             <name>{param_name}</name>
@@ -78,12 +78,12 @@ def tools_system_message(tools):
         tool_xml = f"""<tool>
             <type>function</type>,
             <function>
-                <name>{tool["name"]}</name>,
+                <name>{tool["function"]["name"]}</name>,
                 <description": tool["description"],
                 <parameters>
                     <type>object</type>,
                     <properties>{parameters}</properties>,
-                    <required>{tool["parameters"]["required"]}</required>
+                    <required>{tool["function"]["parameters"]["required"]}</required>
                 </parameters>
             </function>
         """
