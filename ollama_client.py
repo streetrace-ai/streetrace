@@ -2,14 +2,13 @@ import os
 import logging
 import time
 import json
-import requests
 from colors import AnsiColors
 
 import ollama
 
 
 # Constants
-MAX_TOKENS = 32768  # Default context window for most Ollama models (can vary by model)
+MAX_TOKENS = 32768  # Default context window for most Ollama models
 MODEL_NAME = "llama3:8b"  # Default model
 
 # Base URL for Ollama API
@@ -37,70 +36,7 @@ def transform_tools(tools):
     """
     ollama_tools = tools
     
-    # for tool in tools:
-    #     ollama_tool = {
-    #         "type": "function",
-    #         "function": {
-    #             "name": tool["name"],
-    #             "description": tool["description"],
-    #             "parameters": {
-    #                 "type": "object",
-    #                 "properties": {},
-    #                 "required": tool["parameters"]["required"]
-    #             }
-    #         }
-    #     }
-        
-    #     # Transform parameters
-    #     for param_name, param_def in tool["parameters"]["properties"].items():
-    #         ollama_tool["function"]["parameters"]["properties"][param_name] = {
-    #             "type": param_def["type"],
-    #             "description": param_def["description"]
-    #         }
-        
-    #     ollama_tools.append(ollama_tool)
-    
     return ollama_tools
-
-def tools_system_message(tools):
-    ollama_tools = []
-    
-    for tool in tools:
-        parameters = ""
-        for param_name, param_def in tool["function"]["parameters"]["properties"].items():
-            parameters += f"""
-                        <property>
-                            <name>{param_name}</name>
-                            <type>{param_def["type"]}</type>
-                            <description>{param_def["description"]}</description>
-                        </property>
-            """
-        tool_xml = f"""<tool>
-            <type>function</type>,
-            <function>
-                <name>{tool["function"]["name"]}</name>,
-                <description": tool["description"],
-                <parameters>
-                    <type>object</type>,
-                    <properties>{parameters}</properties>,
-                    <required>{tool["function"]["parameters"]["required"]}</required>
-                </parameters>
-            </function>
-        """
-        
-        # Transform parameters
-        
-        ollama_tools.append(tool_xml)
-    return """
-You are provided with function signatures within <tools></tools> XML tags. You may call one or more functions to assist with the user query. Don't make assumptions about what values to plug into functions. For each function call return a json object with function name and arguments within <tool_call></tool_call> XML tags as follows:
-<tool_call>
-{"name": <function-name>,"arguments": <args-dict>}
-</tool_call>
-
-Here are the available tools:
-<tools>
-""" + "\n".join(ollama_tools) + """
-</tools>"""
 
 def pretty_print(messages):
     """
@@ -162,7 +98,7 @@ def manage_conversation_history(conversation_history, max_tokens=MAX_TOKENS):
         logging.error(f"Error managing tokens: {e}")
         return False
 
-def generate_with_tool(prompt, tools, call_tool, conversation_history=None, model_name=MODEL_NAME, system_message=None):
+def generate_with_tool(prompt, tools, call_tool, conversation_history=None, model_name=MODEL_NAME, system_message=None, project_context=None):
     """
     Generates content using the Ollama model with tools,
     maintaining conversation history.
@@ -174,14 +110,13 @@ def generate_with_tool(prompt, tools, call_tool, conversation_history=None, mode
         conversation_history (list, optional): The history of the conversation. Defaults to None.
         model_name (str, optional): The name of the Ollama model to use. Defaults to MODEL_NAME.
         system_message (str, optional): The system message to use. If None, a default will be used.
+        project_context (str, optional): Additional project context to be added to the user's prompt.
     
     Returns:
         list: The updated conversation history
     """
     client = initialize_client()
     
-    tools_message = tools_system_message(tools)
-
     # Use default system message if none is provided
     if system_message is None:
         system_message = """You are an experienced software engineer implementing code for a project working as a peer engineer
@@ -198,16 +133,23 @@ If can't understand a task, ask for clarifications."""
             'content': system_message,
         })
         
-    # Log and display user prompt
-    print(AnsiColors.USER + prompt + AnsiColors.RESET)
-    logging.info("User prompt: %s", prompt)
-
     # Add the user's prompt to the conversation history
-    user_message = {
-        'role': 'user',
-        'content': prompt
-    }
-    conversation_history.append(user_message)
+    if project_context:
+        print(AnsiColors.USER + "[Adding project context]" + AnsiColors.RESET)
+        logging.debug(f"Context: {project_context}")
+        conversation_history.append({
+            'role': 'user',
+            'content': project_context
+        })
+        
+    # Add the user's prompt to the conversation history
+    if prompt:
+        print(AnsiColors.USER + prompt + AnsiColors.RESET)
+        logging.info("User prompt: %s", prompt)
+        conversation_history.append({
+            'role': 'user',
+            'content': prompt
+        })
     messages = conversation_history.copy()
 
     # Ensure messages are within token limits

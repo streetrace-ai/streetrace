@@ -35,7 +35,6 @@ def transform_tools(tools):
             "input_schema": tool["function"]["parameters"]
         } for tool in tools
     ]
-    print(claude_tools)
     
     return claude_tools
 
@@ -99,7 +98,7 @@ def manage_conversation_history(conversation_history, max_tokens=MAX_TOKENS):
         logging.error(f"Error managing tokens: {e}")
         return False
 
-def generate_with_tool(prompt, tools, call_tool, conversation_history=None, model_name=MODEL_NAME, system_message=None):
+def generate_with_tool(prompt, tools, call_tool, conversation_history=None, model_name=MODEL_NAME, system_message=None, project_context=None):
     """
     Generates content using the Claude model with tools,
     maintaining conversation history.
@@ -111,6 +110,7 @@ def generate_with_tool(prompt, tools, call_tool, conversation_history=None, mode
         conversation_history (list, optional): The history of the conversation. Defaults to None.
         model_name (str, optional): The name of the Claude model to use. Defaults to MODEL_NAME.
         system_message (str, optional): The system message to use. If None, a default will be used.
+        project_context (str, optional): Additional project context to be added to the user's prompt.
     
     Returns:
         list: The updated conversation history
@@ -126,19 +126,30 @@ def generate_with_tool(prompt, tools, call_tool, conversation_history=None, mode
 with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
 If can't understand a task, ask for clarifications."""
 
-    # Log and display user prompt
-    print(AnsiColors.USER + prompt + AnsiColors.RESET)
-    logging.info("User prompt: %s", prompt)
+    # Add context to the conversation history
+    if project_context:
+        print(AnsiColors.USER + "[Adding project context]" + AnsiColors.RESET)
+        logging.debug(f"Context: {project_context}")
+        conversation_history.append({
+            'role': 'user',
+            'content': [{
+                'type': 'text',
+                'text': project_context
+            }]
+        })
 
     # Add the user's prompt to the conversation history
-    user_message = {
-        'role': 'user',
-        'content': [{
-            'type': 'text',
-            'text': prompt
-        }]
-    }
-    conversation_history.append(user_message)
+    if prompt:
+        print(AnsiColors.USER + prompt + AnsiColors.RESET)
+        logging.info("User prompt: %s", prompt)
+        conversation_history.append({
+            'role': 'user',
+            'content': [{
+                'type': 'text',
+                'text': prompt
+            }]
+        })
+
     messages = conversation_history.copy()
 
     # Ensure messages are within token limits

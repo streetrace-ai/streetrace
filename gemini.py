@@ -133,7 +133,7 @@ def manage_token_count(client, contents, model_name):
         logging.error(f"Error managing tokens: {e}")
         return False
 
-def generate_with_tool(prompt, tools, call_tool, conversation_history=None, model_name=MODEL_NAME, system_message=None):
+def generate_with_tool(prompt, tools, call_tool, conversation_history=None, model_name=MODEL_NAME, system_message=None, project_context=None):
     """
     Generates content using the Gemini model with the custom tool,
     maintaining conversation history.
@@ -145,6 +145,7 @@ def generate_with_tool(prompt, tools, call_tool, conversation_history=None, mode
         conversation_history (list, optional): The history of the conversation. Defaults to None.
         model_name (str, optional): The name of the Gemini model to use. Defaults to "gemini-2.0-flash-001".
         system_message (str, optional): The system message to use. If None, a default will be used.
+        project_context (str, optional): Additional project context to be added to the user's prompt.
     
     Returns:
         list: The updated conversation history
@@ -160,17 +161,24 @@ def generate_with_tool(prompt, tools, call_tool, conversation_history=None, mode
 with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
 If can't understand a task, ask for clarifications."""
 
+    # Add project context to the conversation history
+    if project_context:
+        print(AnsiColors.USER + "[Adding project context]" + AnsiColors.RESET)
+        logging.debug(f"Context: {project_context}")
+        conversation_history.append(types.Content(
+            role='user',
+            parts=[types.Part.from_text(text=project_context)]
+        ))
+
+    # Add the user's prompt to the conversation history
     if prompt:
-        # Log and display user prompt
         print(AnsiColors.USER + prompt + AnsiColors.RESET)
         logging.info(f"User prompt: {prompt}")
-
-        # Add the user's prompt to the conversation history
-        user_prompt_content = types.Content(
+        conversation_history.append(types.Content(
             role='user',
             parts=[types.Part.from_text(text=prompt)]
-        )
-        conversation_history.append(user_prompt_content)
+        ))
+
     contents = conversation_history.copy()
 
     # Ensure contents are within token limits

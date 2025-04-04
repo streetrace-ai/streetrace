@@ -31,6 +31,44 @@ def read_system_message():
     return SYSTEM
 
 
+def read_project_context():
+    """
+    Read all project context files from .streetrace directory excluding system.md.
+    
+    Returns:
+        str: Combined content of all context files, or empty string if none exist
+    """
+    context_files_dir = '.streetrace'
+    
+    # Check if the directory exists
+    if not os.path.exists(context_files_dir) or not os.path.isdir(context_files_dir):
+        return ""
+        
+    # Get all files in the directory excluding system.md
+    context_files = [
+        os.path.join(context_files_dir, f) for f in os.listdir(context_files_dir)
+        if os.path.isfile(os.path.join(context_files_dir, f)) and f != 'system.md'
+    ]
+    
+    # If no context files found, return empty string
+    if not context_files:
+        return ""
+        
+    # Read and combine content from all context files
+    context_content = []
+    for file_path in context_files:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                file_name = os.path.basename(file_path)
+                context_content.append(f"\n\n# Content from {file_name}\n\n{content}\n\n")
+        except Exception as e:
+            print(f"Error reading context file {file_path}: {e}")
+            logging.error(f"Error reading context file {file_path}: {e}")
+    
+    return "".join(context_content)
+
+
 def parse_arguments():
     """
     Parse command line arguments.
@@ -209,6 +247,9 @@ def main():
 
     # Read the system message
     system_message = read_system_message()
+    
+    # Read project context from .streetrace files
+    project_context = read_project_context()
 
     # Initialize conversation history
     conversation_history = []
@@ -224,8 +265,13 @@ def main():
     # Non-interactive mode with --prompt argument
     if args.prompt:
         print(f"Running in non-interactive mode with prompt: {args.prompt}")
+        
+        # Use the prompt directly without modifying it
+        if project_context:
+            print("Adding project context to conversation")
+            
         generate_with_tool(args.prompt, TOOLS, call_tool_f,
-                           conversation_history, model_name, system_message)
+                           conversation_history, model_name, system_message, project_context)
         return
 
     # Interactive mode
@@ -234,10 +280,21 @@ def main():
         user_input = input("You: ")
         if user_input.lower() == "exit":
             break
-        conversation_history = generate_with_tool(user_input, TOOLS,
-                                                  call_tool_f,
-                                                  conversation_history,
-                                                  model_name, system_message)
+            
+        # Pass project_context as a separate parameter only on the first interaction
+        if not conversation_history:
+            if project_context:
+                print("Adding project context to conversation")
+            conversation_history = generate_with_tool(
+                user_input, TOOLS, call_tool_f, conversation_history, 
+                model_name, system_message, project_context
+            )
+        else:
+            # For subsequent interactions, don't pass project_context
+            conversation_history = generate_with_tool(
+                user_input, TOOLS, call_tool_f, conversation_history, 
+                model_name, system_message
+            )
 
 
 if __name__ == "__main__":
