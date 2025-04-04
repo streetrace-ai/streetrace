@@ -19,7 +19,7 @@ def read_system_message():
     Returns:
         str: The system message content
     """
-    system_message_path = '.streetrace/system_message.txt'
+    system_message_path = '.streetrace/system.md'
     if os.path.exists(system_message_path):
         try:
             with open(system_message_path, 'r', encoding='utf-8') as f:
@@ -42,13 +42,13 @@ def parse_arguments():
         description='Run AI assistant with different models')
     parser.add_argument('--engine',
                         type=str,
-                        choices=['claude', 'gemini', 'ollama'],
-                        help='Choose AI engine (claude, gemini, or ollama)')
+                        choices=['claude', 'gemini', 'ollama', 'openai'],
+                        help='Choose AI engine (claude, gemini, ollama, or openai)')
     parser.add_argument(
         '--model',
         type=str,
         help=
-        'Specific model name to use (e.g., claude-3-7-sonnet-20250219, gemini-2.0-flash-001, or llama3:8b)'
+        'Specific model name to use (e.g., claude-3-7-sonnet-20250219, gemini-2.0-flash-001, llama3:8b, or gpt-4-turbo-2024-04-09)'
     )
     parser.add_argument(
         '--prompt',
@@ -86,6 +86,7 @@ def setup_model(args):
     claude_model_name = "claude-3-7-sonnet-20250219"
     gemini_model_name = "gemini-2.0-flash-001"
     ollama_model_name = "llama3:8b"
+    openai_model_name = "gpt-4-turbo-2024-04-09"
 
     # Override default model name if provided through command line
     if args.model:
@@ -95,6 +96,8 @@ def setup_model(args):
             gemini_model_name = args.model
         elif args.engine == 'ollama':
             ollama_model_name = args.model
+        elif args.engine == 'openai':
+            openai_model_name = args.model
         else:
             print(
                 f"Model name '{args.model}' provided but no engine type (--engine) specified"
@@ -122,6 +125,13 @@ def setup_model(args):
             print(f"Ollama API URL: {ollama_url or 'http://localhost:11434 (default)'}")
             from ollama_client import generate_with_tool
             model_name = ollama_model_name
+        elif args.engine == 'openai':
+            if not openai_api_key:
+                print("OPENAI_API_KEY is required but not set")
+                exit(1)
+            print(f"Using OpenAI engine: {openai_model_name}")
+            from openai_client import generate_with_tool
+            model_name = openai_model_name
     else:
         # Select the appropriate AI model based on available API keys (original behavior)
         if anthropic_api_key:
@@ -132,21 +142,22 @@ def setup_model(args):
             print(f"Using Gemini AI model: {gemini_model_name}")
             from gemini import generate_with_tool
             model_name = gemini_model_name
+        elif openai_api_key:
+            print(f"Using OpenAI model: {openai_model_name}")
+            from openai_client import generate_with_tool
+            model_name = openai_model_name
         elif ollama_url or os.path.exists('/usr/bin/ollama') or os.path.exists('/usr/local/bin/ollama'):
             print(f"Using Ollama AI model: {ollama_model_name}")
             from ollama_client import generate_with_tool
             model_name = ollama_model_name
-        elif openai_api_key:
-            print("OpenAI integration is not implemented yet")
-            exit(1)
         else:
             print(
                 "No API keys found. Please set one of the following environment variables:"
             )
             print("- ANTHROPIC_API_KEY for Claude")
             print("- GEMINI_API_KEY for Gemini")
+            print("- OPENAI_API_KEY for OpenAI")
             print("- OLLAMA_API_URL for Ollama (optional, defaults to http://localhost:11434)")
-            print("- OPENAI_API_KEY for OpenAI (not implemented yet)")
             exit(1)
 
     return generate_with_tool, model_name

@@ -6,7 +6,7 @@ from colors import AnsiColors
 
 # Constants
 MAX_TOKENS = 2**20
-MODEL_NAME = 'gemini-2.0-flash-001'
+MODEL_NAME = 'gemini-2.5-pro-exp-03-25'
 
 # Initialize API client
 def initialize_client():
