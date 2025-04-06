@@ -5,6 +5,7 @@ import argparse
 from tools.fs_tool import TOOLS, TOOL_IMPL
 from messages import SYSTEM
 from colors import AnsiColors
+from ai_provider_factory import get_ai_provider
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG,
@@ -103,104 +104,6 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def setup_model(args):
-    """
-    Set up the appropriate AI engine based on arguments and available API keys.
-    
-    Args:
-        args: Command line arguments
-        
-    Returns:
-        tuple: (generate_with_tool function, model_name to use)
-    """
-    # Check which API keys are available
-    anthropic_api_key = os.environ.get('ANTHROPIC_API_KEY')
-    gemini_api_key = os.environ.get('GEMINI_API_KEY')
-    openai_api_key = os.environ.get('OPENAI_API_KEY')
-    # For Ollama, we don't need an API key, but we can check for the base URL
-    ollama_url = os.environ.get('OLLAMA_API_URL')
-
-    # Default model names
-    claude_model_name = "claude-3-7-sonnet-20250219"
-    gemini_model_name = "gemini-2.0-flash-001"
-    ollama_model_name = "llama3:8b"
-    openai_model_name = "gpt-4-turbo-2024-04-09"
-
-    # Override default model name if provided through command line
-    if args.model:
-        if args.engine == 'claude':
-            claude_model_name = args.model
-        elif args.engine == 'gemini':
-            gemini_model_name = args.model
-        elif args.engine == 'ollama':
-            ollama_model_name = args.model
-        elif args.engine == 'openai':
-            openai_model_name = args.model
-        else:
-            print(
-                f"Model name '{args.model}' provided but no engine type (--engine) specified"
-            )
-            exit(1)
-
-    # Use command line argument if provided
-    if args.engine:
-        if args.engine == 'claude':
-            if not anthropic_api_key:
-                print("ANTHROPIC_API_KEY is required but not set")
-                exit(1)
-            print(f"Using Claude AI engine: {claude_model_name}")
-            from claude import generate_with_tool
-            model_name = claude_model_name
-        elif args.engine == 'gemini':
-            if not gemini_api_key:
-                print("GEMINI_API_KEY is required but not set")
-                exit(1)
-            print(f"Using Gemini AI engine: {gemini_model_name}")
-            from gemini import generate_with_tool
-            model_name = gemini_model_name
-        elif args.engine == 'ollama':
-            print(f"Using Ollama AI engine: {ollama_model_name}")
-            print(f"Ollama API URL: {ollama_url or 'http://localhost:11434 (default)'}")
-            from ollama_client import generate_with_tool
-            model_name = ollama_model_name
-        elif args.engine == 'openai':
-            if not openai_api_key:
-                print("OPENAI_API_KEY is required but not set")
-                exit(1)
-            print(f"Using OpenAI engine: {openai_model_name}")
-            from openai_client import generate_with_tool
-            model_name = openai_model_name
-    else:
-        # Select the appropriate AI model based on available API keys (original behavior)
-        if anthropic_api_key:
-            print(f"Using Claude AI model: {claude_model_name}")
-            from claude import generate_with_tool
-            model_name = claude_model_name
-        elif gemini_api_key:
-            print(f"Using Gemini AI model: {gemini_model_name}")
-            from gemini import generate_with_tool
-            model_name = gemini_model_name
-        elif openai_api_key:
-            print(f"Using OpenAI model: {openai_model_name}")
-            from openai_client import generate_with_tool
-            model_name = openai_model_name
-        elif ollama_url or os.path.exists('/usr/bin/ollama') or os.path.exists('/usr/local/bin/ollama'):
-            print(f"Using Ollama AI model: {ollama_model_name}")
-            from ollama_client import generate_with_tool
-            model_name = ollama_model_name
-        else:
-            print(
-                "No API keys found. Please set one of the following environment variables:"
-            )
-            print("- ANTHROPIC_API_KEY for Claude")
-            print("- GEMINI_API_KEY for Gemini")
-            print("- OPENAI_API_KEY for OpenAI")
-            print("- OLLAMA_API_URL for Ollama (optional, defaults to http://localhost:11434)")
-            exit(1)
-
-    return generate_with_tool, model_name
-
-
 def call_tool(tool_name, args, original_call, work_dir):
     """
     Call the appropriate tool function based on the tool name.
@@ -243,7 +146,8 @@ def main():
     args = parse_arguments()
 
     # Set up the appropriate AI model
-    generate_with_tool, model_name = setup_model(args)
+    model_name = args.model.strip().lower() if args.model else None
+    provider_name = args.engine.strip().lower() if args.engine else None
 
     # Read the system message
     system_message = read_system_message()
@@ -262,6 +166,9 @@ def main():
     def call_tool_f(tool_name, args, original_call):
         return call_tool(tool_name, args, original_call, working_dir)
 
+    provider = get_ai_provider(provider_name)
+    print(f"Using provider: {type(provider).__name__.replace('Provider', '')}")
+    
     # Non-interactive mode with --prompt argument
     if args.prompt:
         print(f"Running in non-interactive mode with prompt: {args.prompt}")
@@ -270,8 +177,15 @@ def main():
         if project_context:
             print("Adding project context to conversation")
             
-        generate_with_tool(args.prompt, TOOLS, call_tool_f,
-                           conversation_history, model_name, system_message, project_context)
+        provider.generate_with_tool(
+            args.prompt, 
+            TOOLS, 
+            call_tool_f,
+            conversation_history=conversation_history, 
+            model_name=model_name, 
+            system_message=system_message, 
+            project_context=project_context
+        )
         return
 
     # Interactive mode
@@ -285,15 +199,26 @@ def main():
         if not conversation_history:
             if project_context:
                 print("Adding project context to conversation")
-            conversation_history = generate_with_tool(
-                user_input, TOOLS, call_tool_f, conversation_history, 
-                model_name, system_message, project_context
+            conversation_history = provider.generate_with_tool(
+                user_input, 
+                TOOLS, 
+                call_tool_f, 
+                provider_name=provider_name,
+                conversation_history=conversation_history, 
+                model_name=model_name, 
+                system_message=system_message, 
+                project_context=project_context
             )
         else:
             # For subsequent interactions, don't pass project_context
-            conversation_history = generate_with_tool(
-                user_input, TOOLS, call_tool_f, conversation_history, 
-                model_name, system_message
+            conversation_history = provider.generate_with_tool(
+                user_input, 
+                TOOLS, 
+                call_tool_f, 
+                provider_name=provider_name,
+                conversation_history=conversation_history, 
+                model_name=model_name, 
+                system_message=system_message
             )
 
 
