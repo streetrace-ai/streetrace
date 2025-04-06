@@ -134,6 +134,16 @@ conversation_history = generate_with_tool(
 
 See `example_claude.py` and `example_gemini.py` for complete examples of how to use custom system messages.
 
+### Handling Malformed Function Calls
+
+The Gemini implementation includes automatic retry logic for handling malformed function calls. When Gemini returns a response with a `FinishReason.MALFORMED_FUNCTION_CALL`, the system will:
+
+1. Automatically retry the request with the same conversation history
+2. Make up to 3 retry attempts before giving up
+3. Log each retry attempt for diagnostic purposes
+
+This feature helps improve the reliability of interactions with the Gemini API when function calling syntax issues occur.
+
 ## Environment Setup
 
 To use these tools, you need to set one of the following environment variables:

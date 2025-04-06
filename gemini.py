@@ -7,6 +7,7 @@ from colors import AnsiColors
 # Constants
 MAX_TOKENS = 2**20
 MODEL_NAME = 'gemini-2.5-pro-exp-03-25'
+MAX_MALFORMED_RETRIES = 3  # Maximum number of retries for malformed function calls
 
 # Initialize API client
 def initialize_client():
@@ -133,7 +134,7 @@ def manage_token_count(client, contents, model_name):
         logging.error(f"Error managing tokens: {e}")
         return False
 
-def generate_with_tool(prompt, tools, call_tool, conversation_history=None, model_name=MODEL_NAME, system_message=None, project_context=None):
+def generate_with_tool(prompt, tools, call_tool, conversation_history=None, model_name=MODEL_NAME, system_message=None, project_context=None, malformed_retries=0):
     """
     Generates content using the Gemini model with the custom tool,
     maintaining conversation history.
@@ -146,6 +147,7 @@ def generate_with_tool(prompt, tools, call_tool, conversation_history=None, mode
         model_name (str, optional): The name of the Gemini model to use. Defaults to "gemini-2.0-flash-001".
         system_message (str, optional): The system message to use. If None, a default will be used.
         project_context (str, optional): Additional project context to be added to the user's prompt.
+        malformed_retries (int, optional): Counter for number of malformed function call retries. 
     
     Returns:
         list: The updated conversation history
@@ -264,6 +266,25 @@ If can't understand a task, ask for clarifications."""
             parts=request_parts
         )
         conversation_history.append(model_response_content)
+        
+        # Handle MALFORMED_FUNCTION_CALL finish reason
+        if finish_reason == 'MALFORMED_FUNCTION_CALL':
+            logging.info(f"Received MALFORMED_FUNCTION_CALL (attempt {malformed_retries + 1}/{MAX_MALFORMED_RETRIES})")
+            
+            # If we haven't hit the maximum retries, try again
+            if malformed_retries < MAX_MALFORMED_RETRIES - 1:
+                print(AnsiColors.MODELERROR + 
+                      f"Malformed function call detected (attempt {malformed_retries + 1}/{MAX_MALFORMED_RETRIES}). Retrying..." + 
+                      AnsiColors.RESET)
+                
+                # Retry with empty prompt but send the last model response back
+                return generate_with_tool('', tools, call_tool, conversation_history, 
+                                         model_name, system_message, project_context, 
+                                         malformed_retries + 1)
+            else:
+                print(AnsiColors.MODELERROR + 
+                      f"Maximum malformed function call retries ({MAX_MALFORMED_RETRIES}) reached. Stopping." + 
+                      AnsiColors.RESET)
         
         # If there were function calls, add tool responses to history
         if response_parts:
