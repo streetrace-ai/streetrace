@@ -1,7 +1,7 @@
 """
 Ollama Provider Implementation
 
-This module implements the AIProvider interface for Ollama models.
+This module implements the LLMAPI interface for Ollama models.
 """
 
 import os
@@ -12,16 +12,16 @@ from typing import List, Dict, Any, Callable, Optional, Union
 
 import ollama
 from colors import AnsiColors
-from ai_interface import AIProvider
+from llm.llmapi import LLMAPI
 
 # Constants
 MAX_TOKENS = 32768  # Default context window for most Ollama models
 MODEL_NAME = "llama3:8b"  # Default model
 
 
-class OllamaProvider(AIProvider):
+class Ollama(LLMAPI):
     """
-    Implementation of the AIProvider interface for Ollama models.
+    Implementation of the LLMAPI interface for Ollama models.
     """
     
     def get_base_url(self) -> str:
@@ -126,7 +126,6 @@ class OllamaProvider(AIProvider):
         model_name: Optional[str] = MODEL_NAME,
         system_message: Optional[str] = None,
         project_context: Optional[str] = None,
-        **kwargs
     ) -> List[Dict[str, Any]]:
         """
         Generates content using the Ollama model with tools, maintaining conversation history.
@@ -139,7 +138,6 @@ class OllamaProvider(AIProvider):
             model_name: The name of the Ollama model to use
             system_message: The system message to use
             project_context: Additional project context to be added to the user's prompt
-            **kwargs: Additional provider-specific parameters
             
         Returns:
             List[Dict[str, Any]]: The updated conversation history

@@ -5,7 +5,7 @@ import argparse
 from tools.fs_tool import TOOLS, TOOL_IMPL
 from messages import SYSTEM
 from colors import AnsiColors
-from ai_provider_factory import get_ai_provider
+from llm.llmapi_factory import get_ai_provider
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG,

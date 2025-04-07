@@ -1,17 +1,16 @@
 """
 AI Provider Interface Module
 
-This module defines the abstract base class AIProvider that serves as a common interface
+This module defines the abstract base class LLMAPI that serves as a common interface
 for different AI model providers (Claude, Gemini, OpenAI, Ollama). It standardizes
 initialization, API calls, and tool management across all providers.
 """
 
 import abc
-import logging
-from typing import List, Dict, Any, Callable, Optional, Union, Tuple
+from typing import List, Dict, Any, Callable, Optional
 
 
-class AIProvider(abc.ABC):
+class LLMAPI(abc.ABC):
     """
     Abstract base class for AI model providers.
     
@@ -83,7 +82,6 @@ class AIProvider(abc.ABC):
         model_name: Optional[str] = None,
         system_message: Optional[str] = None,
         project_context: Optional[str] = None,
-        **kwargs
     ) -> List[Dict[str, Any]]:
         """
         Generates content using the AI model with tools, maintaining conversation history.
@@ -96,7 +94,6 @@ class AIProvider(abc.ABC):
             model_name: The name of the AI model to use
             system_message: The system message to use
             project_context: Additional project context to be added to the user's prompt
-            **kwargs: Additional provider-specific parameters
             
         Returns:
             List[Dict[str, Any]]: The updated conversation history

@@ -1,6 +1,6 @@
 # AI Provider Interface
 
-This document explains the AIProvider interface architecture and how to use it in StreetRace.
+This document explains the LLMAPI interface architecture and how to use it in StreetRace.
 
 ## Overview
 
@@ -8,32 +8,32 @@ StreetRace has been refactored to use a common interface for all AI providers (C
 
 ## Key Components
 
-### 1. AIProvider Abstract Base Class
+### 1. LLMAPI Abstract Base Class
 
-The `AIProvider` class defined in `ai_interface.py` serves as the foundation for all provider implementations. Each provider must implement these methods:
+The `LLMAPI` class defined in `ai_interface.py` serves as the foundation for all provider implementations. Each provider must implement these methods:
 
 ```python
-class AIProvider(abc.ABC):
+class LLMAPI(abc.ABC):
     @abc.abstractmethod
     def initialize_client(self) -> Any:
         """Initialize and return the AI provider client."""
         pass
-    
+
     @abc.abstractmethod
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Transform tools from common format to provider-specific format."""
         pass
-    
+
     @abc.abstractmethod
     def pretty_print(self, messages: List[Dict[str, Any]]) -> str:
         """Format message list for readable logging."""
         pass
-    
+
     @abc.abstractmethod
     def manage_conversation_history(self, conversation_history: List[Dict[str, Any]], max_tokens: int) -> bool:
         """Ensure conversation history is within token limits."""
         pass
-    
+
     @abc.abstractmethod
     def generate_with_tool(self, prompt: str, tools: List[Dict[str, Any]], call_tool: Callable,
                            conversation_history: Optional[List[Dict[str, Any]]] = None,
@@ -47,19 +47,19 @@ class AIProvider(abc.ABC):
 
 Each AI provider has its own implementation class:
 
-- `ClaudeProvider` in `claude_provider.py`
-- `GeminiProvider` in `gemini_provider.py`
-- `OpenAIProvider` in `openai_provider.py`
-- `OllamaProvider` in `ollama_provider.py`
+- `Claude` in `./tools/claude.py`
+- `Gemini` in `./tools/gemini.py`
+- `OpenAI` in `./tools/openai.py`
+- `Ollama` in `./tools/ollama.py`
 
-These classes implement the methods defined in the `AIProvider` interface, handling the specific requirements of their respective AI services.
+These classes implement the methods defined in the `LLMAPI` interface, handling the specific requirements of their respective AI services.
 
 ### 3. Factory Module
 
 The `ai_provider_factory.py` module provides factory functions for creating and using providers:
 
 ```python
-def get_ai_provider(provider_name: Optional[str] = None) -> AIProvider:
+def get_ai_provider(provider_name: Optional[str] = None) -> LLMAPI:
     """Factory function to get the appropriate AI provider instance."""
     # ...
 
@@ -114,20 +114,20 @@ response = provider.generate_with_tool(
 
 To add a new AI provider:
 
-1. Create a new file (e.g., `new_provider.py`) that implements the `AIProvider` interface:
+1. Create a new file (e.g., `new_provider.py`) that implements the `LLMAPI` interface:
 
 ```python
-from ai_interface import AIProvider
+from llm.llmapi import LLMAPI
 
-class NewProvider(AIProvider):
+class NewProvider(LLMAPI):
     def initialize_client(self):
         # Initialize and return the client for your new provider
         pass
-    
+
     def transform_tools(self, tools):
         # Transform tools to your provider's format
         pass
-    
+
     # Implement all other required methods...
 ```
 

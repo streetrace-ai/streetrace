@@ -1,7 +1,7 @@
 """
 Claude AI Provider Implementation
 
-This module implements the AIProvider interface for Anthropic's Claude models.
+This module implements the LLMAPI interface for Anthropic's Claude models.
 """
 
 import os
@@ -9,19 +9,19 @@ import logging
 import anthropic  # pip install anthropic
 import json
 import time
-from typing import List, Dict, Any, Callable, Optional, Union
+from typing import List, Dict, Any, Callable, Optional
 
 from colors import AnsiColors
-from ai_interface import AIProvider
+from llm.llmapi import LLMAPI
 
 # Constants
 MAX_TOKENS = 200000  # Claude 3 Sonnet has a context window of approximately 200K tokens
 MODEL_NAME = "claude-3-7-sonnet-20250219"
 
 
-class ClaudeProvider(AIProvider):
+class Claude(LLMAPI):
     """
-    Implementation of the AIProvider interface for Anthropic's Claude models.
+    Implementation of the LLMAPI interface for Anthropic's Claude models.
     """
     
     def initialize_client(self) -> anthropic.Anthropic:
@@ -129,7 +129,6 @@ class ClaudeProvider(AIProvider):
         model_name: Optional[str] = MODEL_NAME,
         system_message: Optional[str] = None,
         project_context: Optional[str] = None,
-        **kwargs
     ) -> List[Dict[str, Any]]:
         """
         Generates content using the Claude model with tools, maintaining conversation history.
@@ -142,7 +141,6 @@ class ClaudeProvider(AIProvider):
             model_name: The name of the Claude model to use
             system_message: The system message to use
             project_context: Additional project context to be added to the user's prompt
-            **kwargs: Additional provider-specific parameters
             
         Returns:
             List[Dict[str, Any]]: The updated conversation history

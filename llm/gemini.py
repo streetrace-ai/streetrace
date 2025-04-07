@@ -1,7 +1,7 @@
 """
 Gemini AI Provider Implementation
 
-This module implements the AIProvider interface for Google's Gemini models.
+This module implements the LLMAPI interface for Google's Gemini models.
 """
 
 import os
@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Callable, Optional, Union
 from google import genai
 from google.genai import types
 from colors import AnsiColors
-from ai_interface import AIProvider
+from llm.llmapi import LLMAPI
 
 # Constants
 MAX_TOKENS = 2**20
@@ -19,9 +19,9 @@ MODEL_NAME = 'gemini-2.5-pro-exp-03-25'
 MAX_MALFORMED_RETRIES = 3  # Maximum number of retries for malformed function calls
 
 
-class GeminiProvider(AIProvider):
+class Gemini(LLMAPI):
     """
-    Implementation of the AIProvider interface for Google's Gemini models.
+    Implementation of the LLMAPI interface for Google's Gemini models.
     """
     
     def initialize_client(self) -> genai.Client:
@@ -169,7 +169,6 @@ class GeminiProvider(AIProvider):
         model_name: Optional[str] = MODEL_NAME,
         system_message: Optional[str] = None,
         project_context: Optional[str] = None,
-        **kwargs
     ) -> List[Any]:
         """
         Generates content using the Gemini model with tools, maintaining conversation history.
@@ -182,13 +181,12 @@ class GeminiProvider(AIProvider):
             model_name: The name of the Gemini model to use
             system_message: The system message to use
             project_context: Additional project context to be added to the user's prompt
-            **kwargs: Additional provider-specific parameters
             
         Returns:
             List[Any]: The updated conversation history
         """
         # Get malformed retries if provided in kwargs
-        malformed_retries = kwargs.get('malformed_retries', 0)
+        malformed_retries = 3
         
         # Initialize client and conversation history
         client = self.initialize_client()

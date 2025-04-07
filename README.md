@@ -4,15 +4,15 @@ Streetrace is an agentic AI coding partner that enables engineers to leverage AI
 
 **Project Description:**
 
-Streetrace defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic uses a common AIProvider interface implemented by provider-specific classes (ClaudeProvider, GeminiProvider, OpenAIProvider, OllamaProvider) to handle interactions with different AI models. This architecture makes it easy to switch between providers while maintaining consistent functionality.
+Streetrace defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic uses a common LLMAPI interface implemented by provider-specific classes (Claude, Gemini, OpenAI, Ollama) to handle interactions with different AI models. This architecture makes it easy to switch between providers while maintaining consistent functionality.
 
 **Key Components:**
 
-* `ai_interface.py`: Defines the abstract base AIProvider class that all provider implementations must follow.
-* `claude_provider.py`: Implements the AIProvider interface for Anthropic's Claude models.
-* `gemini_provider.py`: Implements the AIProvider interface for Google's Gemini models.
-* `openai_provider.py`: Implements the AIProvider interface for OpenAI models.
-* `ollama_provider.py`: Implements the AIProvider interface for locally hosted models via Ollama.
+* `ai_interface.py`: Defines the abstract base LLMAPI class that all provider implementations must follow.
+* `claude_provider.py`: Implements the LLMAPI interface for Anthropic's Claude models.
+* `gemini_provider.py`: Implements the LLMAPI interface for Google's Gemini models.
+* `openai_provider.py`: Implements the LLMAPI interface for OpenAI models.
+* `ollama_provider.py`: Implements the LLMAPI interface for locally hosted models via Ollama.
 * `ai_provider_factory.py`: Factory functions to create and use the appropriate provider.
 * `main.py`: Provides a command-line interface for interacting with the AI providers.
 * `tools/fs_tool.py`: Implements file system tools (list directory, read file, write file, execute CLI command).
@@ -78,7 +78,7 @@ This path will be used as the working directory (work_dir) for all tools that in
 
 This feature makes it easier to work with files in another location without changing your current directory.
 
-#### Non-interactive Mode
+### Non-interactive Mode
 
 You can use the `--prompt` argument to run Streetrace in non-interactive mode:
 
@@ -104,12 +104,12 @@ This allows for interactive use of command-line tools, such as text editors, REP
 Running Python interpreter...
 Type Python code at the prompt:
 
-Python 3.8.10 (default, Nov 14 2022, 12:59:47) 
+Python 3.8.10 (default, Nov 14 2022, 12:59:47)
 [GCC 9.4.0] on linux
 Type "help", "copyright", "credits" or "license" for more information.
 >>> print("Hello, interactive world!")
 Hello, interactive world!
->>> 
+>>>
 ```
 
 To exit interactive processes, use the standard method for that program (such as Ctrl-D for Python REPL or `:q` for vim).
@@ -207,7 +207,7 @@ For more details, see [README-openai.md](README-openai.md).
 
 ### Using with Ollama
 
-Streetrace supports integration with [Ollama](https://ollama.ai/), allowing you to use locally hosted open-source models. 
+Streetrace supports integration with [Ollama](https://ollama.ai/), allowing you to use locally hosted open-source models.
 
 #### Setup for Ollama
 
