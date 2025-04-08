@@ -1,0 +1,87 @@
+"""
+Generate Module
+
+This module provides a provider-independent implementation of generate_with_tool
+that can be used by all LLMAPI-derived classes.
+"""
+
+import logging
+from typing import List, Dict, Any, Callable, Optional
+
+from colors import AnsiColors
+from llm.wrapper import ChunkWrapper, ContentType, History, ToolResult
+from llm.llmapi import LLMAPI
+
+
+def generate_with_tools(
+    provider: LLMAPI,
+    model_name: Optional[str],
+    conversation: History,
+    tools: List[Dict[str, Any]],
+    call_tool: Callable,
+):
+    """
+    Each provider will implement their provider-specific API calls by passing
+    themselves as the 'provider' parameter.
+
+    Args:
+        provider: The LLMAPI-derived provider instance with provider-specific methods
+        model_name: The name of the AI model to use
+        conversation_history: The history of the conversation
+        tools: List of tool definitions in common format
+        call_tool: Function to call for tool execution
+    """
+    client = provider.initialize_client()
+    provider_history = provider.transform_history(conversation)
+    provider_tools = provider.transform_tools(tools)
+
+    try:
+        _generate_with_tools(provider, client, model_name, conversation, provider_history, provider_tools, call_tool)
+        provider.update_history(provider_history, conversation)
+    except Exception as e:
+        print(AnsiColors.MODELERROR + str(e) + AnsiColors.RESET)
+        logging.exception(f"Error during generation: {e}")
+
+
+def _generate_with_tools(
+    provider: LLMAPI,
+    client: Any,
+    model_name: Optional[str],
+    conversation: History,
+    provider_history: List[Dict[str, Any]],
+    provider_tools: List[Dict[str, Any]],
+    f_call_tool: Callable):
+
+    # Ensure history fits the context window
+    if not provider.manage_conversation_history(provider_history):
+        raise ValueError(
+            "Conversation history exceeds the model's context window."
+        )
+
+    request_count = 0
+    continue_generation = True
+
+    # Continue generating responses and handling tool calls until complete
+    while continue_generation:
+        continue_generation = False
+        request_count += 1
+        logging.info(
+            f"Starting request {request_count} with {len(provider_history)} message items."
+        )
+        logging.debug("Messages for generation:\n%s", provider.pretty_print(provider_history))
+
+        turn: List[ChunkWrapper | ToolResult] = []
+        for chunk in provider.generate(client, model_name, conversation, provider_history, provider_tools):
+            turn.append(chunk)
+            match chunk.type():
+                case ContentType.TEXT:
+                    print(AnsiColors.MODEL + chunk.get_text() + AnsiColors.RESET, end='')
+                case ContentType.TOOL_CALL:
+                    for tool_call in chunk.get_tool_calls():
+                        print(AnsiColors.TOOL + f"{tool_call.name}: {tool_call.arguments}" + AnsiColors.RESET)
+                        logging.info(f"Tool call: {tool_call.name} with {tool_call.arguments}")
+                        tool_result = f_call_tool(tool_call.name, tool_call.arguments, chunk.raw)
+                        turn.append(ToolResult(chunk, tool_call, tool_result))
+                    continue_generation = True # Continue if there were tool calls
+
+        provider.append_to_history(provider_history, turn)

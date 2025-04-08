@@ -7,95 +7,136 @@ initialization, API calls, and tool management across all providers.
 """
 
 import abc
-from typing import List, Dict, Any, Callable, Optional
+from typing import Iterable, List, Dict, Any, Optional
 
+from llm.wrapper import ChunkWrapper, History, ToolResult
+
+ProviderHistory = List[Dict[str, Any]]
+ProviderTools = List[Dict[str, Any]]
 
 class LLMAPI(abc.ABC):
     """
     Abstract base class for AI model providers.
-    
+
     This class defines a common interface that all AI providers must implement,
     standardizing how we initialize clients, transform tools, manage conversations,
     and generate content with tools.
     """
-    
+
     @abc.abstractmethod
     def initialize_client(self) -> Any:
         """
         Initialize and return the AI provider client.
-        
+
         Returns:
             Any: The initialized client object
-            
+
         Raises:
             ValueError: If required API keys or configuration is missing
         """
         pass
-    
+
     @abc.abstractmethod
-    def transform_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def transform_history(self, history: History) -> ProviderHistory:
         """
-        Transform tools from common format to provider-specific format.
-        
+        Transform conversation history from common format into provider-specific format.
+
         Args:
-            tools: List of tool definitions in common format
-            
+            history (History): Conversation history to transform
+
         Returns:
-            List[Dict[str, Any]]: List of tool definitions in provider-specific format
+            ProviderHistory: Conversation history in provider-specific format
         """
         pass
-    
+
     @abc.abstractmethod
-    def pretty_print(self, messages: List[Dict[str, Any]]) -> str:
+    def update_history(self, messages: ProviderHistory, history: History) -> None:
+        """
+        Updates the conversation history in common format based on provider-specific history.
+
+        Args:
+            messages (ProviderHistory): Provider-specific conversation history
+            history (History): Conversation history in common format
+        """
+        pass
+
+    @abc.abstractmethod
+    def transform_tools(self, tools: List[Dict[str, Any]]) -> ProviderTools:
+        """
+        Transform tools from common format to provider-specific format.
+
+        Args:
+            tools: List of tool definitions in common format
+
+        Returns:
+            ProviderTools: List of tool definitions in provider-specific format
+        """
+        pass
+
+    @abc.abstractmethod
+    def pretty_print(self, messages: ProviderHistory) -> str:
         """
         Format message list for readable logging.
-        
+
         Args:
             messages: List of message objects to format
-            
+
         Returns:
             str: Formatted string representation
         """
         pass
-    
+
     @abc.abstractmethod
-    def manage_conversation_history(self, conversation_history: List[Dict[str, Any]], max_tokens: int) -> bool:
+    def manage_conversation_history(
+        self,
+        messages: ProviderHistory,
+        max_tokens: int = None
+    ) -> bool:
         """
         Ensure conversation history is within token limits by intelligently pruning when needed.
-        
+
         Args:
-            conversation_history: List of message objects to manage
+            messages: List of message objects to manage
             max_tokens: Maximum token limit
-            
+
         Returns:
             bool: True if successful, False if pruning failed
         """
         pass
-    
+
     @abc.abstractmethod
-    def generate_with_tool(
+    def generate(
         self,
-        prompt: str,
-        tools: List[Dict[str, Any]],
-        call_tool: Callable,
-        conversation_history: Optional[List[Dict[str, Any]]] = None,
-        model_name: Optional[str] = None,
-        system_message: Optional[str] = None,
-        project_context: Optional[str] = None,
-    ) -> List[Dict[str, Any]]:
+        client: Any,
+        model_name: Optional[str],
+        conversation: History,
+        messages: ProviderHistory,
+        tools: ProviderTools,
+    ) -> Iterable[ChunkWrapper]:
         """
-        Generates content using the AI model with tools, maintaining conversation history.
-        
+        Get API response from the provider.
+
+        When streaming, returns a stream, otherwise returns an iterator over content items.
+
         Args:
-            prompt: The user's input prompt
-            tools: List of tool definitions in common format
-            call_tool: Function to call for tool execution
-            conversation_history: The history of the conversation
-            model_name: The name of the AI model to use
-            system_message: The system message to use
-            project_context: Additional project context to be added to the user's prompt
-            
+            client: The provider client
+            model_name: The model name to use (None for default model)
+            messages: The messages to send in the request
+            tools: The tools to use
+
         Returns:
-            List[Dict[str, Any]]: The updated conversation history
+            Iterator[Any]: Provider response stream
+            or Any: The final response object
+        """
+        pass
+
+    def append_to_history(self, provider_history: ProviderHistory,
+                                turn: List[ChunkWrapper | ToolResult]):
+        """
+        Add turn items into provider's conversation history.
+
+        Args:
+            provider_history: List of provider-specific message objects
+            turn: List of items in this turn
         """
         pass

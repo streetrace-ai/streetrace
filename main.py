@@ -2,10 +2,12 @@ import json
 import logging
 import os
 import argparse
+from llm.wrapper import ContentPartText, History
 from tools.fs_tool import TOOLS, TOOL_IMPL
 from messages import SYSTEM
 from colors import AnsiColors
 from llm.llmapi_factory import get_ai_provider
+from llm.generate import generate_with_tools
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG,
@@ -16,7 +18,7 @@ logging.basicConfig(level=logging.DEBUG,
 def read_system_message():
     """
     Read the system message from a file or return the default message.
-    
+
     Returns:
         str: The system message content
     """
@@ -35,26 +37,26 @@ def read_system_message():
 def read_project_context():
     """
     Read all project context files from .streetrace directory excluding system.md.
-    
+
     Returns:
         str: Combined content of all context files, or empty string if none exist
     """
     context_files_dir = '.streetrace'
-    
+
     # Check if the directory exists
     if not os.path.exists(context_files_dir) or not os.path.isdir(context_files_dir):
         return ""
-        
+
     # Get all files in the directory excluding system.md
     context_files = [
         os.path.join(context_files_dir, f) for f in os.listdir(context_files_dir)
         if os.path.isfile(os.path.join(context_files_dir, f)) and f != 'system.md'
     ]
-    
+
     # If no context files found, return empty string
     if not context_files:
         return ""
-        
+
     # Read and combine content from all context files
     context_content = []
     for file_path in context_files:
@@ -66,14 +68,14 @@ def read_project_context():
         except Exception as e:
             print(f"Error reading context file {file_path}: {e}")
             logging.error(f"Error reading context file {file_path}: {e}")
-    
+
     return "".join(context_content)
 
 
 def parse_arguments():
     """
     Parse command line arguments.
-    
+
     Returns:
         argparse.Namespace: The parsed arguments
     """
@@ -107,13 +109,13 @@ def parse_arguments():
 def call_tool(tool_name, args, original_call, work_dir):
     """
     Call the appropriate tool function based on the tool name.
-    
+
     Args:
         tool_name: Name of the tool to call
         args: Dictionary of arguments to pass to the function
         original_call: The original function call object from the model
         work_dir: Path to use as the working directory for file operations
-        
+
     Returns:
         tuple: (function_response, result_text)
     """
@@ -149,76 +151,56 @@ def main():
     model_name = args.model.strip().lower() if args.model else None
     provider_name = args.engine.strip().lower() if args.engine else None
 
-    # Read the system message
-    system_message = read_system_message()
-    
-    # Read project context from .streetrace files
-    project_context = read_project_context()
-
     # Initialize conversation history
-    conversation_history = []
+    conversation_history = History(
+        system_message=read_system_message(),
+        context=read_project_context())
+
+    if conversation_history.context:
+        print(AnsiColors.USER + "[Adding context]" + AnsiColors.RESET)
+        logging.debug(f"Context: {conversation_history.context}")
 
     # Get the working directory path
     working_dir = args.path if args.path else os.getcwd()
     if working_dir:
-        print(f"Using working directory: {working_dir}")
+        print(f"Working in {working_dir}")
 
     def call_tool_f(tool_name, args, original_call):
         return call_tool(tool_name, args, original_call, working_dir)
 
     provider = get_ai_provider(provider_name)
     print(f"Using provider: {type(provider).__name__.replace('Provider', '')}")
-    
-    # Non-interactive mode with --prompt argument
-    if args.prompt:
-        print(f"Running in non-interactive mode with prompt: {args.prompt}")
-        
-        # Use the prompt directly without modifying it
-        if project_context:
-            print("Adding project context to conversation")
-            
-        provider.generate_with_tool(
-            args.prompt, 
-            TOOLS, 
-            call_tool_f,
-            conversation_history=conversation_history, 
-            model_name=model_name, 
-            system_message=system_message, 
-            project_context=project_context
-        )
-        return
 
-    # Interactive mode
-    print("Starting interactive session. Type 'exit' to quit.")
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() == "exit":
-            break
-            
-        # Pass project_context as a separate parameter only on the first interaction
-        if not conversation_history:
-            if project_context:
-                print("Adding project context to conversation")
-            conversation_history = provider.generate_with_tool(
-                user_input, 
-                TOOLS, 
-                call_tool_f, 
-                provider_name=provider_name,
-                conversation_history=conversation_history, 
-                model_name=model_name, 
-                system_message=system_message, 
-                project_context=project_context
-            )
-        else:
-            # For subsequent interactions, don't pass project_context
-            conversation_history = provider.generate_with_tool(
-                user_input, 
-                TOOLS, 
-                call_tool_f, 
-                provider_name=provider_name,
-                conversation_history=conversation_history, 
-                model_name=model_name, 
-                system_message=system_message
+    if args.prompt:
+        conversation_history.add_message(role="user", content=[ContentPartText(args.prompt)])
+
+        print(AnsiColors.USER + args.prompt + AnsiColors.RESET)
+        logging.debug(f"User prompt: {args.prompt}")
+
+        # Non-interactive mode with --prompt argument
+        generate_with_tools(
+            provider,
+            model_name,
+            conversation_history,
+            TOOLS,
+            call_tool_f,
+        )
+    else:
+        # Interactive mode
+        while True:
+            user_input = input("You: ")
+            if user_input.lower() == "exit":
+                break
+
+            conversation_history.add_message(role="user", content=[ContentPartText(user_input)])
+            logging.debug(f"User prompt: {user_input}")
+
+            generate_with_tools(
+                provider,
+                model_name,
+                conversation_history,
+                TOOLS,
+                call_tool_f,
             )
 
 

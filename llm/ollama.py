@@ -8,7 +8,7 @@ import os
 import logging
 import time
 import json
-from typing import List, Dict, Any, Callable, Optional, Union
+from typing import List, Dict, Any, Callable, Optional, Union, Tuple
 
 import ollama
 from colors import AnsiColors
@@ -117,180 +117,187 @@ class Ollama(LLMAPI):
             logging.error(f"Error managing tokens: {e}")
             return False
 
-    def generate_with_tool(
+    def prepare_conversation(
         self,
-        prompt: str,
-        tools: List[Dict[str, Any]],
-        call_tool: Callable,
-        conversation_history: Optional[List[Dict[str, Any]]] = None,
-        model_name: Optional[str] = MODEL_NAME,
-        system_message: Optional[str] = None,
-        project_context: Optional[str] = None,
+        conversation_history: List[Dict[str, Any]],
+        system_message: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Generates content using the Ollama model with tools, maintaining conversation history.
+        Prepare the conversation history with system message if needed.
         
         Args:
-            prompt: The user's input prompt
-            tools: List of tool definitions in common format
-            call_tool: Function to call for tool execution
-            conversation_history: The history of the conversation
-            model_name: The name of the Ollama model to use
+            conversation_history: The current conversation history
             system_message: The system message to use
-            project_context: Additional project context to be added to the user's prompt
             
         Returns:
             List[Dict[str, Any]]: The updated conversation history
         """
-        client = self.initialize_client()
-
-        model_name = model_name or MODEL_NAME
-
-        # Use default system message if none is provided
-        system_message = system_message or """You are an experienced software engineer implementing code for a project working as a peer engineer
+        if len(conversation_history) == 0:
+            default_system_message = """You are an experienced software engineer implementing code for a project working as a peer engineer
 with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
 If can't understand a task, ask for clarifications."""
-
-        # Initialize conversation history if None
-        if conversation_history is None:
-            conversation_history = []
-        
-        if len(conversation_history) == 0:
+            
             conversation_history.append({
                 'role': 'system',
-                'content': system_message,
+                'content': system_message or default_system_message,
             })
             
-        # Add the user's prompt to the conversation history
-        if project_context:
-            print(AnsiColors.USER + "[Adding project context]" + AnsiColors.RESET)
-            logging.debug(f"Context: {project_context}")
-            conversation_history.append({
-                'role': 'user',
-                'content': project_context
-            })
-            
-        # Add the user's prompt to the conversation history
-        if prompt:
-            print(AnsiColors.USER + prompt + AnsiColors.RESET)
-            logging.info("User prompt: %s", prompt)
-            conversation_history.append({
-                'role': 'user',
-                'content': prompt
-            })
-        messages = conversation_history.copy()
-
-        # Ensure messages are within token limits
-        if not self.manage_conversation_history(messages):
-            print(AnsiColors.MODELERROR + "Conversation too large, cannot continue." + AnsiColors.RESET)
-            return conversation_history
-
-        continue_generation = True
-        request_count = 0
-        ollama_tools = self.transform_tools(tools)
-        print(conversation_history)
-
-        while continue_generation:
-            retry_count = 0
-            max_retries = 3
-            
-            while retry_count < max_retries:  # This loop handles retries for errors
-                try:
-                    request_count += 1
-                    logging.info(
-                        f"Starting request {request_count} with {len(messages)} message items."
-                    )
-                    logging.debug("Messages for generation:\n%s", self.pretty_print(messages))
-
-                    response = client.chat(model=model_name, messages=messages, tools=ollama_tools, stream=True)
-                    
-                    # Process the streamed response
-                    full_response = ""
-                    tool_calls = []
-                    tool_results = []
-                    
-                    for chunk in response:
-                        if not chunk:
-                            continue
-                        
-                        try:
-                            # Process message content
-                            if chunk.message:
-                                # Handle streaming text output
-                                if chunk.message.content:
-                                    print(AnsiColors.MODEL + chunk.message.content + AnsiColors.RESET, end='')
-                                    full_response += chunk.message.content
-                                
-                                # Handle tool calls
-                                if chunk.message.tool_calls:
-                                    for tool_call in chunk.message.tool_calls:
-                                        tool_calls.append(tool_call)
-                                        function_name = tool_call.function.name
-                                        function_args = tool_call.function.arguments
-                                        
-                                        print(AnsiColors.TOOL + f"{function_name}: {function_args}" + AnsiColors.RESET)
-                                        logging.info(f"Tool call: {function_name} with {function_args}")
-                                        
-                                        # Execute the tool
-                                        tool_result = call_tool(function_name, function_args, tool_call)
-                                        
-                                        # Add tool result to the list
-                                        tool_results.append({
-                                            "role": "tool",
-                                            "name": function_name,
-                                            "content": str(tool_result)
-                                        })
-                            # Check for end of response
-                            if chunk.done:
-                                break
-                        
-                        except json.JSONDecodeError as e:
-                            logging.warning(f"Error parsing JSON from stream: {e}")
-                        except Exception as e:
-                            logging.error(f"Error processing response chunk: {e}")
-                    
-                    # Add the assistant's response to conversation history
-                    assistant_message = {
-                        'role': 'assistant'
-                    }
-                    
-                    # Only add if we have content
-                    if full_response.strip():
-                        assistant_message['content'] = full_response
-                    
-                    if tool_calls:
-                        assistant_message['tool_calls'] = tool_calls
-                    
-                    messages.append(assistant_message)
-                    
-                    if tool_results:
-                        messages += tool_results
-                    
-                    continue_generation = len(tool_results) > 0
-                    
-                    # Break the retry loop if successful
-                    break
-                    
-                except Exception as e:
-                    retry_count += 1
-                    
-                    if retry_count >= max_retries:
-                        error_msg = f"Failed after {max_retries} retries: {e}"
-                        logging.error(error_msg)
-                        print(AnsiColors.MODELERROR + error_msg + AnsiColors.RESET)
-                        return conversation_history
-
-                    wait_time = 5 * retry_count  # Increase wait time with each retry
-                    
-                    error_msg = f"API error encountered. Retrying in {wait_time} seconds... (Attempt {retry_count}/{max_retries}): {e}"
-                    logging.warning(error_msg)
-                    print(AnsiColors.WARNING + error_msg + AnsiColors.RESET)
-                    
-                    time.sleep(wait_time)
-
-        conversation_history[len(conversation_history):len(messages)] = messages[len(conversation_history):]
-            
-        logging.info("Model has finished generating response")
-        print("\n" + AnsiColors.MODEL + "Done" + AnsiColors.RESET)
-
         return conversation_history
+
+    def add_project_context(
+        self,
+        conversation_history: List[Dict[str, Any]],
+        project_context: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Add project context to the conversation history.
+        
+        Args:
+            conversation_history: The current conversation history
+            project_context: The project context to add
+            
+        Returns:
+            List[Dict[str, Any]]: The updated conversation history
+        """
+        conversation_history.append({
+            'role': 'user',
+            'content': project_context
+        })
+        return conversation_history
+
+    def add_user_prompt(
+        self,
+        conversation_history: List[Dict[str, Any]],
+        prompt: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Add user prompt to the conversation history.
+        
+        Args:
+            conversation_history: The current conversation history
+            prompt: The user prompt to add
+            
+        Returns:
+            List[Dict[str, Any]]: The updated conversation history
+        """
+        conversation_history.append({
+            'role': 'user',
+            'content': prompt
+        })
+        return conversation_history
+
+    def get_api_response(
+        self,
+        client: ollama.Client,
+        messages: List[Dict[str, Any]],
+        tools: List[Dict[str, Any]],
+        model_name: Optional[str] = MODEL_NAME,
+        call_tool: Callable = None
+    ) -> Tuple[Any, List[Dict[str, Any]], bool]:
+        """
+        Get API response from Ollama, process it and handle tool calls.
+        
+        Args:
+            client: The Ollama client
+            messages: The messages to send in the request
+            tools: The Ollama-format tools to use
+            model_name: The model name to use
+            call_tool: The function to call tools
+            
+        Returns:
+            Tuple:
+                - Any: The raw API response
+                - List[Dict[str, Any]]: The updated messages
+                - bool: Whether any tool calls were made
+        """
+        model_name = model_name or MODEL_NAME
+        retry_count = 0
+        max_retries = 3
+        
+        while retry_count < max_retries:  # This loop handles retries for errors
+            try:
+                response = client.chat(model=model_name, messages=messages, tools=tools, stream=True)
+                
+                # Process the streamed response
+                full_response = ""
+                tool_calls = []
+                tool_results = []
+                
+                for chunk in response:
+                    if not chunk:
+                        continue
+                    
+                    try:
+                        # Process message content
+                        if chunk.message:
+                            # Handle streaming text output
+                            if chunk.message.content:
+                                print(AnsiColors.MODEL + chunk.message.content + AnsiColors.RESET, end='')
+                                full_response += chunk.message.content
+                            
+                            # Handle tool calls
+                            if chunk.message.tool_calls:
+                                for tool_call in chunk.message.tool_calls:
+                                    tool_calls.append(tool_call)
+                                    function_name = tool_call.function.name
+                                    function_args = tool_call.function.arguments
+                                    
+                                    print(AnsiColors.TOOL + f"{function_name}: {function_args}" + AnsiColors.RESET)
+                                    logging.info(f"Tool call: {function_name} with {function_args}")
+                                    
+                                    # Execute the tool
+                                    tool_result = call_tool(function_name, function_args, tool_call)
+                                    
+                                    # Add tool result to the list
+                                    tool_results.append({
+                                        "role": "tool",
+                                        "name": function_name,
+                                        "content": str(tool_result)
+                                    })
+                        # Check for end of response
+                        if chunk.done:
+                            break
+                    
+                    except json.JSONDecodeError as e:
+                        logging.warning(f"Error parsing JSON from stream: {e}")
+                    except Exception as e:
+                        logging.error(f"Error processing response chunk: {e}")
+                
+                # Add the assistant's response to conversation history
+                assistant_message = {
+                    'role': 'assistant'
+                }
+                
+                # Only add if we have content
+                if full_response.strip():
+                    assistant_message['content'] = full_response
+                
+                if tool_calls:
+                    assistant_message['tool_calls'] = tool_calls
+                
+                messages.append(assistant_message)
+                
+                if tool_results:
+                    messages.extend(tool_results)
+                
+                # Determine if there were tool calls
+                tool_calls_made = len(tool_results) > 0
+                
+                return response, messages, tool_calls_made
+                
+            except Exception as e:
+                retry_count += 1
+                
+                if retry_count >= max_retries:
+                    error_msg = f"Failed after {max_retries} retries: {e}"
+                    logging.error(error_msg)
+                    print(AnsiColors.MODELERROR + error_msg + AnsiColors.RESET)
+                    raise
+
+                wait_time = 5 * retry_count  # Increase wait time with each retry
+                
+                error_msg = f"API error encountered. Retrying in {wait_time} seconds... (Attempt {retry_count}/{max_retries}): {e}"
+                logging.warning(error_msg)
+                print(AnsiColors.WARNING + error_msg + AnsiColors.RESET)
+                
+                time.sleep(wait_time)
