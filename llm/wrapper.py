@@ -1,7 +1,7 @@
 
 import abc
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Generic, Dict, List, TypeVar
 from enum import Enum
 
 # class syntax
@@ -29,27 +29,20 @@ class ContentPartToolResult():
 
 ContentPart = ContentPartText | ContentPartToolCall | ContentPartToolResult
 
-class ChunkWrapper(abc.ABC):
-    raw: Any
-
-    def type(self) -> ContentType:
-        pass
-
-    def get_text(self) -> str:
-        pass
-
-    def get_tool_calls(self) -> List[ContentPartToolCall]:
-        pass
-
 @dataclass
 class ToolResult:
-    chunk: ChunkWrapper
     tool_call: ContentPartToolCall
     tool_result: ContentPartToolResult
 
+class Role(Enum):
+    SYSTEM = "system"
+    USER = "user"
+    MODEL = "model"
+    TOOL = "tool"
+
 @dataclass
 class Message():
-    role: str
+    role: Role
     content: List[ContentPart]
 
 @dataclass
@@ -58,5 +51,5 @@ class History():
     context: str
     conversation: List[Message] = field(default_factory=list)
 
-    def add_message(self, role: str, content: List[ContentPart]):
+    def add_message(self, role: Role, content: List[ContentPart]):
         self.conversation.append(Message(role, content))

@@ -17,24 +17,24 @@ def search_files(pattern, search_string, work_dir):
         list: A list of dictionaries, where each dictionary represents a match.
             Each dictionary contains the file path, line number, and a snippet
             of the line where the match was found.
-            
+
     Raises:
         ValueError: If the pattern resolves to paths outside the work_dir.
     """
     matches = []
-    
+
     # Normalize the work_dir
     abs_work_dir = os.path.abspath(os.path.normpath(work_dir))
-    
+
     # Construct the full glob pattern
     # We'll keep the pattern relative and join with normalized work_dir
     full_pattern = os.path.join(abs_work_dir, pattern)
-    
+
     for filepath in glob.glob(full_pattern, recursive=True):
         # Validate each matching file is within work_dir
         try:
             abs_filepath = normalize_and_validate_path(filepath, work_dir)
-            
+
             with open(abs_filepath, 'r', encoding='utf-8') as f:
                 for i, line in enumerate(f):
                     if search_string in line:
@@ -50,4 +50,4 @@ def search_files(pattern, search_string, work_dir):
             # Just skip it and continue with other files
             print(f"Error reading file {filepath}: {e}")
 
-    return matches
+    return matches, f"{len(matches)} matches found"

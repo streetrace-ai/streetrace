@@ -4,16 +4,17 @@ Claude AI Provider Implementation
 This module implements the LLMAPI interface for Anthropic's Claude models.
 """
 
-import json
 import os
 import logging
 import anthropic  # pip install anthropic
 import time
-from typing import Iterable, List, Dict, Any, Optional, override
+from typing import Iterable, List, Dict, Any, Optional
 
 from colors import AnsiColors
-from llm.wrapper import ChunkWrapper, ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentType, History, ToolResult
+from llm.history_converter import ChunkWrapper
+from llm.wrapper import History, ToolResult
 from llm.llmapi import LLMAPI
+from llm.claude_converter import ClaudeConverter, ContentBlockChunkWrapper
 
 ProviderHistory = List[anthropic.types.MessageParam]
 
@@ -21,70 +22,12 @@ ProviderHistory = List[anthropic.types.MessageParam]
 MAX_TOKENS = 200000  # Claude 3 Sonnet has a context window of approximately 200K tokens
 MODEL_NAME = "claude-3-7-sonnet-20250219"
 
-class ContentBlockChunkWrapper(ChunkWrapper):
-    def __init__(self, chunk: anthropic.types.ContentBlock):
-        self.raw = chunk
-
-    @override
-    def type(self) -> ContentType:
-        match self.raw:
-            case anthropic.types.TextBlock():
-                return ContentType.TEXT
-            case anthropic.types.ToolUseBlock():
-                return ContentType.TOOL_CALL
-            case _:
-                raise ValueError(f"Unknown content block type encountered {type(self.raw)}: {self.raw}")
-
-    @override
-    def get_text(self) -> str:
-        return self.raw.text
-
-    @override
-    def get_tool_calls(self) -> List[ContentPartToolCall]:
-        return [ContentPartToolCall(self.raw.id, self.raw.name, self.raw.input)]
-
-def _from_part(part: ContentPart) -> anthropic.types.ContentBlockParam:
-    """Convert a ContentPart to Claude-specific part."""
-    match part:
-        case ContentPartText():
-            return anthropic.types.TextBlockParam(type="text", text=part.text)
-        case ContentPartToolCall():
-            return anthropic.types.ToolUseBlockParam(
-                type="tool_use",
-                id=part.id,
-                name=part.name,
-                input=part.arguments)
-        case ContentPartToolResult():
-            return anthropic.types.ToolResultBlockParam(
-                type="tool_result",
-                tool_use_id=part.id,
-                content=json.dumps(part.content)
-            )
-        case _:
-            raise ValueError(f"Unknown content type encountered {type(part)}: {part}")
-
-def _to_part(part: anthropic.types.ContentBlockParam, tool_use_names: Dict[str, str]) -> ContentPart:
-    """Convert a Claude-specific part to ContentPart."""
-    match part['type']:
-        case 'text':
-            return ContentPartText(part['text'])
-        case 'tool_use':
-            return ContentPartToolCall(
-                part['id'],
-                part['name'],
-                part['input'])
-        case 'tool_result':
-            return ContentPartToolResult(
-                part['tool_use_id'],
-                tool_use_names.get(part['tool_use_id'], 'unknown'),
-                json.loads(part['content']))
-        case ContentType.UNKNOWN:
-            raise ValueError(f"Unknown content type encountered: {part}")
-
 class Claude(LLMAPI):
     """
     Implementation of the LLMAPI interface for Anthropic's Claude models.
     """
+
+    _adapter = ClaudeConverter()
 
     def initialize_client(self) -> anthropic.Anthropic:
         """
@@ -111,25 +54,7 @@ class Claude(LLMAPI):
         Returns:
             List[Dict[str, Any]]: Conversation history in Claude-specific format
         """
-        provider_history: ProviderHistory = []
-
-        if history.context:
-            provider_history.append(
-                anthropic.types.MessageParam(
-                    role = 'user',
-                    content = [anthropic.types.TextBlockParam(type="text", text=history.context)]
-                )
-            )
-
-        for message in history.conversation:
-            provider_history.append(
-                anthropic.types.MessageParam(
-                    role = message.role,
-                    content = [_from_part(part) for part in message.content]
-                )
-            )
-
-        return provider_history
+        return self._adapter.from_history(history)
 
     def update_history(self, provider_history: ProviderHistory, history: History) -> None:
         """
@@ -139,25 +64,8 @@ class Claude(LLMAPI):
             provider_history (List[Dict[str, Any]]): Claude-specific conversation history
             history (History): Conversation history in common format
         """
-        history.conversation = []
-        start_index = 0
-        # if we expect to have a context message, skip the first message of the history
-        # as it is the context message
-        if history.context and provider_history[0].get('role') == 'user':
-            start_index = 1
-
-        tool_use_names = {}
-
-        for message in provider_history:
-            for content in message.get('content'):
-                if content.get('type') == 'tool_use':
-                    tool_use_names[content.get('id')] = content.get('name')
-
-        for message in provider_history[start_index:]:
-            history.add_message(
-                message.get('role'),
-                [_to_part(part, tool_use_names) for part in message.get('content')]
-            )
+        # Replace the conversation with the new messages
+        history.conversation = self._adapter.to_history(provider_history)
 
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -300,7 +208,7 @@ class Claude(LLMAPI):
 
 
     def append_to_history(self, provider_history: ProviderHistory,
-                                turn: List[ChunkWrapper | ToolResult]):
+                             turn: List[ChunkWrapper | ToolResult]):
         """
         Add turn items into provider's conversation history.
 
@@ -308,52 +216,20 @@ class Claude(LLMAPI):
             provider_history: List of provider-specific message objects
             turn: List of items in this turn
         """
-        # Every part of the turn can contain a part of a text message, a tool call, or a tool result
-        # We will build the history out in the order of the turn parts, making sure to produce two items in history:
-        # 1. The assistant item, consisting of one part of all text messages, and more parts for tool calls
-        # 2. The tool results item, consisting of all tool results
-
-        model_messages = []
+        # Separate chunks and tool results
+        chunks = []
         tool_results = []
 
-        for block in turn:
-            if isinstance(block, ContentBlockChunkWrapper):
-                match block.type():
-                    case ContentType.TEXT:
-                        # Add text message to outputs
-                        model_messages.append(anthropic.types.TextBlockParam(
-                            type="text",
-                            text=block.raw.text))
-                    case ContentType.TOOL_CALL:
-                        # Add tool call to outputs
-                        model_messages.append(anthropic.types.ToolUseBlockParam(
-                            type="tool_use",
-                            id=block.raw.id,
-                            name=block.raw.name,
-                            input=block.raw.input))
-                    case _:
-                        # Unknown type, raise an error
-                        raise ValueError(f"Unknown content block type encountered {type(block)}: {block}")
-            elif isinstance(block, ToolResult):
-                # Add tool result to outputs
-                tool_results.append(anthropic.types.ToolResultBlockParam(
-                    type='tool_result',
-                    tool_use_id = block.chunk.raw.id,
-                    content = json.dumps(block.tool_result)
-                ))
+        for item in turn:
+            if isinstance(item, ContentBlockChunkWrapper):
+                chunks.append(item)
+            elif isinstance(item, ToolResult):
+                tool_results.append(item)
 
-        provider_history.append(
-            anthropic.types.MessageParam(
-                role='assistant',
-                content=model_messages
-            )
-        )
+        # Add assistant message with all text and tool calls
+        provider_history.append(self._adapter.to_history_item(chunks))
 
-        # Only add tool results if there are any
-        if tool_results:
-            provider_history.append(
-                anthropic.types.MessageParam(
-                    role='user',
-                    content=tool_results
-                )
-            )
+        # Add tool results if any exist
+        tool_results_message = self._adapter.to_history_item(tool_results)
+        if tool_results_message:
+            provider_history.append(tool_results_message)

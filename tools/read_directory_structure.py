@@ -16,10 +16,10 @@ def load_gitignore_for_directory(path):
         if current_path == parent_path:
             break
         current_path = parent_path
-    
+
     # Reverse to process from root to leaf (so leaf patterns can override root patterns)
     gitignore_files.reverse()
-    
+
     # Now read patterns from all files
     patterns = []
     for gitignore_path in gitignore_files:
@@ -45,55 +45,55 @@ def is_ignored(path, base_path, spec):
 # Custom tool: read current directory structure honoring .gitignore correctly
 def read_directory_structure(path, work_dir):
     """Read directory structure at a specific level (non-recursive) honoring .gitignore rules.
-    
+
     Args:
         path (str): The path to scan. Can be relative to work_dir or absolute.
         work_dir (str): The working directory.
-    
+
     Returns:
         dict: Dictionary with 'dirs' and 'files' lists containing paths relative to work_dir
-        
+
     Raises:
         ValueError: If the requested path is outside the allowed root path or doesn't exist.
     """
     # Normalize and validate the path
     abs_path = normalize_and_validate_path(path, work_dir)
-    
+
     # Check if directory exists
     validate_directory_exists(abs_path)
 
     # Get gitignore spec for the current directory
     spec = load_gitignore_for_directory(abs_path)
-    
+
     # Normalize work_dir to be able to get relative paths later
     abs_work_dir = os.path.abspath(work_dir)
-    
+
     # Use glob to get all items in the current directory
     items = glob.glob(os.path.join(abs_path, '*'))
-    
+
     dirs = []
     files = []
-    
+
     # Filter items and classify them as directories or files
     for item in items:
         # Skip if item is ignored by gitignore rules
         if is_ignored(item, abs_path, spec):
             continue
-            
+
         # Get path relative to work_dir
         rel_path = os.path.relpath(item, abs_work_dir)
-        
+
         # Add to appropriate list
         if os.path.isdir(item):
             dirs.append(rel_path)
         else:
             files.append(rel_path)
-    
+
     # Sort for consistent output
     dirs.sort()
     files.sort()
-    
+
     return {
         'dirs': dirs,
         'files': files
-    }
+    }, f"dirs: {', '.join(dirs)}\nfiles: {', '.join(files)}'"

@@ -3,6 +3,7 @@ import tools.read_file as rf
 import tools.write_file as wf
 import tools.cli as cli
 import tools.search as s
+import tools.ask_user as au
 
 def _clean_input(input_str):
     """
@@ -13,14 +14,14 @@ def _clean_input(input_str):
 
 def list_directory(path, work_dir):
     """Read directory structure while honoring .gitignore rules.
-    
+
     Args:
         path (str): The path to scan. Must be within the work_dir.
         work_dir (str): The working directory.
-    
+
     Returns:
         dict: Directory structure with files and subdirectories.
-        
+
     Raises:
         ValueError: If the requested path is outside the allowed root path.
     """
@@ -28,12 +29,12 @@ def list_directory(path, work_dir):
 
 def read_file(path, work_dir, encoding='utf-8'):
     """Read file contents.
-    
+
     Args:
         path (str): The path to the file to read. Must be within the work_dir.
-        work_dir (str): The working directory. 
+        work_dir (str): The working directory.
         encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
-    
+
     Returns:
         File contents.
     """
@@ -41,13 +42,13 @@ def read_file(path, work_dir, encoding='utf-8'):
 
 def write_file(path, content, work_dir, encoding='utf-8'):
     """Write content to a file.
-    
+
     Args:
         path (str): The path to the file to write. Must be within the work_dir.
         content (str or bytes): Content to write to the file.
-        work_dir (str): The working directory. 
+        work_dir (str): The working directory.
         encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
-    
+
     Returns:
         Result of the operation.
     """
@@ -55,11 +56,11 @@ def write_file(path, content, work_dir, encoding='utf-8'):
 
 def execute_cli_command(command, work_dir):
     """Execute a CLI command interactively. Does not provide shell access.
-    
+
     Args:
         command (list or str): The command to execute.
         work_dir (str): The working directory.
-    
+
     Returns:
         The stdio output.
     """
@@ -80,9 +81,18 @@ def search_files(pattern, search_string, work_dir):
             Each dictionary contains the file path, line number, and a snippet
             of the line where the match was found.
     """
-    return s.search_files(_clean_input(pattern), _clean_input(search_string), 
+    return s.search_files(_clean_input(pattern), _clean_input(search_string),
                               work_dir=work_dir)
-    
+
+def get_user_input():
+    """
+    Request more information from the user based on the last conversation message.
+
+    Returns:
+        string: The response typed in by the user.
+    """
+    return au.get_user_input()
+
 
 # Define common tools list
 TOOLS = [
@@ -200,6 +210,20 @@ TOOLS = [
             "strict": True,
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_user_input",
+            "description": "Request more information from the user based on the last conversation message.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [""],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
 ]
 
 TOOL_IMPL = {
@@ -207,5 +231,6 @@ TOOL_IMPL = {
     "execute_cli_command": execute_cli_command,
     "write_file": write_file,
     "read_file": read_file,
-    "list_directory": list_directory
+    "list_directory": list_directory,
+    "get_user_input": get_user_input
 }

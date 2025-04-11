@@ -8,16 +8,45 @@ import os
 import logging
 import json
 import time
-from typing import List, Dict, Any, Callable, Optional, Tuple
+from typing import Iterable, List, Dict, Any, Optional, override
 
 import openai
+from openai.types import chat
 from colors import AnsiColors
+from llm.history_converter import ChunkWrapper
 from llm.llmapi import LLMAPI
+from llm.wrapper import ContentPartText, ContentPartToolCall, History, Role, ToolResult
 
 # Constants
 MAX_TOKENS = 128000  # GPT-4 Turbo has a context window of 128K tokens
 MODEL_NAME = "gpt-4-turbo-2024-04-09"  # Default model
 
+ProviderHistory = List[chat.ChatCompletionMessageParam]
+
+_ROLES = {
+    Role.SYSTEM: "system",
+    Role.USER: "user",
+    Role.MODEL: "assistant",
+    Role.TOOL: "tool",
+}
+
+class ChoiceDeltaWrapper(ChunkWrapper):
+    def __init__(self, chunk: chat.chat_completion_chunk.ChoiceDelta):
+        self.raw = chunk
+
+    @override
+    def get_text(self) -> str:
+        return self.raw.content
+
+    @override
+    def get_tool_calls(self) -> List[ContentPartToolCall]:
+        return [
+            ContentPartToolCall(
+                call.id,
+                call.function.name,
+                json.loads(call.function.arguments)
+            ) for call in self.raw.tool_calls
+        ] if self.raw.tool_calls else []
 
 class OpenAI(LLMAPI):
     """
@@ -42,6 +71,139 @@ class OpenAI(LLMAPI):
         if base_url:
             return openai.OpenAI(api_key=api_key, base_url=base_url)
         return openai.OpenAI(api_key=api_key)
+
+    def transform_history(self, history: History) -> ProviderHistory:
+        """
+        Transform conversation history from common format into Gemini-specific format.
+
+        Args:
+            history (History): Conversation history to transform
+
+        Returns:
+            List[Dict[str, Any]]: Conversation history in Gemini-specific format
+        """
+        provider_history: ProviderHistory = []
+
+        if history.system_message:
+            provider_history.append(
+                chat.ChatCompletionSystemMessageParam(
+                    role = _ROLES[Role.SYSTEM],
+                    content = [chat.ChatCompletionContentPartTextParam(type="text", text=history.context)]
+                )
+            )
+
+        if history.context:
+            provider_history.append(
+                chat.ChatCompletionUserMessageParam(
+                    role = _ROLES[Role.USER],
+                    content = [chat.ChatCompletionContentPartTextParam(type="text", text=history.context)]
+                )
+            )
+
+        for message in history.conversation:
+            match message.role:
+                case Role.USER:
+                    provider_history.append(
+                        chat.ChatCompletionUserMessageParam(
+                            role = _ROLES[Role.USER],
+                            content = [
+                                chat.ChatCompletionContentPartTextParam(type="text", text=msg.text)
+                                for msg in message.content
+                            ]
+                        )
+                    )
+                case Role.MODEL:
+                    provider_history.append(
+                        chat.ChatCompletionAssistantMessageParam(
+                            role = _ROLES[Role.MODEL],
+                            content = [
+                                chat.ChatCompletionContentPartTextParam(type="text", text=msg.text)
+                                for msg in message.content if type(msg) is ContentPartText
+                            ],
+                            tool_calls=[
+                                chat.ChatCompletionMessageToolCallParam(
+                                    id = msg.id,
+                                    function = chat.Function(
+                                        name = msg.name,
+                                        arguments = json.dumps(msg.arguments)
+                                    ))
+                                for msg in message.content if type(msg) is ContentPartToolCall
+                            ]
+                        )
+                    )
+                case Role.TOOL:
+                    provider_history.append(
+                        chat.ChatCompletionToolMessageParam(
+                            role = _ROLES[Role.TOOL],
+                            content = [
+                                chat.ChatCompletionContentPartTextParam(type="text", text=msg.text)
+                                for msg in message.content
+                            ]
+                        )
+                    )
+
+        return provider_history
+
+    def update_history(self, provider_history: ProviderHistory, history: History) -> None:
+        """
+        Updates the conversation history in common format based on Gemini-specific history.
+
+        Args:
+            provider_history (List[Dict[str, Any]]): Gemini-specific conversation history
+            history (History): Conversation history in common format
+        """
+        history.conversation = []
+        expect_context = False
+        if history.context:
+            expect_context = True
+
+        tool_use_names = {}
+
+        for message in provider_history:
+            if type(message) is chat.ChatCompletionAssistantMessageParam and message.tool_calls:
+                for tool_call in message.tool_calls:
+                    tool_use_names[tool_call.id] = tool_call.function.name
+
+        for message in provider_history:
+            match message:
+                case chat.ChatCompletionSystemMessageParam():
+                    history.system_message = message.get('content')
+                case chat.ChatCompletionUserMessageParam():
+                    if expect_context:
+                        history.context = message.get('content')
+                        expect_context = False
+                    elif type(message.get('content')) is str:
+                        history.add_message(
+                            Role.USER,
+                            [ContentPartText(message.get('content'))]
+                        )
+                    else:
+                        history.add_message(
+                            Role.USER,
+                            [ContentPartText(part) for part in message.get('content')]
+                        )
+                case chat.ChatCompletionAssistantMessageParam():
+                    content = message.get('content')
+                    if not isinstance(content, list):
+                        content = [content]
+                    text_parts = [ContentPartText(part) for part in content]
+                    tool_calls = [ContentPartToolCall(
+                        part.id,
+                        part.function.name,
+                        json.loads(part.function.arguments)) for part in message.get('tool_calls')]
+                    history.add_message(
+                        Role.MODEL,
+                        text_parts + tool_calls
+                    )
+                case chat.ChatCompletionToolMessageParam():
+                    history.add_message(
+                        Role.TOOL,
+                        [ContentPartToolCall(
+                            message.tool_call_id,
+                            tool_use_names[message.tool_call.id],
+                            json.loads(message.get('content')))
+                         ]
+                    )
 
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -119,106 +281,35 @@ class OpenAI(LLMAPI):
             logging.error(f"Error managing tokens: {e}")
             return False
 
-    def prepare_conversation(
-        self,
-        conversation_history: List[Dict[str, Any]],
-        system_message: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Prepare the conversation history with system message if needed.
-        
-        Args:
-            conversation_history: The current conversation history
-            system_message: The system message to use
-            
-        Returns:
-            List[Dict[str, Any]]: The updated conversation history
-        """
-        # Initialize conversation history with system message if empty
-        if len(conversation_history) == 0:
-            default_system_message = """You are an experienced software engineer implementing code for a project working as a peer engineer
-with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
-If can't understand a task, ask for clarifications."""
-            
-            conversation_history.append({
-                'role': 'system',
-                'content': system_message or default_system_message
-            })
-            
-        return conversation_history
-
-    def add_project_context(
-        self,
-        conversation_history: List[Dict[str, Any]],
-        project_context: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Add project context to the conversation history.
-        
-        Args:
-            conversation_history: The current conversation history
-            project_context: The project context to add
-            
-        Returns:
-            List[Dict[str, Any]]: The updated conversation history
-        """
-        conversation_history.append({
-            'role': 'user',
-            'content': project_context
-        })
-        return conversation_history
-
-    def add_user_prompt(
-        self,
-        conversation_history: List[Dict[str, Any]],
-        prompt: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Add user prompt to the conversation history.
-        
-        Args:
-            conversation_history: The current conversation history
-            prompt: The user prompt to add
-            
-        Returns:
-            List[Dict[str, Any]]: The updated conversation history
-        """
-        conversation_history.append({
-            'role': 'user',
-            'content': prompt
-        })
-        return conversation_history
-
-    def get_api_response(
+    def generate(
         self,
         client: openai.OpenAI,
-        messages: List[Dict[str, Any]],
+        model_name: Optional[str],
+        conversation: History,
+        messages: ProviderHistory,
         tools: List[Dict[str, Any]],
-        model_name: Optional[str] = MODEL_NAME,
-        call_tool: Callable = None
-    ) -> Tuple[Any, List[Dict[str, Any]], bool]:
+    ) -> Iterable[ChoiceDeltaWrapper]:
         """
         Get API response from OpenAI, process it and handle tool calls.
-        
+
         Args:
             client: The OpenAI client
-            messages: The messages to send in the request
-            tools: The OpenAI-format tools to use
             model_name: The model name to use
-            call_tool: The function to call tools
-            
+            conversation: The common conversation history
+            messages: The messages to send in the request
+            tools: The Gemini-format tools to use
+
         Returns:
-            Tuple:
-                - Any: The raw API response
-                - List[Dict[str, Any]]: The updated messages
-                - bool: Whether any tool calls were made
+            Iterable[ChoiceDeltaWrapper]: Stream of response chunks
         """
         model_name = model_name or MODEL_NAME
         retry_count = 0
         max_retries = 3
-        
+
         while retry_count < max_retries:  # This loop handles retries for errors
             try:
+                print(f"Sending to openai: {messages}")
+                exit(0)
                 # Create the message with OpenAI
                 response = client.chat.completions.create(
                     model=model_name,
@@ -227,12 +318,8 @@ If can't understand a task, ask for clarifications."""
                     stream=True,
                     tool_choice="auto"
                 )
-                
-                # Process the streamed response
-                full_response = ""
-                tool_calls = []
-                tool_results = []
 
+                # Process the streamed response
                 for chunk in response:
                     logging.debug(f"Chunk received: {chunk}")
                     if not chunk.choices:
@@ -240,82 +327,7 @@ If can't understand a task, ask for clarifications."""
 
                     delta = chunk.choices[0].delta
 
-                    # Process message content
-                    if delta.content:
-                        print(AnsiColors.MODEL + delta.content + AnsiColors.RESET, end='')
-                        full_response += delta.content
-
-                    # Process tool calls
-                    if delta.tool_calls:
-                        for tool_call_delta in delta.tool_calls:
-                            # Initialize or update the tool call in our tracking list
-                            if tool_call_delta.index is not None:
-                                idx = tool_call_delta.index
-
-                                # Create a new tool call entry if this is a new index
-                                if idx >= len(tool_calls):
-                                    tool_calls.append({
-                                        "id": tool_call_delta.id or "",
-                                        "type": "function",
-                                        "function": {
-                                            "name": "",
-                                            "arguments": ""
-                                        }
-                                    })
-
-                                # Update name if provided
-                                if tool_call_delta.function and tool_call_delta.function.name:
-                                    tool_calls[idx]["function"]["name"] = tool_call_delta.function.name
-
-                                # Update arguments if provided
-                                if tool_call_delta.function and tool_call_delta.function.arguments:
-                                    tool_calls[idx]["function"]["arguments"] += tool_call_delta.function.arguments
-
-                # Process any complete tool calls
-                for tool_call in tool_calls:
-                    if tool_call["function"]["name"] and tool_call["function"]["arguments"]:
-                        function_name = tool_call["function"]["name"]
-                        try:
-                            function_args = json.loads(tool_call["function"]["arguments"])
-                        except json.JSONDecodeError:
-                            # Handle case where arguments might not be valid JSON
-                            logging.warning(f"Invalid JSON in arguments: {tool_call['function']['arguments']}")
-                            function_args = {}
-
-                        print(AnsiColors.TOOL + f"{function_name}: {function_args}" + AnsiColors.RESET)
-                        logging.info(f"Tool call: {function_name} with {function_args}")
-
-                        # Execute the tool
-                        tool_result = call_tool(function_name, function_args, tool_call)
-
-                        # Add tool result to the list
-                        tool_results.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call["id"],
-                            "name": function_name,
-                            "content": str(tool_result)
-                        })
-
-                # Add the assistant's response to conversation history
-                if full_response.strip() or tool_calls:
-                    assistant_message = {
-                        'role': 'assistant',
-                        'content': full_response
-                    }
-
-                    if tool_calls:
-                        assistant_message['tool_calls'] = tool_calls
-
-                    messages.append(assistant_message)
-
-                    # Add tool results to the conversation history
-                    if tool_results:
-                        messages.extend(tool_results)
-
-                # Determine if there were tool calls
-                tool_calls_made = len(tool_results) > 0
-                
-                return response, messages, tool_calls_made
+                    yield ChoiceDeltaWrapper(delta)
 
             except Exception as e:
                 retry_count += 1
@@ -333,3 +345,35 @@ If can't understand a task, ask for clarifications."""
                 print(AnsiColors.WARNING + error_msg + AnsiColors.RESET)
 
                 time.sleep(wait_time)
+
+    def append_to_history(self, provider_history: ProviderHistory,
+                                turn: List[ChunkWrapper | ToolResult]):
+        """
+        Add turn items into provider's conversation history.
+
+        Args:
+            provider_history: List of provider-specific message objects
+            turn: List of items in this turn
+        """
+        for block in turn:
+            if isinstance(block, ChoiceDeltaWrapper):
+                provider_history.append(chat.ChatCompletionAssistantMessageParam(
+                    role=_ROLES[Role.MODEL],
+                    content=block.raw.content,
+                    tool_calls=[
+                        chat.ChatCompletionMessageToolCallParam(
+                            type = 'function',
+                            id = call.id,
+                            function = chat.Function(
+                                name = call.function.name,
+                                arguments = call.function.arguments
+                            )
+                        )
+                        for call in block.raw.tool_calls]))
+            elif isinstance(block, ToolResult):
+                # Add tool result to outputs
+                provider_history.append(chat.ChatCompletionToolMessageParam(
+                    role = _ROLES[Role.TOOL],
+                    tool_call_id = block.tool_call.id,
+                    content = json.dumps(block.tool_result)
+                ))

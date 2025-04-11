@@ -9,7 +9,8 @@ import logging
 from typing import List, Dict, Any, Callable, Optional
 
 from colors import AnsiColors
-from llm.wrapper import ChunkWrapper, ContentType, History, ToolResult
+from llm.history_converter import ChunkWrapper
+from llm.wrapper import History, ToolResult
 from llm.llmapi import LLMAPI
 
 
@@ -73,15 +74,14 @@ def _generate_with_tools(
         turn: List[ChunkWrapper | ToolResult] = []
         for chunk in provider.generate(client, model_name, conversation, provider_history, provider_tools):
             turn.append(chunk)
-            match chunk.type():
-                case ContentType.TEXT:
-                    print(AnsiColors.MODEL + chunk.get_text() + AnsiColors.RESET, end='')
-                case ContentType.TOOL_CALL:
-                    for tool_call in chunk.get_tool_calls():
-                        print(AnsiColors.TOOL + f"{tool_call.name}: {tool_call.arguments}" + AnsiColors.RESET)
-                        logging.info(f"Tool call: {tool_call.name} with {tool_call.arguments}")
-                        tool_result = f_call_tool(tool_call.name, tool_call.arguments, chunk.raw)
-                        turn.append(ToolResult(chunk, tool_call, tool_result))
-                    continue_generation = True # Continue if there were tool calls
+            if chunk.get_text():
+                print(AnsiColors.MODEL + chunk.get_text() + AnsiColors.RESET, end='', flush=True)
+            if chunk.get_tool_calls():
+                print()
+                for tool_call in chunk.get_tool_calls():
+                    tool_result = f_call_tool(tool_call.name, tool_call.arguments, chunk.raw)
+                    turn.append(ToolResult(tool_call, tool_result))
+                continue_generation = True # Continue if there were tool calls
+        print()
 
         provider.append_to_history(provider_history, turn)

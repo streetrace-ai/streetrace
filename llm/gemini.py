@@ -4,16 +4,15 @@ Gemini AI Provider Implementation
 This module implements the LLMAPI interface for Google's Gemini models.
 """
 
-import json
 import os
 import logging
 from typing import Iterable, List, Dict, Any, Optional, override
 
 from google import genai
 from google.genai import types
-from colors import AnsiColors
+from llm.history_converter import ChunkWrapper
 from llm.llmapi import LLMAPI
-from llm.wrapper import ChunkWrapper, ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentType, History, ToolResult
+from llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentType, History, ToolResult
 
 ProviderHistory = List[types.Content]
 
@@ -27,21 +26,17 @@ class GenerateContentPartWrapper(ChunkWrapper):
         self.raw = chunk
 
     @override
-    def type(self) -> ContentType:
-        if self.raw.text:
-            return ContentType.TEXT
-        if self.raw.function_call:
-            return ContentType.TOOL_CALL
-        else:
-            raise ValueError(f"Unknown content block type encountered {type(self.raw)}: {self.raw}")
-
-    @override
     def get_text(self) -> str:
         return self.raw.text
 
     @override
     def get_tool_calls(self) -> List[ContentPartToolCall]:
-        return [ContentPartToolCall(self.raw.function_call.id, self.raw.function_call.name, self.raw.function_call.args)]
+        return [
+            ContentPartToolCall(
+                self.raw.function_call.id,
+                self.raw.function_call.name,
+                self.raw.function_call.args)
+        ] if self.raw.function_call else []
 
 
 def _from_part(part: ContentPart) -> types.Part:
@@ -290,10 +285,7 @@ class Gemini(LLMAPI):
             tools: The Gemini-format tools to use
 
         Returns:
-            Tuple:
-                - Any: The raw API response
-                - List[Dict[str, Any]]: The updated messages
-                - bool: Whether any tool calls were made
+            Iterable[GenerateContentPartWrapper]: An iterable of content parts
         """
         model_name = model_name or MODEL_NAME
 

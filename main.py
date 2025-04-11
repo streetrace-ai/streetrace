@@ -119,14 +119,15 @@ def call_tool(tool_name, args, original_call, work_dir):
     Returns:
         tuple: (function_response, result_text)
     """
-    logging.debug(f"Calling tool {tool_name} with arguments: {args}")
+    print(AnsiColors.TOOL + f"{tool_name}: {args}" + AnsiColors.RESET)
+    logging.info(f"Tool call: {tool_name} with {args}")
     if tool_name in TOOL_IMPL:
         tool = TOOL_IMPL[tool_name]
         if 'work_dir' in tool.__code__.co_varnames:
             args = { **args, 'work_dir': work_dir }
         try:
-            result = tool(**args)
-            print(AnsiColors.TOOL + str(result) + AnsiColors.RESET)
+            result, view_result = tool(**args)
+            print(AnsiColors.TOOL + str(view_result or result) + AnsiColors.RESET)
             logging.info(f"Function result: {result}")
             return {"success": True, "result": json.dumps(result)}
         except Exception as e:

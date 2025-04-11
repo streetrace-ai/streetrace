@@ -9,7 +9,8 @@ initialization, API calls, and tool management across all providers.
 import abc
 from typing import Iterable, List, Dict, Any, Optional
 
-from llm.wrapper import ChunkWrapper, History, ToolResult
+from llm.history_converter import ChunkWrapper
+from llm.wrapper import History, ToolResult
 
 ProviderHistory = List[Dict[str, Any]]
 ProviderTools = List[Dict[str, Any]]
