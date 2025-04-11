@@ -110,7 +110,7 @@ class LLMAPI(abc.ABC):
         self,
         client: Any,
         model_name: Optional[str],
-        conversation: History,
+        system_message: str,
         messages: ProviderHistory,
         tools: ProviderTools,
     ) -> Iterable[ChunkWrapper]:
@@ -122,6 +122,7 @@ class LLMAPI(abc.ABC):
         Args:
             client: The provider client
             model_name: The model name to use (None for default model)
+            system_message: The system message to use in the request
             messages: The messages to send in the request
             tools: The tools to use
 

@@ -37,7 +37,7 @@ def generate_with_tools(
     provider_tools = provider.transform_tools(tools)
 
     try:
-        _generate_with_tools(provider, client, model_name, conversation, provider_history, provider_tools, call_tool)
+        _generate_with_tools(provider, client, model_name, conversation.system_message, provider_history, provider_tools, call_tool)
         provider.update_history(provider_history, conversation)
     except Exception as e:
         print(AnsiColors.MODELERROR + str(e) + AnsiColors.RESET)
@@ -48,7 +48,7 @@ def _generate_with_tools(
     provider: LLMAPI,
     client: Any,
     model_name: Optional[str],
-    conversation: History,
+    system_message: str,
     provider_history: List[Dict[str, Any]],
     provider_tools: List[Dict[str, Any]],
     f_call_tool: Callable):
@@ -72,7 +72,7 @@ def _generate_with_tools(
         logging.debug("Messages for generation:\n%s", provider.pretty_print(provider_history))
 
         turn: List[ChunkWrapper | ToolResult] = []
-        for chunk in provider.generate(client, model_name, conversation, provider_history, provider_tools):
+        for chunk in provider.generate(client, model_name, system_message, provider_history, provider_tools):
             turn.append(chunk)
             if chunk.get_text():
                 print(AnsiColors.MODEL + chunk.get_text() + AnsiColors.RESET, end='', flush=True)

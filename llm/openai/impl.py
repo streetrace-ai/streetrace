@@ -285,7 +285,7 @@ class OpenAI(LLMAPI):
         self,
         client: openai.OpenAI,
         model_name: Optional[str],
-        conversation: History,
+        system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
     ) -> Iterable[ChoiceDeltaWrapper]:
@@ -295,7 +295,7 @@ class OpenAI(LLMAPI):
         Args:
             client: The OpenAI client
             model_name: The model name to use
-            conversation: The common conversation history
+            system_message: Not used in OpenAI (processed as a part of conversation history)
             messages: The messages to send in the request
             tools: The Gemini-format tools to use
 

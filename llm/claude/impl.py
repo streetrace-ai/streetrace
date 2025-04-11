@@ -14,7 +14,7 @@ from colors import AnsiColors
 from llm.history_converter import ChunkWrapper
 from llm.wrapper import History, ToolResult
 from llm.llmapi import LLMAPI
-from llm.claude_converter import ClaudeConverter, ContentBlockChunkWrapper
+from llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
 
 ProviderHistory = List[anthropic.types.MessageParam]
 
@@ -152,7 +152,7 @@ class Claude(LLMAPI):
         self,
         client: anthropic.Anthropic,
         model_name: Optional[str],
-        conversation: History,
+        system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
     ) -> Iterable[ContentBlockChunkWrapper]:
@@ -162,7 +162,7 @@ class Claude(LLMAPI):
         Args:
             client: The Claude client
             model_name: The model name to use
-            conversation: The common conversation history
+            system_message: The system message to send
             messages: The messages to send in the request
             tools: The Claude-format tools to use
 
@@ -178,7 +178,7 @@ class Claude(LLMAPI):
                 response = client.messages.create(
                     model=model_name,
                     max_tokens=20000,
-                    system=conversation.system_message,
+                    system=system_message,
                     messages=messages,
                     # stream=True,
                     tools=tools)

@@ -270,7 +270,7 @@ class Gemini(LLMAPI):
         self,
         client: genai.Client,
         model_name: Optional[str],
-        conversation: History,
+        system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
     ) -> Iterable[GenerateContentPartWrapper]:
@@ -280,7 +280,7 @@ class Gemini(LLMAPI):
         Args:
             client: The Gemini client
             model_name: The model name to use
-            conversation: The common conversation history
+            system_message: The system message to send in the request
             messages: The messages to send in the request
             tools: The Gemini-format tools to use
 
@@ -292,7 +292,7 @@ class Gemini(LLMAPI):
         # Set up generation configuration
         generation_config = types.GenerateContentConfig(
             tools=tools,
-            system_instruction=conversation.system_message,
+            system_instruction=system_message,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
             tool_config=types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(mode='AUTO')

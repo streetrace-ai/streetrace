@@ -159,7 +159,6 @@ def main():
 
     if conversation_history.context:
         print(AnsiColors.USER + "[Adding context]" + AnsiColors.RESET)
-        logging.debug(f"Context: {conversation_history.context}")
 
     # Get the working directory path
     working_dir = args.path if args.path else os.getcwd()

@@ -10,23 +10,23 @@ import logging
 from typing import Optional
 
 from llm.llmapi import LLMAPI
-from llm.claude import Claude
-from llm.gemini import Gemini
-from llm.openai import OpenAI
-from llm.ollama import Ollama
+from llm.claude.impl import Claude
+from llm.gemini.impl import Gemini
+from llm.openai.impl import OpenAI
+from llm.ollama.impl import Ollama
 
 
 def get_ai_provider(provider_name: Optional[str] = None) -> LLMAPI:
     """
     Factory function to get the appropriate AI provider instance.
-    
+
     Args:
-        provider_name: Optional explicitly specified provider name 
+        provider_name: Optional explicitly specified provider name
                      ('claude', 'gemini', 'openai', 'ollama')
-                     
+
     Returns:
         LLMAPI: An instance of the appropriate LLMAPI implementation
-        
+
     Raises:
         ValueError: If the specified provider is not available or if no API keys are found
     """
@@ -50,7 +50,7 @@ def get_ai_provider(provider_name: Optional[str] = None) -> LLMAPI:
             return Ollama()
         else:
             raise ValueError(f"Unknown provider name: {provider_name}")
-    
+
     # Auto-detect provider based on available API keys
     if os.environ.get('ANTHROPIC_API_KEY'):
         logging.info("Using Claude provider (ANTHROPIC_API_KEY found)")
