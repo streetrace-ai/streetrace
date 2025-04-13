@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 from llm.llmapi import LLMAPI
 from llm.claude import Claude
-from llm.gemini import Gemini
-from llm.openai import OpenAI
-from llm.ollama import Ollama
+from llm.gemini.impl import Gemini
+from llm.openai.impl import OpenAI
+from llm.ollama.impl import Ollama
 from llm.llmapi_factory import get_ai_provider
 
 

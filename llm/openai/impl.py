@@ -6,16 +6,16 @@ This module implements the LLMAPI interface for OpenAI models.
 
 import os
 import logging
-import json
 import time
-from typing import Iterable, List, Dict, Any, Optional, override
+from typing import Iterable, List, Dict, Any, Optional
 
 import openai
 from openai.types import chat
 from colors import AnsiColors
 from llm.history_converter import ChunkWrapper
 from llm.llmapi import LLMAPI
-from llm.wrapper import ContentPartText, ContentPartToolCall, History, Role, ToolResult
+from llm.wrapper import History, Role, ToolResult
+from llm.openai.converter import OpenAIConverter, ChoiceDeltaWrapper
 
 # Constants
 MAX_TOKENS = 128000  # GPT-4 Turbo has a context window of 128K tokens
@@ -23,35 +23,12 @@ MODEL_NAME = "gpt-4-turbo-2024-04-09"  # Default model
 
 ProviderHistory = List[chat.ChatCompletionMessageParam]
 
-_ROLES = {
-    Role.SYSTEM: "system",
-    Role.USER: "user",
-    Role.MODEL: "assistant",
-    Role.TOOL: "tool",
-}
-
-class ChoiceDeltaWrapper(ChunkWrapper):
-    def __init__(self, chunk: chat.chat_completion_chunk.ChoiceDelta):
-        self.raw = chunk
-
-    @override
-    def get_text(self) -> str:
-        return self.raw.content
-
-    @override
-    def get_tool_calls(self) -> List[ContentPartToolCall]:
-        return [
-            ContentPartToolCall(
-                call.id,
-                call.function.name,
-                json.loads(call.function.arguments)
-            ) for call in self.raw.tool_calls
-        ] if self.raw.tool_calls else []
-
 class OpenAI(LLMAPI):
     """
     Implementation of the LLMAPI interface for OpenAI models.
     """
+
+    _adapter = OpenAIConverter()
 
     def initialize_client(self) -> openai.OpenAI:
         """
@@ -74,136 +51,28 @@ class OpenAI(LLMAPI):
 
     def transform_history(self, history: History) -> ProviderHistory:
         """
-        Transform conversation history from common format into Gemini-specific format.
+        Transform conversation history from common format into OpenAI-specific format.
 
         Args:
             history (History): Conversation history to transform
 
         Returns:
-            List[Dict[str, Any]]: Conversation history in Gemini-specific format
+            List[Dict[str, Any]]: Conversation history in OpenAI-specific format
         """
-        provider_history: ProviderHistory = []
-
-        if history.system_message:
-            provider_history.append(
-                chat.ChatCompletionSystemMessageParam(
-                    role = _ROLES[Role.SYSTEM],
-                    content = [chat.ChatCompletionContentPartTextParam(type="text", text=history.context)]
-                )
-            )
-
-        if history.context:
-            provider_history.append(
-                chat.ChatCompletionUserMessageParam(
-                    role = _ROLES[Role.USER],
-                    content = [chat.ChatCompletionContentPartTextParam(type="text", text=history.context)]
-                )
-            )
-
-        for message in history.conversation:
-            match message.role:
-                case Role.USER:
-                    provider_history.append(
-                        chat.ChatCompletionUserMessageParam(
-                            role = _ROLES[Role.USER],
-                            content = [
-                                chat.ChatCompletionContentPartTextParam(type="text", text=msg.text)
-                                for msg in message.content
-                            ]
-                        )
-                    )
-                case Role.MODEL:
-                    provider_history.append(
-                        chat.ChatCompletionAssistantMessageParam(
-                            role = _ROLES[Role.MODEL],
-                            content = [
-                                chat.ChatCompletionContentPartTextParam(type="text", text=msg.text)
-                                for msg in message.content if type(msg) is ContentPartText
-                            ],
-                            tool_calls=[
-                                chat.ChatCompletionMessageToolCallParam(
-                                    id = msg.id,
-                                    function = chat.Function(
-                                        name = msg.name,
-                                        arguments = json.dumps(msg.arguments)
-                                    ))
-                                for msg in message.content if type(msg) is ContentPartToolCall
-                            ]
-                        )
-                    )
-                case Role.TOOL:
-                    provider_history.append(
-                        chat.ChatCompletionToolMessageParam(
-                            role = _ROLES[Role.TOOL],
-                            content = [
-                                chat.ChatCompletionContentPartTextParam(type="text", text=msg.text)
-                                for msg in message.content
-                            ]
-                        )
-                    )
-
-        return provider_history
+        return self._adapter.from_history(history)
 
     def update_history(self, provider_history: ProviderHistory, history: History) -> None:
         """
-        Updates the conversation history in common format based on Gemini-specific history.
+        Updates the conversation history in common format based on OpenAI-specific history.
 
         Args:
-            provider_history (List[Dict[str, Any]]): Gemini-specific conversation history
+            provider_history (List[Dict[str, Any]]): OpenAI-specific conversation history
             history (History): Conversation history in common format
         """
-        history.conversation = []
-        expect_context = False
-        if history.context:
-            expect_context = True
-
-        tool_use_names = {}
-
-        for message in provider_history:
-            if type(message) is chat.ChatCompletionAssistantMessageParam and message.tool_calls:
-                for tool_call in message.tool_calls:
-                    tool_use_names[tool_call.id] = tool_call.function.name
-
-        for message in provider_history:
-            match message:
-                case chat.ChatCompletionSystemMessageParam():
-                    history.system_message = message.get('content')
-                case chat.ChatCompletionUserMessageParam():
-                    if expect_context:
-                        history.context = message.get('content')
-                        expect_context = False
-                    elif type(message.get('content')) is str:
-                        history.add_message(
-                            Role.USER,
-                            [ContentPartText(message.get('content'))]
-                        )
-                    else:
-                        history.add_message(
-                            Role.USER,
-                            [ContentPartText(part) for part in message.get('content')]
-                        )
-                case chat.ChatCompletionAssistantMessageParam():
-                    content = message.get('content')
-                    if not isinstance(content, list):
-                        content = [content]
-                    text_parts = [ContentPartText(part) for part in content]
-                    tool_calls = [ContentPartToolCall(
-                        part.id,
-                        part.function.name,
-                        json.loads(part.function.arguments)) for part in message.get('tool_calls')]
-                    history.add_message(
-                        Role.MODEL,
-                        text_parts + tool_calls
-                    )
-                case chat.ChatCompletionToolMessageParam():
-                    history.add_message(
-                        Role.TOOL,
-                        [ContentPartToolCall(
-                            message.tool_call_id,
-                            tool_use_names[message.tool_call.id],
-                            json.loads(message.get('content')))
-                         ]
-                    )
+        # Replace the conversation with the new messages
+        history.conversation = self._adapter.to_history(provider_history)
+        if history.context and history.conversation[0].role == Role.USER:
+            del history.conversation[0]
 
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -215,6 +84,7 @@ class OpenAI(LLMAPI):
         Returns:
             List[Dict[str, Any]]: List of tool definitions in OpenAI format
         """
+        # OpenAI's tool format is already compatible with the common format
         return tools
 
     def pretty_print(self, messages: List[Dict[str, Any]]) -> str:
@@ -297,7 +167,7 @@ class OpenAI(LLMAPI):
             model_name: The model name to use
             system_message: Not used in OpenAI (processed as a part of conversation history)
             messages: The messages to send in the request
-            tools: The Gemini-format tools to use
+            tools: The tools to use
 
         Returns:
             Iterable[ChoiceDeltaWrapper]: Stream of response chunks
@@ -308,8 +178,6 @@ class OpenAI(LLMAPI):
 
         while retry_count < max_retries:  # This loop handles retries for errors
             try:
-                print(f"Sending to openai: {messages}")
-                exit(0)
                 # Create the message with OpenAI
                 response = client.chat.completions.create(
                     model=model_name,
@@ -320,14 +188,61 @@ class OpenAI(LLMAPI):
                 )
 
                 # Process the streamed response
+                buffered_tool_calls = {}
                 for chunk in response:
                     logging.debug(f"Chunk received: {chunk}")
-                    if not chunk.choices:
+                    if not hasattr(chunk, 'choices'):
                         continue
 
-                    delta = chunk.choices[0].delta
+                    for idx, choice in enumerate(chunk.choices):
+                        delta = choice.delta
+                        finish_reason = choice.finish_reason
 
-                    yield ChoiceDeltaWrapper(delta)
+                        if finish_reason == "tool_calls":
+                            # Yield full tool_call block if finished
+                            tool_call_msg = buffered_tool_calls.pop(idx, None)
+                            if tool_call_msg:
+                                yield ChoiceDeltaWrapper(chat.ChatCompletionMessage(
+                                    role = delta.role or "assistant",
+                                    tool_calls=[
+                                        chat.ChatCompletionMessageToolCall(
+                                            type="function",
+                                            id = tool_call['id'],
+                                            function = chat.chat_completion_message_tool_call.Function(
+                                                name=tool_call['function']['name'],
+                                                arguments=tool_call['function']['arguments']
+                                            )
+                                        ) for tool_call in tool_call_msg['tool_calls']
+                                    ]
+                                ))
+                            continue
+
+                        if hasattr(delta, "tool_calls") and delta.tool_calls:
+                            # Start or continue buffering tool_call
+                            if idx not in buffered_tool_calls:
+                                buffered_tool_calls[idx] = {"tool_calls": []}
+
+                            for i, tool_delta in enumerate(delta.tool_calls):
+                                # Ensure space for tool_calls[i]
+                                while len(buffered_tool_calls[idx]["tool_calls"]) <= i:
+                                    buffered_tool_calls[idx]["tool_calls"].append({
+                                        "id": None, "function": {"name": "", "arguments": ""},
+                                        "type": "function"
+                                    })
+
+                                existing = buffered_tool_calls[idx]["tool_calls"][i]
+                                if tool_delta.id:
+                                    existing["id"] = tool_delta.id
+                                if tool_delta.function:
+                                    if tool_delta.function.name:
+                                        existing["function"]["name"] += tool_delta.function.name
+                                    if tool_delta.function.arguments:
+                                        existing["function"]["arguments"] += tool_delta.function.arguments
+                        elif delta.content is not None: # Important, do not check for Truthy as '' messages can contain other fields.
+                            # Yield regular text deltas immediately
+                            yield ChoiceDeltaWrapper(delta)
+
+                break
 
             except Exception as e:
                 retry_count += 1
@@ -347,7 +262,7 @@ class OpenAI(LLMAPI):
                 time.sleep(wait_time)
 
     def append_to_history(self, provider_history: ProviderHistory,
-                                turn: List[ChunkWrapper | ToolResult]):
+                             turn: List[ChunkWrapper | ToolResult]):
         """
         Add turn items into provider's conversation history.
 
@@ -355,25 +270,24 @@ class OpenAI(LLMAPI):
             provider_history: List of provider-specific message objects
             turn: List of items in this turn
         """
-        for block in turn:
-            if isinstance(block, ChoiceDeltaWrapper):
-                provider_history.append(chat.ChatCompletionAssistantMessageParam(
-                    role=_ROLES[Role.MODEL],
-                    content=block.raw.content,
-                    tool_calls=[
-                        chat.ChatCompletionMessageToolCallParam(
-                            type = 'function',
-                            id = call.id,
-                            function = chat.Function(
-                                name = call.function.name,
-                                arguments = call.function.arguments
-                            )
-                        )
-                        for call in block.raw.tool_calls]))
-            elif isinstance(block, ToolResult):
-                # Add tool result to outputs
-                provider_history.append(chat.ChatCompletionToolMessageParam(
-                    role = _ROLES[Role.TOOL],
-                    tool_call_id = block.tool_call.id,
-                    content = json.dumps(block.tool_result)
-                ))
+        # Separate chunks and tool results
+        chunks = []
+        tool_results = []
+
+        for item in turn:
+            if isinstance(item, ChoiceDeltaWrapper):
+                chunks.append(item)
+            elif isinstance(item, ToolResult):
+                tool_results.append(item)
+
+        # Add assistant message with all text and tool calls
+        assistant_message = self._adapter.to_history_item(chunks)
+        if assistant_message:
+            provider_history.append(assistant_message)
+
+        # Add tool results if any exist
+        # OpenAI expects one message per tool result
+        for result in tool_results:
+            tool_result_message = self._adapter.to_history_item([result])
+            if tool_result_message:
+                provider_history.append(tool_result_message)

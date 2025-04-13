@@ -2,7 +2,7 @@ import json
 import logging
 import os
 import argparse
-from llm.wrapper import ContentPartText, History
+from llm.wrapper import ContentPartText, History, Role
 from tools.fs_tool import TOOLS, TOOL_IMPL
 from messages import SYSTEM
 from colors import AnsiColors
@@ -172,7 +172,7 @@ def main():
     print(f"Using provider: {type(provider).__name__.replace('Provider', '')}")
 
     if args.prompt:
-        conversation_history.add_message(role="user", content=[ContentPartText(args.prompt)])
+        conversation_history.add_message(role=Role.USER, content=[ContentPartText(text = args.prompt)])
 
         print(AnsiColors.USER + args.prompt + AnsiColors.RESET)
         logging.debug(f"User prompt: {args.prompt}")
@@ -192,7 +192,7 @@ def main():
             if user_input.lower() == "exit":
                 break
 
-            conversation_history.add_message(role="user", content=[ContentPartText(user_input)])
+            conversation_history.add_message(role=Role.USER, content=[ContentPartText(text = user_input)])
             logging.debug(f"User prompt: {user_input}")
 
             generate_with_tools(

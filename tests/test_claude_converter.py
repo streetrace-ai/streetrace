@@ -7,7 +7,7 @@ import json
 import anthropic
 from llm.claude_converter import ClaudeConverter, ContentBlockChunkWrapper
 from llm.wrapper import (ContentPartText, ContentPartToolCall,
-                       ContentPartToolResult, History, Message)
+                       ContentPartToolResult, History, Message, Role)
 
 
 class TestClaudeConverter(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestClaudeConverter(unittest.TestCase):
     def test_common_part_to_claude_text(self):
         """Test converting ContentPartText to Claude text block."""
         # Arrange
-        text_part = ContentPartText("Hello, world!")
+        text_part = ContentPartText(text = "Hello, world!")
 
         # Act
         result = ClaudeConverter.common_part_to_claude(text_part)
@@ -115,8 +115,8 @@ class TestClaudeConverter(unittest.TestCase):
             system_message="You are a helpful assistant.",
             context="This is some context.",
             conversation=[
-                Message("user", [ContentPartText("Hello")]),
-                Message("assistant", [ContentPartText("Hi there!")])
+                Message(role = Role.USER, content = [ContentPartText(text = "Hello")]),
+                Message(role = Role.MODEL, content = [ContentPartText(text = "Hi there!")])
             ]
         )
 

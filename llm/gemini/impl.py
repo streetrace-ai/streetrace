@@ -6,13 +6,14 @@ This module implements the LLMAPI interface for Google's Gemini models.
 
 import os
 import logging
-from typing import Iterable, List, Dict, Any, Optional, override
+from typing import Iterable, List, Dict, Any, Optional
 
 from google import genai
 from google.genai import types
 from llm.history_converter import ChunkWrapper
 from llm.llmapi import LLMAPI
-from llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentType, History, ToolResult
+from llm.wrapper import History, ToolResult
+from llm.gemini.converter import GeminiConverter, GenerateContentPartWrapper
 
 ProviderHistory = List[types.Content]
 
@@ -21,67 +22,13 @@ MAX_TOKENS = 2**20
 MODEL_NAME = 'gemini-2.5-pro-exp-03-25'
 MAX_MALFORMED_RETRIES = 3  # Maximum number of retries for malformed function calls
 
-class GenerateContentPartWrapper(ChunkWrapper):
-    def __init__(self, chunk: types.Part):
-        self.raw = chunk
-
-    @override
-    def get_text(self) -> str:
-        return self.raw.text
-
-    @override
-    def get_tool_calls(self) -> List[ContentPartToolCall]:
-        return [
-            ContentPartToolCall(
-                self.raw.function_call.id,
-                self.raw.function_call.name,
-                self.raw.function_call.args)
-        ] if self.raw.function_call else []
-
-
-def _from_part(part: ContentPart) -> types.Part:
-    """Convert a ContentPart to Gemini-specific part."""
-    match part:
-        case ContentPartText():
-            return types.Part.from_text(text=part.text)
-        case ContentPartToolCall():
-            return types.Part.from_function_call(
-                id=part.id,
-                name=part.name,
-                args=part.arguments
-            )
-        case ContentPartToolResult():
-            return types.Part.from_function_response(
-                id=part.id,
-                name=part.name,
-                response=part.content)
-        case _:
-            raise ValueError(f"Unknown content type encountered {type(part)}: {part}")
-
-def _to_part(part: types.Part) -> ContentPart:
-    """Convert a Gemini-specific part to ContentPart."""
-    if part.text:
-        return ContentPartText(part.text)
-    elif part.function_call:
-        return ContentPartToolCall(
-            part.function_call.id,
-            part.function_call.name,
-            part.function_call.args)
-    elif part.function_response:
-        return ContentPartToolResult(
-            part.function_response.id,
-            part.function_response.name,
-            part.function_response.response)
-    else:
-        # Handle unknown content types
-        raise ValueError(f"Unknown content type encountered {type(part)}: {part}")
-
 class Gemini(LLMAPI):
     """
     Implementation of the LLMAPI interface for Google's Gemini models.
     """
 
     _counter = 0
+    _adapter = GeminiConverter()
 
     def initialize_client(self) -> genai.Client:
         """
@@ -108,21 +55,7 @@ class Gemini(LLMAPI):
         Returns:
             List[Dict[str, Any]]: Conversation history in Gemini-specific format
         """
-        provider_history: ProviderHistory = []
-
-        if history.context:
-            provider_history.append(types.Content(
-                role='user',
-                parts=[types.Part.from_text(text=history.context)]
-            ))
-
-        for message in history.conversation:
-            provider_history.append(types.Content(
-                    role=message.role,
-                    parts=[_from_part(part) for part in message.content]
-                ))
-
-        return provider_history
+        return self._adapter.from_history(history)
 
     def update_history(self, provider_history: ProviderHistory, history: History) -> None:
         """
@@ -132,18 +65,8 @@ class Gemini(LLMAPI):
             provider_history (List[Dict[str, Any]]): Gemini-specific conversation history
             history (History): Conversation history in common format
         """
-        history.conversation = []
-        start_index = 0
-        # if we expect to have a context message, skip the first message of the history
-        # as it is the context message
-        if history.context and provider_history[0].role == 'user':
-            start_index = 1
-
-        for content in provider_history[start_index:]:
-            history.add_message(
-                content.role,
-                [_to_part(part) for part in content.parts]
-            )
+        # Replace the conversation with the new messages
+        history.conversation = self._adapter.to_history(provider_history)
 
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[types.Tool]:
         """
@@ -321,7 +244,7 @@ class Gemini(LLMAPI):
 
 
     def append_to_history(self, provider_history: ProviderHistory,
-                                turn: List[ChunkWrapper | ToolResult]):
+                             turn: List[ChunkWrapper | ToolResult]):
         """
         Add turn items into provider's conversation history.
 
@@ -329,39 +252,22 @@ class Gemini(LLMAPI):
             provider_history: List of provider-specific message objects
             turn: List of items in this turn
         """
-        # Every part of the turn can contain a part of a text message, a tool call, or a tool result
-        # We will build the history out in the order of the turn parts, making sure to produce two items in history:
-        # 1. The assistant item, consisting of one part of all text messages, and more parts for tool calls
-        # 2. The tool results item, consisting of all tool results
-
-        model_messages = []
+        # Separate chunks and tool results
+        chunks = []
         tool_results = []
 
-        for block in turn:
-            if isinstance(block, GenerateContentPartWrapper):
-                model_messages.append(block.raw)
-            elif isinstance(block, ToolResult):
-                # Add tool result to outputs
-                tool_results.append(types.Part(
-                    function_response=types.FunctionResponse(
-                        id=block.tool_call.id,
-                        name=block.tool_call.name,
-                        response=block.tool_result
-                    )
-                ))
+        for item in turn:
+            if isinstance(item, GenerateContentPartWrapper):
+                chunks.append(item)
+            elif isinstance(item, ToolResult):
+                tool_results.append(item)
 
-        provider_history.append(
-            types.Content(
-                role = 'model',
-                parts = model_messages
-            )
-        )
+        # Add model message with all text and tool calls
+        model_message = self._adapter.to_history_item(chunks)
+        if model_message:
+            provider_history.append(model_message)
 
-        # Only add tool results if there are any
-        if tool_results:
-            provider_history.append(
-                types.Content(
-                    role = 'tool',
-                    parts = tool_results
-                )
-            )
+        # Add tool results if any exist
+        tool_results_message = self._adapter.to_history_item(tool_results)
+        if tool_results_message:
+            provider_history.append(tool_results_message)

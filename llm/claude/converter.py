@@ -10,9 +10,20 @@ from typing import Dict, List, Optional
 
 import anthropic
 from llm.wrapper import (ContentPart, ContentPartText, ContentPartToolCall,
-                       ContentPartToolResult, History, Message, ToolResult)
+                       ContentPartToolResult, History, Message, Role, ToolResult)
 from llm.history_converter import ChunkWrapper, HistoryConverter
 
+_ROLES = {
+    Role.SYSTEM: "system",
+    Role.USER: "user",
+    Role.MODEL: "assistant",
+    Role.TOOL: "user",
+}
+_CLAUDE_ROLES = {
+    "system": Role.SYSTEM,
+    "user": Role.USER,
+    "assistant": Role.MODEL,
+}
 
 class ContentBlockChunkWrapper(ChunkWrapper[anthropic.types.ContentBlock]):
     """
@@ -29,7 +40,12 @@ class ContentBlockChunkWrapper(ChunkWrapper[anthropic.types.ContentBlock]):
 
     def get_tool_calls(self) -> List[ContentPartToolCall]:
         """Get tool calls from the chunk if it's a ToolUseBlock."""
-        return [ContentPartToolCall(self.raw.id, self.raw.name, self.raw.input)] if type(self.raw) is anthropic.types.ToolUseBlock else []
+        return [
+            ContentPartToolCall(
+                id=self.raw.id,
+                name=self.raw.name,
+                arguments=self.raw.input)
+        ] if type(self.raw) is anthropic.types.ToolUseBlock else []
 
 
 class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam, anthropic.types.ContentBlock]):
@@ -91,17 +107,17 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam, anthropic.t
         """
         match part['type']:
             case 'text':
-                return ContentPartText(part['text'])
+                return ContentPartText(text = part['text'])
             case 'tool_use':
                 return ContentPartToolCall(
-                    part['id'],
-                    part['name'],
-                    part['input'])
+                    id=part['id'],
+                    name=part['name'],
+                    arguments=part['input'])
             case 'tool_result':
                 return ContentPartToolResult(
-                    part['tool_use_id'],
-                    tool_use_names.get(part['tool_use_id'], 'unknown'),
-                    json.loads(part['content']))
+                    id=part['tool_use_id'],
+                    name=tool_use_names.get(part['tool_use_id'], 'unknown'),
+                    content=json.loads(part['content']))
             case _:
                 raise ValueError(f"Unknown content type encountered: {part}")
 
@@ -130,7 +146,7 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam, anthropic.t
         for message in history.conversation:
             provider_history.append(
                 anthropic.types.MessageParam(
-                    role=message.role,
+                    role=_ROLES[message.role],
                     content=[self._from_content_part(part) for part in message.content]
                 )
             )
@@ -173,7 +189,7 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam, anthropic.t
                 self._to_content_part(part, tool_use_names)
                 for part in message.get('content', [])
             ]
-            common_messages.append(Message(message.get('role'), common_content))
+            common_messages.append(Message(role = _CLAUDE_ROLES[message.get('role')], content = common_content))
 
         return common_messages
 
@@ -244,7 +260,7 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam, anthropic.t
             tool_results.append(anthropic.types.ToolResultBlockParam(
                 type='tool_result',
                 tool_use_id=result.tool_call.id,
-                content=json.dumps(result.tool_result)
+                content=json.dumps(result.tool_result.content)
             ))
 
         return anthropic.types.MessageParam(

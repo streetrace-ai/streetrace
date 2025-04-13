@@ -218,7 +218,7 @@ TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {},
-                "required": [""],
+                "required": [],
                 "additionalProperties": False,
             },
             "strict": True,

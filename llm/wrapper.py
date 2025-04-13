@@ -1,8 +1,10 @@
 
 import abc
 from dataclasses import dataclass, field
-from typing import Any, Generic, Dict, List, TypeVar
+from typing import Any, Generic, Dict, List, Optional, TypeVar
 from enum import Enum
+
+from pydantic import BaseModel
 
 # class syntax
 class ContentType(Enum):
@@ -11,26 +13,22 @@ class ContentType(Enum):
     UNKNOWN = 3
     TOOL_RESULT = 4
 
-@dataclass
-class ContentPartText():
+class ContentPartText(BaseModel):
     text: str
 
-@dataclass
-class ContentPartToolCall():
+class ContentPartToolCall(BaseModel):
     id: str
     name: str
     arguments: Dict[str, Any]
 
-@dataclass
-class ContentPartToolResult():
+class ContentPartToolResult(BaseModel):
     id: str
     name: str
     content: Dict[str, Any]
 
 ContentPart = ContentPartText | ContentPartToolCall | ContentPartToolResult
 
-@dataclass
-class ToolResult:
+class ToolResult(BaseModel):
     tool_call: ContentPartToolCall
     tool_result: ContentPartToolResult
 
@@ -40,16 +38,16 @@ class Role(Enum):
     MODEL = "model"
     TOOL = "tool"
 
-@dataclass
-class Message():
+class Message(BaseModel):
     role: Role
     content: List[ContentPart]
 
-@dataclass
-class History():
-    system_message: str
-    context: str
+class History(BaseModel):
+    system_message: Optional[str] = None
+    context: Optional[str] = None
     conversation: List[Message] = field(default_factory=list)
 
     def add_message(self, role: Role, content: List[ContentPart]):
-        self.conversation.append(Message(role, content))
+        if not isinstance(role, Role):
+            raise ValueError(f"Invalid role: {role}")
+        self.conversation.append(Message(role = role, content = content))
