@@ -5,18 +5,21 @@ import logging
 import os
 import argparse
 import re # Make sure re is imported
-import sys # Added for exit
+import sys
 
 from llm.wrapper import ContentPartText, History, Role
 from tools.fs_tool import TOOLS, TOOL_IMPL
 from messages import SYSTEM
-from colors import AnsiColors
+# Removed direct import of AnsiColors as it's handled by ConsoleUI
+# from colors import AnsiColors
 from llm.llmapi_factory import get_ai_provider
 from llm.generate import generate_with_tools
-# --- New Import ---
 from app.command_executor import CommandExecutor
+# --- New Import ---
+from app.console_ui import ConsoleUI
 
-# Configure logging
+# Configure logging (remains the same)
+# ... (logging configuration code - unchanged) ...
 # File handler (INFO level by default)
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -35,14 +38,18 @@ root_logger.addHandler(console_handler)
 # Set root logger level to DEBUG initially to capture everything,
 # handlers control what gets output where.
 root_logger.setLevel(logging.DEBUG)
-# Avoid double printing if root logger already had handlers (though basicConfig should handle this)
-# root_logger.propagate = False # Generally not needed after basicConfig
+
 
 # --- Logging Setup Complete ---
 
-def read_system_message():
+# --- Modified Functions to Accept UI ---
+
+def read_system_message(ui: ConsoleUI): # Added ui parameter
     """
     Read the system message from a file or return the default message.
+
+    Args:
+        ui: The ConsoleUI instance for displaying errors.
 
     Returns:
         str: The system message content
@@ -53,17 +60,20 @@ def read_system_message():
             with open(system_message_path, 'r', encoding='utf-8') as f:
                 return f.read()
         except Exception as e:
-            # Use logging for errors, print is less flexible
             logging.error(f"Error reading system message file '{system_message_path}': {e}")
-            print(f"{AnsiColors.TOOLERROR}Error reading system message file: {e}{AnsiColors.RESET}") # Keep print for immediate user feedback
+            # Use ui.display_error instead of print
+            ui.display_error(f"Error reading system message file: {e}")
 
     # Default system message
     return SYSTEM
 
 
-def read_project_context():
+def read_project_context(ui: ConsoleUI): # Added ui parameter
     """
     Read all project context files from .streetrace directory excluding system.md.
+
+    Args:
+        ui: The ConsoleUI instance for displaying errors.
 
     Returns:
         str: Combined content of all context files, or empty string if none exist
@@ -71,12 +81,10 @@ def read_project_context():
     context_files_dir = '.streetrace'
     combined_context = ""
 
-    # Check if the directory exists
     if not os.path.exists(context_files_dir) or not os.path.isdir(context_files_dir):
         logging.info(f"Context directory '{context_files_dir}' not found.")
         return combined_context
 
-    # Get all files in the directory excluding system.md
     try:
         context_files = [
             f for f in os.listdir(context_files_dir)
@@ -84,14 +92,14 @@ def read_project_context():
         ]
     except Exception as e:
         logging.error(f"Error listing context directory '{context_files_dir}': {e}")
-        print(f"{AnsiColors.TOOLERROR}Error listing context directory '{context_files_dir}': {e}{AnsiColors.RESET}")
+        # Use ui.display_error instead of print
+        ui.display_error(f"Error listing context directory '{context_files_dir}': {e}")
         return combined_context
 
     if not context_files:
         logging.info(f"No context files found in '{context_files_dir}'.")
         return combined_context
 
-    # Read and combine content from all context files
     context_content_parts = []
     logging.info(f"Reading context files: {', '.join(context_files)}")
     for file_name in context_files:
@@ -99,114 +107,95 @@ def read_project_context():
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                # Use a more structured format for context clarity
                 context_content_parts.append(f"\n\n--- Context from: {file_name} ---\n\n{content}\n\n--- End Context: {file_name} ---\n")
         except Exception as e:
             logging.error(f"Error reading context file {file_path}: {e}")
-            print(f"{AnsiColors.TOOLERROR}Error reading context file {file_path}: {e}{AnsiColors.RESET}")
+            # Use ui.display_error instead of print
+            ui.display_error(f"Error reading context file {file_path}: {e}")
 
     combined_context = "".join(context_content_parts)
     logging.info(f"Successfully loaded context from {len(context_content_parts)} file(s).")
     return combined_context
 
 
-def parse_and_load_mentions(prompt: str, working_dir: str) -> list[tuple[str, str]]:
+def parse_and_load_mentions(prompt: str, working_dir: str, ui: ConsoleUI) -> list[tuple[str, str]]: # Added ui parameter
     """
-    Parses a prompt for @<filepath> mentions, cleans trailing punctuation,
-    validates the paths relative to the working directory, and loads the
-    content of valid files.
+    Parses a prompt for @<filepath> mentions, loads valid files, and displays info/errors via UI.
 
     Args:
         prompt: The user input string.
         working_dir: The current working directory for resolving relative paths.
+        ui: The ConsoleUI instance for displaying messages.
 
     Returns:
         A list of tuples, where each tuple contains the cleaned mentioned filepath
-        (relative to working_dir) and its content. Returns an empty list
-        if no valid mentions are found.
+        (relative to working_dir) and its content.
     """
-    # Regex to find @ followed by non-space, non-@ characters
     mention_pattern = r"@([^\s@]+)"
     raw_mentions = re.findall(mention_pattern, prompt)
 
-    # Process mentions: strip trailing punctuation and ensure uniqueness
     processed_mentions = set()
-    # Define the set of punctuation characters to strip from the end
-    # Corrected string literal:
-    trailing_punctuation = '.,!?;:)]}"\'' # Use single quotes for the outer string, escape internal single quote
+    trailing_punctuation = '.,!?;:)]}"\''
 
     for raw_mention in raw_mentions:
         cleaned_mention = raw_mention
-        # Keep stripping as long as the string is longer than 1 char and the last char is punctuation
         while len(cleaned_mention) > 1 and cleaned_mention[-1] in trailing_punctuation:
             cleaned_mention = cleaned_mention[:-1]
-        # Add the potentially cleaned mention to the set
         processed_mentions.add(cleaned_mention)
 
-    # Convert set back to list and sort for deterministic order in tests/output
     mentions = sorted(list(processed_mentions))
     loaded_files = []
 
     if not mentions:
         return loaded_files
 
-    print(f"{AnsiColors.INFO}[Detected mentions: {', '.join(['@'+m for m in mentions])}]{AnsiColors.RESET}")
+    # Use ui.display_info instead of print
+    ui.display_info(f"[Detected mentions: {', '.join(['@'+m for m in mentions])}]")
     logging.info(f"Detected mentions after cleaning: {', '.join(mentions)}")
 
-    absolute_working_dir = os.path.realpath(working_dir) # Resolve symlinks for working dir
+    absolute_working_dir = os.path.realpath(working_dir)
 
     for mention in mentions:
-        # Construct the potential path relative to the working directory using the cleaned mention
-        potential_rel_path = mention # Keep cleaned mention for return value
+        potential_rel_path = mention
         try:
-            # Join working dir and mention, then normalize (removes '.', handles '/')
             normalized_path = os.path.normpath(os.path.join(working_dir, mention))
-
-            # Resolve symlinks and get the canonical absolute path
             absolute_mention_path = os.path.realpath(normalized_path)
 
-            # --- Security Check ---
-            # Ensure the canonical path of the file is within the canonical path of the working directory
             common_path = os.path.commonpath([absolute_working_dir, absolute_mention_path])
 
-            # Important: commonpath might return a parent if paths diverge early.
-            # We must ensure the common path *is* the working directory.
             if common_path != absolute_working_dir:
-                 print(f"{AnsiColors.TOOLERROR}[Security Warning] Mention '@{mention}' points outside the working directory '{working_dir}'. Skipping.{AnsiColors.RESET}")
+                 # Use ui.display_warning instead of print
+                 ui.display_warning(f"Mention '@{mention}' points outside the working directory '{working_dir}'. Skipping.")
                  logging.warning(f"Security Warning: Mention '@{mention}' resolved to '{absolute_mention_path}' which is outside the working directory '{absolute_working_dir}'. Skipping.")
                  continue
-            # --- End Security Check ---
 
             if os.path.isfile(absolute_mention_path):
                 try:
                     with open(absolute_mention_path, 'r', encoding='utf-8') as f:
                         content = f.read()
-                    # Return the cleaned mention (relative path user likely intended) and content
                     loaded_files.append((potential_rel_path, content))
-                    print(f"{AnsiColors.INFO}[Loaded context from @{mention}]{AnsiColors.RESET}")
+                    # Use ui.display_info instead of print
+                    ui.display_info(f"[Loaded context from @{mention}]")
                     logging.info(f"Loaded context from mentioned file: {absolute_mention_path} (Mention: @{mention})")
                 except Exception as e:
-                    print(f"{AnsiColors.TOOLERROR}[Error reading @{mention}: {e}]{AnsiColors.RESET}")
+                    # Use ui.display_error instead of print
+                    ui.display_error(f"[Error reading @{mention}: {e}]")
                     logging.error(f"Error reading mentioned file '{absolute_mention_path}' (Mention: @{mention}): {e}")
             else:
-                # File not found *after* security check and path resolution
-                print(f"{AnsiColors.TOOLERROR}[Mentioned path @{mention} ('{absolute_mention_path}') not found or is not a file. Skipping.]{AnsiColors.RESET}")
+                # Use ui.display_error instead of print
+                ui.display_error(f"[Mentioned path @{mention} ('{absolute_mention_path}') not found or is not a file. Skipping.]")
                 logging.warning(f"Mentioned path '@{mention}' resolved to '{absolute_mention_path}' which was not found or is not a file.")
         except Exception as e:
-            # Catch potential errors during path manipulation (e.g., invalid chars)
-            print(f"{AnsiColors.TOOLERROR}[Error processing mention @{mention}: {e}]{AnsiColors.RESET}")
+            # Use ui.display_error instead of print
+            ui.display_error(f"[Error processing mention @{mention}: {e}]")
             logging.error(f"Error processing mention '@{mention}': {e}")
 
     return loaded_files
 
 
 def parse_arguments():
-    """
-    Parse command line arguments.
-
-    Returns:
-        argparse.Namespace: The parsed arguments
-    """
+    """ Parses command line arguments. (Unchanged) """
+    # ... (argument parsing code - unchanged) ...
     parser = argparse.ArgumentParser(
         description='Run AI assistant with different models')
     parser.add_argument('--engine',
@@ -238,62 +227,51 @@ def parse_arguments():
     )
     return parser.parse_args()
 
-
-def call_tool(tool_name, args, original_call, work_dir):
+def call_tool(tool_name, args, original_call, work_dir, ui: ConsoleUI): # Added ui parameter
     """
-    Call the appropriate tool function based on the tool name.
+    Call the appropriate tool function based on the tool name, using UI for output.
 
     Args:
         tool_name: Name of the tool to call
         args: Dictionary of arguments to pass to the function
         original_call: The original function call object from the model (if available)
         work_dir: Path to use as the working directory for file operations
+        ui: The ConsoleUI instance for displaying messages.
 
     Returns:
         dict: A dictionary representing the tool result (success or error)
     """
-    # Use json.dumps for potentially complex args display, limit length
     args_display = json.dumps(args)
     if len(args_display) > 100:
         args_display = args_display[:97] + "..."
-    print(f"{AnsiColors.TOOL}Tool Call: {tool_name}({args_display}){AnsiColors.RESET}")
-    logging.info(f"Tool call: {tool_name} with args: {args}") # Log full args
+    # Use ui.display_tool_call instead of print
+    ui.display_tool_call(tool_name, args_display)
+    logging.info(f"Tool call: {tool_name} with args: {args}")
 
     if tool_name in TOOL_IMPL:
         tool_func = TOOL_IMPL[tool_name]
         tool_result = None
-        # Check if the tool function expects 'work_dir' and add it if necessary
         try:
-            # Get parameters of the tool function
             import inspect
             sig = inspect.signature(tool_func)
             tool_params = sig.parameters
 
             if 'work_dir' in tool_params:
-                # Only add work_dir if the function expects it
                 args_with_workdir = { **args, 'work_dir': work_dir }
                 tool_result = tool_func(**args_with_workdir)
             else:
-                # Call without work_dir if not expected
                 tool_result = tool_func(**args)
 
-            # Prepare result for logging and display
-            # Convert result to dict if it's not already (for consistency)
             if not isinstance(tool_result, dict):
-                 # Basic conversion, assuming simple types or objects with __str__
                  result_data = {"result": tool_result}
             else:
                  result_data = tool_result
 
-            display_result = str(result_data) # Use str representation for display
-            if len(display_result) > 500:
-                display_result = display_result[:497] + "..."
+            display_result = str(result_data)
+            # Display using ui (truncation now handled within ui method)
+            ui.display_tool_result(display_result)
+            logging.info(f"Tool '{tool_name}' result: {result_data}")
 
-            print(f"{AnsiColors.TOOL}Result: {display_result}{AnsiColors.RESET}")
-            logging.info(f"Tool '{tool_name}' result: {result_data}") # Log structured result
-
-            # Return a structured result suitable for the AI model (Claude expects specific format)
-            # Ensure the result is JSON serializable if it's complex
             final_result_payload = {}
             try:
                  json.dumps(result_data) # Test serializability
@@ -307,23 +285,29 @@ def call_tool(tool_name, args, original_call, work_dir):
 
         except Exception as e:
             error_msg = f"Error executing tool '{tool_name}': {str(e)}"
-            print(f"{AnsiColors.TOOLERROR}{error_msg}{AnsiColors.RESET}")
+            # Use ui.display_error instead of print
+            ui.display_error(error_msg)
             # Log full exception with stack trace
             logging.exception(f"Error during tool call: {tool_name} with args {args}", exc_info=e)
             # Return a structured error message
             return {"error": True, "message": error_msg}
     else:
         error_msg = f"Tool not found: {tool_name}"
-        print(f"{AnsiColors.TOOLERROR}{error_msg}{AnsiColors.RESET}")
+        # Use ui.display_error instead of print
+        ui.display_error(error_msg)
         logging.error(error_msg)
         # Return a structured error message
         return {"error": True, "message": error_msg}
 
+# --- End Modified Functions ---
+
 
 def main():
     """Main entry point for the application"""
-    # Parse command line arguments
     args = parse_arguments()
+
+    # --- Initialize UI early ---
+    ui = ConsoleUI(debug_enabled=args.debug)
 
     # --- Configure Logging Level based on --debug ---
     if args.debug:
@@ -333,6 +317,8 @@ def main():
         # logging.getLogger().handlers[0].setLevel(logging.DEBUG) # Assuming file handler is the first one
         root_logger.setLevel(logging.DEBUG) # Ensure root logger captures DEBUG
         logging.debug("Debug logging enabled.")
+        # Optional: Display debug status via UI if desired
+        # ui.display_debug("Debug mode enabled.")
     else:
         # Set console handler to INFO, file handler remains INFO
         console_handler.setLevel(logging.INFO)
@@ -345,7 +331,7 @@ def main():
     cmd_executor.register("exit", lambda: False) # Return False to signal exit
     cmd_executor.register("quit", lambda: False) # Alias for exit
 
-    # We'll add a 'help' command later when the UI component exists
+    # Add help command registration using UI (example, needs implementation in ConsoleUI)
     # cmd_executor.register("help", lambda: ui.display_help(cmd_executor.get_commands()))
     # --- End Command Executor Setup ---
 
@@ -354,25 +340,31 @@ def main():
     model_name = args.model.strip().lower() if args.model else None
     provider_name = args.engine.strip().lower() if args.engine else None
 
+    # --- Load Config using UI ---
+    # Pass UI instance to config loading functions
+    system_message = read_system_message(ui)
+    project_context = read_project_context(ui)
+    # --- End Load Config ---
+
     # Initialize conversation history
-    system_message = read_system_message()
-    project_context = read_project_context()
     conversation_history = History(
         system_message=system_message,
         context=project_context) # Pass context during initialization
 
     if project_context:
         # Acknowledge context loading (already logged in read_project_context)
-        print(f"{AnsiColors.INFO}[Loaded context from .streetrace/ files]{AnsiColors.RESET}")
+        # Use ui.display_info instead of print
+        ui.display_info("[Loaded context from .streetrace/ files]")
 
-    # --- Determine and Validate Working Directory ---
+    # --- Determine and Validate Working Directory using UI ---
     initial_cwd = os.getcwd()
     target_work_dir = args.path if args.path else initial_cwd
     abs_working_dir = os.path.abspath(target_work_dir)
 
     # Validate if the target working directory exists and is a directory
     if not os.path.isdir(abs_working_dir):
-        print(f"{AnsiColors.TOOLERROR}Specified path '{target_work_dir}' is not a valid directory. Using current directory '{initial_cwd}'.{AnsiColors.RESET}")
+        # Use ui.display_error instead of print
+        ui.display_error(f"Specified path '{target_work_dir}' is not a valid directory. Using current directory '{initial_cwd}'.")
         logging.error(f"Specified path '{target_work_dir}' resolved to '{abs_working_dir}' which is not a valid directory.")
         abs_working_dir = os.path.abspath(initial_cwd) # Fallback to initial CWD
     else:
@@ -382,47 +374,57 @@ def main():
                  os.chdir(abs_working_dir)
                  logging.info(f"Changed current working directory to: {abs_working_dir}")
              except Exception as e:
-                 print(f"{AnsiColors.TOOLERROR}Failed to change directory to '{abs_working_dir}': {e}{AnsiColors.RESET}")
+                 # Use ui.display_error instead of print
+                 ui.display_error(f"Failed to change directory to '{abs_working_dir}': {e}")
                  logging.exception(f"Failed to change directory to '{abs_working_dir}': {e}")
                  # Fallback to initial CWD's absolute path if chdir fails
                  abs_working_dir = os.path.abspath(initial_cwd)
-                 print(f"{AnsiColors.WARNING}Continuing from directory: {abs_working_dir}{AnsiColors.RESET}")
+                 # Use ui.display_warning instead of print
+                 ui.display_warning(f"Continuing from directory: {abs_working_dir}")
 
-    print(f"{AnsiColors.INFO}Working directory: {abs_working_dir}{AnsiColors.RESET}")
+    # Use ui.display_info instead of print
+    ui.display_info(f"Working directory: {abs_working_dir}")
     logging.info(f"Final working directory set to: {abs_working_dir}")
     # --- End Working Directory Setup ---
 
 
-    # Tool calling function closure, capturing the final absolute working directory
+    # --- Tool calling closure capturing UI and work_dir ---
     def call_tool_f(tool_name, args, original_call=None): # Add default for original_call
-        return call_tool(tool_name, args, original_call, abs_working_dir)
+        # Pass ui instance to call_tool
+        return call_tool(tool_name, args, original_call, abs_working_dir, ui)
 
-    # Initialize AI Provider
+    # --- Initialize AI Provider using UI ---
     provider = get_ai_provider(provider_name)
     if not provider:
-        print(f"{AnsiColors.TOOLERROR}Could not initialize AI provider: {provider_name or 'default'}. Please check configuration and API keys.{AnsiColors.RESET}")
+        # Use ui.display_error instead of print
+        ui.display_error(f"Could not initialize AI provider: {provider_name or 'default'}. Please check configuration and API keys.")
         logging.critical(f"Failed to initialize AI provider: {provider_name or 'default'}")
         sys.exit(1) # Use sys.exit
 
-    print(f"{AnsiColors.INFO}Using provider: {type(provider).__name__.replace('Provider', '')}{AnsiColors.RESET}")
+    # Use ui.display_info instead of print
+    ui.display_info(f"Using provider: {type(provider).__name__.replace('Provider', '')}")
     if model_name:
-        print(f"{AnsiColors.INFO}Using model: {model_name}{AnsiColors.RESET}")
+        # Use ui.display_info instead of print
+        ui.display_info(f"Using model: {model_name}")
     else:
-         print(f"{AnsiColors.INFO}Using default model for the provider.{AnsiColors.RESET}")
+         # Use ui.display_info instead of print
+         ui.display_info("Using default model for the provider.")
+    # --- End AI Provider Setup ---
 
 
-    # --- Refactored Prompt Handling Function ---
+    # --- Prompt Handling Function (Accepts UI) ---
     def handle_prompt(user_prompt: str):
         """Handles parsing mentions, adding messages to history, and calling AI."""
         logging.debug(f"Handling prompt: '{user_prompt}'")
-        # Parse mentions and load file contents using the absolute working directory
-        mentioned_files_content = parse_and_load_mentions(user_prompt, abs_working_dir)
+        # Pass ui instance to mention parser
+        mentioned_files_content = parse_and_load_mentions(user_prompt, abs_working_dir, ui)
 
         # --- Add mentioned file contents to history BEFORE the user prompt ---
         # Use USER role for this context injection for simplicity,
         # as it directly precedes the user's query that might refer to it.
         if mentioned_files_content:
-            print(f"{AnsiColors.INFO}[Injecting content from {len(mentioned_files_content)} mentioned file(s) into history]{AnsiColors.RESET}")
+            # Use ui.display_info instead of print
+            ui.display_info(f"[Injecting content from {len(mentioned_files_content)} mentioned file(s) into history]")
         for filepath, content in mentioned_files_content:
             # Use a clear format for the context message
             # Ensure backticks in file paths/content are handled if using markdown code blocks
@@ -447,27 +449,31 @@ def main():
 
         # --- Call the AI ---
         try:
+            # TODO: Refactor generate_with_tools to accept UI for streaming output
+            # For now, it might print directly or handle output internally.
             generate_with_tools(
                 provider,
                 model_name,
                 conversation_history,
                 TOOLS,
-                call_tool_f, # Pass the closure
+                call_tool_f, # Closure now includes ui
             )
             logging.debug("AI generation call completed.")
         except Exception as gen_err:
-            print(f"{AnsiColors.TOOLERROR}An error occurred during AI generation: {gen_err}{AnsiColors.RESET}")
+            # Use ui.display_error instead of print
+            ui.display_error(f"An error occurred during AI generation: {gen_err}")
             logging.exception("An error occurred during AI generation call.", exc_info=gen_err)
             # Decide how to handle this - maybe continue interactive loop or exit?
             # For interactive mode, we probably want to allow the user to try again.
     # --- End Prompt Handling Function ---
 
 
-    # --- Main Execution Logic (Interactive vs Non-interactive) ---
+    # --- Main Execution Logic (using UI) ---
     if args.prompt:
         # Non-interactive mode
         prompt_input = args.prompt
-        print(f"{AnsiColors.USER}Prompt:{AnsiColors.RESET} {prompt_input}")
+        # Use ui.display_user_prompt instead of print
+        ui.display_user_prompt(prompt_input)
 
         # Check if the non-interactive prompt is a command
         command_executed, should_continue = cmd_executor.execute(prompt_input)
@@ -475,26 +481,33 @@ def main():
         if command_executed:
             logging.info(f"Non-interactive prompt was command: '{prompt_input}'. Exiting: {not should_continue}")
             if not should_continue:
-                sys.exit(0) # Exit cleanly if command signaled exit
+                 # Optional: UI feedback before exiting for command
+                 # ui.display_info("Executing command and exiting.")
+                 sys.exit(0) # Exit cleanly if command signaled exit
             else:
-                sys.exit(0) # Also exit if command executed but didn't signal exit (e.g. help)
+                 # Optional: UI feedback before exiting for command
+                 # ui.display_info("Command executed, exiting.")
+                 sys.exit(0) # Also exit if command executed but didn't signal exit (e.g. help)
         else:
             # If not a command, process as AI prompt
             handle_prompt(prompt_input)
             logging.info("Non-interactive mode finished.")
     else:
         # Interactive mode
-        print(f"{AnsiColors.INFO}Entering interactive mode. Type 'exit', 'quit' or press Ctrl+C/Ctrl+D to quit.{AnsiColors.RESET}")
+        # Use ui.display_info instead of print
+        ui.display_info("Entering interactive mode. Type 'exit', 'quit' or press Ctrl+C/Ctrl+D to quit.")
         while True:
             try:
-                user_input = input(f"{AnsiColors.USER}You:{AnsiColors.RESET} ")
+                # Use ui.get_user_input instead of input
+                user_input = ui.get_user_input()
 
                 # --- Check for commands first ---
                 command_executed, should_continue = cmd_executor.execute(user_input)
 
                 if command_executed:
                     if not should_continue:
-                        print("Exiting.") # Give user feedback on exit command
+                        # Use ui.display_info instead of print
+                        ui.display_info("Exiting.") # Give user feedback on exit command
                         logging.info("Exit command executed.")
                         break # Exit the loop
                     else:
@@ -509,16 +522,19 @@ def main():
                 handle_prompt(user_input) # Process the valid input as AI prompt
 
             except EOFError: # Graceful exit on Ctrl+D
-                 print("\nExiting.")
+                 # Use ui.display_info instead of print
+                 ui.display_info("\nExiting.")
                  logging.info("Exiting due to EOF.")
                  break
             except KeyboardInterrupt: # Graceful exit on Ctrl+C
-                 print("\nExiting.")
+                 # Use ui.display_info instead of print
+                 ui.display_info("\nExiting.")
                  logging.info("Exiting due to KeyboardInterrupt.")
                  break
             except Exception as loop_err:
                 # Catch unexpected errors in the loop/input handling
-                print(f"{AnsiColors.TOOLERROR}\nAn unexpected error occurred: {loop_err}{AnsiColors.RESET}")
+                # Use ui.display_error instead of print
+                ui.display_error(f"\nAn unexpected error occurred: {loop_err}")
                 logging.exception("Unexpected error in interactive loop.", exc_info=loop_err)
                 # Optional: break here or allow continuing? Let's allow continue for now.
 
