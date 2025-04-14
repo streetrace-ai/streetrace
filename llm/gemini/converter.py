@@ -64,13 +64,11 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
                 return types.Part.from_text(text=part.text)
             case ContentPartToolCall():
                 return types.Part.from_function_call(
-                    id=part.id,
                     name=part.name,
                     args=part.arguments
                 )
             case ContentPartToolResult():
                 return types.Part.from_function_response(
-                    id=part.id,
                     name=part.name,
                     response=part.content)
             case _:
