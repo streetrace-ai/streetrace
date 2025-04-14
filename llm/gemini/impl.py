@@ -19,7 +19,7 @@ ProviderHistory = List[types.Content]
 
 # Constants
 MAX_TOKENS = 2**20
-MODEL_NAME = 'gemini-2.5-pro-exp-03-25'
+MODEL_NAME = 'gemini-2.5-pro-preview-03-25'
 MAX_MALFORMED_RETRIES = 3  # Maximum number of retries for malformed function calls
 
 class Gemini(LLMAPI):
