@@ -12,7 +12,7 @@ from google import genai
 from google.genai import types
 from llm.history_converter import ChunkWrapper
 from llm.llmapi import LLMAPI
-from llm.wrapper import History, ToolResult
+from llm.wrapper import ContentPartToolResult, History
 from llm.gemini.converter import GeminiConverter, GenerateContentPartWrapper
 
 ProviderHistory = List[types.Content]
@@ -244,7 +244,7 @@ class Gemini(LLMAPI):
 
 
     def append_to_history(self, provider_history: ProviderHistory,
-                             turn: List[ChunkWrapper | ToolResult]):
+                             turn: List[ChunkWrapper | ContentPartToolResult]):
         """
         Add turn items into provider's conversation history.
 
@@ -253,13 +253,13 @@ class Gemini(LLMAPI):
             turn: List of items in this turn
         """
         # Separate chunks and tool results
-        chunks = []
-        tool_results = []
+        chunks: list[GenerateContentPartWrapper] = []
+        tool_results: list[ContentPartToolResult] = []
 
         for item in turn:
             if isinstance(item, GenerateContentPartWrapper):
                 chunks.append(item)
-            elif isinstance(item, ToolResult):
+            elif isinstance(item, ContentPartToolResult):
                 tool_results.append(item)
 
         # Add model message with all text and tool calls

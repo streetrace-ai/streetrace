@@ -7,9 +7,9 @@ the common message format and provider-specific formats.
 """
 
 import abc
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Generic, List, Optional, TypeVar
 
-from llm.wrapper import (ContentPartToolCall, History, Message, ToolResult)
+from llm.wrapper import (ContentPartToolCall, ContentPartToolResult, History, Message)
 
 # Define generic type variables for provider-specific types
 T_MessageParam = TypeVar('T_MessageParam')
@@ -37,7 +37,7 @@ class HistoryConverter(Generic[T_MessageParam, T_Chunk], abc.ABC):
     interface across different LLM implementations.
 
     Type Parameters:
-        T_MessageParam: The provider-specific message parameter type
+        T_MessageParam: The provider-specific history item type
         T_Chunk: The provider-specific streaming content chunk type
     """
 
@@ -73,7 +73,7 @@ class HistoryConverter(Generic[T_MessageParam, T_Chunk], abc.ABC):
     @abc.abstractmethod
     def to_history_item(
         self,
-        messages: List[Any] | List[ToolResult],
+        messages: List[ChunkWrapper] | List[ContentPartToolResult],
     ) -> Optional[T_MessageParam]:
         """
         Convert chunks or tool results to a provider-specific message.

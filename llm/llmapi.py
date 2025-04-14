@@ -10,7 +10,7 @@ import abc
 from typing import Iterable, List, Dict, Any, Optional
 
 from llm.history_converter import ChunkWrapper
-from llm.wrapper import History, ToolResult
+from llm.wrapper import ContentPartToolResult, History
 
 ProviderHistory = List[Dict[str, Any]]
 ProviderTools = List[Dict[str, Any]]
@@ -133,7 +133,7 @@ class LLMAPI(abc.ABC):
         pass
 
     def append_to_history(self, provider_history: ProviderHistory,
-                                turn: List[ChunkWrapper | ToolResult]):
+                                turn: List[ChunkWrapper | ContentPartToolResult]):
         """
         Add turn items into provider's conversation history.
 

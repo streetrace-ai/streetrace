@@ -10,7 +10,7 @@ from typing import List, Literal, Optional, override
 
 from openai.types import chat
 from llm.wrapper import (ContentPart, ContentPartText, ContentPartToolCall,
-                       ContentPartToolResult, History, Message, Role, ToolResult)
+                       ContentPartToolResult, History, Message, Role)
 from llm.history_converter import ChunkWrapper, HistoryConverter
 
 _ROLES = {
@@ -39,9 +39,9 @@ class ChoiceDeltaWrapper(ChunkWrapper[chat.chat_completion_chunk.ChoiceDelta | c
         """Get tool calls from the chunk if available."""
         return [
             ContentPartToolCall(
-                call.id,
-                call.function.name,
-                json.loads(call.function.arguments) if call.function.arguments else {}
+                id=call.id,
+                name=call.function.name,
+                arguments=json.loads(call.function.arguments) if call.function.arguments else {}
             ) for call in self.raw.tool_calls
         ] if self.raw.tool_calls else []
 
@@ -237,7 +237,6 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
 
                 case 'assistant':
                     text_parts = []
-                    tool_calls = []
 
                     if isinstance(content, str):
                         text_parts = [ContentPartText(text = content)]
@@ -254,9 +253,9 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
                             if tool_call.get('function'):
                                 tool_calls.append(
                                     ContentPartToolCall(
-                                        tool_call.get('id'),
-                                        tool_call.get('function').get('name'),
-                                        json.loads(tool_call.get('function').get('arguments'))
+                                        id=tool_call.get('id'),
+                                        name=tool_call.get('function').get('name'),
+                                        arguments=json.loads(tool_call.get('function').get('arguments'))
                                     )
                                 )
 
@@ -277,8 +276,11 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
 
                         common_messages.append(
                             Message(
-                                Role.TOOL,
-                                [ContentPartToolResult(tool_call_id, tool_name, content_obj)]
+                                role=Role.TOOL,
+                                content=[ContentPartToolResult(
+                                    id=tool_call_id,
+                                    name=tool_name,
+                                    content=content_obj)]
                             )
                         )
                 case _:
@@ -288,7 +290,7 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
 
     def to_history_item(
         self,
-        messages: List[ChoiceDeltaWrapper] | List[ToolResult],
+        messages: List[ChoiceDeltaWrapper] | List[ContentPartToolResult],
     ) -> Optional[chat.ChatCompletionMessageParam]:
         """
         Convert chunks or tool results to an OpenAI-specific message.
@@ -302,7 +304,7 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
         if not messages:
             return None
 
-        if isinstance(messages[0], ToolResult):
+        if isinstance(messages[0], ContentPartToolResult):
             return self._tool_results_to_message(messages)
         else:
             return self._content_blocks_to_message(messages)
@@ -353,7 +355,7 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
 
     def _tool_results_to_message(
         self,
-        messages: List[ToolResult]
+        messages: List[ContentPartToolResult]
     ) -> Optional[chat.ChatCompletionMessageParam]:
         """
         Create a tool results message from tool results.
@@ -373,8 +375,8 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
 
         return chat.ChatCompletionToolMessageParam(
             role=_ROLES[Role.TOOL],
-            tool_call_id=result.tool_call.id,
-            content=json.dumps(result.tool_result)
+            tool_call_id=result.id,
+            content=json.dumps(result.content)
         )
 
     def create_chunk_wrapper(

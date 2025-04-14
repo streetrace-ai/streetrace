@@ -7,7 +7,7 @@ import unittest
 import anthropic
 from llm.claude.impl import Claude
 from llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
-from llm.wrapper import History, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role, ToolResult
+from llm.wrapper import History, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
 
 _CLAUDE_HISTORY = [
     {
@@ -225,15 +225,11 @@ class TestClaudeHistory(unittest.TestCase):
 
     def test_to_history_item_tool_results(self):
         """Test converting tool results to a provider-specific message."""
-        # Create a tool call and result
-        tool_call = ContentPartToolCall(
+        # Create a tool result
+        tool_result = ContentPartToolResult(
             id="tool-1",
             name="search_files",
-            arguments={"pattern": "*.py"}
-        )
-        tool_result = ToolResult(
-            tool_call=tool_call,
-            tool_result={"id": "foo", "name": "bar", "content": { "result": "file.py" }}
+            content={ "result": "file.py" }
         )
 
         # Test with a tool result

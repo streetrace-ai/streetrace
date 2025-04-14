@@ -10,7 +10,7 @@ from typing import List, Dict, Any, Callable, Optional
 
 from colors import AnsiColors
 from llm.history_converter import ChunkWrapper
-from llm.wrapper import History, ToolResult
+from llm.wrapper import ContentPartToolResult, History
 from llm.llmapi import LLMAPI
 
 
@@ -71,7 +71,7 @@ def _generate_with_tools(
         )
         logging.debug("Messages for generation:\n%s", provider.pretty_print(provider_history))
 
-        turn: List[ChunkWrapper | ToolResult] = []
+        turn: List[ChunkWrapper | ContentPartToolResult] = []
         for chunk in provider.generate(client, model_name, system_message, provider_history, provider_tools):
             turn.append(chunk)
             if chunk.get_text():
@@ -80,7 +80,13 @@ def _generate_with_tools(
                 print()
                 for tool_call in chunk.get_tool_calls():
                     tool_result = f_call_tool(tool_call.name, tool_call.arguments, chunk.raw)
-                    turn.append(ToolResult(tool_call, tool_result))
+                    turn.append(
+                        ContentPartToolResult(
+                            id=tool_call.id,
+                            name=tool_call.name,
+                            content=tool_result
+                        )
+                    )
                 continue_generation = True # Continue if there were tool calls
         print()
 

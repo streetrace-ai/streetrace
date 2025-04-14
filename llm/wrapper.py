@@ -17,20 +17,16 @@ class ContentPartText(BaseModel):
     text: str
 
 class ContentPartToolCall(BaseModel):
-    id: str
+    id: Optional[str] = None
     name: str
     arguments: Dict[str, Any]
 
 class ContentPartToolResult(BaseModel):
-    id: str
+    id: Optional[str] = None
     name: str
     content: Dict[str, Any]
 
 ContentPart = ContentPartText | ContentPartToolCall | ContentPartToolResult
-
-class ToolResult(BaseModel):
-    tool_call: ContentPartToolCall
-    tool_result: ContentPartToolResult
 
 class Role(Enum):
     SYSTEM = "system"

@@ -14,7 +14,7 @@ from openai.types import chat
 from colors import AnsiColors
 from llm.history_converter import ChunkWrapper
 from llm.llmapi import LLMAPI
-from llm.wrapper import History, Role, ToolResult
+from llm.wrapper import ContentPartToolResult, History, Role
 from llm.openai.converter import OpenAIConverter, ChoiceDeltaWrapper
 
 # Constants
@@ -262,7 +262,7 @@ class OpenAI(LLMAPI):
                 time.sleep(wait_time)
 
     def append_to_history(self, provider_history: ProviderHistory,
-                             turn: List[ChunkWrapper | ToolResult]):
+                             turn: List[ChunkWrapper | ContentPartToolResult]):
         """
         Add turn items into provider's conversation history.
 
@@ -271,13 +271,13 @@ class OpenAI(LLMAPI):
             turn: List of items in this turn
         """
         # Separate chunks and tool results
-        chunks = []
-        tool_results = []
+        chunks: list[ChoiceDeltaWrapper] = []
+        tool_results: list[ContentPartToolResult] = []
 
         for item in turn:
             if isinstance(item, ChoiceDeltaWrapper):
                 chunks.append(item)
-            elif isinstance(item, ToolResult):
+            elif isinstance(item, ContentPartToolResult):
                 tool_results.append(item)
 
         # Add assistant message with all text and tool calls

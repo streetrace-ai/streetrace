@@ -28,7 +28,7 @@ class TestClaudeConverter(unittest.TestCase):
     def test_common_part_to_claude_tool_call(self):
         """Test converting ContentPartToolCall to Claude tool use block."""
         # Arrange
-        tool_call = ContentPartToolCall("tool1", "search_files", {"pattern": "*.py"})
+        tool_call = ContentPartToolCall(id="tool1", name="search_files", arguments={"pattern": "*.py"})
 
         # Act
         result = ClaudeConverter.common_part_to_claude(tool_call)
@@ -43,9 +43,9 @@ class TestClaudeConverter(unittest.TestCase):
         """Test converting ContentPartToolResult to Claude tool result block."""
         # Arrange
         tool_result = ContentPartToolResult(
-            "tool1",
-            "search_files",
-            {"files": ["file1.py", "file2.py"]}
+            id="tool1",
+            name="search_files",
+            content={"files": ["file1.py", "file2.py"]}
         )
 
         # Act

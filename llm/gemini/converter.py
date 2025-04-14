@@ -9,7 +9,7 @@ from typing import List, Optional, override
 
 from google.genai import types
 from llm.wrapper import (ContentPart, ContentPartText, ContentPartToolCall,
-                       ContentPartToolResult, History, Message, ToolResult)
+                       ContentPartToolResult, History, Message)
 from llm.history_converter import ChunkWrapper, HistoryConverter
 
 
@@ -32,9 +32,9 @@ class GenerateContentPartWrapper(ChunkWrapper[types.Part]):
         """Get tool calls from the chunk if it has function calls."""
         return [
             ContentPartToolCall(
-                self.raw.function_call.id,
-                self.raw.function_call.name,
-                self.raw.function_call.args)
+                id=self.raw.function_call.id,
+                name=self.raw.function_call.name,
+                arguments=self.raw.function_call.args)
         ] if self.raw.function_call else []
 
 
@@ -168,7 +168,7 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
 
     def to_history_item(
         self,
-        messages: List[GenerateContentPartWrapper] | List[ToolResult],
+        messages: List[GenerateContentPartWrapper] | List[ContentPartToolResult],
     ) -> Optional[types.Content]:
         """
         Convert chunks or tool results to a Gemini-specific message.
@@ -182,7 +182,7 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
         if not messages:
             return None
 
-        if isinstance(messages[0], ToolResult):
+        if isinstance(messages[0], ContentPartToolResult):
             return self._tool_results_to_message(messages)
         else:
             return self._content_blocks_to_message(messages)
@@ -208,7 +208,6 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
 
             for tool_call in chunk.get_tool_calls():
                 model_parts.append(types.Part.from_function_call(
-                    id=tool_call.id,
                     name=tool_call.name,
                     args=tool_call.arguments))
 
@@ -219,7 +218,7 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
 
     def _tool_results_to_message(
         self,
-        messages: List[ToolResult]
+        messages: List[ContentPartToolResult]
     ) -> Optional[types.Content]:
         """
         Create a tool results message from tool results.
@@ -236,9 +235,8 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
         tool_parts = []
         for result in messages:
             tool_parts.append(types.Part.from_function_response(
-                id=result.tool_call.id,
-                name=result.tool_call.name,
-                response=result.tool_result
+                name=result.name,
+                response=result.content
             ))
 
         return types.Content(

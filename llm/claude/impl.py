@@ -12,7 +12,7 @@ from typing import Iterable, List, Dict, Any, Optional
 
 from colors import AnsiColors
 from llm.history_converter import ChunkWrapper
-from llm.wrapper import History, ToolResult
+from llm.wrapper import ContentPartToolResult, History
 from llm.llmapi import LLMAPI
 from llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
 
@@ -208,7 +208,7 @@ class Claude(LLMAPI):
 
 
     def append_to_history(self, provider_history: ProviderHistory,
-                             turn: List[ChunkWrapper | ToolResult]):
+                             turn: List[ChunkWrapper | ContentPartToolResult]):
         """
         Add turn items into provider's conversation history.
 
@@ -223,7 +223,7 @@ class Claude(LLMAPI):
         for item in turn:
             if isinstance(item, ContentBlockChunkWrapper):
                 chunks.append(item)
-            elif isinstance(item, ToolResult):
+            elif isinstance(item, ContentPartToolResult):
                 tool_results.append(item)
 
         # Add assistant message with all text and tool calls

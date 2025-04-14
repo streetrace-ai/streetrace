@@ -4,11 +4,9 @@ Unit tests for OpenAI's history transformation functions.
 
 import json
 import unittest
-from unittest.mock import patch, MagicMock
-from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from unittest.mock import patch
 from llm.openai.impl import OpenAI
-from llm.openai.converter import OpenAIConverter
-from llm.wrapper import History, Message, ContentPartText, ContentPartToolCall, ContentPartToolResult, ToolResult, Role
+from llm.wrapper import History, Message, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
 
 class TestOpenAIHistory(unittest.TestCase):
     """Test cases for OpenAI's history transformation functions."""
