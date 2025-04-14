@@ -231,6 +231,9 @@ class Gemini(LLMAPI):
         for chunk in response_stream:
             logging.debug("Raw Gemini response: %s", chunk)
 
+            if not chunk.candidates:
+                continue
+
             for part in chunk.candidates[0].content.parts:
                 yield GenerateContentPartWrapper(part)
 
