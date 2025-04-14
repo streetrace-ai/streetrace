@@ -15,7 +15,7 @@ The primary goal is to create a seamless experience where developers can interac
 ## Project Structure
 
 ### Root Files
-- `main.py` - The entry point providing a command-line interface
+- `main.py` - Application entry point. Parses arguments, initializes core components (UI, AI provider, tools, etc.), and delegates execution to `app.application.Application`.
 - `claude.py` - Core logic for interacting with Claude AI models
 - `gemini.py` - Core logic for interacting with Google's Gemini AI models
 - `openai_client.py` - Core logic for interacting with OpenAI models
@@ -24,10 +24,17 @@ The primary goal is to create a seamless experience where developers can interac
 - `colors.py` - Terminal color utilities for improved UI
 - `requirements.txt` / `pyproject.toml` / `setup.py` - Python package configuration
 
+### App Directory
+- `application.py` - Orchestrates the main application flow, managing interactive and non-interactive modes, and coordinating UI, command execution, prompt processing, and AI interaction.
+- `command_executor.py` - Handles execution of internal commands (like 'exit', 'quit').
+- `console_ui.py` - Manages user interaction via the console (input/output).
+- `interaction_manager.py` - Manages the interaction cycle with the AI model, including tool calls and response handling.
+- `prompt_processor.py` - Processes user prompts, extracts context (like file mentions), and prepares system messages.
+
 ### Documentation
 - `README.md` - Main project documentation
 - `README-claude.md` - Claude-specific documentation
-- `README-openai.md` - OpenAI-specific documentation 
+- `README-openai.md` - OpenAI-specific documentation
 - `README-ollama.md` - Ollama-specific documentation
 - `TODO.md` - Upcoming tasks and features
 
@@ -57,7 +64,7 @@ Contains configuration files:
 ## Integration
 StreetRace works with multiple AI providers:
 - Anthropic's Claude (via `ANTHROPIC_API_KEY`)
-- Google's Gemini (via `GEMINI_API_KEY`) 
+- Google's Gemini (via `GEMINI_API_KEY`)
 - OpenAI models (via `OPENAI_API_KEY`)
 - Open-source models via Ollama (local or remote)
 
