@@ -237,6 +237,7 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
 
                 case 'assistant':
                     text_parts = []
+                    common_tool_calls = []
 
                     if isinstance(content, str):
                         text_parts = [ContentPartText(text = content)]
@@ -251,7 +252,7 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
                     if tool_calls:
                         for tool_call in tool_calls:
                             if tool_call.get('function'):
-                                tool_calls.append(
+                                common_tool_calls.append(
                                     ContentPartToolCall(
                                         id=tool_call.get('id'),
                                         name=tool_call.get('function').get('name'),
@@ -259,7 +260,7 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
                                     )
                                 )
 
-                    common_messages.append(Message(role = Role.MODEL, content = text_parts + tool_calls))
+                    common_messages.append(Message(role = Role.MODEL, content = text_parts + common_tool_calls))
 
                 case 'tool':
                     if tool_call_id:

@@ -191,13 +191,10 @@ class Ollama(LLMAPI):
                     print(AnsiColors.MODELERROR + error_msg + AnsiColors.RESET)
                     raise
 
-                wait_time = 5 * retry_count  # Increase wait time with each retry
-
-                error_msg = f"API error encountered. Retrying in {wait_time} seconds... (Attempt {retry_count}/{max_retries}): {e}"
+                error_msg = f"API error encountered. Retrying... (Attempt {retry_count}/{max_retries}): {e}"
                 logging.warning(error_msg)
                 print(AnsiColors.WARNING + error_msg + AnsiColors.RESET)
 
-                time.sleep(wait_time)
 
     def append_to_history(self, provider_history: ProviderHistory,
                              turn: List[ChunkWrapper | ContentPartToolResult]):
