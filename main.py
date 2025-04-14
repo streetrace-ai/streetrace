@@ -4,19 +4,16 @@ import json
 import logging
 import os
 import argparse
-import re # Make sure re is imported
 import sys
 
 from llm.wrapper import ContentPartText, History, Role
 from tools.fs_tool import TOOLS, TOOL_IMPL
-# Removed SYSTEM import, now handled by PromptProcessor
-# from messages import SYSTEM
 from llm.llmapi_factory import get_ai_provider
-from llm.generate import generate_with_tools
 from app.command_executor import CommandExecutor
 from app.console_ui import ConsoleUI
-# --- New Imports ---
 from app.prompt_processor import PromptProcessor, PromptContext
+# --- New Import ---
+from app.interaction_manager import InteractionManager
 
 # --- Logging configuration remains the same ---
 # ... (logging configuration code - unchanged) ...
@@ -42,11 +39,6 @@ root_logger.setLevel(logging.DEBUG)
 
 # --- Logging Setup Complete ---
 
-# --- Removed functions, moved to PromptProcessor ---
-# read_system_message(ui)
-# read_project_context(ui)
-# parse_and_load_mentions(prompt, working_dir, ui)
-# ---
 
 def parse_arguments():
     """ Parses command line arguments. (Unchanged) """
@@ -83,6 +75,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
+# --- call_tool function remains the same ---
 def call_tool(tool_name, args, original_call, work_dir, ui: ConsoleUI):
     """
     Call the appropriate tool function based on the tool name, using UI for output.
@@ -128,27 +121,23 @@ def call_tool(tool_name, args, original_call, work_dir, ui: ConsoleUI):
 
             final_result_payload = {}
             try:
-                 json.dumps(result_data) # Test serializability
+                 json.dumps(result_data)
                  final_result_payload = {"success": True, "result": result_data}
             except TypeError as json_err:
                  logging.warning(f"Tool '{tool_name}' result is not fully JSON serializable: {json_err}. Returning string representation within result.")
-                 # Fallback: put string representation inside the result field
                  final_result_payload = {"success": True, "result": str(result_data)}
 
-            return final_result_payload # Tool executed successfully
+            return final_result_payload
 
         except Exception as e:
             error_msg = f"Error executing tool '{tool_name}': {str(e)}"
             ui.display_error(error_msg)
-            # Log full exception with stack trace
             logging.exception(f"Error during tool call: {tool_name} with args {args}", exc_info=e)
-            # Return a structured error message
             return {"error": True, "message": error_msg}
     else:
         error_msg = f"Tool not found: {tool_name}"
         ui.display_error(error_msg)
         logging.error(error_msg)
-        # Return a structured error message
         return {"error": True, "message": error_msg}
 # --- End call_tool ---
 
@@ -168,11 +157,10 @@ def main():
         root_logger.setLevel(logging.INFO)
     # --- End Logging Config ---
 
-    # --- Initialize Components ---
+    # --- Initialize Core Components ---
     cmd_executor = CommandExecutor()
-    # Pass ui to prompt_processor initialization
-    prompt_processor = PromptProcessor(ui=ui) # Assuming default config_dir='.streetrace' is ok
-    # --- End Initialize Components ---
+    prompt_processor = PromptProcessor(ui=ui)
+    # --- End Initialize Core Components ---
 
     # --- Register Commands ---
     cmd_executor.register("exit", lambda: False)
@@ -184,11 +172,10 @@ def main():
     provider_name = args.engine.strip().lower() if args.engine else None
 
     # --- Determine and Validate Working Directory ---
-    # (Code remains the same, using ui for output)
     initial_cwd = os.getcwd()
     target_work_dir = args.path if args.path else initial_cwd
     abs_working_dir = os.path.abspath(target_work_dir)
-
+    # (Validation logic remains the same)
     if not os.path.isdir(abs_working_dir):
         ui.display_error(f"Specified path '{target_work_dir}' is not a valid directory. Using current directory '{initial_cwd}'.")
         logging.error(f"Specified path '{target_work_dir}' resolved to '{abs_working_dir}' which is not a valid directory.")
@@ -208,11 +195,7 @@ def main():
     logging.info(f"Final working directory set to: {abs_working_dir}")
     # --- End Working Directory Setup ---
 
-    # --- Tool calling closure (remains the same) ---
-    def call_tool_f(tool_name, args, original_call=None):
-        return call_tool(tool_name, args, original_call, abs_working_dir, ui)
-
-    # --- Initialize AI Provider (remains the same) ---
+    # --- Initialize AI Provider ---
     provider = get_ai_provider(provider_name)
     if not provider:
         ui.display_error(f"Could not initialize AI provider: {provider_name or 'default'}. Please check configuration and API keys.")
@@ -226,15 +209,25 @@ def main():
          ui.display_info("Using default model for the provider.")
     # --- End AI Provider Setup ---
 
+    # --- Tool calling closure ---
+    # This needs to be defined before InteractionManager uses it
+    def call_tool_f(tool_name, args, original_call=None):
+        return call_tool(tool_name, args, original_call, abs_working_dir, ui)
+    # --- End Tool Calling Closure ---
 
-    # --- Conversation History Initialization ---
-    # History is now initialized *inside* handle_prompt or before the loop
-    # We'll keep it per-session for interactive mode.
-    # For non-interactive, it's created within handle_prompt.
-    # This might need refinement if we want persistent history across non-interactive calls.
-    # Let's keep it simple for now: create history for the session.
-    # Get initial context *once* before starting interaction.
-    initial_context = prompt_processor.build_context("", abs_working_dir) # Build context without a user prompt initially
+    # --- Initialize Interaction Manager ---
+    interaction_manager = InteractionManager(
+        provider=provider,
+        model_name=model_name,
+        tools=TOOLS,
+        tool_callback=call_tool_f,
+        ui=ui
+    )
+    # --- End Initialize Interaction Manager ---
+
+
+    # --- Conversation History Initialization (for interactive mode) ---
+    initial_context = prompt_processor.build_context("", abs_working_dir)
     conversation_history = History(
         system_message=initial_context.system_message,
         context=initial_context.project_context
@@ -242,27 +235,25 @@ def main():
     # --- End History Initialization ---
 
 
-    # --- Modified Prompt Handling Function ---
-    # This function now takes the *existing* history and updates it
-    def handle_prompt(user_prompt: str, current_history: History):
-        """Processes prompt, updates history, and calls AI."""
+    # --- Modified Prompt Handling Function (using InteractionManager) ---
+    # Now accepts interaction_manager and prompt_processor
+    def handle_prompt(user_prompt: str,
+                      current_history: History,
+                      proc: PromptProcessor, # Renamed for clarity
+                      im: InteractionManager): # Renamed for clarity
+        """Processes prompt, updates history, and triggers AI interaction."""
         logging.debug(f"Handling prompt: '{user_prompt}'")
 
-        # Build context *again* but primarily for mentions related to this specific prompt
-        # We already have system/project context in current_history
-        prompt_specific_context = prompt_processor.build_context(user_prompt, abs_working_dir)
+        # Use PromptProcessor to parse mentions for the current prompt
+        prompt_specific_context = proc.build_context(user_prompt, abs_working_dir)
 
         # Add mentioned file contents to history
-        if prompt_specific_context.mentioned_files:
-            # UI message about loading mentions is handled within build_context now
-            pass # UI messages handled inside build_context
         for filepath, content in prompt_specific_context.mentioned_files:
             context_message = f"Content of mentioned file '@{filepath}':\n---\n{content}\n---"
             MAX_MENTION_CONTENT_LENGTH = 10000
             if len(content) > MAX_MENTION_CONTENT_LENGTH:
                 context_message = f"Content of mentioned file '@{filepath}' (truncated):\n---\n{content[:MAX_MENTION_CONTENT_LENGTH]}\n...\n---"
                 logging.warning(f"Truncated content for mentioned file @{filepath} due to size.")
-
             current_history.add_message(role=Role.USER, content=[ContentPartText(text=context_message)])
             logging.debug(f"Added context from @{filepath} to history.")
 
@@ -271,23 +262,13 @@ def main():
         logging.debug(f"User prompt added to history: '{user_prompt}'")
         logging.debug(f"Conversation History before generation: {current_history.conversation}")
 
-        # Call the AI
-        try:
-            generate_with_tools(
-                provider,
-                model_name,
-                current_history, # Use the passed-in history
-                TOOLS,
-                call_tool_f,
-            )
-            logging.debug("AI generation call completed.")
-        except Exception as gen_err:
-            ui.display_error(f"An error occurred during AI generation: {gen_err}")
-            logging.exception("An error occurred during AI generation call.", exc_info=gen_err)
+        # Call the Interaction Manager to handle the AI call
+        # Error handling is now done inside the interaction_manager
+        im.process_prompt(current_history)
     # --- End Prompt Handling Function ---
 
 
-    # --- Main Execution Logic (using PromptProcessor) ---
+    # --- Main Execution Logic (using InteractionManager) ---
     if args.prompt:
         # Non-interactive mode
         prompt_input = args.prompt
@@ -297,15 +278,19 @@ def main():
 
         if command_executed:
             logging.info(f"Non-interactive prompt was command: '{prompt_input}'. Exiting: {not should_continue}")
-            sys.exit(0) # Exit regardless of command return value for non-interactive
+            sys.exit(0)
         else:
-            # Create a *new* history for this single prompt, incorporating initial context
+            # Create history for single prompt run
             prompt_context = prompt_processor.build_context(prompt_input, abs_working_dir)
             single_prompt_history = History(
                 system_message=prompt_context.system_message,
                 context=prompt_context.project_context
             )
-            handle_prompt(prompt_input, single_prompt_history)
+            # Call handle_prompt with the single-use history and managers
+            handle_prompt(prompt_input,
+                          single_prompt_history,
+                          prompt_processor,
+                          interaction_manager)
             logging.info("Non-interactive mode finished.")
     else:
         # Interactive mode (uses the persistent conversation_history)
@@ -327,8 +312,11 @@ def main():
                 if not user_input.strip():
                     continue
 
-                # Pass the persistent history to handle_prompt
-                handle_prompt(user_input, conversation_history)
+                # Pass persistent history and managers to handle_prompt
+                handle_prompt(user_input,
+                              conversation_history,
+                              prompt_processor,
+                              interaction_manager)
 
             except EOFError:
                  ui.display_info("\nExiting.")
