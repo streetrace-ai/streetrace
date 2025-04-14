@@ -17,9 +17,10 @@ class CommandExecutor:
         """Initializes the CommandExecutor with an empty command registry."""
         # Stores command names (lowercase) mapped to their action callables
         self._commands: Dict[str, Callable[[], bool]] = {}
+        self._command_descriptions: Dict[str, str] = {}
         logger.info("CommandExecutor initialized.")
 
-    def register(self, name: str, action: Callable[[], bool]):
+    def register(self, name: str, action: Callable[[], bool], description: str = "") -> None:
         """
         Registers a command with its associated action.
 
@@ -35,15 +36,16 @@ class CommandExecutor:
         """
         if not callable(action):
             raise TypeError(f"Action for command '{name}' must be callable.")
-        
+
         clean_name = name.strip().lower()
         if not clean_name:
              raise ValueError("Command name cannot be empty or whitespace.")
 
         if clean_name in self._commands:
             logger.warning(f"Command '{clean_name}' is being redefined.")
-        
+
         self._commands[clean_name] = action
+        self._command_descriptions[clean_name] = description
         logger.debug(f"Command '{clean_name}' registered.")
 
     def get_commands(self) -> List[str]:
@@ -82,7 +84,7 @@ class CommandExecutor:
                 if not isinstance(should_continue, bool):
                     logger.error(f"Action for command '{command}' did not return a boolean. Assuming continue.")
                     return True, True # Command executed, but faulty action, continue
-                
+
                 logger.debug(f"Command '{command}' action returned: {should_continue}")
                 return True, should_continue # Command executed, return action's signal
             except Exception as e:

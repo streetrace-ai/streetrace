@@ -247,12 +247,10 @@ def main():
         app.run()
     except Exception as app_err:
          # Catch unexpected errors from the Application run loop
-         ui.display_error(f"
-An critical error occurred: {app_err}")
+         ui.display_error(f"An critical error occurred: {app_err}")
          logging.critical("Critical error during application execution.", exc_info=app_err)
          sys.exit(1)
     # --- End Application Execution ---
 
 if __name__ == "__main__":
     main()
-
