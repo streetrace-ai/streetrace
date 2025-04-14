@@ -8,25 +8,27 @@ import os
 import logging
 import time
 import json
-from typing import List, Dict, Any, Callable, Optional, Union, Tuple
+from typing import Iterable, List, Dict, Any, Optional
 
 import ollama
 from colors import AnsiColors
 from llm.llmapi import LLMAPI
+from llm.history_converter import ChunkWrapper
+from llm.wrapper import ContentPartToolResult, History
+from llm.ollama.converter import OllamaConverter, OllamaResponseChunkWrapper
 
 # Constants
 MAX_TOKENS = 32768  # Default context window for most Ollama models
-MODEL_NAME = "llama3:8b"  # Default model
+MODEL_NAME = "llama3.1:8b"  # Default model
 
+ProviderHistory = List[Dict[str, Any]]
 
 class Ollama(LLMAPI):
     """
     Implementation of the LLMAPI interface for Ollama models.
     """
 
-    def get_base_url(self) -> str:
-        """Get the base URL for Ollama API, defaulting to localhost if not specified."""
-        return os.environ.get('OLLAMA_API_URL', 'http://localhost:11434')
+    _adapter = OllamaConverter()
 
     def initialize_client(self) -> ollama.Client:
         """
@@ -35,10 +37,31 @@ class Ollama(LLMAPI):
         Returns:
             ollama.Client: The initialized Ollama client
         """
-        return ollama.Client(
-            host=self.get_base_url(),
-            headers={'x-some-header': 'some-value'}
-        )
+        host = os.environ.get('OLLAMA_API_URL', 'http://localhost:11434')
+        return ollama.Client(host=host)
+
+    def transform_history(self, history: History) -> ProviderHistory:
+        """
+        Transform conversation history from common format into Ollama-specific format.
+
+        Args:
+            history (History): Conversation history to transform
+
+        Returns:
+            List[Dict[str, Any]]: Conversation history in Ollama-specific format
+        """
+        return self._adapter.from_history(history)
+
+    def update_history(self, provider_history: ProviderHistory, history: History) -> None:
+        """
+        Updates the conversation history in common format based on Ollama-specific history.
+
+        Args:
+            provider_history (List[Dict[str, Any]]): Ollama-specific conversation history
+            history (History): Conversation history in common format
+        """
+        # Replace the conversation with the new messages
+        history.conversation = self._adapter.to_history(provider_history)
 
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -50,10 +73,10 @@ class Ollama(LLMAPI):
         Returns:
             List[Dict[str, Any]]: List of tool definitions in Ollama format
         """
-        ollama_tools = tools
-        return ollama_tools
+        # Ollama generally uses the same tool format as OpenAI, so no transformation is needed
+        return tools
 
-    def pretty_print(self, messages: List[Dict[str, Any]]) -> str:
+    def pretty_print(self, messages: ProviderHistory) -> str:
         """
         Format message list for readable logging.
 
@@ -65,7 +88,7 @@ class Ollama(LLMAPI):
         """
         parts = []
         for i, message in enumerate(messages):
-            content_str = str(message.get('content', 'NONE'))
+            content_str = str(message.get('content', message.get('function', {}).get('name', 'NONE')))
             role = message.get('role', 'unknown')
             parts.append(f"Message {i + 1}:\n - {role}: {content_str}")
 
@@ -73,14 +96,14 @@ class Ollama(LLMAPI):
 
     def manage_conversation_history(
         self,
-        conversation_history: List[Dict[str, Any]],
+        messages: ProviderHistory,
         max_tokens: int = MAX_TOKENS
     ) -> bool:
         """
         Ensure conversation history is within token limits by intelligently pruning when needed.
 
         Args:
-            conversation_history: List of message objects to manage
+            messages: List of message objects to manage
             max_tokens: Maximum token limit
 
         Returns:
@@ -88,8 +111,7 @@ class Ollama(LLMAPI):
         """
         try:
             # Simplified token count estimation - would need actual token counting in production
-            # This is a placeholder for an actual token counting function
-            estimated_tokens = sum(len(str(msg)) for msg in conversation_history) // 4
+            estimated_tokens = sum(len(str(msg)) for msg in messages) // 4
 
             # If within limits, no action needed
             if estimated_tokens <= max_tokens:
@@ -98,14 +120,14 @@ class Ollama(LLMAPI):
             logging.info(f"Estimated token count {estimated_tokens} exceeds limit {max_tokens}, pruning...")
 
             # Keep first item (usually system message) and last N exchanges
-            if len(conversation_history) > 3:
+            if len(messages) > 3:
                 # Keep important context - first message and recent exchanges
-                preserve_count = min(5, len(conversation_history) // 2)
-                conversation_history[:] = [conversation_history[0]] + conversation_history[-preserve_count:]
+                preserve_count = min(5, len(messages) // 2)
+                messages[:] = [messages[0]] + messages[-preserve_count:]
 
                 # Recheck token count
-                estimated_tokens = sum(len(str(msg)) for msg in conversation_history) // 4
-                logging.info(f"After pruning: {estimated_tokens} tokens with {len(conversation_history)} items")
+                estimated_tokens = sum(len(str(msg)) for msg in messages) // 4
+                logging.info(f"After pruning: {estimated_tokens} tokens with {len(messages)} items")
 
                 return estimated_tokens <= max_tokens
 
@@ -117,98 +139,26 @@ class Ollama(LLMAPI):
             logging.error(f"Error managing tokens: {e}")
             return False
 
-    def prepare_conversation(
-        self,
-        conversation_history: List[Dict[str, Any]],
-        system_message: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Prepare the conversation history with system message if needed.
-
-        Args:
-            conversation_history: The current conversation history
-            system_message: The system message to use
-
-        Returns:
-            List[Dict[str, Any]]: The updated conversation history
-        """
-        if len(conversation_history) == 0:
-            default_system_message = """You are an experienced software engineer implementing code for a project working as a peer engineer
-with the user. Fullfill all your peer user's requests completely and following best practices and intentions.
-If can't understand a task, ask for clarifications."""
-
-            conversation_history.append({
-                'role': 'system',
-                'content': system_message or default_system_message,
-            })
-
-        return conversation_history
-
-    def add_project_context(
-        self,
-        conversation_history: List[Dict[str, Any]],
-        project_context: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Add project context to the conversation history.
-
-        Args:
-            conversation_history: The current conversation history
-            project_context: The project context to add
-
-        Returns:
-            List[Dict[str, Any]]: The updated conversation history
-        """
-        conversation_history.append({
-            'role': 'user',
-            'content': project_context
-        })
-        return conversation_history
-
-    def add_user_prompt(
-        self,
-        conversation_history: List[Dict[str, Any]],
-        prompt: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Add user prompt to the conversation history.
-
-        Args:
-            conversation_history: The current conversation history
-            prompt: The user prompt to add
-
-        Returns:
-            List[Dict[str, Any]]: The updated conversation history
-        """
-        conversation_history.append({
-            'role': 'user',
-            'content': prompt
-        })
-        return conversation_history
-
-    def get_api_response(
+    def generate(
         self,
         client: ollama.Client,
-        messages: List[Dict[str, Any]],
+        model_name: Optional[str],
+        system_message: str,
+        messages: ProviderHistory,
         tools: List[Dict[str, Any]],
-        model_name: Optional[str] = MODEL_NAME,
-        call_tool: Callable = None
-    ) -> Tuple[Any, List[Dict[str, Any]], bool]:
+    ) -> Iterable[OllamaResponseChunkWrapper]:
         """
         Get API response from Ollama, process it and handle tool calls.
 
         Args:
             client: The Ollama client
-            messages: The messages to send in the request
-            tools: The Ollama-format tools to use
             model_name: The model name to use
-            call_tool: The function to call tools
+            system_message: The system message to use (already included in messages)
+            messages: The messages to send in the request
+            tools: The tools to use in Ollama format
 
         Returns:
-            Tuple:
-                - Any: The raw API response
-                - List[Dict[str, Any]]: The updated messages
-                - bool: Whether any tool calls were made
+            Iterable[OllamaResponseChunkWrapper]: Stream of response chunks
         """
         model_name = model_name or MODEL_NAME
         retry_count = 0
@@ -216,74 +166,21 @@ If can't understand a task, ask for clarifications."""
 
         while retry_count < max_retries:  # This loop handles retries for errors
             try:
-                response = client.chat(model=model_name, messages=messages, tools=tools, stream=True)
+                # Create the message with Ollama
+                response = client.chat(
+                    model=model_name,
+                    messages=messages,
+                    tools=tools,
+                    stream=True
+                )
 
                 # Process the streamed response
-                full_response = ""
-                tool_calls = []
-                tool_results = []
-
                 for chunk in response:
-                    if not chunk:
-                        continue
+                    if chunk:
+                        logging.debug(f"Chunk received: {chunk}")
+                        yield OllamaResponseChunkWrapper(chunk)
 
-                    try:
-                        # Process message content
-                        if chunk.message:
-                            # Handle streaming text output
-                            if chunk.message.content:
-                                print(AnsiColors.MODEL + chunk.message.content + AnsiColors.RESET, end='')
-                                full_response += chunk.message.content
-
-                            # Handle tool calls
-                            if chunk.message.tool_calls:
-                                for tool_call in chunk.message.tool_calls:
-                                    tool_calls.append(tool_call)
-                                    function_name = tool_call.function.name
-                                    function_args = tool_call.function.arguments
-
-                                    print(AnsiColors.TOOL + f"{function_name}: {function_args}" + AnsiColors.RESET)
-                                    logging.info(f"Tool call: {function_name} with {function_args}")
-
-                                    # Execute the tool
-                                    tool_result = call_tool(function_name, function_args, tool_call)
-
-                                    # Add tool result to the list
-                                    tool_results.append({
-                                        "role": "tool",
-                                        "name": function_name,
-                                        "content": str(tool_result)
-                                    })
-                        # Check for end of response
-                        if chunk.done:
-                            break
-
-                    except json.JSONDecodeError as e:
-                        logging.warning(f"Error parsing JSON from stream: {e}")
-                    except Exception as e:
-                        logging.error(f"Error processing response chunk: {e}")
-
-                # Add the assistant's response to conversation history
-                assistant_message = {
-                    'role': 'assistant'
-                }
-
-                # Only add if we have content
-                if full_response.strip():
-                    assistant_message['content'] = full_response
-
-                if tool_calls:
-                    assistant_message['tool_calls'] = tool_calls
-
-                messages.append(assistant_message)
-
-                if tool_results:
-                    messages.extend(tool_results)
-
-                # Determine if there were tool calls
-                tool_calls_made = len(tool_results) > 0
-
-                return response, messages, tool_calls_made
+                break  # Exit the retry loop if successful
 
             except Exception as e:
                 retry_count += 1
@@ -301,3 +198,33 @@ If can't understand a task, ask for clarifications."""
                 print(AnsiColors.WARNING + error_msg + AnsiColors.RESET)
 
                 time.sleep(wait_time)
+
+    def append_to_history(self, provider_history: ProviderHistory,
+                             turn: List[ChunkWrapper | ContentPartToolResult]):
+        """
+        Add turn items into provider's conversation history.
+
+        Args:
+            provider_history: List of provider-specific message objects
+            turn: List of items in this turn
+        """
+        # Separate chunks and tool results
+        chunks = []
+        tool_results = []
+
+        for item in turn:
+            if isinstance(item, OllamaResponseChunkWrapper):
+                chunks.append(item)
+            elif isinstance(item, ContentPartToolResult):
+                tool_results.append(item)
+
+        # Add assistant message with all text and tool calls
+        assistant_message = self._adapter.to_history_item(chunks)
+        if assistant_message:
+            provider_history.append(assistant_message)
+
+        # Add tool results if any exist
+        for result in tool_results:
+            tool_result_message = self._adapter.to_history_item([result])
+            if tool_result_message:
+                provider_history.append(tool_result_message)
