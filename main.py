@@ -5,12 +5,16 @@ import logging
 import os
 import argparse
 import re # Make sure re is imported
+import sys # Added for exit
+
 from llm.wrapper import ContentPartText, History, Role
 from tools.fs_tool import TOOLS, TOOL_IMPL
 from messages import SYSTEM
 from colors import AnsiColors
 from llm.llmapi_factory import get_ai_provider
 from llm.generate import generate_with_tools
+# --- New Import ---
+from app.command_executor import CommandExecutor
 
 # Configure logging
 # File handler (INFO level by default)
@@ -335,6 +339,17 @@ def main():
         root_logger.setLevel(logging.INFO) # Ensure root logger captures INFO
     # --- End Logging Level Config ---
 
+    # --- Initialize Command Executor ---
+    cmd_executor = CommandExecutor()
+    # Register built-in commands
+    cmd_executor.register("exit", lambda: False) # Return False to signal exit
+    cmd_executor.register("quit", lambda: False) # Alias for exit
+
+    # We'll add a 'help' command later when the UI component exists
+    # cmd_executor.register("help", lambda: ui.display_help(cmd_executor.get_commands()))
+    # --- End Command Executor Setup ---
+
+
     # Set up the appropriate AI model
     model_name = args.model.strip().lower() if args.model else None
     provider_name = args.engine.strip().lower() if args.engine else None
@@ -387,7 +402,7 @@ def main():
     if not provider:
         print(f"{AnsiColors.TOOLERROR}Could not initialize AI provider: {provider_name or 'default'}. Please check configuration and API keys.{AnsiColors.RESET}")
         logging.critical(f"Failed to initialize AI provider: {provider_name or 'default'}")
-        exit(1) # Exit if provider fails
+        sys.exit(1) # Use sys.exit
 
     print(f"{AnsiColors.INFO}Using provider: {type(provider).__name__.replace('Provider', '')}{AnsiColors.RESET}")
     if model_name:
@@ -426,7 +441,7 @@ def main():
 
         # --- Add the actual user prompt to history ---
         conversation_history.add_message(role=Role.USER, content=[ContentPartText(text=user_prompt)])
-        logging.info(f"User prompt added to history: '{user_prompt}'")
+        logging.debug(f"User prompt added to history: '{user_prompt}'")
         # Log the full history before calling the AI (DEBUG level)
         logging.debug(f"Conversation History before generation: {conversation_history.conversation}")
 
@@ -451,22 +466,47 @@ def main():
     # --- Main Execution Logic (Interactive vs Non-interactive) ---
     if args.prompt:
         # Non-interactive mode
-        print(f"{AnsiColors.USER}Prompt:{AnsiColors.RESET} {args.prompt}")
-        handle_prompt(args.prompt)
-        logging.info("Non-interactive mode finished.")
+        prompt_input = args.prompt
+        print(f"{AnsiColors.USER}Prompt:{AnsiColors.RESET} {prompt_input}")
+
+        # Check if the non-interactive prompt is a command
+        command_executed, should_continue = cmd_executor.execute(prompt_input)
+
+        if command_executed:
+            logging.info(f"Non-interactive prompt was command: '{prompt_input}'. Exiting: {not should_continue}")
+            if not should_continue:
+                sys.exit(0) # Exit cleanly if command signaled exit
+            else:
+                sys.exit(0) # Also exit if command executed but didn't signal exit (e.g. help)
+        else:
+            # If not a command, process as AI prompt
+            handle_prompt(prompt_input)
+            logging.info("Non-interactive mode finished.")
     else:
         # Interactive mode
-        print(f"{AnsiColors.INFO}Entering interactive mode. Type 'exit' or press Ctrl+C/Ctrl+D to quit.{AnsiColors.RESET}")
+        print(f"{AnsiColors.INFO}Entering interactive mode. Type 'exit', 'quit' or press Ctrl+C/Ctrl+D to quit.{AnsiColors.RESET}")
         while True:
             try:
                 user_input = input(f"{AnsiColors.USER}You:{AnsiColors.RESET} ")
-                if user_input.lower() == "exit":
-                    logging.info("User requested exit.")
-                    break
-                if not user_input.strip(): # Handle empty or whitespace-only input
+
+                # --- Check for commands first ---
+                command_executed, should_continue = cmd_executor.execute(user_input)
+
+                if command_executed:
+                    if not should_continue:
+                        print("Exiting.") # Give user feedback on exit command
+                        logging.info("Exit command executed.")
+                        break # Exit the loop
+                    else:
+                        # Command executed, but didn't signal exit (e.g., future 'help' command)
+                        continue # Go to next iteration of the loop
+                # --- End Command Check ---
+
+                # If it wasn't a command, and input is not empty, process as a prompt
+                if not user_input.strip(): # Handle empty or whitespace-only input (after command check)
                     continue
 
-                handle_prompt(user_input) # Process the valid input
+                handle_prompt(user_input) # Process the valid input as AI prompt
 
             except EOFError: # Graceful exit on Ctrl+D
                  print("\nExiting.")
