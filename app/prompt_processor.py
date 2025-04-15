@@ -127,7 +127,7 @@ class PromptProcessor:
             try:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    context_content_parts.append(f"\n\n--- Context from: {file_name} ---\n\n{content}\n\n--- End Context: {file_name} ---\n")
+                    context_content_parts.append(f"--- Context from: {file_name} ---\n\n{content}\n\n--- End Context: {file_name} ---\n\n\n")
                     logger.debug(f"Read context from: {file_path}")
             except Exception as e:
                 log_msg = f"Error reading context file {file_path}: {e}"

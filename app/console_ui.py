@@ -1,4 +1,5 @@
 # app/console_ui.py
+import os
 import sys
 from colors import AnsiColors # Assuming colors.py is accessible
 
@@ -16,6 +17,18 @@ class ConsoleUI:
             debug_enabled: If True, enables printing of debug messages.
         """
         self.debug_enabled = debug_enabled
+
+    def _splitter(self, splitter_char: str = '━') -> str:
+        """
+        Returns a string used to separate different sections of output.
+        """
+        return splitter_char*os.get_terminal_size().columns
+
+    def _title(self, title: str) -> str:
+        """
+        Returns a string used to separate different sections of output.
+        """
+        return f"  {title}  \n{self._splitter('═')}"
 
     def get_user_input(self, prompt: str = "You: ") -> str:
         """
@@ -37,6 +50,46 @@ class ConsoleUI:
         except KeyboardInterrupt:
             # Propagate KeyboardInterrupt to be handled by the main loop
             raise
+
+    def display_system_message(self, message: str, color: str = AnsiColors.DEBUG):
+        """
+        Displays an informational message to the console.
+
+        Args:
+            message: The message string to display.
+            color: The AnsiColors code to use for the message. Defaults to INFO.
+        """
+        print(f"{color}{self._splitter()}\n{self._title("System instructions")}\n{message}\n{AnsiColors.RESET}")
+
+    def display_context_message(self, message: str, color: str = AnsiColors.INFO):
+        """
+        Displays an informational message to the console.
+
+        Args:
+            message: The message string to display.
+            color: The AnsiColors code to use for the message. Defaults to INFO.
+        """
+        print(f"{color}{self._splitter()}\n{self._title("Context")}\n{message}\n{AnsiColors.RESET}")
+
+    def display_history_assistant_message(self, message: str, color: str = AnsiColors.INFO):
+        """
+        Displays an informational message to the console.
+
+        Args:
+            message: The message string to display.
+            color: The AnsiColors code to use for the message. Defaults to INFO.
+        """
+        print(f"{color}{self._splitter()}\n{self._title("Assistant:")}\n{message}\n{AnsiColors.RESET}")
+
+    def display_history_user_message(self, message: str, color: str = AnsiColors.INFO):
+        """
+        Displays an informational message to the console.
+
+        Args:
+            message: The message string to display.
+            color: The AnsiColors code to use for the message. Defaults to INFO.
+        """
+        print(f"{color}{self._splitter()}\n{self._title("User:")}\n{message}\n{AnsiColors.RESET}")
 
     def display_message(self, message: str, color: str = AnsiColors.INFO):
         """

@@ -1,23 +1,16 @@
 # app/application.py
 import logging
 import sys
-import os
 from argparse import Namespace
+import json # Added for pretty printing
 
-# Assuming components are importable
-try:
-    from .console_ui import ConsoleUI
-    from .command_executor import CommandExecutor
-    from .prompt_processor import PromptProcessor
-    from .interaction_manager import InteractionManager
-except ImportError: # Handle running script directly for testing, etc.
-    from console_ui import ConsoleUI
-    from command_executor import CommandExecutor
-    from prompt_processor import PromptProcessor
-    from interaction_manager import InteractionManager
+from app.console_ui import ConsoleUI
+from app.command_executor import CommandExecutor
+from app.prompt_processor import PromptProcessor
+from app.interaction_manager import InteractionManager
 
 # Assuming History and related types are accessible
-from llm.wrapper import History, Role, ContentPartText
+from llm.wrapper import History, Role, ContentPartText, ContentPartToolCall, ContentPartToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +46,7 @@ class Application:
         self.prompt_processor = prompt_processor
         self.interaction_manager = interaction_manager
         self.working_dir = working_dir
+        self.conversation_history: History | None = None # Initialize history attribute
         logger.info("Application initialized.")
 
     def run(self):
@@ -67,7 +61,8 @@ class Application:
         prompt_input = self.args.prompt
         self.ui.display_user_prompt(prompt_input)
 
-        command_executed, should_continue = self.cmd_executor.execute(prompt_input)
+        # Check for internal commands first (e.g., if someone runs with --prompt history)
+        command_executed, should_continue = self.cmd_executor.execute(prompt_input, self) # Pass self
 
         if command_executed:
             logger.info(f"Non-interactive prompt was command: '{prompt_input}'. Exiting.")
@@ -95,11 +90,11 @@ class Application:
 
     def _run_interactive(self):
         """Handles interactive mode (conversation loop)."""
-        self.ui.display_info("Entering interactive mode. Type 'exit', 'quit' or press Ctrl+C/Ctrl+D to quit.")
+        self.ui.display_info("Entering interactive mode. Type 'history', 'exit', 'quit' or press Ctrl+C/Ctrl+D to quit.")
 
-        # Initialize history for the session
+        # Initialize history for the session and store it as an instance variable
         initial_context = self.prompt_processor.build_context("", self.working_dir)
-        conversation_history = History(
+        self.conversation_history = History(
             system_message=initial_context.system_message,
             context=initial_context.project_context
         )
@@ -109,7 +104,7 @@ class Application:
             try:
                 user_input = self.ui.get_user_input()
 
-                command_executed, should_continue = self.cmd_executor.execute(user_input)
+                command_executed, should_continue = self.cmd_executor.execute(user_input, self) # Pass self
 
                 if command_executed:
                     if not should_continue:
@@ -117,24 +112,34 @@ class Application:
                         logging.info("Exit command executed.")
                         break # Exit loop
                     else:
-                        continue # Command handled, continue loop
+                        # Command handled (like history), continue loop for next input
+                        continue
 
                 if not user_input.strip():
                     continue
+
+                # Ensure history exists before proceeding (should always exist in interactive)
+                if not self.conversation_history:
+                     logger.error("Conversation history is missing in interactive mode. Re-initializing.")
+                     # Re-initialize using the initial context captured at the start
+                     self.conversation_history = History(
+                         system_message=initial_context.system_message,
+                         context=initial_context.project_context
+                     )
 
                 # Process the prompt within the interactive session
                 # Build context again mainly for mentions specific to this input
                 prompt_specific_context = self.prompt_processor.build_context(user_input, self.working_dir)
 
                 # Add mentioned files to history (if any)
-                self._add_mentions_to_history(prompt_specific_context.mentioned_files, conversation_history)
+                self._add_mentions_to_history(prompt_specific_context.mentioned_files, self.conversation_history)
 
                 # Add the user prompt itself
-                conversation_history.add_message(role=Role.USER, content=[ContentPartText(text=user_input)])
+                self.conversation_history.add_message(role=Role.USER, content=[ContentPartText(text=user_input)])
                 logging.debug(f"User prompt added to interactive history: '{user_input}'")
 
                 # Process with InteractionManager using the persistent history
-                self.interaction_manager.process_prompt(conversation_history)
+                self.interaction_manager.process_prompt(self.conversation_history)
 
             except EOFError:
                  self.ui.display_info("\nExiting.")
@@ -162,5 +167,73 @@ class Application:
             if len(content) > MAX_MENTION_CONTENT_LENGTH:
                 context_message = f"Content of mentioned file '@{filepath}' (truncated):\n---\n{content[:MAX_MENTION_CONTENT_LENGTH]}\n...\n---"
                 logging.warning(f"Truncated content for mentioned file @{filepath} due to size.")
+            # Add mention context as USER role for simplicity in display/processing for now
             history.add_message(role=Role.USER, content=[ContentPartText(text=context_message)])
             logging.debug(f"Added context from @{filepath} to history.")
+
+    def _display_history(self) -> bool:
+        """
+        Displays the current conversation history using the UI.
+
+        Returns:
+            True, indicating the application should continue.
+        """
+        if not self.conversation_history:
+            self.ui.display_warning("No history available yet.")
+            return True # Nothing to display, but continue running
+
+        self.ui.display_info("\n--- Conversation History ---")
+
+        # Display system message if present
+        if self.conversation_history.system_message:
+            self.ui.display_system_message(self.conversation_history.system_message)
+
+        # Display context if present
+        if self.conversation_history.context:
+            # Context might be large, maybe summarize or just indicate presence?
+            # For now, let's display the first N chars or a summary
+            context_str = str(self.conversation_history.context)
+            max_len = 200
+            display_context = context_str[:max_len] + "..." if len(context_str) > max_len else context_str
+            self.ui.display_context_message(display_context)
+
+
+        if not self.conversation_history.conversation:
+            self.ui.display_info("No messages in history yet.")
+        else:
+            for msg in self.conversation_history.conversation:
+                role_str = msg.role.name.capitalize()
+                content_str = ""
+                if not msg.content: # Handle potential empty content list
+                    content_str = "[Empty Message Content]"
+                else:
+                    for part in msg.content:
+                        if isinstance(part, ContentPartText):
+                            content_str += part.text + "\n"
+                        elif isinstance(part, ContentPartToolCall):
+                             # Ensure arguments are formatted as a string (e.g., JSON)
+                            args_str = json.dumps(part.input) if isinstance(part.input, dict) else str(part.input)
+                            content_str += f"Tool Call: {part.name}({args_str})\n"
+                        elif isinstance(part, ContentPartToolResult):
+                            if 'error' in part.content:
+                                content_str += f"Tool Result: (Error) {part.content['message']}\n"
+                            else:
+                                content_str += f"Tool Result: (OK) {len(part.content['result'])} characters\n"
+                        elif part is None: # Handle potential None parts
+                             content_str += "[None Content Part]\n"
+                        else:
+                            content_str += str(part) + "\n" # Fallback
+                content_str = content_str.strip() # Clean up trailing whitespace
+
+                # Use appropriate UI methods based on role
+                if msg.role == Role.MODEL:
+                     # Check if it's a tool call or regular response
+                     self.ui.display_history_assistant_message(content_str)
+                elif msg.role == Role.USER or msg.role == Role.TOOL:
+                    self.ui.display_history_user_message(content_str)
+                else: # Fallback for other potential roles
+                     self.ui.display_info(f"{role_str}: {content_str.strip()}")
+
+
+        self.ui.display_info("--- End History ---")
+        return True # Signal to continue the application loop

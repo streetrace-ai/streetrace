@@ -32,7 +32,6 @@ console_handler.setFormatter(console_formatter)
 
 # Root logger setup
 root_logger = logging.getLogger()
-# root_logger.addHandler(console_handler)
 # Set root logger level to DEBUG initially to capture everything
 root_logger.setLevel(logging.DEBUG)
 # --- End Logging Configuration ---
@@ -151,8 +150,10 @@ def main():
         # Keep root logger at DEBUG to allow file handler to capture everything
         logging.debug("Debug logging enabled for console.")
     else:
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(logging.WARNING)
         # Root logger stays DEBUG, file handler is INFO, console handler is INFO
+    # Add the console handler *after* setting its level based on debug flag
+    root_logger.addHandler(console_handler)
     # --- End Logging Configuration ---
 
     # --- Initialize Core Application Components ---
@@ -161,11 +162,21 @@ def main():
     # --- End Component Initialization ---
 
     # --- Register Base Commands ---
-    # Commands directly handled by the application loop (exit/quit)
+    # Commands handled by the application loop or require app instance
     cmd_executor.register("exit", lambda: False, "Exit the interactive session.")
     cmd_executor.register("quit", lambda: False, "Quit the interactive session.")
-    # Add help command if needed (requires passing cmd_executor to UI display method)
-    # cmd_executor.register("help", lambda: ui.display_help(cmd_executor.get_registered_commands()), "Show available commands.")
+    # Register history - the action expects the app_instance passed by execute
+    cmd_executor.register("history",
+                          lambda app: app._display_history() if app else False,
+                          "Display the conversation history.")
+    # Add help command (can now be implemented better)
+    # def display_help(ui_instance, executor_instance):
+    #     ui_instance.display_info("Available commands:")
+    #     descriptions = executor_instance.get_command_descriptions()
+    #     for name, desc in sorted(descriptions.items()):
+    #         ui_instance.display_info(f"  {name}: {desc}")
+    #     return True # Continue running
+    # cmd_executor.register("help", lambda app: display_help(ui, cmd_executor), "Show available commands.")
     # --- End Command Registration ---
 
     # --- Determine Model and Provider ---
@@ -241,6 +252,11 @@ def main():
         interaction_manager=interaction_manager,
         working_dir=abs_working_dir  # Pass the validated absolute path
     )
+
+    # --- Optional: Add commands that require the app instance AFTER it's created ---
+    # Example: If we wanted to register history *here* instead of above:
+    # cmd_executor.register("history", app._display_history, "Display conversation history.")
+    # The initial registration method is preferred as it keeps registrations together.
 
     # Start the application execution (handles interactive/non-interactive modes)
     try:

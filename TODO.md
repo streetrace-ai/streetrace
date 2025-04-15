@@ -1,5 +1,6 @@
 todo
 
+token counts
 maintain conversation history over restarts,
 show files already in context over the prompt
 fix unit tests, lint, etc
@@ -15,6 +16,7 @@ create console print module so it uses the proper colors
 count input/output tokens consumed
 _generate_with_tools needs to return finish reason
 anthropic api 529 overloaded
+text editor
 
 +create an ollama implementation similar to gemini and claude
 +create an openai implementation similar to gemini and claude

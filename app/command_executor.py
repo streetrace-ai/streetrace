@@ -1,6 +1,6 @@
 # app/command_executor.py
 import logging
-from typing import Callable, Dict, Tuple, List
+from typing import Callable, Dict, Tuple, List, Any, Optional
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -16,19 +16,24 @@ class CommandExecutor:
     def __init__(self):
         """Initializes the CommandExecutor with an empty command registry."""
         # Stores command names (lowercase) mapped to their action callables
-        self._commands: Dict[str, Callable[[], bool]] = {}
+        # The callable can now optionally accept the Application instance
+        self._commands: Dict[str, Callable[..., bool]] = {}
         self._command_descriptions: Dict[str, str] = {}
         logger.info("CommandExecutor initialized.")
 
-    def register(self, name: str, action: Callable[[], bool], description: str = "") -> None:
+    def register(self, name: str, action: Callable[..., bool], description: str = "") -> None:
         """
         Registers a command with its associated action.
 
+        The action callable can optionally accept one argument, which will be
+        the application instance if provided during execution.
+
         Args:
             name: The name of the command (will be treated case-insensitively).
-            action: A callable that takes no arguments and returns a boolean.
-                    Returning False signals the application should exit,
-                    True signals it should continue.
+            action: A callable that optionally takes the application instance and
+                    returns a boolean. Returning False signals the application
+                    should exit, True signals it should continue.
+            description: A short description of the command.
 
         Raises:
             ValueError: If the command name is empty or whitespace.
@@ -46,7 +51,7 @@ class CommandExecutor:
 
         self._commands[clean_name] = action
         self._command_descriptions[clean_name] = description
-        logger.debug(f"Command '{clean_name}' registered.")
+        logger.debug(f"Command '{clean_name}' registered: {description}")
 
     def get_commands(self) -> List[str]:
         """
@@ -57,12 +62,13 @@ class CommandExecutor:
         """
         return sorted(self._commands.keys())
 
-    def execute(self, user_input: str) -> Tuple[bool, bool]:
+    def execute(self, user_input: str, app_instance: Optional[Any] = None) -> Tuple[bool, bool]:
         """
         Attempts to execute a command based on the user input.
 
         Args:
             user_input: The raw input string from the user.
+            app_instance: Optional application instance to pass to the command action.
 
         Returns:
             A tuple (command_executed: bool, should_continue: bool):
@@ -79,8 +85,22 @@ class CommandExecutor:
             logger.info(f"Executing command: '{command}'")
             action = self._commands[command]
             try:
-                # Execute the action and capture its return value
-                should_continue = action()
+                import inspect
+                sig = inspect.signature(action)
+                params = sig.parameters
+
+                # Check if the action accepts an argument
+                if len(params) == 1:
+                    # Pass the application instance if the action expects it
+                    should_continue = action(app_instance)
+                elif len(params) == 0:
+                    # Call without arguments if it expects none
+                    should_continue = action()
+                else:
+                    # Log an error if the signature is unexpected (e.g., >1 arg)
+                    logger.error(f"Action for command '{command}' has an unexpected signature: {sig}. Cannot execute.")
+                    return True, True # Command matched, but action failed, continue
+
                 if not isinstance(should_continue, bool):
                     logger.error(f"Action for command '{command}' did not return a boolean. Assuming continue.")
                     return True, True # Command executed, but faulty action, continue
@@ -97,3 +117,7 @@ class CommandExecutor:
             # Input did not match any registered command
             logger.debug(f"Input '{user_input}' is not a registered command.")
             return False, True # Command not executed, continue
+
+    def get_command_descriptions(self) -> Dict[str, str]:
+        """Returns a dictionary of command names and their descriptions."""
+        return self._command_descriptions.copy()
