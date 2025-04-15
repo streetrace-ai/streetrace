@@ -4,24 +4,26 @@ OpenAI Provider Implementation
 This module implements the LLMAPI interface for OpenAI models.
 """
 
-import os
 import logging
+import os
 import time
-from typing import Iterable, List, Dict, Any, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 import openai
 from openai.types import chat
-from streetrace.ui.colors import AnsiColors
+
 from streetrace.llm.history_converter import ChunkWrapper
 from streetrace.llm.llmapi import LLMAPI
+from streetrace.llm.openai.converter import ChoiceDeltaWrapper, OpenAIConverter
 from streetrace.llm.wrapper import ContentPartToolResult, History, Role
-from streetrace.llm.openai.converter import OpenAIConverter, ChoiceDeltaWrapper
+from streetrace.ui.colors import AnsiColors
 
 # Constants
 MAX_TOKENS = 128000  # GPT-4 Turbo has a context window of 128K tokens
 MODEL_NAME = "gpt-4-turbo-2024-04-09"  # Default model
 
 ProviderHistory = List[chat.ChatCompletionMessageParam]
+
 
 class OpenAI(LLMAPI):
     """
@@ -40,11 +42,11 @@ class OpenAI(LLMAPI):
         Raises:
             ValueError: If OPENAI_API_KEY environment variable is not set
         """
-        api_key = os.environ.get('OPENAI_API_KEY')
+        api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable not set.")
 
-        base_url = os.environ.get('OPENAI_API_BASE')
+        base_url = os.environ.get("OPENAI_API_BASE")
         if base_url:
             return openai.OpenAI(api_key=api_key, base_url=base_url)
         return openai.OpenAI(api_key=api_key)
@@ -61,7 +63,9 @@ class OpenAI(LLMAPI):
         """
         return self._adapter.from_history(history)
 
-    def update_history(self, provider_history: ProviderHistory, history: History) -> None:
+    def update_history(
+        self, provider_history: ProviderHistory, history: History
+    ) -> None:
         """
         Updates the conversation history in common format based on OpenAI-specific history.
 
@@ -99,16 +103,14 @@ class OpenAI(LLMAPI):
         """
         parts = []
         for i, message in enumerate(messages):
-            content_str = str(message.get('content', 'NONE'))
-            role = message.get('role', 'unknown')
+            content_str = str(message.get("content", "NONE"))
+            role = message.get("role", "unknown")
             parts.append(f"Message {i + 1}:\n - {role}: {content_str}")
 
         return "\n".join(parts)
 
     def manage_conversation_history(
-        self,
-        conversation_history: List[Dict[str, Any]],
-        max_tokens: int = MAX_TOKENS
+        self, conversation_history: List[Dict[str, Any]], max_tokens: int = MAX_TOKENS
     ) -> bool:
         """
         Ensure conversation history is within token limits by intelligently pruning when needed.
@@ -129,22 +131,32 @@ class OpenAI(LLMAPI):
             if estimated_tokens <= max_tokens:
                 return True
 
-            logging.info(f"Estimated token count {estimated_tokens} exceeds limit {max_tokens}, pruning...")
+            logging.info(
+                f"Estimated token count {estimated_tokens} exceeds limit {max_tokens}, pruning..."
+            )
 
             # Keep first item (usually system message) and last N exchanges
             if len(conversation_history) > 3:
                 # Keep important context - first message and recent exchanges
                 preserve_count = min(5, len(conversation_history) // 2)
-                conversation_history[:] = [conversation_history[0]] + conversation_history[-preserve_count:]
+                conversation_history[:] = [
+                    conversation_history[0]
+                ] + conversation_history[-preserve_count:]
 
                 # Recheck token count
-                estimated_tokens = sum(len(str(msg)) for msg in conversation_history) // 4
-                logging.info(f"After pruning: {estimated_tokens} tokens with {len(conversation_history)} items")
+                estimated_tokens = (
+                    sum(len(str(msg)) for msg in conversation_history) // 4
+                )
+                logging.info(
+                    f"After pruning: {estimated_tokens} tokens with {len(conversation_history)} items"
+                )
 
                 return estimated_tokens <= max_tokens
 
             # If conversation is small but still exceeding, we have a problem
-            logging.warning(f"Cannot reduce token count sufficiently: {estimated_tokens}")
+            logging.warning(
+                f"Cannot reduce token count sufficiently: {estimated_tokens}"
+            )
             return False
 
         except Exception as e:
@@ -184,14 +196,14 @@ class OpenAI(LLMAPI):
                     messages=messages,
                     tools=tools,
                     stream=True,
-                    tool_choice="auto"
+                    tool_choice="auto",
                 )
 
                 # Process the streamed response
                 buffered_tool_calls = {}
                 for chunk in response:
                     logging.debug(f"Chunk received: {chunk}")
-                    if not hasattr(chunk, 'choices'):
+                    if not hasattr(chunk, "choices"):
                         continue
 
                     for idx, choice in enumerate(chunk.choices):
@@ -202,19 +214,24 @@ class OpenAI(LLMAPI):
                             # Yield full tool_call block if finished
                             tool_call_msg = buffered_tool_calls.pop(idx, None)
                             if tool_call_msg:
-                                yield ChoiceDeltaWrapper(chat.ChatCompletionMessage(
-                                    role = delta.role or "assistant",
-                                    tool_calls=[
-                                        chat.ChatCompletionMessageToolCall(
-                                            type="function",
-                                            id = tool_call['id'],
-                                            function = chat.chat_completion_message_tool_call.Function(
-                                                name=tool_call['function']['name'],
-                                                arguments=tool_call['function']['arguments']
+                                yield ChoiceDeltaWrapper(
+                                    chat.ChatCompletionMessage(
+                                        role=delta.role or "assistant",
+                                        tool_calls=[
+                                            chat.ChatCompletionMessageToolCall(
+                                                type="function",
+                                                id=tool_call["id"],
+                                                function=chat.chat_completion_message_tool_call.Function(
+                                                    name=tool_call["function"]["name"],
+                                                    arguments=tool_call["function"][
+                                                        "arguments"
+                                                    ],
+                                                ),
                                             )
-                                        ) for tool_call in tool_call_msg['tool_calls']
-                                    ]
-                                ))
+                                            for tool_call in tool_call_msg["tool_calls"]
+                                        ],
+                                    )
+                                )
                             continue
 
                         if hasattr(delta, "tool_calls") and delta.tool_calls:
@@ -225,20 +242,29 @@ class OpenAI(LLMAPI):
                             for i, tool_delta in enumerate(delta.tool_calls):
                                 # Ensure space for tool_calls[i]
                                 while len(buffered_tool_calls[idx]["tool_calls"]) <= i:
-                                    buffered_tool_calls[idx]["tool_calls"].append({
-                                        "id": None, "function": {"name": "", "arguments": ""},
-                                        "type": "function"
-                                    })
+                                    buffered_tool_calls[idx]["tool_calls"].append(
+                                        {
+                                            "id": None,
+                                            "function": {"name": "", "arguments": ""},
+                                            "type": "function",
+                                        }
+                                    )
 
                                 existing = buffered_tool_calls[idx]["tool_calls"][i]
                                 if tool_delta.id:
                                     existing["id"] = tool_delta.id
                                 if tool_delta.function:
                                     if tool_delta.function.name:
-                                        existing["function"]["name"] += tool_delta.function.name
+                                        existing["function"][
+                                            "name"
+                                        ] += tool_delta.function.name
                                     if tool_delta.function.arguments:
-                                        existing["function"]["arguments"] += tool_delta.function.arguments
-                        elif delta.content is not None: # Important, do not check for Truthy as '' messages can contain other fields.
+                                        existing["function"][
+                                            "arguments"
+                                        ] += tool_delta.function.arguments
+                        elif (
+                            delta.content is not None
+                        ):  # Important, do not check for Truthy as '' messages can contain other fields.
                             # Yield regular text deltas immediately
                             yield ChoiceDeltaWrapper(delta)
 
@@ -261,8 +287,11 @@ class OpenAI(LLMAPI):
 
                 time.sleep(wait_time)
 
-    def append_to_history(self, provider_history: ProviderHistory,
-                             turn: List[ChunkWrapper | ContentPartToolResult]):
+    def append_to_history(
+        self,
+        provider_history: ProviderHistory,
+        turn: List[ChunkWrapper | ContentPartToolResult],
+    ):
         """
         Add turn items into provider's conversation history.
 

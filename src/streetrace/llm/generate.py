@@ -6,12 +6,12 @@ that can be used by all LLMAPI-derived classes.
 """
 
 import logging
-from typing import List, Dict, Any, Callable, Optional
+from typing import Any, Callable, Dict, List, Optional
 
-from streetrace.ui.colors import AnsiColors
 from streetrace.llm.history_converter import ChunkWrapper
-from streetrace.llm.wrapper import ContentPartToolResult, History
 from streetrace.llm.llmapi import LLMAPI
+from streetrace.llm.wrapper import ContentPartToolResult, History
+from streetrace.ui.colors import AnsiColors
 
 
 def generate_with_tools(
@@ -37,7 +37,15 @@ def generate_with_tools(
     provider_tools = provider.transform_tools(tools)
 
     try:
-        _generate_with_tools(provider, client, model_name, conversation.system_message, provider_history, provider_tools, call_tool)
+        _generate_with_tools(
+            provider,
+            client,
+            model_name,
+            conversation.system_message,
+            provider_history,
+            provider_tools,
+            call_tool,
+        )
         provider.update_history(provider_history, conversation)
     except Exception as e:
         print(AnsiColors.MODELERROR + str(e) + AnsiColors.RESET)
@@ -51,13 +59,12 @@ def _generate_with_tools(
     system_message: str,
     provider_history: List[Dict[str, Any]],
     provider_tools: List[Dict[str, Any]],
-    f_call_tool: Callable):
+    f_call_tool: Callable,
+):
 
     # Ensure history fits the context window
     if not provider.manage_conversation_history(provider_history):
-        raise ValueError(
-            "Conversation history exceeds the model's context window."
-        )
+        raise ValueError("Conversation history exceeds the model's context window.")
 
     request_count = 0
     continue_generation = True
@@ -69,25 +76,33 @@ def _generate_with_tools(
         logging.info(
             f"Starting request {request_count} with {len(provider_history)} message items."
         )
-        logging.debug("Messages for generation:\n%s", provider.pretty_print(provider_history))
+        logging.debug(
+            "Messages for generation:\n%s", provider.pretty_print(provider_history)
+        )
 
         turn: List[ChunkWrapper | ContentPartToolResult] = []
-        for chunk in provider.generate(client, model_name, system_message, provider_history, provider_tools):
+        for chunk in provider.generate(
+            client, model_name, system_message, provider_history, provider_tools
+        ):
             turn.append(chunk)
             if chunk.get_text():
-                print(AnsiColors.MODEL + chunk.get_text() + AnsiColors.RESET, end='', flush=True)
+                print(
+                    AnsiColors.MODEL + chunk.get_text() + AnsiColors.RESET,
+                    end="",
+                    flush=True,
+                )
             if chunk.get_tool_calls():
                 print()
                 for tool_call in chunk.get_tool_calls():
-                    tool_result = f_call_tool(tool_call.name, tool_call.arguments, chunk.raw)
+                    tool_result = f_call_tool(
+                        tool_call.name, tool_call.arguments, chunk.raw
+                    )
                     turn.append(
                         ContentPartToolResult(
-                            id=tool_call.id,
-                            name=tool_call.name,
-                            content=tool_result
+                            id=tool_call.id, name=tool_call.name, content=tool_result
                         )
                     )
-                continue_generation = True # Continue if there were tool calls
+                continue_generation = True  # Continue if there were tool calls
         print()
 
         provider.append_to_history(provider_history, turn)

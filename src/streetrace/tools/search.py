@@ -1,5 +1,6 @@
 import glob
 import os
+
 from streetrace.tools.path_utils import normalize_and_validate_path
 
 
@@ -35,16 +36,18 @@ def search_files(pattern, search_string, work_dir):
         try:
             abs_filepath = normalize_and_validate_path(filepath, work_dir)
 
-            with open(abs_filepath, 'r', encoding='utf-8') as f:
+            with open(abs_filepath, "r", encoding="utf-8") as f:
                 for i, line in enumerate(f):
                     if search_string in line:
                         # Get path relative to work_dir for display
                         rel_path = os.path.relpath(abs_filepath, abs_work_dir)
-                        matches.append({
-                            'filepath': rel_path,
-                            'line_number': i + 1,
-                            'snippet': line.strip()
-                        })
+                        matches.append(
+                            {
+                                "filepath": rel_path,
+                                "line_number": i + 1,
+                                "snippet": line.strip(),
+                            }
+                        )
         except (ValueError, UnicodeDecodeError, IOError) as e:
             # If the file is outside work_dir, can't be read, or is binary
             # Just skip it and continue with other files

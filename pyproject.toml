@@ -1,0 +1,92 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "streetrace"
+# Update with the actual version
+version = "0.1.0"
+description = "StreetRace is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software."
+readme = "README.md"
+requires-python = ">=3.10" # Updated minimum Python version
+license = {file = "LICENSE"}
+# Add classifiers as appropriate, e.g.:
+# classifiers = [
+#     "Programming Language :: Python :: 3",
+#     "License :: OSI Approved :: MIT License",
+#     "Operating System :: OS Independent",
+# ]
+# Add dependencies from requirements.txt here or keep using requirements.txt
+# dependencies = [
+#     "anthropic",
+#     "google-generativeai",
+#     "openai",
+#     "requests",
+#     "python-dotenv",
+#     "rich",
+#     "prompt_toolkit",
+#     "PyYAML",
+# ]
+
+[project.scripts]
+streetrace = "streetrace.main:main"
+
+[tool.black]
+# Consistent formatting
+line-length = 88
+target-version = ['py310'] # Updated target version for match statements
+# Using default include/exclude patterns
+
+[tool.isort]
+# Import sorting configuration
+profile = "black"
+line_length = 88 # Ensure isort also knows the line length
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_gitignore = true
+# Specify your source directories
+src_paths = ["src", "tests"]
+
+[tool.flake8]
+# Linting configuration
+max-line-length = 88 # Explicitly set for flake8
+extend-ignore = [
+    "E203", # whitespace before ':' - conflicts with black
+    "W503", # line break before binary operator - conflicts with black
+]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".tox",
+    ".venv",
+    "build",
+    "dist",
+]
+# Consider adding plugins like flake8-bugbear, flake8-comprehensions if desired
+
+[tool.mypy]
+# Static type checking configuration
+python_version = "3.10" # Updated Python version
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true # Start with this, then gradually add stubs or types
+# Add check_untyped_defs = true for stricter checking later
+# Specify source directories
+files = ["src", "tests"]
+# Escaped backslash for TOML list string
+exclude = ["\\.venv/"]
+
+# If using pytest
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = [
+    "tests",
+    # Add integration tests path if separate
+]
+pythonpath = ["src"] # Make src importable directly

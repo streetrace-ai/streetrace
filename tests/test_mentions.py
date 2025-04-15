@@ -1,8 +1,8 @@
-import unittest
 import os
+import shutil
 import sys
 import tempfile
-import shutil
+import unittest
 
 # Add the root directory to sys.path to allow importing main
 # Assuming tests are run from the project root or the tests directory
@@ -12,18 +12,20 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import the function to be tested
-parse_and_load_mentions_func = None # Rename variable to avoid confusion
+parse_and_load_mentions_func = None  # Rename variable to avoid confusion
 parse_arguments_func = None
 import_error = None
 try:
     # Try importing both functions needed
     from src.streetrace.main import parse_and_load_mentions, parse_arguments
+
     parse_and_load_mentions_func = parse_and_load_mentions
-    parse_arguments_func = parse_arguments # Store it too
+    parse_arguments_func = parse_arguments  # Store it too
 except ImportError as e:
-    import_error = e # Store the error
+    import_error = e  # Store the error
     print(f"Failed to import from main: {e}")
     # Keep functions as None
+
 
 class TestMentions(unittest.TestCase):
 
@@ -51,21 +53,25 @@ class TestMentions(unittest.TestCase):
         # File with special chars
         cls.special_filename = "file_with-hyphen.log"
         with open(os.path.join(cls.test_dir, cls.special_filename), "w") as f:
-             f.write("Special chars file")
+            f.write("Special chars file")
 
     @classmethod
     def tearDownClass(cls):
         """Clean up the temporary directories once after all tests."""
         # Add safety check in case base_temp_dir wasn't created
-        if hasattr(cls, 'base_temp_dir') and os.path.exists(cls.base_temp_dir):
-             shutil.rmtree(cls.base_temp_dir)
+        if hasattr(cls, "base_temp_dir") and os.path.exists(cls.base_temp_dir):
+            shutil.rmtree(cls.base_temp_dir)
 
     def setUp(self):
         """Check if imports worked before running tests."""
         if parse_and_load_mentions_func is None:
-             self.fail(f"Import of parse_and_load_mentions failed: {import_error}. Cannot run tests.")
+            self.fail(
+                f"Import of parse_and_load_mentions failed: {import_error}. Cannot run tests."
+            )
         if parse_arguments_func is None:
-             self.fail(f"Import of parse_arguments failed: {import_error}. Cannot run tests.")
+            self.fail(
+                f"Import of parse_arguments failed: {import_error}. Cannot run tests."
+            )
         # Suppress print statements from the function under test during unit tests
         # This requires careful patching
         # For now, we'll allow the prints but they might clutter test output
@@ -99,7 +105,7 @@ class TestMentions(unittest.TestCase):
         self.assertEqual(len(result), 2)
         expected = [
             ("file1.txt", "Content of file1"),
-            (mention_path_subdir, "Content of file2")
+            (mention_path_subdir, "Content of file2"),
         ]
         self.assertCountEqual(result, expected)
 
@@ -126,7 +132,7 @@ class TestMentions(unittest.TestCase):
         self.assertEqual(len(result), 2)
         expected = [
             ("file1.txt", "Content of file1"),
-            (mention_path_subdir, "Content of file2")
+            (mention_path_subdir, "Content of file2"),
         ]
         self.assertCountEqual(result, expected)
 
@@ -135,13 +141,19 @@ class TestMentions(unittest.TestCase):
         rel_path_to_outside = os.path.relpath(outside_file_path, self.test_dir)
         prompt = f"Trying to access @{rel_path_to_outside}"
         result = parse_and_load_mentions_func(prompt, self.test_dir)
-        self.assertEqual(result, [], f"Security check failed for relative path: {rel_path_to_outside}")
+        self.assertEqual(
+            result,
+            [],
+            f"Security check failed for relative path: {rel_path_to_outside}",
+        )
 
     def test_mention_outside_working_dir_absolute(self):
         abs_path_to_secret = os.path.join(self.outside_dir, "secret.txt")
         prompt = f"Trying to access @{abs_path_to_secret}"
         result = parse_and_load_mentions_func(prompt, self.test_dir)
-        self.assertEqual(result, [], f"Security check failed for absolute path: {abs_path_to_secret}")
+        self.assertEqual(
+            result, [], f"Security check failed for absolute path: {abs_path_to_secret}"
+        )
 
     def test_mention_with_dot_slash(self):
         prompt = "Check @./file1.txt"
@@ -168,7 +180,7 @@ class TestMentions(unittest.TestCase):
         self.assertEqual(result[0], (self.special_filename, "Special chars file"))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Ensure the script can find 'main.py' when run directly
     # Adjust path if necessary based on how tests are executed
     if project_root not in sys.path:
@@ -176,6 +188,7 @@ if __name__ == '__main__':
     # Re-check imports in case running the file directly works differently
     try:
         from src.streetrace.main import parse_and_load_mentions, parse_arguments
+
         parse_and_load_mentions_func = parse_and_load_mentions
         parse_arguments_func = parse_arguments
     except ImportError as e:
@@ -188,8 +201,11 @@ if __name__ == '__main__':
     TestMentions.parse_arguments_func = parse_arguments_func
 
     # Check again before running unittest.main()
-    if TestMentions.parse_and_load_mentions_func is None or TestMentions.parse_arguments_func is None:
-         print("Imports failed, cannot run tests.")
-         sys.exit(1)
+    if (
+        TestMentions.parse_and_load_mentions_func is None
+        or TestMentions.parse_arguments_func is None
+    ):
+        print("Imports failed, cannot run tests.")
+        sys.exit(1)
 
     unittest.main()

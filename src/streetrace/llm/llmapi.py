@@ -7,13 +7,14 @@ initialization, API calls, and tool management across all providers.
 """
 
 import abc
-from typing import Iterable, List, Dict, Any, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
 from streetrace.llm.history_converter import ChunkWrapper
 from streetrace.llm.wrapper import ContentPartToolResult, History
 
 ProviderHistory = List[Dict[str, Any]]
 ProviderTools = List[Dict[str, Any]]
+
 
 class LLMAPI(abc.ABC):
     """
@@ -89,9 +90,7 @@ class LLMAPI(abc.ABC):
 
     @abc.abstractmethod
     def manage_conversation_history(
-        self,
-        messages: ProviderHistory,
-        max_tokens: int = None
+        self, messages: ProviderHistory, max_tokens: int = None
     ) -> bool:
         """
         Ensure conversation history is within token limits by intelligently pruning when needed.
@@ -132,8 +131,11 @@ class LLMAPI(abc.ABC):
         """
         pass
 
-    def append_to_history(self, provider_history: ProviderHistory,
-                                turn: List[ChunkWrapper | ContentPartToolResult]):
+    def append_to_history(
+        self,
+        provider_history: ProviderHistory,
+        turn: List[ChunkWrapper | ContentPartToolResult],
+    ):
         """
         Add turn items into provider's conversation history.
 

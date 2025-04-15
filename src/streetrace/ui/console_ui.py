@@ -1,7 +1,9 @@
 # app/console_ui.py
 import os
 import sys
-from streetrace.ui.colors import AnsiColors # Assuming colors.py is accessible
+
+from streetrace.ui.colors import AnsiColors  # Assuming colors.py is accessible
+
 
 class ConsoleUI:
     """
@@ -9,6 +11,7 @@ class ConsoleUI:
 
     Encapsulates print statements and ANSI color codes for consistent UI.
     """
+
     def __init__(self, debug_enabled: bool = False):
         """
         Initializes the ConsoleUI.
@@ -18,11 +21,11 @@ class ConsoleUI:
         """
         self.debug_enabled = debug_enabled
 
-    def _splitter(self, splitter_char: str = '━') -> str:
+    def _splitter(self, splitter_char: str = "━") -> str:
         """
         Returns a string used to separate different sections of output.
         """
-        return splitter_char*os.get_terminal_size().columns
+        return splitter_char * os.get_terminal_size().columns
 
     def _title(self, title: str) -> str:
         """
@@ -59,7 +62,9 @@ class ConsoleUI:
             message: The message string to display.
             color: The AnsiColors code to use for the message. Defaults to INFO.
         """
-        print(f"{color}{self._splitter()}\n{self._title("System instructions")}\n{message}\n{AnsiColors.RESET}")
+        print(
+            f"{color}{self._splitter()}\n{self._title("System instructions")}\n{message}\n{AnsiColors.RESET}"
+        )
 
     def display_context_message(self, message: str, color: str = AnsiColors.INFO):
         """
@@ -69,9 +74,13 @@ class ConsoleUI:
             message: The message string to display.
             color: The AnsiColors code to use for the message. Defaults to INFO.
         """
-        print(f"{color}{self._splitter()}\n{self._title("Context")}\n{message}\n{AnsiColors.RESET}")
+        print(
+            f"{color}{self._splitter()}\n{self._title("Context")}\n{message}\n{AnsiColors.RESET}"
+        )
 
-    def display_history_assistant_message(self, message: str, color: str = AnsiColors.INFO):
+    def display_history_assistant_message(
+        self, message: str, color: str = AnsiColors.INFO
+    ):
         """
         Displays an informational message to the console.
 
@@ -79,7 +88,9 @@ class ConsoleUI:
             message: The message string to display.
             color: The AnsiColors code to use for the message. Defaults to INFO.
         """
-        print(f"{color}{self._splitter()}\n{self._title("Assistant:")}\n{message}\n{AnsiColors.RESET}")
+        print(
+            f"{color}{self._splitter()}\n{self._title("Assistant:")}\n{message}\n{AnsiColors.RESET}"
+        )
 
     def display_history_user_message(self, message: str, color: str = AnsiColors.INFO):
         """
@@ -89,7 +100,9 @@ class ConsoleUI:
             message: The message string to display.
             color: The AnsiColors code to use for the message. Defaults to INFO.
         """
-        print(f"{color}{self._splitter()}\n{self._title("User:")}\n{message}\n{AnsiColors.RESET}")
+        print(
+            f"{color}{self._splitter()}\n{self._title("User:")}\n{message}\n{AnsiColors.RESET}"
+        )
 
     def display_message(self, message: str, color: str = AnsiColors.INFO):
         """
@@ -113,13 +126,17 @@ class ConsoleUI:
     def display_error(self, message: str):
         """Displays an error message."""
         # Add an [Error] prefix for clarity
-        self.display_message(f"[Error] {message}", AnsiColors.TOOLERROR) # Using TOOLERROR color for errors
+        self.display_message(
+            f"[Error] {message}", AnsiColors.TOOLERROR
+        )  # Using TOOLERROR color for errors
 
     def display_debug(self, message: str):
         """Displays a debug message only if debug mode is enabled."""
         if self.debug_enabled:
             # Add a [Debug] prefix for clarity
-            self.display_message(f"[Debug] {message}", AnsiColors.DEBUG) # Assuming DEBUG color exists
+            self.display_message(
+                f"[Debug] {message}", AnsiColors.DEBUG
+            )  # Assuming DEBUG color exists
 
     def display_ai_response_chunk(self, chunk: str):
         """
@@ -138,7 +155,7 @@ class ConsoleUI:
         """Displays the result of a tool execution."""
         # Shorten long results for display
         if len(result_display) > 500:
-             result_display = result_display[:497] + "..."
+            result_display = result_display[:497] + "..."
         self.display_message(f"Result: {result_display}", AnsiColors.TOOL)
 
     def display_user_prompt(self, prompt: str):

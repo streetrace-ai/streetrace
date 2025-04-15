@@ -1,13 +1,15 @@
 # app/interaction_manager.py
 import logging
-from typing import Any, Dict, List, Callable, Optional
+from typing import Any, Callable, Dict, List, Optional
+
+from streetrace.llm.generate import generate_with_tools
 
 # Assuming these are accessible
 from streetrace.llm.wrapper import History
-from streetrace.llm.generate import generate_with_tools
 from streetrace.ui.console_ui import ConsoleUI
 
 logger = logging.getLogger(__name__)
+
 
 class InteractionManager:
     """
@@ -17,12 +19,14 @@ class InteractionManager:
     for the AI generation process.
     """
 
-    def __init__(self,
-                 provider: Any,
-                 model_name: Optional[str],
-                 tools: List[Dict[str, Any]],
-                 tool_callback: Callable,
-                 ui: ConsoleUI):
+    def __init__(
+        self,
+        provider: Any,
+        model_name: Optional[str],
+        tools: List[Dict[str, Any]],
+        tool_callback: Callable,
+        ui: ConsoleUI,
+    ):
         """
         Initializes the InteractionManager.
 
@@ -39,7 +43,9 @@ class InteractionManager:
         self.tools = tools
         self.tool_callback = tool_callback
         self.ui = ui
-        logger.info(f"InteractionManager initialized for provider: {type(provider).__name__}")
+        logger.info(
+            f"InteractionManager initialized for provider: {type(provider).__name__}"
+        )
 
     def process_prompt(self, history: History):
         """
@@ -70,7 +76,9 @@ class InteractionManager:
             error_message = f"An error occurred during AI generation: {gen_err}"
             self.ui.display_error(error_message)
             # Log the full exception traceback
-            logger.exception("An error occurred during AI generation call.", exc_info=gen_err)
+            logger.exception(
+                "An error occurred during AI generation call.", exc_info=gen_err
+            )
             # Depending on desired behavior, we might want to re-raise,
             # return an error status, or just let the main loop continue.
             # For interactive mode, allowing continuation seems reasonable.

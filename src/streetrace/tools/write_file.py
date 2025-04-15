@@ -1,9 +1,14 @@
 import codecs
 import difflib
 import os
-from streetrace.tools.path_utils import normalize_and_validate_path, ensure_directory_exists
 
-def write_file(file_path, content, work_dir, encoding='utf-8', binary_mode=False):
+from streetrace.tools.path_utils import (
+    ensure_directory_exists,
+    normalize_and_validate_path,
+)
+
+
+def write_file(file_path, content, work_dir, encoding="utf-8", binary_mode=False):
     """
     Securely write content to a file, ensuring the path is within the allowed root path.
 
@@ -41,19 +46,24 @@ def write_file(file_path, content, work_dir, encoding='utf-8', binary_mode=False
     # Write the content to the file
     try:
         if binary_mode:
-            with open(abs_file_path, 'wb') as f:
+            with open(abs_file_path, "wb") as f:
                 f.write(content)
         else:
             written = content.splitlines(keepends=True)
             original = None
             if os.path.exists(abs_file_path):
-                with codecs.open(abs_file_path, 'r', encoding=encoding) as f:
+                with codecs.open(abs_file_path, "r", encoding=encoding) as f:
                     original = f.read()
-            with codecs.open(abs_file_path, 'w', encoding=encoding) as f:
+            with codecs.open(abs_file_path, "w", encoding=encoding) as f:
                 f.write(content)
             if original:
-                diff = difflib.unified_diff(original.splitlines(keepends=True), written, fromfile=file_path, tofile=file_path)
-                diff = ''.join(diff)
+                diff = difflib.unified_diff(
+                    original.splitlines(keepends=True),
+                    written,
+                    fromfile=file_path,
+                    tofile=file_path,
+                )
+                diff = "".join(diff)
             else:
                 diff = f"File created: {file_path} ({len(written)} lines)"
         return file_path, diff

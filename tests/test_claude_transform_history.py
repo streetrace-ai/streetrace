@@ -4,47 +4,36 @@ Unit tests for Claude's history transformation functions.
 
 import json
 import unittest
+
 import anthropic
-from streetrace.llm.claude.impl import Claude
+
 from streetrace.llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
-from streetrace.llm.wrapper import History, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
+from streetrace.llm.claude.impl import Claude
+from streetrace.llm.wrapper import (
+    ContentPartText,
+    ContentPartToolCall,
+    ContentPartToolResult,
+    History,
+    Role,
+)
 
 _CLAUDE_HISTORY = [
     {
         "role": "user",
-        "content": [
-            {
-                "type": "text",
-                "text": "This is some context information."
-            }
-        ]
+        "content": [{"type": "text", "text": "This is some context information."}],
     },
-    {
-        "role": "user",
-        "content": [
-            {
-                "type": "text",
-                "text": "Hello, how are you?"
-            }
-        ]
-    },
+    {"role": "user", "content": [{"type": "text", "text": "Hello, how are you?"}]},
     {
         "role": "assistant",
         "content": [
-            {
-                "type": "text",
-                "text": "I'm doing well, thank you for asking!"
-            },
+            {"type": "text", "text": "I'm doing well, thank you for asking!"},
             {
                 "type": "tool_use",
                 "id": "tool-call-1",
                 "name": "search_files",
-                "input": {
-                    "pattern": "*.py",
-                    "search_string": "def transform_history"
-                }
-            }
-        ]
+                "input": {"pattern": "*.py", "search_string": "def transform_history"},
+            },
+        ],
     },
     {
         "role": "user",
@@ -52,11 +41,12 @@ _CLAUDE_HISTORY = [
             {
                 "type": "tool_result",
                 "tool_use_id": "tool-call-1",
-                "content": "{\"result\": [\"file.py:10:def transform_history\"]}"
+                "content": '{"result": ["file.py:10:def transform_history"]}',
             }
-        ]
-    }
+        ],
+    },
 ]
+
 
 class TestClaudeHistory(unittest.TestCase):
     """Test cases for Claude's history transformation functions."""
@@ -69,29 +59,39 @@ class TestClaudeHistory(unittest.TestCase):
         # Create a sample history object
         self.history = History(
             system_message="You are a helpful assistant.",
-            context="This is some context information."
+            context="This is some context information.",
         )
 
         # Add some messages to the history
-        self.history.add_message(Role.USER, [ContentPartText(text = "Hello, how are you?")])
-        self.history.add_message(Role.MODEL, [
-            ContentPartText(text = "I'm doing well, thank you for asking!"),
-            ContentPartToolCall(
-                id="tool-call-1",
-                name="search_files",
-                arguments={"pattern": "*.py", "search_string": "def transform_history"}
-            )
-        ])
+        self.history.add_message(
+            Role.USER, [ContentPartText(text="Hello, how are you?")]
+        )
+        self.history.add_message(
+            Role.MODEL,
+            [
+                ContentPartText(text="I'm doing well, thank you for asking!"),
+                ContentPartToolCall(
+                    id="tool-call-1",
+                    name="search_files",
+                    arguments={
+                        "pattern": "*.py",
+                        "search_string": "def transform_history",
+                    },
+                ),
+            ],
+        )
 
         # Add a message with a tool result
-        self.history.add_message(Role.USER, [
-            ContentPartToolResult(
-                id="tool-call-1",
-                name="search_files",
-                content={"result": ["file.py:10:def transform_history"]}
-            )
-        ])
-
+        self.history.add_message(
+            Role.USER,
+            [
+                ContentPartToolResult(
+                    id="tool-call-1",
+                    name="search_files",
+                    content={"result": ["file.py:10:def transform_history"]},
+                )
+            ],
+        )
 
     def test_transform_history(self):
         """Test transforming history from common format to Claude format."""
@@ -125,66 +125,53 @@ class TestClaudeHistory(unittest.TestCase):
     def test_from_content_part(self):
         """Test converting ContentParts to Claude format."""
         # Test text part
-        text_part = ContentPartText(text = "Test text")
+        text_part = ContentPartText(text="Test text")
         claude_text = self.converter._from_content_part(text_part)
-        self.assertEqual(claude_text.get('type'), 'text')
-        self.assertEqual(claude_text.get('text'), "Test text")
+        self.assertEqual(claude_text.get("type"), "text")
+        self.assertEqual(claude_text.get("text"), "Test text")
 
         # Test tool call part
         tool_call = ContentPartToolCall(
-            id="test-id",
-            name="test_tool",
-            arguments={"arg1": "value1"}
+            id="test-id", name="test_tool", arguments={"arg1": "value1"}
         )
         claude_tool_call = self.converter._from_content_part(tool_call)
-        self.assertEqual(claude_tool_call['type'], 'tool_use')
-        self.assertEqual(claude_tool_call['name'], "test_tool")
-        self.assertEqual(claude_tool_call['input'], {"arg1": "value1"})
+        self.assertEqual(claude_tool_call["type"], "tool_use")
+        self.assertEqual(claude_tool_call["name"], "test_tool")
+        self.assertEqual(claude_tool_call["input"], {"arg1": "value1"})
 
         # Test tool result part
         tool_result = ContentPartToolResult(
-            id="test-id",
-            name="test_tool",
-            content={"result": "success"}
+            id="test-id", name="test_tool", content={"result": "success"}
         )
         claude_tool_result = self.converter._from_content_part(tool_result)
-        self.assertEqual(claude_tool_result['type'], 'tool_result')
-        self.assertEqual(claude_tool_result['tool_use_id'], "test-id")
-        self.assertEqual(claude_tool_result['content'], "{\"result\": \"success\"}")
+        self.assertEqual(claude_tool_result["type"], "tool_result")
+        self.assertEqual(claude_tool_result["tool_use_id"], "test-id")
+        self.assertEqual(claude_tool_result["content"], '{"result": "success"}')
 
     def test_transform_history_no_context(self):
         """Test transforming history without context."""
         # Create a history without context
-        history = History(
-            system_message="You are a helpful assistant.",
-            context=""
-        )
-        history.add_message(Role.USER, [ContentPartText(text = "Hello")])
+        history = History(system_message="You are a helpful assistant.", context="")
+        history.add_message(Role.USER, [ContentPartText(text="Hello")])
 
         provider_history = self.claude.transform_history(history)
 
         # Check that there's no context message
         self.assertEqual(len(provider_history), 1)
-        self.assertEqual(provider_history[0]['role'], 'user')
-        self.assertEqual(provider_history[0]['content'][0]['text'], "Hello")
+        self.assertEqual(provider_history[0]["role"], "user")
+        self.assertEqual(provider_history[0]["content"][0]["text"], "Hello")
 
     def test_content_block_chunk_wrapper(self):
         """Test the ContentBlockChunkWrapper implementation."""
         # Test text block
-        text_block = anthropic.types.TextBlock(
-            type="text",
-            text="Hello world"
-        )
+        text_block = anthropic.types.TextBlock(type="text", text="Hello world")
         wrapper = ContentBlockChunkWrapper(text_block)
         self.assertEqual(wrapper.get_text(), "Hello world")
         self.assertEqual(wrapper.get_tool_calls(), [])
 
         # Test tool use block
         tool_use_block = anthropic.types.ToolUseBlock(
-            type="tool_use",
-            id="tool-1",
-            name="search_files",
-            input={"pattern": "*.py"}
+            type="tool_use", id="tool-1", name="search_files", input={"pattern": "*.py"}
         )
         wrapper = ContentBlockChunkWrapper(tool_use_block)
         self.assertEqual(wrapper.get_text(), "")
@@ -198,52 +185,49 @@ class TestClaudeHistory(unittest.TestCase):
         """Test converting content blocks to a provider-specific message."""
         # Create test chunks
         text_chunk = ContentBlockChunkWrapper(
-            anthropic.types.TextBlock(
-                type="text",
-                text="Hello world"
-            )
+            anthropic.types.TextBlock(type="text", text="Hello world")
         )
         tool_chunk = ContentBlockChunkWrapper(
             anthropic.types.ToolUseBlock(
                 type="tool_use",
                 id="tool-1",
                 name="search_files",
-                input={"pattern": "*.py"}
+                input={"pattern": "*.py"},
             )
         )
 
         # Test with multiple chunks
         message = self.converter.to_history_item([text_chunk, tool_chunk])
-        self.assertEqual(message['role'], 'assistant')
-        self.assertEqual(len(message['content']), 2)
-        self.assertEqual(message['content'][0]['type'], 'text')
-        self.assertEqual(message['content'][0]['text'], 'Hello world')
-        self.assertEqual(message['content'][1]['type'], 'tool_use')
-        self.assertEqual(message['content'][1]['id'], 'tool-1')
-        self.assertEqual(message['content'][1]['name'], 'search_files')
-        self.assertEqual(message['content'][1]['input'], {'pattern': '*.py'})
+        self.assertEqual(message["role"], "assistant")
+        self.assertEqual(len(message["content"]), 2)
+        self.assertEqual(message["content"][0]["type"], "text")
+        self.assertEqual(message["content"][0]["text"], "Hello world")
+        self.assertEqual(message["content"][1]["type"], "tool_use")
+        self.assertEqual(message["content"][1]["id"], "tool-1")
+        self.assertEqual(message["content"][1]["name"], "search_files")
+        self.assertEqual(message["content"][1]["input"], {"pattern": "*.py"})
 
     def test_to_history_item_tool_results(self):
         """Test converting tool results to a provider-specific message."""
         # Create a tool result
         tool_result = ContentPartToolResult(
-            id="tool-1",
-            name="search_files",
-            content={ "result": "file.py" }
+            id="tool-1", name="search_files", content={"result": "file.py"}
         )
 
         # Test with a tool result
         message = self.converter.to_history_item([tool_result])
-        self.assertEqual(message['role'], 'user')
-        self.assertEqual(len(message['content']), 1)
-        self.assertEqual(message['content'][0]['type'], 'tool_result')
-        self.assertEqual(message['content'][0]['tool_use_id'], 'tool-1')
-        self.assertEqual(json.loads(message['content'][0]['content']), { "result": "file.py" })
+        self.assertEqual(message["role"], "user")
+        self.assertEqual(len(message["content"]), 1)
+        self.assertEqual(message["content"][0]["type"], "tool_result")
+        self.assertEqual(message["content"][0]["tool_use_id"], "tool-1")
+        self.assertEqual(
+            json.loads(message["content"][0]["content"]), {"result": "file.py"}
+        )
 
         # Test with empty list
         message = self.converter.to_history_item([])
         self.assertIsNone(message)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

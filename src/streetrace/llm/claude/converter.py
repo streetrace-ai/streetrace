@@ -9,9 +9,17 @@ import json
 from typing import Dict, List, Optional
 
 import anthropic
-from streetrace.llm.wrapper import (ContentPart, ContentPartText, ContentPartToolCall,
-                         ContentPartToolResult, History, Message, Role)
+
 from streetrace.llm.history_converter import ChunkWrapper, HistoryConverter
+from streetrace.llm.wrapper import (
+    ContentPart,
+    ContentPartText,
+    ContentPartToolCall,
+    ContentPartToolResult,
+    History,
+    Message,
+    Role,
+)
 
 _ROLES = {
     Role.SYSTEM: "system",
@@ -38,19 +46,24 @@ class ContentBlockChunkWrapper(ChunkWrapper[anthropic.types.ContentBlock]):
 
     def get_text(self) -> str:
         """Get text content from the chunk if it's a TextBlock."""
-        return self.raw.text if type(
-            self.raw) is anthropic.types.TextBlock else ""
+        return self.raw.text if type(self.raw) is anthropic.types.TextBlock else ""
 
     def get_tool_calls(self) -> List[ContentPartToolCall]:
         """Get tool calls from the chunk if it's a ToolUseBlock."""
-        return [
-            ContentPartToolCall(
-                id=self.raw.id, name=self.raw.name, arguments=self.raw.input)
-        ] if type(self.raw) is anthropic.types.ToolUseBlock else []
+        return (
+            [
+                ContentPartToolCall(
+                    id=self.raw.id, name=self.raw.name, arguments=self.raw.input
+                )
+            ]
+            if type(self.raw) is anthropic.types.ToolUseBlock
+            else []
+        )
 
 
-class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam,
-                                       anthropic.types.ContentBlock]):
+class ClaudeConverter(
+    HistoryConverter[anthropic.types.MessageParam, anthropic.types.ContentBlock]
+):
     """
     Handles conversion between common message format and Claude-specific formats.
 
@@ -59,7 +72,8 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam,
     """
 
     def _from_content_part(
-            self, part: ContentPart) -> anthropic.types.ContentBlockParam:
+        self, part: ContentPart
+    ) -> anthropic.types.ContentBlockParam:
         """
         Convert a common format ContentPart to a Claude-specific content block.
 
@@ -74,24 +88,25 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam,
         """
         match part:
             case ContentPartText():
-                return anthropic.types.TextBlockParam(type="text",
-                                                      text=part.text)
+                return anthropic.types.TextBlockParam(type="text", text=part.text)
             case ContentPartToolCall():
-                return anthropic.types.ToolUseBlockParam(type="tool_use",
-                                                         id=part.id,
-                                                         name=part.name,
-                                                         input=part.arguments)
+                return anthropic.types.ToolUseBlockParam(
+                    type="tool_use", id=part.id, name=part.name, input=part.arguments
+                )
             case ContentPartToolResult():
                 return anthropic.types.ToolResultBlockParam(
                     type="tool_result",
                     tool_use_id=part.id,
-                    content=json.dumps(part.content))
+                    content=json.dumps(part.content),
+                )
             case _:
                 raise ValueError(
-                    f"Unknown content type encountered {type(part)}: {part}")
+                    f"Unknown content type encountered {type(part)}: {part}"
+                )
 
-    def _to_content_part(self, part: anthropic.types.ContentBlockParam,
-                         tool_use_names: Dict[str, str]) -> ContentPart:
+    def _to_content_part(
+        self, part: anthropic.types.ContentBlockParam, tool_use_names: Dict[str, str]
+    ) -> ContentPart:
         """
         Convert a Claude-specific content part to common format ContentPart.
 
@@ -105,23 +120,23 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam,
         Raises:
             ValueError: If the content type is not recognized
         """
-        match part['type']:
-            case 'text':
-                return ContentPartText(text=part['text'])
-            case 'tool_use':
-                return ContentPartToolCall(id=part['id'],
-                                           name=part['name'],
-                                           arguments=part['input'])
-            case 'tool_result':
+        match part["type"]:
+            case "text":
+                return ContentPartText(text=part["text"])
+            case "tool_use":
+                return ContentPartToolCall(
+                    id=part["id"], name=part["name"], arguments=part["input"]
+                )
+            case "tool_result":
                 return ContentPartToolResult(
-                    id=part['tool_use_id'],
-                    name=tool_use_names.get(part['tool_use_id'], 'unknown'),
-                    content=json.loads(part['content']))
+                    id=part["tool_use_id"],
+                    name=tool_use_names.get(part["tool_use_id"], "unknown"),
+                    content=json.loads(part["content"]),
+                )
             case _:
                 raise ValueError(f"Unknown content type encountered: {part}")
 
-    def from_history(self,
-                     history: History) -> List[anthropic.types.MessageParam]:
+    def from_history(self, history: History) -> List[anthropic.types.MessageParam]:
         """
         Convert common History format to Claude-specific message format.
 
@@ -137,25 +152,28 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam,
         if history.context:
             provider_history.append(
                 anthropic.types.MessageParam(
-                    role='user',
+                    role="user",
                     content=[
-                        anthropic.types.TextBlockParam(type="text",
-                                                       text=history.context)
-                    ]))
+                        anthropic.types.TextBlockParam(
+                            type="text", text=history.context
+                        )
+                    ],
+                )
+            )
 
         # Convert each message in the conversation
         for message in history.conversation:
             provider_history.append(
-                anthropic.types.MessageParam(role=_ROLES[message.role],
-                                             content=[
-                                                 self._from_content_part(part)
-                                                 for part in message.content
-                                             ]))
+                anthropic.types.MessageParam(
+                    role=_ROLES[message.role],
+                    content=[self._from_content_part(part) for part in message.content],
+                )
+            )
 
         return provider_history
 
     def to_history(
-            self, provider_history: List[anthropic.types.MessageParam]
+        self, provider_history: List[anthropic.types.MessageParam]
     ) -> List[Message]:
         """
         Convert Claude-specific history to common format messages.
@@ -173,25 +191,25 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam,
         start_index = 0
 
         # If we have a context message and should skip it
-        if provider_history[0].get('role') == 'user':
+        if provider_history[0].get("role") == "user":
             start_index = 1
 
         # Build a mapping of tool_use_ids to tool names
         tool_use_names = {}
         for message in provider_history:
-            for content in message.get('content', []):
-                if content.get('type') == 'tool_use':
-                    tool_use_names[content.get('id')] = content.get('name')
+            for content in message.get("content", []):
+                if content.get("type") == "tool_use":
+                    tool_use_names[content.get("id")] = content.get("name")
 
         # Convert each message
         for message in provider_history[start_index:]:
             common_content = [
                 self._to_content_part(part, tool_use_names)
-                for part in message.get('content', [])
+                for part in message.get("content", [])
             ]
             common_messages.append(
-                Message(role=_CLAUDE_ROLES[message.get('role')],
-                        content=common_content))
+                Message(role=_CLAUDE_ROLES[message.get("role")], content=common_content)
+            )
 
         return common_messages
 
@@ -225,8 +243,8 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam,
         for chunk in messages:
             if chunk.get_text():
                 content_blocks.append(
-                    anthropic.types.TextBlockParam(type="text",
-                                                   text=chunk.get_text()))
+                    anthropic.types.TextBlockParam(type="text", text=chunk.get_text())
+                )
 
             for tool_call in chunk.get_tool_calls():
                 content_blocks.append(
@@ -234,10 +252,11 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam,
                         type="tool_use",
                         id=tool_call.id,
                         name=tool_call.name,
-                        input=tool_call.arguments))
+                        input=tool_call.arguments,
+                    )
+                )
 
-        return anthropic.types.MessageParam(role='assistant',
-                                            content=content_blocks)
+        return anthropic.types.MessageParam(role="assistant", content=content_blocks)
 
     def _tool_results_to_message(
         self, messages: List[ContentPartToolResult]
@@ -255,13 +274,16 @@ class ClaudeConverter(HistoryConverter[anthropic.types.MessageParam,
             return None
 
         return anthropic.types.MessageParam(
-            role='user',
+            role="user",
             content=[
                 anthropic.types.ToolResultBlockParam(
-                    type='tool_result',
+                    type="tool_result",
                     tool_use_id=result.id,
-                    content=json.dumps(result.content)) for result in messages
-            ])
+                    content=json.dumps(result.content),
+                )
+                for result in messages
+            ],
+        )
 
     def create_chunk_wrapper(
         self,

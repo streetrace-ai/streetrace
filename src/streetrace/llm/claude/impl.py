@@ -4,23 +4,25 @@ Claude AI Provider Implementation
 This module implements the LLMAPI interface for Anthropic's Claude models.
 """
 
-import os
 import logging
-import anthropic  # pip install anthropic
+import os
 import time
-from typing import Iterable, List, Dict, Any, Optional
+from typing import Any, Dict, Iterable, List, Optional
 
-from streetrace.ui.colors import AnsiColors
-from streetrace.llm.history_converter import ChunkWrapper
-from streetrace.llm.wrapper import ContentPartToolResult, History
-from streetrace.llm.llmapi import LLMAPI
+import anthropic  # pip install anthropic
+
 from streetrace.llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
+from streetrace.llm.history_converter import ChunkWrapper
+from streetrace.llm.llmapi import LLMAPI
+from streetrace.llm.wrapper import ContentPartToolResult, History
+from streetrace.ui.colors import AnsiColors
 
 ProviderHistory = List[anthropic.types.MessageParam]
 
 # Constants
 MAX_TOKENS = 200000  # Claude 3 Sonnet has a context window of approximately 200K tokens
 MODEL_NAME = "claude-3-7-sonnet-20250219"
+
 
 class Claude(LLMAPI):
     """
@@ -39,7 +41,7 @@ class Claude(LLMAPI):
         Raises:
             ValueError: If ANTHROPIC_API_KEY environment variable is not set
         """
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        api_key = os.environ.get("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
         return anthropic.Anthropic(api_key=api_key)
@@ -56,7 +58,9 @@ class Claude(LLMAPI):
         """
         return self._adapter.from_history(history)
 
-    def update_history(self, provider_history: ProviderHistory, history: History) -> None:
+    def update_history(
+        self, provider_history: ProviderHistory, history: History
+    ) -> None:
         """
         Updates the conversation history in common format based on Claude-specific history.
 
@@ -82,8 +86,9 @@ class Claude(LLMAPI):
                 "type": "custom",
                 "name": tool["function"]["name"],
                 "description": tool["function"]["description"],
-                "input_schema": tool["function"]["parameters"]
-            } for tool in tools
+                "input_schema": tool["function"]["parameters"],
+            }
+            for tool in tools
         ]
 
         return claude_tools
@@ -100,13 +105,15 @@ class Claude(LLMAPI):
         """
         parts = []
         for i, message in enumerate(messages):
-            content_str = str(message.get('content', 'NONE'))
-            role = message.get('role', 'unknown')
+            content_str = str(message.get("content", "NONE"))
+            role = message.get("role", "unknown")
             parts.append(f"Message {i + 1}:\n - {role}: {content_str}")
 
         return "\n".join(parts)
 
-    def manage_conversation_history(self, messages: ProviderHistory, max_tokens: int = MAX_TOKENS) -> bool:
+    def manage_conversation_history(
+        self, messages: ProviderHistory, max_tokens: int = MAX_TOKENS
+    ) -> bool:
         """
         Ensure conversation history is within token limits by intelligently pruning when needed.
 
@@ -126,7 +133,9 @@ class Claude(LLMAPI):
             if estimated_tokens <= max_tokens:
                 return True
 
-            logging.info(f"Estimated token count {estimated_tokens} exceeds limit {max_tokens}, pruning...")
+            logging.info(
+                f"Estimated token count {estimated_tokens} exceeds limit {max_tokens}, pruning..."
+            )
 
             # Keep first item (usually system message) and last N exchanges
             if len(messages) > 3:
@@ -136,12 +145,16 @@ class Claude(LLMAPI):
 
                 # Recheck token count
                 estimated_tokens = sum(len(str(msg)) for msg in messages) // 4
-                logging.info(f"After pruning: {estimated_tokens} tokens with {len(messages)} items")
+                logging.info(
+                    f"After pruning: {estimated_tokens} tokens with {len(messages)} items"
+                )
 
                 return estimated_tokens <= max_tokens
 
             # If conversation is small but still exceeding, we have a problem
-            logging.warning(f"Cannot reduce token count sufficiently: {estimated_tokens}")
+            logging.warning(
+                f"Cannot reduce token count sufficiently: {estimated_tokens}"
+            )
             return False
 
         except Exception as e:
@@ -181,11 +194,15 @@ class Claude(LLMAPI):
                     system=system_message,
                     messages=messages,
                     # stream=True,
-                    tools=tools)
+                    tools=tools,
+                )
 
                 logging.debug("Raw Claude response: %s", response)
 
-                return [ContentBlockChunkWrapper(content_block) for content_block in response.content]
+                return [
+                    ContentBlockChunkWrapper(content_block)
+                    for content_block in response.content
+                ]
 
             except anthropic.RateLimitError as e:
                 retry_count += 1
@@ -200,15 +217,19 @@ class Claude(LLMAPI):
 
             except Exception as e:
                 logging.exception(f"Error during API call: {e}")
-                print(AnsiColors.WARNING +
-                      f"\nError during API call: {e}" +
-                      AnsiColors.RESET)
+                print(
+                    AnsiColors.WARNING
+                    + f"\nError during API call: {e}"
+                    + AnsiColors.RESET
+                )
                 # For non-rate limit errors, don't retry
                 raise
 
-
-    def append_to_history(self, provider_history: ProviderHistory,
-                             turn: List[ChunkWrapper | ContentPartToolResult]):
+    def append_to_history(
+        self,
+        provider_history: ProviderHistory,
+        turn: List[ChunkWrapper | ContentPartToolResult],
+    ):
         """
         Add turn items into provider's conversation history.
 

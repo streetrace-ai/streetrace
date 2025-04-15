@@ -2,12 +2,20 @@
 Unit tests for the Claude data conversion module.
 """
 
-import unittest
 import json
+import unittest
+
 import anthropic
+
 from streetrace.llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
-from streetrace.llm.wrapper import (ContentPartText, ContentPartToolCall,
-                       ContentPartToolResult, History, Message, Role)
+from streetrace.llm.wrapper import (
+    ContentPartText,
+    ContentPartToolCall,
+    ContentPartToolResult,
+    History,
+    Message,
+    Role,
+)
 
 
 class TestClaudeConverter(unittest.TestCase):
@@ -16,7 +24,7 @@ class TestClaudeConverter(unittest.TestCase):
     def test_common_part_to_claude_text(self):
         """Test converting ContentPartText to Claude text block."""
         # Arrange
-        text_part = ContentPartText(text = "Hello, world!")
+        text_part = ContentPartText(text="Hello, world!")
 
         # Act
         result = ClaudeConverter.common_part_to_claude(text_part)
@@ -28,7 +36,9 @@ class TestClaudeConverter(unittest.TestCase):
     def test_common_part_to_claude_tool_call(self):
         """Test converting ContentPartToolCall to Claude tool use block."""
         # Arrange
-        tool_call = ContentPartToolCall(id="tool1", name="search_files", arguments={"pattern": "*.py"})
+        tool_call = ContentPartToolCall(
+            id="tool1", name="search_files", arguments={"pattern": "*.py"}
+        )
 
         # Act
         result = ClaudeConverter.common_part_to_claude(tool_call)
@@ -43,9 +53,7 @@ class TestClaudeConverter(unittest.TestCase):
         """Test converting ContentPartToolResult to Claude tool result block."""
         # Arrange
         tool_result = ContentPartToolResult(
-            id="tool1",
-            name="search_files",
-            content={"files": ["file1.py", "file2.py"]}
+            id="tool1", name="search_files", content={"files": ["file1.py", "file2.py"]}
         )
 
         # Act
@@ -54,7 +62,9 @@ class TestClaudeConverter(unittest.TestCase):
         # Assert
         self.assertEqual(result["type"], "tool_result")
         self.assertEqual(result["tool_use_id"], "tool1")
-        self.assertEqual(json.loads(result["content"]), {"files": ["file1.py", "file2.py"]})
+        self.assertEqual(
+            json.loads(result["content"]), {"files": ["file1.py", "file2.py"]}
+        )
 
     def test_claude_part_to_common_text(self):
         """Test converting Claude text block to ContentPartText."""
@@ -76,7 +86,7 @@ class TestClaudeConverter(unittest.TestCase):
             "type": "tool_use",
             "id": "tool1",
             "name": "search_files",
-            "input": {"pattern": "*.py"}
+            "input": {"pattern": "*.py"},
         }
         tool_use_names = {}
 
@@ -95,7 +105,7 @@ class TestClaudeConverter(unittest.TestCase):
         claude_part = {
             "type": "tool_result",
             "tool_use_id": "tool1",
-            "content": json.dumps({"files": ["file1.py", "file2.py"]})
+            "content": json.dumps({"files": ["file1.py", "file2.py"]}),
         }
         tool_use_names = {"tool1": "search_files"}
 
@@ -115,9 +125,9 @@ class TestClaudeConverter(unittest.TestCase):
             system_message="You are a helpful assistant.",
             context="This is some context.",
             conversation=[
-                Message(role = Role.USER, content = [ContentPartText(text = "Hello")]),
-                Message(role = Role.MODEL, content = [ContentPartText(text = "Hi there!")])
-            ]
+                Message(role=Role.USER, content=[ContentPartText(text="Hello")]),
+                Message(role=Role.MODEL, content=[ContentPartText(text="Hi there!")]),
+            ],
         )
 
         # Act
@@ -138,7 +148,7 @@ class TestClaudeConverter(unittest.TestCase):
         claude_history = [
             {"role": "user", "content": [{"type": "text", "text": "This is context."}]},
             {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
-            {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]}
+            {"role": "assistant", "content": [{"type": "text", "text": "Hi there!"}]},
         ]
 
         # Act
@@ -156,10 +166,7 @@ class TestClaudeConverter(unittest.TestCase):
         # Arrange
         # Mock ContentBlockChunkWrapper with text
         text_chunk = ContentBlockChunkWrapper(
-            anthropic.types.TextBlock(
-                type="text",
-                text="Hello, world!"
-            )
+            anthropic.types.TextBlock(type="text", text="Hello, world!")
         )
 
         # Mock ContentBlockChunkWrapper with tool call
@@ -168,7 +175,7 @@ class TestClaudeConverter(unittest.TestCase):
                 type="tool_use",
                 id="tool1",
                 name="search_files",
-                input={"pattern": "*.py"}
+                input={"pattern": "*.py"},
             )
         )
 

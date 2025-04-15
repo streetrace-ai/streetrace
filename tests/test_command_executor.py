@@ -1,7 +1,7 @@
 # tests/test_command_executor.py
-import unittest
 import logging
-from unittest.mock import Mock, patch # Use patch for logger checks if needed
+import unittest
+from unittest.mock import Mock, patch  # Use patch for logger checks if needed
 
 # Assume CommandExecutor is importable (adjust path if necessary)
 # If 'app' is not automatically in pythonpath, we might need to adjust sys.path
@@ -10,13 +10,15 @@ try:
     from app.command_executor import CommandExecutor
 except ImportError:
     # If running tests from root, might need to add 'app' to path
-    import sys
     import os
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+    import sys
+
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
     from app.command_executor import CommandExecutor
 
 # Disable logging during tests unless specifically testing logging output
 logging.disable(logging.CRITICAL)
+
 
 class TestCommandExecutor(unittest.TestCase):
 
@@ -51,7 +53,7 @@ class TestCommandExecutor(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.executor.register("", mock_action)
         with self.assertRaises(ValueError):
-            self.executor.register("   ", mock_action) # Just whitespace
+            self.executor.register("   ", mock_action)  # Just whitespace
 
     def test_register_command_non_callable_action_raises_error(self):
         """Test that registering a non-callable action raises TypeError."""
@@ -112,29 +114,29 @@ class TestCommandExecutor(unittest.TestCase):
         """Test execution when the command's action raises an exception."""
         mock_action = Mock(side_effect=RuntimeError("Action failed"))
         self.executor.register("errorCmd", mock_action)
-        
+
         # Use patch to check if logger.error was called
-        with patch('app.command_executor.logger') as mock_logger:
-             executed, should_continue = self.executor.execute("errorCmd")
-             
+        with patch("app.command_executor.logger") as mock_logger:
+            executed, should_continue = self.executor.execute("errorCmd")
+
         self.assertTrue(executed)
-        self.assertTrue(should_continue) # Should continue despite error
+        self.assertTrue(should_continue)  # Should continue despite error
         mock_action.assert_called_once()
-        mock_logger.error.assert_called_once() # Verify error was logged
+        mock_logger.error.assert_called_once()  # Verify error was logged
 
     def test_execute_command_action_returns_non_boolean(self):
         """Test execution when the action returns something other than a boolean."""
         mock_action = Mock(return_value="not a boolean")
         self.executor.register("badReturnCmd", mock_action)
 
-        with patch('app.command_executor.logger') as mock_logger:
+        with patch("app.command_executor.logger") as mock_logger:
             executed, should_continue = self.executor.execute("badReturnCmd")
 
         self.assertTrue(executed)
-        self.assertTrue(should_continue) # Should default to continue
+        self.assertTrue(should_continue)  # Should default to continue
         mock_action.assert_called_once()
-        mock_logger.error.assert_called_once() # Verify error was logged
+        mock_logger.error.assert_called_once()  # Verify error was logged
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

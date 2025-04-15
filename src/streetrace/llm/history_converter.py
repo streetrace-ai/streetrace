@@ -9,11 +9,17 @@ the common message format and provider-specific formats.
 import abc
 from typing import Generic, List, Optional, TypeVar
 
-from streetrace.llm.wrapper import (ContentPartToolCall, ContentPartToolResult, History, Message)
+from streetrace.llm.wrapper import (
+    ContentPartToolCall,
+    ContentPartToolResult,
+    History,
+    Message,
+)
 
 # Define generic type variables for provider-specific types
-T_MessageParam = TypeVar('T_MessageParam')
-T_Chunk = TypeVar('T_Chunk')
+T_MessageParam = TypeVar("T_MessageParam")
+T_Chunk = TypeVar("T_Chunk")
+
 
 class ChunkWrapper(Generic[T_Chunk], abc.ABC):
     raw: T_Chunk
@@ -28,6 +34,7 @@ class ChunkWrapper(Generic[T_Chunk], abc.ABC):
     @abc.abstractmethod
     def get_tool_calls(self) -> List[ContentPartToolCall]:
         pass
+
 
 class HistoryConverter(Generic[T_MessageParam, T_Chunk], abc.ABC):
     """
@@ -55,10 +62,7 @@ class HistoryConverter(Generic[T_MessageParam, T_Chunk], abc.ABC):
         pass
 
     @abc.abstractmethod
-    def to_history(
-        self,
-        provider_history: List[T_MessageParam]
-    ) -> List[Message]:
+    def to_history(self, provider_history: List[T_MessageParam]) -> List[Message]:
         """
         Convert provider-specific history to common format messages.
 

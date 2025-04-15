@@ -3,17 +3,18 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
-from streetrace.ui.console_ui import ConsoleUI
 from streetrace import messages
-
+from streetrace.ui.console_ui import ConsoleUI
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class PromptContext:
     """Holds the processed context components for the AI prompt."""
+
     raw_prompt: str
     working_dir: str
     system_message: str = ""
@@ -67,21 +68,23 @@ class PromptProcessor:
 
     def _read_system_message(self) -> str:
         """Reads the system message from the config directory."""
-        system_message_path = os.path.join(self.config_dir, 'system.md')
+        system_message_path = os.path.join(self.config_dir, "system.md")
         if os.path.exists(system_message_path):
             try:
-                with open(system_message_path, 'r', encoding='utf-8') as f:
+                with open(system_message_path, "r", encoding="utf-8") as f:
                     logger.debug(f"Reading system message from: {system_message_path}")
                     return f.read()
             except Exception as e:
-                log_msg = f"Error reading system message file '{system_message_path}': {e}"
+                log_msg = (
+                    f"Error reading system message file '{system_message_path}': {e}"
+                )
                 logger.error(log_msg)
-                self.ui.display_error(log_msg) # Use UI to display error
+                self.ui.display_error(log_msg)  # Use UI to display error
         else:
             logger.debug("System message file not found, using default.")
 
         # Default system message
-        return messages.SYSTEM # Use imported or fallback SYSTEM constant
+        return messages.SYSTEM  # Use imported or fallback SYSTEM constant
 
     def _read_project_context(self) -> str:
         """Reads and combines all context files from the config directory (excluding system.md)."""
@@ -92,13 +95,14 @@ class PromptProcessor:
 
         try:
             context_files = [
-                f for f in os.listdir(self.config_dir)
-                if os.path.isfile(os.path.join(self.config_dir, f)) and f != 'system.md'
+                f
+                for f in os.listdir(self.config_dir)
+                if os.path.isfile(os.path.join(self.config_dir, f)) and f != "system.md"
             ]
         except Exception as e:
             log_msg = f"Error listing context directory '{self.config_dir}': {e}"
             logger.error(log_msg)
-            self.ui.display_error(log_msg) # Use UI
+            self.ui.display_error(log_msg)  # Use UI
             return combined_context
 
         if not context_files:
@@ -107,36 +111,46 @@ class PromptProcessor:
 
         context_content_parts = []
         logger.info(f"Reading project context files: {', '.join(context_files)}")
-        if context_files: # Only display if files were actually found
-             self.ui.display_info(f"[Loading context from {len(context_files)} .streetrace/ file(s)]")
+        if context_files:  # Only display if files were actually found
+            self.ui.display_info(
+                f"[Loading context from {len(context_files)} .streetrace/ file(s)]"
+            )
 
         for file_name in context_files:
             file_path = os.path.join(self.config_dir, file_name)
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read()
-                    context_content_parts.append(f"--- Context from: {file_name} ---\n\n{content}\n\n--- End Context: {file_name} ---\n\n\n")
+                    context_content_parts.append(
+                        f"--- Context from: {file_name} ---\n\n{content}\n\n--- End Context: {file_name} ---\n\n\n"
+                    )
                     logger.debug(f"Read context from: {file_path}")
             except Exception as e:
                 log_msg = f"Error reading context file {file_path}: {e}"
                 logger.error(log_msg)
-                self.ui.display_error(log_msg) # Use UI
+                self.ui.display_error(log_msg)  # Use UI
 
         combined_context = "".join(context_content_parts)
-        logger.info(f"Successfully loaded project context from {len(context_content_parts)} file(s).")
+        logger.info(
+            f"Successfully loaded project context from {len(context_content_parts)} file(s)."
+        )
         return combined_context
 
-    def _parse_and_load_mentions(self, prompt: str, working_dir: str) -> List[Tuple[str, str]]:
+    def _parse_and_load_mentions(
+        self, prompt: str, working_dir: str
+    ) -> List[Tuple[str, str]]:
         """Parses @mentions from the prompt and loads file contents."""
         mention_pattern = r"@([^\s@]+)"
         raw_mentions = re.findall(mention_pattern, prompt)
 
         processed_mentions = set()
-        trailing_punctuation = '.,!?;:)]}"\''
+        trailing_punctuation = ".,!?;:)]}\"'"
 
         for raw_mention in raw_mentions:
             cleaned_mention = raw_mention
-            while len(cleaned_mention) > 1 and cleaned_mention[-1] in trailing_punctuation:
+            while (
+                len(cleaned_mention) > 1 and cleaned_mention[-1] in trailing_punctuation
+            ):
                 cleaned_mention = cleaned_mention[:-1]
             processed_mentions.add(cleaned_mention)
 
@@ -146,7 +160,9 @@ class PromptProcessor:
         if not mentions:
             return loaded_files
 
-        self.ui.display_info(f"[Detected mentions: {', '.join(['@'+m for m in mentions])}]")
+        self.ui.display_info(
+            f"[Detected mentions: {', '.join(['@'+m for m in mentions])}]"
+        )
         logging.info(f"Detected mentions after cleaning: {', '.join(mentions)}")
 
         absolute_working_dir = os.path.realpath(working_dir)
@@ -159,27 +175,35 @@ class PromptProcessor:
                 normalized_path = os.path.normpath(os.path.join(working_dir, mention))
                 absolute_mention_path = os.path.realpath(normalized_path)
 
-                common_path = os.path.commonpath([absolute_working_dir, absolute_mention_path])
+                common_path = os.path.commonpath(
+                    [absolute_working_dir, absolute_mention_path]
+                )
 
                 if common_path != absolute_working_dir:
                     log_msg = f"Mention '@{mention}' points outside the working directory '{working_dir}'. Skipping."
                     self.ui.display_warning(log_msg)
-                    logging.warning(f"Security Warning: Mention '@{mention}' resolved to '{absolute_mention_path}' which is outside the working directory '{absolute_working_dir}'. Skipping.")
+                    logging.warning(
+                        f"Security Warning: Mention '@{mention}' resolved to '{absolute_mention_path}' which is outside the working directory '{absolute_working_dir}'. Skipping."
+                    )
                     continue
 
                 if os.path.isfile(absolute_mention_path):
                     try:
-                        with open(absolute_mention_path, 'r', encoding='utf-8') as f:
+                        with open(absolute_mention_path, "r", encoding="utf-8") as f:
                             content = f.read()
                         loaded_files.append((potential_rel_path, content))
                         mentions_found += 1
                         mentions_loaded.append(mention)
                         # self.ui.display_info(f"[Loaded context from @{mention}]") # Maybe too verbose? Logged below.
-                        logging.info(f"Loaded context from mentioned file: {absolute_mention_path} (Mention: @{mention})")
+                        logging.info(
+                            f"Loaded context from mentioned file: {absolute_mention_path} (Mention: @{mention})"
+                        )
                     except Exception as e:
                         log_msg = f"Error reading mentioned file @{mention}: {e}"
                         self.ui.display_error(log_msg)
-                        logging.error(f"Error reading mentioned file '{absolute_mention_path}' (Mention: @{mention}): {e}")
+                        logging.error(
+                            f"Error reading mentioned file '{absolute_mention_path}' (Mention: @{mention}): {e}"
+                        )
                 else:
                     log_msg = f"Mentioned path @{mention} ('{absolute_mention_path}') not found or is not a file. Skipping."
                     self.ui.display_error(log_msg)
@@ -190,6 +214,8 @@ class PromptProcessor:
                 logging.error(log_msg)
 
         if mentions_found > 0:
-             self.ui.display_info(f"[Loaded content from {', '.join(['@'+m for m in mentions_loaded])}]")
+            self.ui.display_info(
+                f"[Loaded content from {', '.join(['@'+m for m in mentions_loaded])}]"
+            )
 
         return loaded_files

@@ -8,9 +8,16 @@ and Gemini-specific formats for API requests and responses.
 from typing import List, Optional, override
 
 from google.genai import types
-from streetrace.llm.wrapper import (ContentPart, ContentPartText, ContentPartToolCall,
-                       ContentPartToolResult, History, Message)
+
 from streetrace.llm.history_converter import ChunkWrapper, HistoryConverter
+from streetrace.llm.wrapper import (
+    ContentPart,
+    ContentPartText,
+    ContentPartToolCall,
+    ContentPartToolResult,
+    History,
+    Message,
+)
 
 
 class GenerateContentPartWrapper(ChunkWrapper[types.Part]):
@@ -19,6 +26,7 @@ class GenerateContentPartWrapper(ChunkWrapper[types.Part]):
 
     This allows for a consistent way to access content from Gemini's responses.
     """
+
     def __init__(self, chunk: types.Part):
         super().__init__(chunk)
 
@@ -30,12 +38,17 @@ class GenerateContentPartWrapper(ChunkWrapper[types.Part]):
     @override
     def get_tool_calls(self) -> List[ContentPartToolCall]:
         """Get tool calls from the chunk if it has function calls."""
-        return [
-            ContentPartToolCall(
-                id=self.raw.function_call.id,
-                name=self.raw.function_call.name,
-                arguments=self.raw.function_call.args)
-        ] if self.raw.function_call else []
+        return (
+            [
+                ContentPartToolCall(
+                    id=self.raw.function_call.id,
+                    name=self.raw.function_call.name,
+                    arguments=self.raw.function_call.args,
+                )
+            ]
+            if self.raw.function_call
+            else []
+        )
 
 
 class GeminiConverter(HistoryConverter[types.Content, types.Part]):
@@ -64,15 +77,16 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
                 return types.Part.from_text(text=part.text)
             case ContentPartToolCall():
                 return types.Part.from_function_call(
-                    name=part.name,
-                    args=part.arguments
+                    name=part.name, args=part.arguments
                 )
             case ContentPartToolResult():
                 return types.Part.from_function_response(
-                    name=part.name,
-                    response=part.content)
+                    name=part.name, response=part.content
+                )
             case _:
-                raise ValueError(f"Unknown content type encountered {type(part)}: {part}")
+                raise ValueError(
+                    f"Unknown content type encountered {type(part)}: {part}"
+                )
 
     def _to_content_part(self, part: types.Part) -> ContentPart:
         """
@@ -93,12 +107,14 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
             return ContentPartToolCall(
                 id=part.function_call.id,
                 name=part.function_call.name,
-                arguments=part.function_call.args)
+                arguments=part.function_call.args,
+            )
         elif part.function_response:
             return ContentPartToolResult(
                 id=part.function_response.id,
                 name=part.function_response.name,
-                content=part.function_response.response)
+                content=part.function_response.response,
+            )
         else:
             # Handle unknown content types
             raise ValueError(f"Unknown content type encountered: {part}")
@@ -117,24 +133,24 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
 
         # Add context as a user message if it exists
         if history.context:
-            provider_history.append(types.Content(
-                role='user',
-                parts=[types.Part.from_text(text=history.context)]
-            ))
+            provider_history.append(
+                types.Content(
+                    role="user", parts=[types.Part.from_text(text=history.context)]
+                )
+            )
 
         # Convert each message in the conversation
         for message in history.conversation:
-            provider_history.append(types.Content(
-                role=message.role,
-                parts=[self._from_content_part(part) for part in message.content]
-            ))
+            provider_history.append(
+                types.Content(
+                    role=message.role,
+                    parts=[self._from_content_part(part) for part in message.content],
+                )
+            )
 
         return provider_history
 
-    def to_history(
-        self,
-        provider_history: List[types.Content]
-    ) -> List[Message]:
+    def to_history(self, provider_history: List[types.Content]) -> List[Message]:
         """
         Convert Gemini-specific history to common format messages.
 
@@ -151,16 +167,13 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
         start_index = 0
 
         # If we have a context message and should skip it
-        if provider_history and provider_history[0].role == 'user':
+        if provider_history and provider_history[0].role == "user":
             start_index = 1
 
         # Convert each message
         for content in provider_history[start_index:]:
-            common_content = [
-                self._to_content_part(part)
-                for part in content.parts
-            ]
-            common_messages.append(Message(role = content.role, content = common_content))
+            common_content = [self._to_content_part(part) for part in content.parts]
+            common_messages.append(Message(role=content.role, content=common_content))
 
         return common_messages
 
@@ -186,8 +199,7 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
             return self._content_blocks_to_message(messages)
 
     def _content_blocks_to_message(
-        self,
-        messages: List[GenerateContentPartWrapper]
+        self, messages: List[GenerateContentPartWrapper]
     ) -> Optional[types.Content]:
         """
         Create a model message from content chunks.
@@ -205,18 +217,16 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
                 model_parts.append(types.Part.from_text(text=chunk.get_text()))
 
             for tool_call in chunk.get_tool_calls():
-                model_parts.append(types.Part.from_function_call(
-                    name=tool_call.name,
-                    args=tool_call.arguments))
+                model_parts.append(
+                    types.Part.from_function_call(
+                        name=tool_call.name, args=tool_call.arguments
+                    )
+                )
 
-        return types.Content(
-            role='model',
-            parts=model_parts
-        )
+        return types.Content(role="model", parts=model_parts)
 
     def _tool_results_to_message(
-        self,
-        messages: List[ContentPartToolResult]
+        self, messages: List[ContentPartToolResult]
     ) -> Optional[types.Content]:
         """
         Create a tool results message from tool results.
@@ -232,15 +242,13 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
 
         tool_parts = []
         for result in messages:
-            tool_parts.append(types.Part.from_function_response(
-                name=result.name,
-                response=result.content
-            ))
+            tool_parts.append(
+                types.Part.from_function_response(
+                    name=result.name, response=result.content
+                )
+            )
 
-        return types.Content(
-            role='tool',
-            parts=tool_parts
-        )
+        return types.Content(role="tool", parts=tool_parts)
 
     def create_chunk_wrapper(
         self,

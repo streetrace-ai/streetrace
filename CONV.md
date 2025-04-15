@@ -57,7 +57,7 @@ In @app/application.py there is conversation history object for both interactive
 
 ===
 
-This is a python project with a lot of python code. I want to make sure the code is perfect from the lint / style / code organization / documentation perspectives. Could you look around the files and folders and suggest a good project structure and a CI pipeline that guarantees high code quality and reports or auto-fixes all potential code style issues?
+This is a python project with a lot of python code. I want to make sure the code is perfect from the lint, style, and documentation perspectives. Could you look around the files and folders and suggest a good project structure and a CI pipeline that guarantees high code quality and reports or auto-fixes all potential code style issues?
 
 ===
 

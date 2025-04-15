@@ -1,15 +1,17 @@
+import streetrace.tools.cli as cli
 import streetrace.tools.read_directory_structure as rds
 import streetrace.tools.read_file as rf
-import streetrace.tools.write_file as wf
-import streetrace.tools.cli as cli
 import streetrace.tools.search as s
+import streetrace.tools.write_file as wf
+
 
 def _clean_input(input_str):
     """
     Clean the input by removing unwanted whitespace characters, but preserving quotes.
     """
     # Only strip whitespace, not quotes
-    return input_str.strip('\"\'\r\n\t ')
+    return input_str.strip("\"'\r\n\t ")
+
 
 def list_directory(path, work_dir):
     """Read directory structure while honoring .gitignore rules.
@@ -26,7 +28,8 @@ def list_directory(path, work_dir):
     """
     return rds.read_directory_structure(_clean_input(path), work_dir)
 
-def read_file(path, work_dir, encoding='utf-8'):
+
+def read_file(path, work_dir, encoding="utf-8"):
     """Read file contents.
 
     Args:
@@ -39,7 +42,8 @@ def read_file(path, work_dir, encoding='utf-8'):
     """
     return rf.read_file(_clean_input(path), work_dir, encoding)
 
-def write_file(path, content, work_dir, encoding='utf-8'):
+
+def write_file(path, content, work_dir, encoding="utf-8"):
     """Write content to a file.
 
     Args:
@@ -51,7 +55,10 @@ def write_file(path, content, work_dir, encoding='utf-8'):
     Returns:
         Result of the operation.
     """
-    return wf.write_file(_clean_input(path), content, work_dir, encoding, binary_mode=False)
+    return wf.write_file(
+        _clean_input(path), content, work_dir, encoding, binary_mode=False
+    )
+
 
 def execute_cli_command(command, work_dir):
     """Execute a CLI command interactively. Does not provide shell access.
@@ -64,6 +71,7 @@ def execute_cli_command(command, work_dir):
         The stdio output.
     """
     return cli.execute_cli_command(command, work_dir)
+
 
 def search_files(pattern, search_string, work_dir):
     """
@@ -80,8 +88,10 @@ def search_files(pattern, search_string, work_dir):
             Each dictionary contains the file path, line number, and a snippet
             of the line where the match was found.
     """
-    return s.search_files(_clean_input(pattern), _clean_input(search_string),
-                              work_dir=work_dir)
+    return s.search_files(
+        _clean_input(pattern), _clean_input(search_string), work_dir=work_dir
+    )
+
 
 # Define common tools list
 TOOLS = [
@@ -95,12 +105,12 @@ TOOLS = [
                 "properties": {
                     "pattern": {
                         "type": "string",
-                        "description": "Glob pattern to match files."
+                        "description": "Glob pattern to match files.",
                     },
                     "search_string": {
                         "type": "string",
-                        "description": "The string to search for."
-                    }
+                        "description": "The string to search for.",
+                    },
                 },
                 "required": ["pattern", "search_string"],
                 "additionalProperties": False,
@@ -118,10 +128,8 @@ TOOLS = [
                 "properties": {
                     "command": {
                         "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "The CLI command to execute."
+                        "items": {"type": "string"},
+                        "description": "The CLI command to execute.",
                     }
                 },
                 "required": ["command"],
@@ -140,16 +148,16 @@ TOOLS = [
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the file to write to."
+                        "description": "Path to the file to write to.",
                     },
                     "content": {
                         "type": "string",
-                        "description": "New content of the file."
+                        "description": "New content of the file.",
                     },
                     "encoding": {
                         "type": "string",
-                        "description": "Text encoding to use. Defaults to \"utf-8\"."
-                    }
+                        "description": 'Text encoding to use. Defaults to "utf-8".',
+                    },
                 },
                 "required": ["path", "content", "encoding"],
                 "additionalProperties": False,
@@ -167,12 +175,12 @@ TOOLS = [
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the file to retrieve the contents from."
+                        "description": "Path to the file to retrieve the contents from.",
                     },
                     "encoding": {
                         "type": "string",
-                        "description": "Text encoding to use. Defaults to \"utf-8\"."
-                    }
+                        "description": 'Text encoding to use. Defaults to "utf-8".',
+                    },
                 },
                 "required": ["path", "encoding"],
                 "additionalProperties": False,
@@ -190,7 +198,7 @@ TOOLS = [
                 "properties": {
                     "path": {
                         "type": "string",
-                        "description": "Path to the directory to retrieve the contents from."
+                        "description": "Path to the directory to retrieve the contents from.",
                     }
                 },
                 "required": ["path"],

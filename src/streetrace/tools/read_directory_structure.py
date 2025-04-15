@@ -1,7 +1,13 @@
-import os
-import pathspec
 import glob
-from streetrace.tools.path_utils import normalize_and_validate_path, validate_directory_exists
+import os
+
+import pathspec
+
+from streetrace.tools.path_utils import (
+    normalize_and_validate_path,
+    validate_directory_exists,
+)
+
 
 def load_gitignore_for_directory(path):
     gitignore_files = []
@@ -9,7 +15,7 @@ def load_gitignore_for_directory(path):
 
     # First, collect all gitignore paths from root to leaf
     while True:
-        gitignore_path = os.path.join(current_path, '.gitignore')
+        gitignore_path = os.path.join(current_path, ".gitignore")
         if os.path.exists(gitignore_path):
             gitignore_files.append(gitignore_path)
         parent_path = os.path.dirname(current_path)
@@ -23,22 +29,23 @@ def load_gitignore_for_directory(path):
     # Now read patterns from all files
     patterns = []
     for gitignore_path in gitignore_files:
-        with open(gitignore_path, 'r') as f:
+        with open(gitignore_path, "r") as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#'):
+                if line and not line.startswith("#"):
                     patterns.append(line)
 
     # Create a single PathSpec from all collected patterns
-    return pathspec.PathSpec.from_lines('gitwildmatch', patterns) if patterns else None
+    return pathspec.PathSpec.from_lines("gitwildmatch", patterns) if patterns else None
+
 
 # Check if file or directory is ignored with pre-loaded specs
 def is_ignored(path, base_path, spec):
     relative_path = os.path.relpath(path, base_path)
     # Consider it a directory if it ends with '/' or if it exists and is a directory
-    is_dir = path.endswith('/') or os.path.isdir(path)
-    if is_dir and not relative_path.endswith('/'):
-        relative_path += '/'
+    is_dir = path.endswith("/") or os.path.isdir(path)
+    if is_dir and not relative_path.endswith("/"):
+        relative_path += "/"
     return spec.match_file(relative_path) if spec else False
 
 
@@ -69,7 +76,7 @@ def read_directory_structure(path, work_dir):
     abs_work_dir = os.path.abspath(work_dir)
 
     # Use glob to get all items in the current directory
-    items = glob.glob(os.path.join(abs_path, '*'))
+    items = glob.glob(os.path.join(abs_path, "*"))
 
     dirs = []
     files = []
@@ -94,6 +101,6 @@ def read_directory_structure(path, work_dir):
     files.sort()
 
     return {
-        'dirs': dirs,
-        'files': files
+        "dirs": dirs,
+        "files": files,
     }, f"dirs: {', '.join(dirs)}\nfiles: {', '.join(files)}'"

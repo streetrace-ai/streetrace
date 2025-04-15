@@ -2,16 +2,16 @@
 Unit tests for AI provider interface and factory.
 """
 
-import unittest
 import os
+import unittest
 from unittest.mock import patch
 
-from llm.llmapi import LLMAPI
 from llm.claude import Claude
 from llm.gemini.impl import Gemini
-from llm.openai.impl import OpenAI
-from llm.ollama.impl import Ollama
+from llm.llmapi import LLMAPI
 from llm.llmapi_factory import get_ai_provider
+from llm.ollama.impl import Ollama
+from llm.openai.impl import OpenAI
 
 
 class TestAIProvider(unittest.TestCase):
@@ -83,5 +83,5 @@ class TestAIProvider(unittest.TestCase):
                 get_ai_provider("openai")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

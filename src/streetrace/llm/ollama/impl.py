@@ -4,24 +4,26 @@ Ollama Provider Implementation
 This module implements the LLMAPI interface for Ollama models.
 """
 
-import os
+
 import logging
-import time
-import json
-from typing import Iterable, List, Dict, Any, Optional
+import os
+
+from typing import Any, Dict, Iterable, List, Optional
 
 import ollama
-from streetrace.ui.colors import AnsiColors
-from streetrace.llm.llmapi import LLMAPI
+
 from streetrace.llm.history_converter import ChunkWrapper
-from streetrace.llm.wrapper import ContentPartToolResult, History
+from streetrace.llm.llmapi import LLMAPI
 from streetrace.llm.ollama.converter import OllamaConverter, OllamaResponseChunkWrapper
+from streetrace.llm.wrapper import ContentPartToolResult, History
+from streetrace.ui.colors import AnsiColors
 
 # Constants
 MAX_TOKENS = 32768  # Default context window for most Ollama models
 MODEL_NAME = "llama3.1:8b"  # Default model
 
 ProviderHistory = List[Dict[str, Any]]
+
 
 class Ollama(LLMAPI):
     """
@@ -37,7 +39,7 @@ class Ollama(LLMAPI):
         Returns:
             ollama.Client: The initialized Ollama client
         """
-        host = os.environ.get('OLLAMA_API_URL', 'http://localhost:11434')
+        host = os.environ.get("OLLAMA_API_URL", "http://localhost:11434")
         return ollama.Client(host=host)
 
     def transform_history(self, history: History) -> ProviderHistory:
@@ -52,7 +54,9 @@ class Ollama(LLMAPI):
         """
         return self._adapter.from_history(history)
 
-    def update_history(self, provider_history: ProviderHistory, history: History) -> None:
+    def update_history(
+        self, provider_history: ProviderHistory, history: History
+    ) -> None:
         """
         Updates the conversation history in common format based on Ollama-specific history.
 
@@ -88,16 +92,16 @@ class Ollama(LLMAPI):
         """
         parts = []
         for i, message in enumerate(messages):
-            content_str = str(message.get('content', message.get('function', {}).get('name', 'NONE')))
-            role = message.get('role', 'unknown')
+            content_str = str(
+                message.get("content", message.get("function", {}).get("name", "NONE"))
+            )
+            role = message.get("role", "unknown")
             parts.append(f"Message {i + 1}:\n - {role}: {content_str}")
 
         return "\n".join(parts)
 
     def manage_conversation_history(
-        self,
-        messages: ProviderHistory,
-        max_tokens: int = MAX_TOKENS
+        self, messages: ProviderHistory, max_tokens: int = MAX_TOKENS
     ) -> bool:
         """
         Ensure conversation history is within token limits by intelligently pruning when needed.
@@ -117,7 +121,9 @@ class Ollama(LLMAPI):
             if estimated_tokens <= max_tokens:
                 return True
 
-            logging.info(f"Estimated token count {estimated_tokens} exceeds limit {max_tokens}, pruning...")
+            logging.info(
+                f"Estimated token count {estimated_tokens} exceeds limit {max_tokens}, pruning..."
+            )
 
             # Keep first item (usually system message) and last N exchanges
             if len(messages) > 3:
@@ -127,12 +133,16 @@ class Ollama(LLMAPI):
 
                 # Recheck token count
                 estimated_tokens = sum(len(str(msg)) for msg in messages) // 4
-                logging.info(f"After pruning: {estimated_tokens} tokens with {len(messages)} items")
+                logging.info(
+                    f"After pruning: {estimated_tokens} tokens with {len(messages)} items"
+                )
 
                 return estimated_tokens <= max_tokens
 
             # If conversation is small but still exceeding, we have a problem
-            logging.warning(f"Cannot reduce token count sufficiently: {estimated_tokens}")
+            logging.warning(
+                f"Cannot reduce token count sufficiently: {estimated_tokens}"
+            )
             return False
 
         except Exception as e:
@@ -168,10 +178,7 @@ class Ollama(LLMAPI):
             try:
                 # Create the message with Ollama
                 response = client.chat(
-                    model=model_name,
-                    messages=messages,
-                    tools=tools,
-                    stream=True
+                    model=model_name, messages=messages, tools=tools, stream=True
                 )
 
                 # Process the streamed response
@@ -195,9 +202,11 @@ class Ollama(LLMAPI):
                 logging.warning(error_msg)
                 print(AnsiColors.WARNING + error_msg + AnsiColors.RESET)
 
-
-    def append_to_history(self, provider_history: ProviderHistory,
-                             turn: List[ChunkWrapper | ContentPartToolResult]):
+    def append_to_history(
+        self,
+        provider_history: ProviderHistory,
+        turn: List[ChunkWrapper | ContentPartToolResult],
+    ):
         """
         Add turn items into provider's conversation history.
 

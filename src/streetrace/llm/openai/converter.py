@@ -6,12 +6,20 @@ and OpenAI-specific formats for API requests and responses.
 """
 
 import json
-from typing import List, Literal, Optional, override
+from typing import List, Optional, override
 
 from openai.types import chat
-from streetrace.llm.wrapper import (ContentPart, ContentPartText, ContentPartToolCall,
-                       ContentPartToolResult, History, Message, Role)
+
 from streetrace.llm.history_converter import ChunkWrapper, HistoryConverter
+from streetrace.llm.wrapper import (
+    ContentPart,
+    ContentPartText,
+    ContentPartToolCall,
+    ContentPartToolResult,
+    History,
+    Message,
+    Role,
+)
 
 _ROLES = {
     Role.SYSTEM: "system",
@@ -20,12 +28,16 @@ _ROLES = {
     Role.TOOL: "tool",
 }
 
-class ChoiceDeltaWrapper(ChunkWrapper[chat.chat_completion_chunk.ChoiceDelta | chat.ChatCompletionMessage]):
+
+class ChoiceDeltaWrapper(
+    ChunkWrapper[chat.chat_completion_chunk.ChoiceDelta | chat.ChatCompletionMessage]
+):
     """
     Wrapper for OpenAI's ChoiceDelta that implements the ChunkWrapper interface.
 
     This allows for a consistent way to access content from OpenAI's streaming responses.
     """
+
     def __init__(self, chunk: chat.chat_completion_chunk.ChoiceDelta):
         super().__init__(chunk)
 
@@ -37,16 +49,29 @@ class ChoiceDeltaWrapper(ChunkWrapper[chat.chat_completion_chunk.ChoiceDelta | c
     @override
     def get_tool_calls(self) -> List[ContentPartToolCall]:
         """Get tool calls from the chunk if available."""
-        return [
-            ContentPartToolCall(
-                id=call.id,
-                name=call.function.name,
-                arguments=json.loads(call.function.arguments) if call.function.arguments else {}
-            ) for call in self.raw.tool_calls
-        ] if self.raw.tool_calls else []
+        return (
+            [
+                ContentPartToolCall(
+                    id=call.id,
+                    name=call.function.name,
+                    arguments=(
+                        json.loads(call.function.arguments)
+                        if call.function.arguments
+                        else {}
+                    ),
+                )
+                for call in self.raw.tool_calls
+            ]
+            if self.raw.tool_calls
+            else []
+        )
 
 
-class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.chat_completion_chunk.ChoiceDelta]):
+class OpenAIConverter(
+    HistoryConverter[
+        chat.ChatCompletionMessageParam, chat.chat_completion_chunk.ChoiceDelta
+    ]
+):
     """
     Handles conversion between common message format and OpenAI-specific formats.
 
@@ -54,7 +79,9 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
     and provide a clear data flow path.
     """
 
-    def _from_content_part(self, part: ContentPart) -> chat.ChatCompletionContentPartParam:
+    def _from_content_part(
+        self, part: ContentPart
+    ) -> chat.ChatCompletionContentPartParam:
         """
         Convert a common format ContentPart to an OpenAI-specific content part.
 
@@ -70,22 +97,22 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
         match part:
             case ContentPartText():
                 return chat.ChatCompletionContentPartTextParam(
-                    type="text",
-                    text=part.text
+                    type="text", text=part.text
                 )
             case ContentPartToolCall():
                 return chat.ChatCompletionMessageToolCallParam(
                     id=part.id,
                     function=chat.Function(
-                        name=part.name,
-                        arguments=json.dumps(part.arguments)
-                    )
+                        name=part.name, arguments=json.dumps(part.arguments)
+                    ),
                 )
             case ContentPartToolResult():
                 # OpenAI uses a different structure for tool results
                 return None
             case _:
-                raise ValueError(f"Unknown content type encountered {type(part)}: {part}")
+                raise ValueError(
+                    f"Unknown content type encountered {type(part)}: {part}"
+                )
 
     def from_history(self, history: History) -> List[chat.ChatCompletionMessageParam]:
         """
@@ -104,10 +131,11 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
             provider_history.append(
                 chat.ChatCompletionSystemMessageParam(
                     role=_ROLES[Role.SYSTEM],
-                    content=[chat.ChatCompletionContentPartTextParam(
-                        type="text",
-                        text=history.system_message
-                    )]
+                    content=[
+                        chat.ChatCompletionContentPartTextParam(
+                            type="text", text=history.system_message
+                        )
+                    ],
                 )
             )
 
@@ -116,10 +144,11 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
             provider_history.append(
                 chat.ChatCompletionUserMessageParam(
                     role=_ROLES[Role.USER],
-                    content=[chat.ChatCompletionContentPartTextParam(
-                        type="text",
-                        text=history.context
-                    )]
+                    content=[
+                        chat.ChatCompletionContentPartTextParam(
+                            type="text", text=history.context
+                        )
+                    ],
                 )
             )
 
@@ -132,38 +161,38 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
                             role=_ROLES[Role.USER],
                             content=[
                                 chat.ChatCompletionContentPartTextParam(
-                                    type="text",
-                                    text=msg.text
+                                    type="text", text=msg.text
                                 )
-                                for msg in message.content if isinstance(msg, ContentPartText)
-                            ]
+                                for msg in message.content
+                                if isinstance(msg, ContentPartText)
+                            ],
                         )
                     )
                 case Role.MODEL:
                     text_parts = [
                         chat.ChatCompletionContentPartTextParam(
-                            type="text",
-                            text=msg.text
+                            type="text", text=msg.text
                         )
-                        for msg in message.content if isinstance(msg, ContentPartText)
+                        for msg in message.content
+                        if isinstance(msg, ContentPartText)
                     ]
 
                     tool_calls = [
                         chat.ChatCompletionMessageToolCallParam(
                             id=msg.id,
                             function=chat.Function(
-                                name=msg.name,
-                                arguments=json.dumps(msg.arguments)
-                            )
+                                name=msg.name, arguments=json.dumps(msg.arguments)
+                            ),
                         )
-                        for msg in message.content if isinstance(msg, ContentPartToolCall)
+                        for msg in message.content
+                        if isinstance(msg, ContentPartToolCall)
                     ]
 
                     provider_history.append(
                         chat.ChatCompletionAssistantMessageParam(
                             role=_ROLES[Role.MODEL],
                             content=text_parts,
-                            tool_calls=tool_calls
+                            tool_calls=tool_calls,
                         )
                     )
                 case Role.TOOL:
@@ -174,7 +203,7 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
                                 chat.ChatCompletionToolMessageParam(
                                     role=_ROLES[Role.TOOL],
                                     tool_call_id=msg.id,
-                                    content=json.dumps(msg.content)
+                                    content=json.dumps(msg.content),
                                 )
                             )
                 case _:
@@ -183,8 +212,7 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
         return provider_history
 
     def to_history(
-        self,
-        provider_history: List[chat.ChatCompletionMessageParam]
+        self, provider_history: List[chat.ChatCompletionMessageParam]
     ) -> List[Message]:
         """
         Convert OpenAI-specific history to common format messages.
@@ -205,64 +233,80 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
 
         # First, build the tool_use_names dictionary
         for message in provider_history:
-            if message.get('role') == 'assistant' and hasattr(message, 'tool_calls') and message.get('tool_calls'):
-                for tool_call in message.get('tool_calls'):
-                    tool_use_names[tool_call.get('id')] = tool_call.get('function').get('name')
+            if (
+                message.get("role") == "assistant"
+                and hasattr(message, "tool_calls")
+                and message.get("tool_calls")
+            ):
+                for tool_call in message.get("tool_calls"):
+                    tool_use_names[tool_call.get("id")] = tool_call.get("function").get(
+                        "name"
+                    )
 
         # Convert each message
         for message in provider_history:
-            role = message.get('role')
-            if role == 'system':
+            role = message.get("role")
+            if role == "system":
                 # Skip system messages
                 continue
-            content = message.get('content')
-            tool_calls = message.get('tool_calls')
-            tool_call_id = message.get('tool_call_id')
+            content = message.get("content")
+            tool_calls = message.get("tool_calls")
+            tool_call_id = message.get("tool_call_id")
             match role:
-                case 'user':
+                case "user":
                     text_parts = []
 
                     # Handle different content formats
                     if isinstance(content, str):
-                        text_parts = [ContentPartText(text = content)]
+                        text_parts = [ContentPartText(text=content)]
                     elif isinstance(content, list):
                         for part in content:
-                            if isinstance(part, dict) and part.get('type') == 'text':
-                                text_parts.append(ContentPartText(text = part.get('text', '')))
+                            if isinstance(part, dict) and part.get("type") == "text":
+                                text_parts.append(
+                                    ContentPartText(text=part.get("text", ""))
+                                )
                             elif isinstance(part, str):
-                                text_parts.append(ContentPartText(text = part))
+                                text_parts.append(ContentPartText(text=part))
 
                     if text_parts:
-                        common_messages.append(Message(role = Role.USER, content = text_parts))
+                        common_messages.append(
+                            Message(role=Role.USER, content=text_parts)
+                        )
 
-                case 'assistant':
+                case "assistant":
                     text_parts = []
                     common_tool_calls = []
 
                     if isinstance(content, str):
-                        text_parts = [ContentPartText(text = content)]
+                        text_parts = [ContentPartText(text=content)]
                     elif isinstance(content, list):
                         for part in content:
-                            if isinstance(part, dict) and part.get('type') == 'text':
-                                text_parts.append(ContentPartText(text = part.get('text', '')))
+                            if isinstance(part, dict) and part.get("type") == "text":
+                                text_parts.append(
+                                    ContentPartText(text=part.get("text", ""))
+                                )
                             elif isinstance(part, str):
-                                text_parts.append(ContentPartText(text = part))
+                                text_parts.append(ContentPartText(text=part))
 
                     # Extract tool calls
                     if tool_calls:
                         for tool_call in tool_calls:
-                            if tool_call.get('function'):
+                            if tool_call.get("function"):
                                 common_tool_calls.append(
                                     ContentPartToolCall(
-                                        id=tool_call.get('id'),
-                                        name=tool_call.get('function').get('name'),
-                                        arguments=json.loads(tool_call.get('function').get('arguments'))
+                                        id=tool_call.get("id"),
+                                        name=tool_call.get("function").get("name"),
+                                        arguments=json.loads(
+                                            tool_call.get("function").get("arguments")
+                                        ),
                                     )
                                 )
 
-                    common_messages.append(Message(role = Role.MODEL, content = text_parts + common_tool_calls))
+                    common_messages.append(
+                        Message(role=Role.MODEL, content=text_parts + common_tool_calls)
+                    )
 
-                case 'tool':
+                case "tool":
                     if tool_call_id:
                         tool_name = tool_use_names.get(tool_call_id, "unknown")
 
@@ -278,10 +322,13 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
                         common_messages.append(
                             Message(
                                 role=Role.TOOL,
-                                content=[ContentPartToolResult(
-                                    id=tool_call_id,
-                                    name=tool_name,
-                                    content=content_obj)]
+                                content=[
+                                    ContentPartToolResult(
+                                        id=tool_call_id,
+                                        name=tool_name,
+                                        content=content_obj,
+                                    )
+                                ],
                             )
                         )
                 case _:
@@ -311,8 +358,7 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
             return self._content_blocks_to_message(messages)
 
     def _content_blocks_to_message(
-        self,
-        messages: List[ChoiceDeltaWrapper]
+        self, messages: List[ChoiceDeltaWrapper]
     ) -> Optional[chat.ChatCompletionMessageParam]:
         """
         Create an assistant message from content chunks.
@@ -340,23 +386,24 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
                         id=tool_call.id,
                         function=chat.chat_completion_message_tool_call_param.Function(
                             name=tool_call.name,
-                            arguments=json.dumps(tool_call.arguments)
-                        )
+                            arguments=json.dumps(tool_call.arguments),
+                        ),
                     )
                 )
 
         if len(roles) != 1:
-            raise ValueError(f"Multiple roles detected in a single message chunk {len(roles)}: {', '.join(str(r) for r in roles)}")
+            raise ValueError(
+                f"Multiple roles detected in a single message chunk {len(roles)}: {', '.join(str(r) for r in roles)}"
+            )
 
         return chat.ChatCompletionAssistantMessageParam(
             role=roles.pop(),
             content=text_content,
-            tool_calls=tool_calls if tool_calls else None
+            tool_calls=tool_calls if tool_calls else None,
         )
 
     def _tool_results_to_message(
-        self,
-        messages: List[ContentPartToolResult]
+        self, messages: List[ContentPartToolResult]
     ) -> Optional[chat.ChatCompletionMessageParam]:
         """
         Create a tool results message from tool results.
@@ -377,7 +424,7 @@ class OpenAIConverter(HistoryConverter[chat.ChatCompletionMessageParam, chat.cha
         return chat.ChatCompletionToolMessageParam(
             role=_ROLES[Role.TOOL],
             tool_call_id=result.id,
-            content=json.dumps(result.content)
+            content=json.dumps(result.content),
         )
 
     def create_chunk_wrapper(
