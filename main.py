@@ -32,7 +32,7 @@ console_handler.setFormatter(console_formatter)
 
 # Root logger setup
 root_logger = logging.getLogger()
-root_logger.addHandler(console_handler)
+# root_logger.addHandler(console_handler)
 # Set root logger level to DEBUG initially to capture everything
 root_logger.setLevel(logging.DEBUG)
 # --- End Logging Configuration ---

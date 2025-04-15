@@ -164,6 +164,7 @@ class PromptProcessor:
         absolute_working_dir = os.path.realpath(working_dir)
 
         mentions_found = 0
+        mentions_loaded = []
         for mention in mentions:
             potential_rel_path = mention
             try:
@@ -184,6 +185,7 @@ class PromptProcessor:
                             content = f.read()
                         loaded_files.append((potential_rel_path, content))
                         mentions_found += 1
+                        mentions_loaded.append(mention)
                         # self.ui.display_info(f"[Loaded context from @{mention}]") # Maybe too verbose? Logged below.
                         logging.info(f"Loaded context from mentioned file: {absolute_mention_path} (Mention: @{mention})")
                     except Exception as e:
@@ -200,6 +202,6 @@ class PromptProcessor:
                 logging.error(log_msg)
 
         if mentions_found > 0:
-             self.ui.display_info(f"[Loaded content from {mentions_found} mentioned file(s)]")
+             self.ui.display_info(f"[Loaded content from {', '.join(['@'+m for m in mentions_loaded])}]")
 
         return loaded_files
