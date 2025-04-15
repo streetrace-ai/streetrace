@@ -1,6 +1,13 @@
 todo
 
-fix unit tests
+maintain conversation history over restarts,
+show files already in context over the prompt
+fix unit tests, lint, etc
+support @last conversation
+@mentions should support folders
+prompt templates
+web ui that works on your repo in the background, so you can work on the go
+type retry to retry
 How to use other models on vertexai
 If gemini responds with malformed tools or other model errors, feed it back so it can fix its own error
 add datetime to Message

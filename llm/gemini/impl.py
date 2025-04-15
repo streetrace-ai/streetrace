@@ -223,6 +223,65 @@ class Gemini(LLMAPI):
         )
 
         # Get the response stream
+        response = client.models.generate_content(
+            model=model_name,
+            contents=messages,
+            config=generation_config
+        )
+        logging.debug("Raw Gemini response: %s", response)
+
+        if not response.candidates:
+            return
+
+        for part in response.candidates[0].content.parts:
+            yield GenerateContentPartWrapper(part)
+
+        if response.candidates[0].finish_reason == 'MALFORMED_FUNCTION_CALL':
+            msg = "Received MALFORMED_FUNCTION_CALL"
+            if len(response.candidates) > 1:
+                msg += f" (there were {len(response.candidates)} other candidates in the response: "
+                msg += ", ".join([f"'{c.finish_reason}'" for c in response.candidates[1:]]) + ")"
+
+            raise ValueError(msg)
+
+    def generate_stream(
+        self,
+        client: genai.Client,
+        model_name: Optional[str],
+        system_message: str,
+        messages: ProviderHistory,
+        tools: List[Dict[str, Any]],
+    ) -> Iterable[GenerateContentPartWrapper]:
+        """
+        Get API response from Gemini, process it and handle tool calls.
+
+        Args:
+            client: The Gemini client
+            model_name: The model name to use
+            system_message: The system message to send in the request
+            messages: The messages to send in the request
+            tools: The Gemini-format tools to use
+
+        Returns:
+            Iterable[GenerateContentPartWrapper]: An iterable of content parts
+        """
+
+        # Currently 2.5 pro can send a malformed JSON when streaming, so the client sdk will
+        # fail to parse the chunk with `json.decoder.JSONDecodeError`. So we will use the non-streaming
+        # API for now.
+        model_name = model_name or MODEL_NAME
+
+        # Set up generation configuration
+        generation_config = types.GenerateContentConfig(
+            tools=tools,
+            system_instruction=system_message,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+            tool_config=types.ToolConfig(
+                function_calling_config=types.FunctionCallingConfig(mode='AUTO')
+            )
+        )
+
+        # Get the response stream
         response_stream = client.models.generate_content_stream(
             model=model_name,
             contents=messages,
