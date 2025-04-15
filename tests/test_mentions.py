@@ -17,7 +17,7 @@ parse_arguments_func = None
 import_error = None
 try:
     # Try importing both functions needed
-    from main import parse_and_load_mentions, parse_arguments
+    from src.streetrace.main import parse_and_load_mentions, parse_arguments
     parse_and_load_mentions_func = parse_and_load_mentions
     parse_arguments_func = parse_arguments # Store it too
 except ImportError as e:
@@ -175,7 +175,7 @@ if __name__ == '__main__':
         sys.path.insert(0, project_root)
     # Re-check imports in case running the file directly works differently
     try:
-        from main import parse_and_load_mentions, parse_arguments
+        from src.streetrace.main import parse_and_load_mentions, parse_arguments
         parse_and_load_mentions_func = parse_and_load_mentions
         parse_arguments_func = parse_arguments
     except ImportError as e:

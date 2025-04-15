@@ -5,9 +5,9 @@ Unit tests for Claude's history transformation functions.
 import json
 import unittest
 import anthropic
-from llm.claude.impl import Claude
-from llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
-from llm.wrapper import History, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
+from streetrace.llm.claude.impl import Claude
+from streetrace.llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
+from streetrace.llm.wrapper import History, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
 
 _CLAUDE_HISTORY = [
     {

@@ -5,8 +5,8 @@ Unit tests for the Claude data conversion module.
 import unittest
 import json
 import anthropic
-from llm.claude_converter import ClaudeConverter, ContentBlockChunkWrapper
-from llm.wrapper import (ContentPartText, ContentPartToolCall,
+from streetrace.llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
+from streetrace.llm.wrapper import (ContentPartText, ContentPartToolCall,
                        ContentPartToolResult, History, Message, Role)
 
 

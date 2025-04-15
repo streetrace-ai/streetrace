@@ -5,8 +5,8 @@ Unit tests for OpenAI's history transformation functions.
 import json
 import unittest
 from unittest.mock import patch
-from llm.openai.impl import OpenAI
-from llm.wrapper import History, Message, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
+from streetrace.llm.openai.impl import OpenAI
+from streetrace.llm.wrapper import History, Message, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
 
 class TestOpenAIHistory(unittest.TestCase):
     """Test cases for OpenAI's history transformation functions."""
