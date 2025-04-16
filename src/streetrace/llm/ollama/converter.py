@@ -72,6 +72,11 @@ class OllamaResponseChunkWrapper(ChunkWrapper[Dict[str, Any]]):
                 )
         return tool_calls
 
+    @override
+    def get_finish_message(self) -> str:
+        """Get finish message if this is the final chunk from the model."""
+        return None
+
 
 class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
     """

@@ -137,9 +137,6 @@ class Application:
                         # Command handled (like history), continue loop for next input
                         continue
 
-                if not user_input.strip():
-                    continue
-
                 # Ensure history exists before proceeding (should always exist in interactive)
                 if not self.conversation_history:
                     logger.error(
@@ -151,24 +148,26 @@ class Application:
                         context=initial_context.project_context,
                     )
 
-                # Process the prompt within the interactive session
-                # Build context again mainly for mentions specific to this input
-                prompt_specific_context = self.prompt_processor.build_context(
-                    user_input, self.working_dir
-                )
 
-                # Add mentioned files to history (if any)
-                self._add_mentions_to_history(
-                    prompt_specific_context.mentioned_files, self.conversation_history
-                )
+                if user_input.strip():
+                    # Process the prompt within the interactive session
+                    # Build context again mainly for mentions specific to this input
+                    prompt_specific_context = self.prompt_processor.build_context(
+                        user_input, self.working_dir
+                    )
 
-                # Add the user prompt itself
-                self.conversation_history.add_message(
-                    role=Role.USER, content=[ContentPartText(text=user_input)]
-                )
-                logging.debug(
-                    f"User prompt added to interactive history: '{user_input}'"
-                )
+                    # Add mentioned files to history (if any)
+                    self._add_mentions_to_history(
+                        prompt_specific_context.mentioned_files, self.conversation_history
+                    )
+
+                    # Add the user prompt itself
+                    self.conversation_history.add_message(
+                        role=Role.USER, content=[ContentPartText(text=user_input)]
+                    )
+                    logging.debug(
+                        f"User prompt added to interactive history: '{user_input}'"
+                    )
 
                 # Process with InteractionManager using the persistent history
                 self.interaction_manager.process_prompt(self.conversation_history)
@@ -258,9 +257,9 @@ class Application:
                         elif isinstance(part, ContentPartToolCall):
                             # Ensure arguments are formatted as a string (e.g., JSON)
                             args_str = (
-                                json.dumps(part.input)
-                                if isinstance(part.input, dict)
-                                else str(part.input)
+                                json.dumps(part.arguments)
+                                if isinstance(part.arguments, dict)
+                                else str(part.arguments)
                             )
                             content_str += f"Tool Call: {part.name}({args_str})\n"
                         elif isinstance(part, ContentPartToolResult):
@@ -269,7 +268,7 @@ class Application:
                                     f"Tool Result: (Error) {part.content['message']}\n"
                                 )
                             else:
-                                content_str += f"Tool Result: (OK) {len(part.content['result'])} characters\n"
+                                content_str += "Tool Result: (OK)\n"
                         elif part is None:  # Handle potential None parts
                             content_str += "[None Content Part]\n"
                         else:

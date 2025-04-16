@@ -14,52 +14,61 @@ The primary goal is to create a seamless experience where developers can interac
 
 ## Project Structure
 
-### Root Files
-- `main.py` - Application entry point. Parses arguments, initializes core components (UI, AI provider, tools, etc.), and delegates execution to `app.application.Application`.
-- `claude.py` - Core logic for interacting with Claude AI models
-- `gemini.py` - Core logic for interacting with Google's Gemini AI models
-- `openai_client.py` - Core logic for interacting with OpenAI models
-- `ollama_client.py` - Core logic for interacting with locally hosted models via Ollama
-- `messages.py` - Message handling and formatting functions
-- `colors.py` - Terminal color utilities for improved UI
-- `requirements.txt` / `pyproject.toml` / `setup.py` - Python package configuration
+### Root Directory (`./`)
+- `README.md`, `README-*.md`: Main project documentation and provider-specific details.
+- `CHANGES.md`: Project changelog.
+- `CONTRIBUTING.md`: Contribution guidelines.
+- `CONV.md`: Potentially conversation logs or related documentation.
+- `LICENSE`: Project license file.
+- `TODO.md`: List of upcoming tasks and features.
+- `project_overview.md`: This file, providing a description of the project.
+- `pyproject.toml`, `requirements.txt`: Python package and dependency definitions.
 
-### App Directory
-- `application.py` - Orchestrates the main application flow, managing interactive and non-interactive modes, and coordinating UI, command execution, prompt processing, and AI interaction.
-- `command_executor.py` - Handles execution of internal commands (like 'exit', 'quit').
-- `console_ui.py` - Manages user interaction via the console (input/output).
-- `interaction_manager.py` - Manages the interaction cycle with the AI model, including tool calls and response handling.
-- `prompt_processor.py` - Processes user prompts, extracts context (like file mentions), and prepares system messages.
+### Source Directory (`src/streetrace/`)
+- `main.py`: Application entry point. Parses arguments, initializes core components.
+- `application.py`: Orchestrates the main application flow, managing modes and coordinating UI, command execution, prompt processing, and AI interaction.
+- `messages.py`: Message handling and formatting functions.
+- `prompt_processor.py`: Processes user prompts, extracts context, and prepares system messages.
 
-### Documentation
-- `README.md` - Main project documentation
-- `README-claude.md` - Claude-specific documentation
-- `README-openai.md` - OpenAI-specific documentation
-- `README-ollama.md` - Ollama-specific documentation
-- `TODO.md` - Upcoming tasks and features
+### LLM Directory (`src/streetrace/llm/`)
+- Contains the logic for interacting with different Large Language Models.
+- `llmapi.py`: Defines the base interface for LLM providers.
+- `llmapi_factory.py`: Factory for creating specific LLM provider instances.
+- `generate.py`: Handles the generation process.
+- `wrapper.py`: Wraps LLM interactions.
+- `history_converter.py`: Converts message history for different models.
+- Subdirectories for each provider (`claude/`, `gemini/`, `ollama/`, `openai/`) containing provider-specific implementation details.
 
-### Tools Directory
-- `fs_tool.py` - File system interaction tools (list_directory, read_file, write_file)
-- `cli.py` - CLI command execution tool with interactive capabilities
-- `search.py` - Text search functionality across files
-- `path_utils.py` - Path manipulation and security utilities
-- `read_directory_structure.py` - Directory traversal utilities
-- `read_file.py` / `write_file.py` - File I/O utilities
+### Tools Directory (`src/streetrace/tools/`)
+- Contains tools provided to the AI model for interacting with the environment.
+- `fs_tool.py`: File system interaction tools (list_directory, read_file, write_file).
+- `cli.py`: CLI command execution tool.
+- `search.py`: Text search functionality.
+- `path_utils.py`: Path manipulation and security utilities.
+- `read_directory_structure.py`: Directory traversal utilities.
+- `read_file.py`, `write_file.py`: Specific file I/O utilities.
 
-### Tests Directory
-Contains unit tests for the core functionality, including:
-- File system tools tests
-- Path security validation tests
-- AI model integration tests
-- Search functionality tests
+### UI Directory (`src/streetrace/ui/`)
+- `console_ui.py`: Manages user interaction via the console.
+- `interaction_manager.py`: Manages the interaction cycle with the AI model.
+- `colors.py`: Terminal color utilities.
 
-### Examples Directory
-Contains example scripts demonstrating how to use the StreetRace APIs programmatically.
+### Commands Directory (`src/streetrace/commands/`)
+- `command_executor.py`: Handles execution of internal commands (like 'exit', 'quit').
 
-### .streetrace Directory
-Contains configuration files:
-- `system.md` - Custom system message for AI models
-- `rules.md` - Development rules and guidelines for the project
+### Documentation Directory (`docs/`)
+- Contains supplementary documentation.
+- `claude_data_conversion.md`: Details on Claude-specific data handling.
+- `provider_interface.md`: Description of the LLM provider interface.
+    *(Note: This directory might contain other relevant architecture or technical documents as per `rules.md`)*
+
+### Tests Directory (`tests/`)
+- Contains unit and integration tests for various components (tools, LLM interactions, utilities, etc.).
+
+### Examples Directory (`examples/`)
+- Contains example scripts demonstrating programmatic usage.
+
+*(Configuration files like `system.md` and `rules.md` are typically found in a `.streetrace` directory, which is not part of the core application structure but contains project configuration/rules).*
 
 ## Integration
 StreetRace works with multiple AI providers:
@@ -68,7 +77,7 @@ StreetRace works with multiple AI providers:
 - OpenAI models (via `OPENAI_API_KEY`)
 - Open-source models via Ollama (local or remote)
 
-The architecture allows for easy switching between providers based on available API keys or specific needs for different tasks.
+The architecture (`src/streetrace/llm`) allows for easy switching between providers based on available API keys or specific needs for different tasks.
 
 ## Usage Scenarios
 - Code generation and modification

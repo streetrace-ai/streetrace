@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import anthropic  # pip install anthropic
 
 from streetrace.llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
-from streetrace.llm.history_converter import ChunkWrapper
+from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
 from streetrace.llm.llmapi import LLMAPI
 from streetrace.llm.wrapper import ContentPartToolResult, History
 from streetrace.ui.colors import AnsiColors
@@ -202,7 +202,11 @@ class Claude(LLMAPI):
                 return [
                     ContentBlockChunkWrapper(content_block)
                     for content_block in response.content
-                ]
+                ] + (
+                    [FinishWrapper(response.stop_reason, response.stop_sequence)]
+                    if response.stop_reason else []
+                )
+
 
             except anthropic.RateLimitError as e:
                 retry_count += 1

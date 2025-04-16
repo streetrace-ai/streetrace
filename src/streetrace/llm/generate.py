@@ -67,11 +67,14 @@ def _generate_with_tools(
         raise ValueError("Conversation history exceeds the model's context window.")
 
     request_count = 0
-    continue_generation = True
+    has_tool_calls = False
+    finish_reason = None
+
 
     # Continue generating responses and handling tool calls until complete
-    while continue_generation:
-        continue_generation = False
+    while has_tool_calls or not finish_reason:
+        has_tool_calls = False
+        finish_reason = None
         request_count += 1
         logging.info(
             f"Starting request {request_count} with {len(provider_history)} message items."
@@ -80,10 +83,14 @@ def _generate_with_tools(
             "Messages for generation:\n%s", provider.pretty_print(provider_history)
         )
 
+        # The condition to stop is when there are no tool calls and no finish message in this turn
         turn: List[ChunkWrapper | ContentPartToolResult] = []
         for chunk in provider.generate(
             client, model_name, system_message, provider_history, provider_tools
         ):
+            if chunk.get_finish_message():
+                finish_reason = chunk.get_finish_message()
+                break
             turn.append(chunk)
             if chunk.get_text():
                 print(
@@ -102,7 +109,11 @@ def _generate_with_tools(
                             id=tool_call.id, name=tool_call.name, content=tool_result
                         )
                     )
-                continue_generation = True  # Continue if there were tool calls
-        print()
+                    has_tool_calls = True
+        print(
+            AnsiColors.MODEL + finish_reason + AnsiColors.RESET,
+            end="",
+            flush=True,
+        )
 
         provider.append_to_history(provider_history, turn)

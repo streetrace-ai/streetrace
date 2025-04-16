@@ -12,7 +12,7 @@ from google import genai
 from google.genai import types
 
 from streetrace.llm.gemini.converter import GeminiConverter, GenerateContentPartWrapper
-from streetrace.llm.history_converter import ChunkWrapper
+from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
 from streetrace.llm.llmapi import LLMAPI
 from streetrace.llm.wrapper import ContentPartToolResult, History
 
@@ -259,19 +259,20 @@ class Gemini(LLMAPI):
         if not response.candidates:
             return
 
-        for part in response.candidates[0].content.parts:
+        candidate = response.candidates[0]
+
+        for part in candidate.content.parts:
             yield GenerateContentPartWrapper(part)
 
-        if response.candidates[0].finish_reason == "MALFORMED_FUNCTION_CALL":
-            msg = "Received MALFORMED_FUNCTION_CALL"
+        if candidate.finish_reason is not None:
+            msg = candidate.finish_message
             if len(response.candidates) > 1:
-                msg += f" (there were {len(response.candidates)} other candidates in the response: "
+                msg += f" (there were {len(response.candidates)} candidates in the response: "
                 msg += (
                     ", ".join([f"'{c.finish_reason}'" for c in response.candidates[1:]])
                     + ")"
                 )
-
-            raise ValueError(msg)
+            yield FinishWrapper(str(candidate.finish_reason), msg)
 
     def generate_stream(
         self,

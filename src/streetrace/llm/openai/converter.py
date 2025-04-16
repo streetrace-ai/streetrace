@@ -66,6 +66,11 @@ class ChoiceDeltaWrapper(
             else []
         )
 
+    @override
+    def get_finish_message(self) -> str:
+        """Get finish message if this is the final chunk from the model."""
+        return None
+
 
 class OpenAIConverter(
     HistoryConverter[

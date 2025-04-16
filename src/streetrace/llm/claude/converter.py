@@ -6,7 +6,7 @@ and Claude-specific formats for API requests and responses.
 """
 
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, override
 
 import anthropic
 
@@ -44,10 +44,12 @@ class ContentBlockChunkWrapper(ChunkWrapper[anthropic.types.ContentBlock]):
     def __init__(self, chunk: anthropic.types.ContentBlock):
         super().__init__(chunk)
 
+    @override
     def get_text(self) -> str:
         """Get text content from the chunk if it's a TextBlock."""
         return self.raw.text if type(self.raw) is anthropic.types.TextBlock else ""
 
+    @override
     def get_tool_calls(self) -> List[ContentPartToolCall]:
         """Get tool calls from the chunk if it's a ToolUseBlock."""
         return (
@@ -59,6 +61,11 @@ class ContentBlockChunkWrapper(ChunkWrapper[anthropic.types.ContentBlock]):
             if type(self.raw) is anthropic.types.ToolUseBlock
             else []
         )
+
+    @override
+    def get_finish_message(self) -> str:
+        """Get finish message if this is the final chunk from the model."""
+        return None
 
 
 class ClaudeConverter(

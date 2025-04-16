@@ -3,6 +3,7 @@ todo
 token counts
 maintain conversation history over restarts,
 show files already in context over the prompt
+Prompting UI
 fix unit tests, lint, etc
 support @last conversation
 @mentions should support folders
@@ -17,6 +18,8 @@ count input/output tokens consumed
 _generate_with_tools needs to return finish reason
 anthropic api 529 overloaded
 text editor
+
+It would be great to allow in-code documentation to be sent as context.
 
 +create an ollama implementation similar to gemini and claude
 +create an openai implementation similar to gemini and claude

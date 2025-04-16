@@ -7,7 +7,7 @@ the common message format and provider-specific formats.
 """
 
 import abc
-from typing import Generic, List, Optional, TypeVar
+from typing import Generic, List, Optional, TypeVar, override
 
 from streetrace.llm.wrapper import (
     ContentPartToolCall,
@@ -35,6 +35,36 @@ class ChunkWrapper(Generic[T_Chunk], abc.ABC):
     def get_tool_calls(self) -> List[ContentPartToolCall]:
         pass
 
+    @abc.abstractmethod
+    def get_finish_message(self) -> Optional[str]:
+        pass
+
+
+class FinishWrapper(ChunkWrapper[str]):
+    """
+    Wrapper for Gemini's Part that implements the ChunkWrapper interface.
+
+    This allows for a consistent way to access content from Gemini's responses.
+    """
+
+    def __init__(self, finish_reason: str, finish_message: str):
+        super().__init__(finish_reason)
+        self.finish_message = finish_message
+
+    @override
+    def get_text(self) -> str:
+        """Get text content from the chunk if it has text."""
+        return None
+
+    @override
+    def get_tool_calls(self) -> List[ContentPartToolCall]:
+        """Get tool calls from the chunk if it has function calls."""
+        return None
+
+    @override
+    def get_finish_message(self) -> str:
+        """Get text content from the chunk if it has text."""
+        return f"{self.raw}: {self.finish_message}" if self.raw is not None else None
 
 class HistoryConverter(Generic[T_MessageParam, T_Chunk], abc.ABC):
     """

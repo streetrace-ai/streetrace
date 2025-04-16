@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import openai
 from openai.types import chat
 
-from streetrace.llm.history_converter import ChunkWrapper
+from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
 from streetrace.llm.llmapi import LLMAPI
 from streetrace.llm.openai.converter import ChoiceDeltaWrapper, OpenAIConverter
 from streetrace.llm.wrapper import ContentPartToolResult, History, Role
@@ -210,6 +210,9 @@ class OpenAI(LLMAPI):
                         delta = choice.delta
                         finish_reason = choice.finish_reason
 
+                        # OpenAI can generate partial tool calls, so we need to build
+                        # tool calls in a buffer, and will send them once the model completes
+                        # generation.
                         if finish_reason == "tool_calls":
                             # Yield full tool_call block if finished
                             tool_call_msg = buffered_tool_calls.pop(idx, None)
@@ -267,6 +270,9 @@ class OpenAI(LLMAPI):
                         ):  # Important, do not check for Truthy as '' messages can contain other fields.
                             # Yield regular text deltas immediately
                             yield ChoiceDeltaWrapper(delta)
+
+                        if finish_reason:
+                            yield FinishWrapper(finish_reason, None)
 
                 break
 

@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 import ollama
 
-from streetrace.llm.history_converter import ChunkWrapper
+from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
 from streetrace.llm.llmapi import LLMAPI
 from streetrace.llm.ollama.converter import OllamaConverter, OllamaResponseChunkWrapper
 from streetrace.llm.wrapper import ContentPartToolResult, History
@@ -187,6 +187,7 @@ class Ollama(LLMAPI):
                         logging.debug(f"Chunk received: {chunk}")
                         yield OllamaResponseChunkWrapper(chunk)
 
+                yield FinishWrapper("done", None)
                 break  # Exit the retry loop if successful
 
             except Exception as e:
