@@ -209,7 +209,9 @@ class OpenAIConverter(
                                 chat.ChatCompletionToolMessageParam(
                                     role=_ROLES[Role.TOOL],
                                     tool_call_id=msg.id,
-                                    content=msg.content.model_dump_json(),
+                                    content=msg.content.model_dump_json(
+                                        exclude_none=True
+                                    ),
                                 )
                             )
                 case _:
@@ -423,7 +425,7 @@ class OpenAIConverter(
         return chat.ChatCompletionToolMessageParam(
             role=_ROLES[Role.TOOL],
             tool_call_id=result.id,
-            content=result.content.model_dump_json(),
+            content=result.content.model_dump_json(exclude_none=True),
         )
 
     def create_chunk_wrapper(

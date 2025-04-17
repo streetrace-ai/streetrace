@@ -49,8 +49,11 @@ class OllamaResponseChunkWrapper(ChunkWrapper[Dict[str, Any]]):
     @override
     def get_text(self) -> str:
         """Get text content from the chunk if it has message content."""
-        if self.raw.get("message") and self.raw["message"].get("content"):
-            return self.raw["message"]["content"]
+        assert isinstance(self.raw, dict), "Chunk should be a dict"
+        if self.raw.get("message"):
+            assert isinstance(self.raw["message"], dict), "message should be a dict"
+            if self.raw["message"].get("content"):
+                return self.raw["message"]["content"]
         return ""
 
     @override
@@ -59,15 +62,18 @@ class OllamaResponseChunkWrapper(ChunkWrapper[Dict[str, Any]]):
         tool_calls = []
         if self.raw.get("message") and self.raw["message"].get("tool_calls"):
             for tool_call in self.raw["message"]["tool_calls"]:
+                assert isinstance(tool_call, dict), "tool_calls items should be dicts"
+                arguments: Optional[dict[str, any]] = None
+                if "arguments" in tool_call["function"]:
+                    if isinstance(tool_call["function"]["arguments"], str):
+                        arguments = json.loads(tool_call["function"]["arguments"])
+                    else:
+                        arguments = tool_call["function"]["arguments"]
                 tool_calls.append(
                     ContentPartToolCall(
                         id=tool_call.get("id", ""),
                         name=tool_call["function"]["name"],
-                        arguments=(
-                            json.loads(tool_call["function"]["arguments"])
-                            if isinstance(tool_call["function"]["arguments"], str)
-                            else tool_call["function"]["arguments"]
-                        ),
+                        arguments=arguments,
                     )
                 )
         return tool_calls
@@ -154,7 +160,9 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
                                 "role": _ROLES[message.role],
                                 "tool_call_id": part.id,
                                 "name": part.name,
-                                "content": part.content.model_dump_json(),
+                                "content": part.content.model_dump_json(
+                                    exclude_none=True
+                                ),
                             }
                         )
             else:
@@ -166,7 +174,7 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
 
                 if text_parts:
                     provider_history.append(
-                        {"role": _ROLES[message.role], "content": " ".join(text_parts)}
+                        {"role": _ROLES[message.role], "content": "".join(text_parts)}
                     )
 
         return provider_history
@@ -185,18 +193,6 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
             return []
 
         common_messages = []
-        start_index = 0
-
-        # Skip system message if it exists
-        if provider_history and provider_history[0].get("role") == "system":
-            start_index = 1
-
-        # And skip the context message if it exists after the system message
-        if (
-            len(provider_history) > start_index
-            and provider_history[start_index].get("role") == "user"
-        ):
-            start_index += 1
 
         # Build a mapping of tool_call_ids to tool names
         tool_call_names = {}
@@ -208,8 +204,11 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
                     ]
 
         # Convert each message
-        for message in provider_history[start_index:]:
+        for message in provider_history:
             role = message.get("role")
+            if role == "system":
+                continue
+
             content = message.get("content", "")
 
             match role:
@@ -264,7 +263,7 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
                                         ),
                                     ),
                                     content=ToolCallResult.model_validate_json(
-                                        message.get("content", "{}")
+                                        message.get("content")
                                     ),
                                 )
                             ],
@@ -276,7 +275,7 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
     def to_history_item(
         self,
         messages: List[OllamaResponseChunkWrapper] | List[ContentPartToolResult],
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[Message]:
         """
         Convert chunks or tool results to an Ollama-specific message.
 
@@ -290,9 +289,17 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
             return None
 
         if isinstance(messages[0], ContentPartToolResult):
+            assert len(messages) == 1, "Expected exactly one ContentPartToolResult"
             return self._tool_results_to_message(messages[0])
-        else:
+        elif isinstance(messages[0], OllamaResponseChunkWrapper):
+            assert all(
+                isinstance(m, OllamaResponseChunkWrapper) for m in messages
+            ), "Expected all OllamaResponseChunkWrapper"
             return self._content_blocks_to_message(messages)
+        else:
+            raise TypeError(
+                f"Unsupported messages: {", ".join(type(m).__name__ for m in messages)}"
+            )
 
     def _content_blocks_to_message(
         self, messages: List[OllamaResponseChunkWrapper]
@@ -322,9 +329,13 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
                     )
                 )
 
-        return ollama.Message(
-            role="assistant", content=text_content, tool_calls=tool_calls
-        )
+        if text_content or tool_calls:
+            return ollama.Message(
+                role="assistant",
+                content=text_content or None,
+                tool_calls=tool_calls or None,
+            )
+        return None
 
     def _tool_results_to_message(
         self, result: ContentPartToolResult
@@ -345,7 +356,7 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
             "role": "tool",
             "tool_call_id": result.id,
             "name": result.name,
-            "content": result.content.model_dump_json(),
+            "content": result.content.model_dump_json(exclude_none=True),
         }
 
     def create_chunk_wrapper(

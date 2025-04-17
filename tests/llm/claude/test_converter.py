@@ -122,7 +122,7 @@ class TestClaudeConverter(unittest.TestCase):
         tool_output = ToolOutput(type="text", content="Success")
         content = ToolCallResult(output=tool_output, success=True, failure=False)
         part = ContentPartToolResult(id="t1", name="tool", content=content)
-        expected_content_json = content.model_dump_json()
+        expected_content_json = content.model_dump_json(exclude_none=True)
         expected_block = anthropic.types.ToolResultBlockParam(
             type="tool_result", tool_use_id="t1", content=expected_content_json
         )
@@ -171,7 +171,7 @@ class TestClaudeConverter(unittest.TestCase):
         claude_part_dict = {
             "type": "tool_result",
             "tool_use_id": "t3",
-            "content": content.model_dump_json(),
+            "content": content.model_dump_json(exclude_none=True),
         }
         tool_use_names = {"t3": "original_tool_name"}
         expected = ContentPartToolResult(
@@ -189,7 +189,7 @@ class TestClaudeConverter(unittest.TestCase):
         claude_part_dict = {
             "type": "tool_result",
             "tool_use_id": "t4_unknown",
-            "content": content.model_dump_json(),
+            "content": content.model_dump_json(exclude_none=True),
         }
         tool_use_names = {"t3": "original_tool_name"}
         expected = ContentPartToolResult(
@@ -337,7 +337,7 @@ class TestClaudeConverter(unittest.TestCase):
         self.assertEqual(result[2]["content"][0]["type"], "tool_result")
         self.assertEqual(
             json.loads(result[2]["content"][0]["content"]),  # type: ignore
-            tool_result_content.model_dump(),
+            tool_result_content.model_dump(exclude_none=True),
         )
 
     def test_from_history_with_invalid_content_part(self):
@@ -445,7 +445,9 @@ class TestClaudeConverter(unittest.TestCase):
         tool_result_content = ToolCallResult(
             output=tool_output, success=True, failure=False
         )
-        tool_result_content_json = tool_result_content.model_dump_json()
+        tool_result_content_json = tool_result_content.model_dump_json(
+            exclude_none=True
+        )
         claude_history = [
             {"role": "user", "content": [{"type": "text", "text": "Use tool"}]},
             {
@@ -575,12 +577,12 @@ class TestClaudeConverter(unittest.TestCase):
                 anthropic.types.ToolResultBlockParam(
                     type="tool_result",
                     tool_use_id="t8",
-                    content=results[0].content.model_dump_json(),
+                    content=results[0].content.model_dump_json(exclude_none=True),
                 ),
                 anthropic.types.ToolResultBlockParam(
                     type="tool_result",
                     tool_use_id="t9",
-                    content=results[1].content.model_dump_json(),
+                    content=results[1].content.model_dump_json(exclude_none=True),
                 ),
             ],
         )
@@ -665,7 +667,7 @@ class TestClaudeConverter(unittest.TestCase):
                 anthropic.types.ToolResultBlockParam(
                     type="tool_result",
                     tool_use_id="t11",
-                    content=results[0].content.model_dump_json(),
+                    content=results[0].content.model_dump_json(exclude_none=True),
                 )
             ],
         )

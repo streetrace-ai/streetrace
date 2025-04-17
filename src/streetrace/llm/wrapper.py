@@ -2,7 +2,7 @@ from dataclasses import field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 # class syntax
@@ -19,23 +19,28 @@ class ContentPartText(BaseModel):
 
 class ContentPartToolCall(BaseModel):
     id: Optional[str] = None
-    name: str
-    arguments: Dict[str, Any]
+    name: str = Field(..., min_length=1)
+    arguments: Optional[Dict[str, Any]] = None
 
 
 class ToolOutput(BaseModel):
-    type: str
+    type: str = Field(..., min_length=1)
     content: list | dict | str
 
-    @staticmethod
-    def from_any(input_value: any) -> "ToolOutput":
+    @classmethod
+    def from_any(cls, input_value: Any) -> Optional["ToolOutput"]:
         if input_value is None:
             return None
-        elif isinstance(input_value, ToolOutput):
+        elif isinstance(input_value, cls):
             return input_value
+        elif isinstance(input_value, (str, list, dict)):
+            # Default type to text if it's a simple string, list, or dict
+            return cls(type="text", content=input_value)
         else:
-            assert isinstance(input_value, str) or isinstance(input_value, list) or isinstance(input_value, dict), f"Invalid input for ToolOutput: {type(input_value)}"
-            return ToolOutput(type="text", content=input_value)
+            # For other types, convert to string and use text type
+            # Or raise an error if strictness is needed
+            # For now, convert to string
+            return cls(type="text", content=str(input_value))
 
 
 class ToolCallResult(BaseModel):
@@ -49,24 +54,28 @@ class ToolCallResult(BaseModel):
             return self.display_output
         return self.output
 
-    @staticmethod
+    @classmethod
     def error(
-        output: list | dict | str | ToolOutput, display_output: Optional[list | dict | str | ToolOutput] = None
+        cls,
+        output: Any,  # Allow any type for flexibility
+        display_output: Optional[Any] = None,
     ) -> "ToolCallResult":
-        return ToolCallResult(
+        return cls(
             failure=True,
             output=ToolOutput.from_any(output),
-            display_output=ToolOutput.from_any(display_output)
+            display_output=ToolOutput.from_any(display_output),
         )
 
-    @staticmethod
+    @classmethod
     def ok(
-        output: list | dict | str | ToolOutput, display_output: Optional[list | dict | str | ToolOutput] = None,
+        cls,
+        output: Any,  # Allow any type for flexibility
+        display_output: Optional[Any] = None,
     ) -> "ToolCallResult":
-        return ToolCallResult(
+        return cls(
             success=True,
             output=ToolOutput.from_any(output),
-            display_output=ToolOutput.from_any(display_output)
+            display_output=ToolOutput.from_any(display_output),
         )
 
     @model_validator(mode="after")
@@ -84,7 +93,7 @@ class ToolCallResult(BaseModel):
 
 class ContentPartToolResult(BaseModel):
     id: Optional[str] = None
-    name: str
+    name: str = Field(..., min_length=1)
     content: ToolCallResult
 
 

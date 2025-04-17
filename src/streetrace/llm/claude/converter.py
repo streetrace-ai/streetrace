@@ -95,7 +95,7 @@ class ClaudeConverter(
             return anthropic.types.ToolResultBlockParam(
                 type="tool_result",
                 tool_use_id=part.id,
-                content=part.content.model_dump_json(),
+                content=part.content.model_dump_json(exclude_none=True),
             )
         else:
             raise ValueError(
@@ -323,7 +323,7 @@ class ClaudeConverter(
         tool_result_blocks = []
         for result in results:
             try:
-                content_json = result.content.model_dump_json()
+                content_json = result.content.model_dump_json(exclude_none=True)
                 tool_result_blocks.append(
                     anthropic.types.ToolResultBlockParam(
                         type="tool_result", tool_use_id=result.id, content=content_json

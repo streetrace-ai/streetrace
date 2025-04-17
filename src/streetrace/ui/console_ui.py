@@ -59,26 +59,28 @@ class ConsoleUI:
         Returns:
             The string entered by the user.
         """
+
         def prompt():
             return [
-                    ("class:prompt", prompt_str),
-                    ("", " "),
-                ]
+                ("class:prompt", prompt_str),
+                ("", " "),
+            ]
+
         def prompt_continuation(width, line_number, is_soft_wrap):
             return [
-                    ("class:prompt-continuation", "." * width),
-                ]
+                ("class:prompt-continuation", "." * width),
+            ]
+
         def bottom_toolbar():
-            return [
-                    ("class:bottom-toolbar", "Esc,Enter to send.")
-                ]
+            return [("class:bottom-toolbar", "Esc,Enter to send.")]
+
         # Use Styles for the prompt string itself
         with patch_stdout():
             return self.prompt_session.prompt(
                 prompt,
                 style=Styles.PT,
                 prompt_continuation=prompt_continuation,
-                bottom_toolbar=bottom_toolbar
+                bottom_toolbar=bottom_toolbar,
             )
 
     def display_system_message(self, message: str):

@@ -8,7 +8,6 @@ and Gemini-specific formats for API requests and responses.
 from typing import List, Optional, override
 
 from google.genai import types
-from pydantic import ValidationError
 
 from streetrace.llm.history_converter import ChunkWrapper, HistoryConverter
 from streetrace.llm.wrapper import (
@@ -20,7 +19,6 @@ from streetrace.llm.wrapper import (
     Message,
     Role,
     ToolCallResult,
-    ToolOutput,
 )
 
 
