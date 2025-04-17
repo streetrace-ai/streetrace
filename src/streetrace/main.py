@@ -77,14 +77,8 @@ def main():
 
     # --- Configure Logging Level based on args ---
     if args.debug:
-        console_handler.setLevel(logging.DEBUG)
-        # Keep root logger at DEBUG to allow file handler to capture everything
-        logging.debug("Debug logging enabled for console.")
-    else:
-        console_handler.setLevel(logging.WARNING)
-        # Root logger stays DEBUG, file handler is INFO, console handler is INFO
-    # Add the console handler *after* setting its level based on debug flag
-    root_logger.addHandler(console_handler)
+        root_logger.addHandler(console_handler)
+        logging.info("Debug logging enabled for console.")
     # --- End Logging Configuration ---
 
     # --- Initialize Core Application Components ---

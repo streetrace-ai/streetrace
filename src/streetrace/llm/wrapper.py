@@ -28,13 +28,11 @@ class ToolOutput(BaseModel):
     content: list | dict | str
 
     @staticmethod
-    def parse_any(input_value: any) -> "ToolOutput":
+    def from_any(input_value: any) -> "ToolOutput":
         if input_value is None:
             return None
         elif isinstance(input_value, ToolOutput):
             return input_value
-        elif isinstance(input_value, dict):
-            return ToolOutput.model_validate(input_value)
         else:
             assert isinstance(input_value, str) or isinstance(input_value, list) or isinstance(input_value, dict), f"Invalid input for ToolOutput: {type(input_value)}"
             return ToolOutput(type="text", content=input_value)
@@ -57,8 +55,8 @@ class ToolCallResult(BaseModel):
     ) -> "ToolCallResult":
         return ToolCallResult(
             failure=True,
-            output=ToolOutput.parse_any(output),
-            display_output=ToolOutput.parse_any(display_output)
+            output=ToolOutput.from_any(output),
+            display_output=ToolOutput.from_any(display_output)
         )
 
     @staticmethod
@@ -67,8 +65,8 @@ class ToolCallResult(BaseModel):
     ) -> "ToolCallResult":
         return ToolCallResult(
             success=True,
-            output=ToolOutput.parse_any(output),
-            display_output=ToolOutput.parse_any(display_output)
+            output=ToolOutput.from_any(output),
+            display_output=ToolOutput.from_any(display_output)
         )
 
     @model_validator(mode="after")

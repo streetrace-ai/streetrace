@@ -49,7 +49,7 @@ class ConsoleUI:
     def status(self, message: str):
         return self.console.status(message, spinner="hamburger")
 
-    def prompt(self, prompt: str = _PROMPT) -> str:
+    def prompt(self, prompt_str: str = _PROMPT) -> str:
         """
         Gets input from the user via the console.
 
@@ -59,14 +59,26 @@ class ConsoleUI:
         Returns:
             The string entered by the user.
         """
+        def prompt():
+            return [
+                    ("class:prompt", prompt_str),
+                    ("", " "),
+                ]
+        def prompt_continuation(width, line_number, is_soft_wrap):
+            return [
+                    ("class:prompt-continuation", "." * width),
+                ]
+        def bottom_toolbar():
+            return [
+                    ("class:bottom-toolbar", "Esc,Enter to send.")
+                ]
         # Use Styles for the prompt string itself
         with patch_stdout():
             return self.prompt_session.prompt(
-                [
-                    ("class:prompt", prompt),
-                    ("", " "),
-                ],
+                prompt,
                 style=Styles.PT,
+                prompt_continuation=prompt_continuation,
+                bottom_toolbar=bottom_toolbar
             )
 
     def display_system_message(self, message: str):
@@ -151,7 +163,7 @@ class ConsoleUI:
     def display_tool_call(self, tool_call: ContentPartToolCall):
         """Displays information about a tool being called."""
         display_args = {
-            k: v if len(str(v)) < 30 else str(v)[:20] + f"... ({len(str(v))})"
+            k: v if len(str(v)) < 100 else str(v)[:90] + f"... ({len(str(v))})"
             for k, v in tool_call.arguments.items()
         }
         message = f"{tool_call.name}({str(display_args)})"
