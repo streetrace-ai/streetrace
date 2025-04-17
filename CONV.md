@@ -62,3 +62,10 @@ This is a python project with a lot of python code. I want to make sure the code
 ===
 
 Let's implement token counting for gemini. Whenever the response is received, we need to get token counts from response usage_metadata. What we need is to know how much tokens this conversation history consumes (prompt_token_count), how much of it is cached (cached_content_token_count), and candidates_token_count. We can use these token counds in the manage_conversation_history to try and fit the conversation history into the context window. We also need to accumulate tokens and print stats for every response: numbers for the current response, and total numbers for this working session.
+
+
+===
+
+Let's make sure we have 100% test coverage for @src/streetrace/llm/claude/converter.py. The existing tests might be heavily outdated, so you might as well re-write it and remove parts that are not present in the actual converter.py.
+Make sure you activate venv when running tests, so that you have all the right dependencies.
+Make sure to check with the @CONTRIBUTING.md when introducing changes.

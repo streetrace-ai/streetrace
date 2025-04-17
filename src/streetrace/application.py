@@ -236,7 +236,7 @@ class Application:
             context_message = (
                 f"Content of mentioned file '@{filepath}':\n---\n{content}\n---"
             )
-            MAX_MENTION_CONTENT_LENGTH = 10000  # Maximum length for file content to prevent excessive tokens
+            MAX_MENTION_CONTENT_LENGTH = 20000  # Maximum length for file content to prevent excessive tokens
             if len(content) > MAX_MENTION_CONTENT_LENGTH:
                 context_message = f"Content of mentioned file '@{filepath}' (truncated):\n---\n{content[:MAX_MENTION_CONTENT_LENGTH]}\n...\n---"
                 logging.warning(
