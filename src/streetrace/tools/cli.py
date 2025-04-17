@@ -50,6 +50,7 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
                     q.put(line)
                     lines_buffer.append(line)
                 q.put(None)
+
             t = threading.Thread(target=pipe, daemon=True)
             t.start()
             return t
@@ -62,7 +63,10 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
             cwd=abs_work_dir,
         )
 
-        mt = [monitor(process.stdout, stdout_lines), monitor(process.stderr, stderr_lines)]
+        mt = [
+            monitor(process.stdout, stdout_lines),
+            monitor(process.stderr, stderr_lines),
+        ]
 
         while any([t.is_alive() for t in mt]):
             # print everything into stdout

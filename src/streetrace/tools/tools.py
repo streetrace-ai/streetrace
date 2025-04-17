@@ -15,7 +15,9 @@ class ToolCall:
     manages arguments, handles errors, and ensures results are properly formatted.
     """
 
-    def __init__(self, tools: dict[str, Any], tools_impl: dict[str, Callable], abs_work_dir: str):
+    def __init__(
+        self, tools: dict[str, Any], tools_impl: dict[str, Callable], abs_work_dir: str
+    ):
         """
         Initialize the ToolCall manager.
 
@@ -28,7 +30,9 @@ class ToolCall:
         self.tools_impl = tools_impl
         self.abs_work_dir = abs_work_dir
 
-    def call_tool(self, tool_call: ContentPartToolCall, original_call: Any) -> ToolCallResult:
+    def call_tool(
+        self, tool_call: ContentPartToolCall, original_call: Any
+    ) -> ToolCallResult:
         """
         Executes the appropriate tool function based on the tool name and arguments.
 
@@ -49,7 +53,10 @@ class ToolCall:
                 sig = inspect.signature(tool_func)
                 tool_params = sig.parameters
                 if "work_dir" in tool_params:
-                    args_with_workdir = {**tool_call.arguments, "work_dir": self.abs_work_dir}
+                    args_with_workdir = {
+                        **tool_call.arguments,
+                        "work_dir": self.abs_work_dir,
+                    }
                     tool_result, result_view = tool_func(**args_with_workdir)
                 else:
                     tool_result, result_view = tool_func(**tool_call.arguments)

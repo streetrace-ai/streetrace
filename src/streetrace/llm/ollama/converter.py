@@ -14,11 +14,11 @@ from streetrace.llm.history_converter import ChunkWrapper, HistoryConverter
 from streetrace.llm.wrapper import (
     ContentPartText,
     ContentPartToolCall,
-    ToolCallResult,
     ContentPartToolResult,
     History,
     Message,
     Role,
+    ToolCallResult,
 )
 
 _ROLES = {
@@ -263,7 +263,9 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
                                             message.get("tool_call_id", ""), "unknown"
                                         ),
                                     ),
-                                    content=ToolCallResult.model_validate_json(message.get("content", "{}")),
+                                    content=ToolCallResult.model_validate_json(
+                                        message.get("content", "{}")
+                                    ),
                                 )
                             ],
                         )

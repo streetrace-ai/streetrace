@@ -8,9 +8,22 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-# Add parent directory to the path to import main
+# Add project root to the path to allow importing streetrace modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+# Import main, which should now be able to import other modules
 import streetrace.main as main
+
+# We also need to mock the modules that main imports if they aren't available
+# or if we don't want their side effects during testing main's argument parsing.
+# Mock PromptProcessor before it's used in main
+sys.modules["streetrace.prompt_processor"] = MagicMock()
+sys.modules["streetrace.application"] = MagicMock()
+sys.modules["streetrace.commands.command_executor"] = MagicMock()
+sys.modules["streetrace.llm.llmapi_factory"] = MagicMock()
+sys.modules["streetrace.messages"] = MagicMock()
+sys.modules["streetrace.tools.tools"] = MagicMock()
+sys.modules["streetrace.ui.console_ui"] = MagicMock()
 
 
 class TestPromptParameter(unittest.TestCase):
@@ -18,60 +31,62 @@ class TestPromptParameter(unittest.TestCase):
 
     @patch("builtins.input")  # Mock the input function
     @patch("argparse.ArgumentParser.parse_args")
-    def test_non_interactive_mode(self, mock_parse_args, mock_input):
+    @patch("streetrace.main.Application")  # Mock the Application class used in main
+    def test_non_interactive_mode(self, MockApplication, mock_parse_args, mock_input):
         """Test that the script runs in non-interactive mode with --prompt parameter"""
         # Set up mocks
         mock_args = MagicMock()
         mock_args.prompt = "Test prompt"
+        mock_args.non_interactive = (
+            True  # Assume prompt implies non-interactive if not specified
+        )
         mock_parse_args.return_value = mock_args
 
-        # Create a mock model setup
-        mock_generate_tool = MagicMock()
-        mock_generate_tool.return_value = []
+        # Mock the Application instance and its run method
+        mock_app_instance = MockApplication.return_value
 
-        with patch("main.setup_model") as mock_setup:
-            mock_setup.return_value = (mock_generate_tool, "test-model")
+        # Call the main function
+        main.main()
 
-            # Call the main function
-            main.main()
+        # Assert Application was initialized with the correct arguments
+        MockApplication.assert_called_once()
+        init_args, init_kwargs = MockApplication.call_args
+        self.assertTrue(init_kwargs["non_interactive"])
 
-            # Assert the generate_with_tool was called with the prompt
-            mock_generate_tool.assert_called_once()
-            call_args = mock_generate_tool.call_args[0]
-            self.assertEqual(call_args[0], "Test prompt")
+        # Assert the run method was called with the prompt
+        mock_app_instance.run.assert_called_once_with(initial_prompt="Test prompt")
 
-            # Assert that input() was never called (non-interactive mode)
-            mock_input.assert_not_called()
+        # Assert that input() was never called (non-interactive mode)
+        mock_input.assert_not_called()
 
     @patch("builtins.input")  # Mock the input function
     @patch("argparse.ArgumentParser.parse_args")
-    def test_interactive_mode(self, mock_parse_args, mock_input):
+    @patch("streetrace.main.Application")  # Mock the Application class used in main
+    def test_interactive_mode(self, MockApplication, mock_parse_args, mock_input):
         """Test that the script runs in interactive mode without --prompt parameter"""
         # Set up mocks
         mock_args = MagicMock()
         mock_args.prompt = None
+        mock_args.non_interactive = (
+            False  # Explicitly set to False or ensure default is False
+        )
         mock_parse_args.return_value = mock_args
 
-        # Create a mock model setup
-        mock_generate_tool = MagicMock()
-        mock_generate_tool.return_value = []
+        # Mock the Application instance and its run method
+        mock_app_instance = MockApplication.return_value
 
-        # Mock user input (first prompt then exit)
-        mock_input.side_effect = ["Tell me about Python", "exit"]
+        # Call the main function
+        main.main()
 
-        with patch("main.setup_model") as mock_setup:
-            mock_setup.return_value = (mock_generate_tool, "test-model")
+        # Assert Application was initialized correctly
+        MockApplication.assert_called_once()
+        init_args, init_kwargs = MockApplication.call_args
+        self.assertFalse(init_kwargs.get("non_interactive", False))
 
-            # Call the main function
-            main.main()
+        # Assert the run method was called without an initial prompt
+        mock_app_instance.run.assert_called_once_with(initial_prompt=None)
 
-            # Assert that input() was called (interactive mode)
-            self.assertEqual(mock_input.call_count, 2)
-
-            # Assert generate_with_tool was called with user input
-            mock_generate_tool.assert_called_once()
-            call_args = mock_generate_tool.call_args[0]
-            self.assertEqual(call_args[0], "Tell me about Python")
+        # Note: We don't assert input() here as the Application's run loop is mocked
 
 
 if __name__ == "__main__":

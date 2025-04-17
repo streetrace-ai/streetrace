@@ -1,5 +1,6 @@
 from prompt_toolkit.styles import Style
 
+
 # ANSI color codes for terminal output
 class AnsiColors:
     USER = "\x1b[1;32;40m"
@@ -12,6 +13,7 @@ class AnsiColors:
     RESET = "\x1b[0m"
     WARNING = "\x1b[1;33;40m"
 
+
 _RICH_USER_INPUT = "#f4bf75"
 _PT_USER_INPUT = "#f4bf75"
 _RICH_MODEL_RESPONSE = "#f5f5f5"
@@ -21,10 +23,12 @@ _RICH_ERROR = "#ac4142"
 
 
 class Styles:
-    PT = Style.from_dict({
-        "":          "",
-        "prompt": _PT_USER_INPUT,
-    })
+    PT = Style.from_dict(
+        {
+            "": "",
+            "prompt": _PT_USER_INPUT,
+        }
+    )
     RICH_PROMPT = _RICH_USER_INPUT
     RICH_MODEL = _RICH_MODEL_RESPONSE
     RICH_TOOL_CALL = "monokai"

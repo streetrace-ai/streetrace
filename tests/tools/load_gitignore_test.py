@@ -4,7 +4,8 @@ import tempfile
 import unittest
 
 import pathspec
-from tools.read_directory_structure import load_gitignore_for_directory
+
+from streetrace.tools.read_directory_structure import load_gitignore_for_directory
 
 
 class TestLoadGitignore(unittest.TestCase):

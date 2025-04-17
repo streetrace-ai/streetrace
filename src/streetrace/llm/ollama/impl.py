@@ -4,10 +4,8 @@ Ollama Provider Implementation
 This module implements the LLMAPI interface for Ollama models.
 """
 
-
 import logging
 import os
-
 from typing import Any, Dict, Iterable, List, Optional
 
 import ollama

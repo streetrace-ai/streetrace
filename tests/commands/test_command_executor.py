@@ -1,9 +1,9 @@
 # tests/commands/test_command_executor.py
+import inspect  # Import inspect
 import logging
 import unittest
-from unittest.mock import Mock, patch, MagicMock
-import inspect  # Import inspect
-from typing import Callable, Any # Import Callable and Any
+from typing import Any, Callable  # Import Callable and Any
+from unittest.mock import MagicMock, Mock, patch
 
 # Use absolute import from the 'src' root
 from streetrace.commands.command_executor import CommandExecutor
@@ -22,72 +22,118 @@ class TestCommandExecutor(unittest.TestCase):
         # Mock the logger used within CommandExecutor to check calls
         self.patcher = patch("streetrace.commands.command_executor.logger", spec=True)
         self.mock_logger = self.patcher.start()
-        self.addCleanup(self.patcher.stop) # Ensure patch is stopped even if test fails
+        self.addCleanup(self.patcher.stop)  # Ensure patch is stopped even if test fails
 
     def test_register_command_success(self):
         """Test successful registration of a command."""
-        def dummy_action(): return True
+
+        def dummy_action():
+            return True
+
         self.executor.register("testCmd", dummy_action, "Test description")
         self.assertIn("testcmd", self.executor._commands)
         self.assertEqual(self.executor._commands["testcmd"], dummy_action)
-        self.assertEqual(self.executor._command_descriptions["testcmd"], "Test description")
-        self.mock_logger.debug.assert_called_with("Command 'testcmd' registered: Test description")
+        self.assertEqual(
+            self.executor._command_descriptions["testcmd"], "Test description"
+        )
+        self.mock_logger.debug.assert_called_with(
+            "Command 'testcmd' registered: Test description"
+        )
 
     def test_register_command_case_insensitivity(self):
         """Test that command names are stored lowercased."""
-        def dummy_action(): return True
+
+        def dummy_action():
+            return True
+
         self.executor.register("UPPERCASE", dummy_action)
         self.assertIn("uppercase", self.executor._commands)
         self.assertNotIn("UPPERCASE", self.executor._commands)
 
     def test_register_command_strips_whitespace(self):
         """Test that leading/trailing whitespace is stripped from command names."""
-        def dummy_action(): return True
+
+        def dummy_action():
+            return True
+
         self.executor.register("  paddedCmd  ", dummy_action)
         self.assertIn("paddedcmd", self.executor._commands)
         self.assertNotIn("  paddedCmd  ", self.executor._commands)
 
     def test_register_command_redefinition_warning(self):
         """Test that redefining a command logs a warning."""
-        def action1(): return True
-        def action2(): return False
-        self.executor.register("testCmd", action1, "First")
-        self.executor.register("testCmd", action2, "Second") # Redefine
-        self.assertIn("testcmd", self.executor._commands)
-        self.assertEqual(self.executor._commands["testcmd"], action2) # Should have the second action
-        self.assertEqual(self.executor._command_descriptions["testcmd"], "Second") # Description updated
-        self.mock_logger.warning.assert_called_once_with("Command 'testcmd' is being redefined.")
 
+        def action1():
+            return True
+
+        def action2():
+            return False
+
+        self.executor.register("testCmd", action1, "First")
+        self.executor.register("testCmd", action2, "Second")  # Redefine
+        self.assertIn("testcmd", self.executor._commands)
+        self.assertEqual(
+            self.executor._commands["testcmd"], action2
+        )  # Should have the second action
+        self.assertEqual(
+            self.executor._command_descriptions["testcmd"], "Second"
+        )  # Description updated
+        self.mock_logger.warning.assert_called_once_with(
+            "Command 'testcmd' is being redefined."
+        )
 
     def test_register_command_empty_name_raises_error(self):
         """Test that registering an empty command name raises ValueError."""
-        def dummy_action(): return True
-        with self.assertRaisesRegex(ValueError, "Command name cannot be empty or whitespace."):
+
+        def dummy_action():
+            return True
+
+        with self.assertRaisesRegex(
+            ValueError, "Command name cannot be empty or whitespace."
+        ):
             self.executor.register("", dummy_action)
-        with self.assertRaisesRegex(ValueError, "Command name cannot be empty or whitespace."):
-            self.executor.register("   ", dummy_action) # Just whitespace
+        with self.assertRaisesRegex(
+            ValueError, "Command name cannot be empty or whitespace."
+        ):
+            self.executor.register("   ", dummy_action)  # Just whitespace
 
     def test_register_command_non_callable_action_raises_error(self):
         """Test that registering a non-callable action raises TypeError."""
-        with self.assertRaisesRegex(TypeError, "Action for command 'testCmd' must be callable."):
+        with self.assertRaisesRegex(
+            TypeError, "Action for command 'testCmd' must be callable."
+        ):
             self.executor.register("testCmd", "not a function")
 
     def test_get_commands(self):
         """Test retrieving the list of registered command names."""
-        def action_a(): return True
-        def action_b(): return True
+
+        def action_a():
+            return True
+
+        def action_b():
+            return True
+
         self.executor.register("CmdB", action_b)
         self.executor.register("cmdA", action_a)
-        self.assertEqual(self.executor.get_commands(), ["cmda", "cmdb"]) # Should be sorted
+        self.assertEqual(
+            self.executor.get_commands(), ["cmda", "cmdb"]
+        )  # Should be sorted
 
     def test_get_command_descriptions(self):
         """Test retrieving the command descriptions."""
-        def action_a(): return True
-        def action_b(): return True
+
+        def action_a():
+            return True
+
+        def action_b():
+            return True
+
         self.executor.register("CmdB", action_b, "Command B Desc")
         self.executor.register("cmdA", action_a, "Command A Desc")
         expected_descriptions = {"cmda": "Command A Desc", "cmdb": "Command B Desc"}
-        self.assertEqual(self.executor.get_command_descriptions(), expected_descriptions)
+        self.assertEqual(
+            self.executor.get_command_descriptions(), expected_descriptions
+        )
 
     def test_execute_existing_command_continue_no_args(self):
         """Test executing a command (no args) that signals continue."""
@@ -101,9 +147,11 @@ class TestCommandExecutor(unittest.TestCase):
 
         self.assertTrue(executed)
         self.assertTrue(should_continue)
-        action_mock.assert_called_once_with() # Called with no arguments
+        action_mock.assert_called_once_with()  # Called with no arguments
         self.mock_logger.info.assert_any_call("Executing command: 'continuecmd'")
-        self.mock_logger.debug.assert_any_call("Command 'continuecmd' action returned: True")
+        self.mock_logger.debug.assert_any_call(
+            "Command 'continuecmd' action returned: True"
+        )
 
     def test_execute_existing_command_exit_no_args(self):
         """Test executing a command (no args) that signals exit."""
@@ -114,27 +162,34 @@ class TestCommandExecutor(unittest.TestCase):
         executed, should_continue = self.executor.execute("exitCmd")
 
         self.assertTrue(executed)
-        self.assertFalse(should_continue) # Correctly check for False
+        self.assertFalse(should_continue)  # Correctly check for False
         action_mock.assert_called_once_with()
         self.mock_logger.info.assert_any_call("Executing command: 'exitcmd'")
-        self.mock_logger.debug.assert_any_call("Command 'exitcmd' action returned: False")
-
+        self.mock_logger.debug.assert_any_call(
+            "Command 'exitcmd' action returned: False"
+        )
 
     def test_execute_existing_command_continue_with_arg(self):
         """Test executing a command (with arg) that signals continue."""
         # Mock action that expects one argument
         action_mock = MagicMock(spec=Callable[[Any], bool], return_value=True)
-        action_mock.__signature__ = inspect.signature(lambda app: None) # Signature with 1 param
+        action_mock.__signature__ = inspect.signature(
+            lambda app: None
+        )  # Signature with 1 param
 
-        app_instance = Mock() # Dummy app instance
+        app_instance = Mock()  # Dummy app instance
         self.executor.register("continueWithArgCmd", action_mock)
-        executed, should_continue = self.executor.execute("continueWithArgCmd", app_instance=app_instance)
+        executed, should_continue = self.executor.execute(
+            "continueWithArgCmd", app_instance=app_instance
+        )
 
         self.assertTrue(executed)
         self.assertTrue(should_continue)
-        action_mock.assert_called_once_with(app_instance) # Called with app_instance
+        action_mock.assert_called_once_with(app_instance)  # Called with app_instance
         self.mock_logger.info.assert_any_call("Executing command: 'continuewithargcmd'")
-        self.mock_logger.debug.assert_any_call("Command 'continuewithargcmd' action returned: True")
+        self.mock_logger.debug.assert_any_call(
+            "Command 'continuewithargcmd' action returned: True"
+        )
 
     def test_execute_existing_command_exit_with_arg(self):
         """Test executing a command (with arg) that signals exit."""
@@ -143,14 +198,17 @@ class TestCommandExecutor(unittest.TestCase):
 
         app_instance = Mock()
         self.executor.register("exitWithArgCmd", action_mock)
-        executed, should_continue = self.executor.execute("exitWithArgCmd", app_instance=app_instance)
+        executed, should_continue = self.executor.execute(
+            "exitWithArgCmd", app_instance=app_instance
+        )
 
         self.assertTrue(executed)
         self.assertFalse(should_continue)
         action_mock.assert_called_once_with(app_instance)
         self.mock_logger.info.assert_any_call("Executing command: 'exitwithargcmd'")
-        self.mock_logger.debug.assert_any_call("Command 'exitwithargcmd' action returned: False")
-
+        self.mock_logger.debug.assert_any_call(
+            "Command 'exitwithargcmd' action returned: False"
+        )
 
     def test_execute_command_case_insensitivity(self):
         """Test that execution matches commands case-insensitively."""
@@ -162,7 +220,6 @@ class TestCommandExecutor(unittest.TestCase):
         self.assertTrue(executed)
         self.assertTrue(should_continue)
         action_mock.assert_called_once_with()
-
 
     def test_execute_command_strips_whitespace(self):
         """Test that execution handles input with leading/trailing whitespace."""
@@ -180,8 +237,9 @@ class TestCommandExecutor(unittest.TestCase):
         executed, should_continue = self.executor.execute("unknownCmd")
         self.assertFalse(executed)
         self.assertTrue(should_continue)
-        self.mock_logger.debug.assert_called_with("Input 'unknownCmd' is not a registered command.")
-
+        self.mock_logger.debug.assert_called_with(
+            "Input 'unknownCmd' is not a registered command."
+        )
 
     def test_execute_command_action_raises_exception(self):
         """Test execution when the command's action raises an exception."""
@@ -192,12 +250,12 @@ class TestCommandExecutor(unittest.TestCase):
 
         executed, should_continue = self.executor.execute("errorCmd")
 
-        self.assertTrue(executed)        # Command was matched and attempted
-        self.assertTrue(should_continue) # Should continue despite error
+        self.assertTrue(executed)  # Command was matched and attempted
+        self.assertTrue(should_continue)  # Should continue despite error
         action_mock.assert_called_once_with()
         self.mock_logger.error.assert_called_once_with(
             "Error executing action for command 'errorcmd': Action failed",
-            exc_info=True
+            exc_info=True,
         )
 
     def test_execute_command_action_returns_non_boolean(self):
@@ -208,8 +266,8 @@ class TestCommandExecutor(unittest.TestCase):
 
         executed, should_continue = self.executor.execute("badReturnCmd")
 
-        self.assertTrue(executed)        # Command was matched and executed
-        self.assertTrue(should_continue) # Should default to continue
+        self.assertTrue(executed)  # Command was matched and executed
+        self.assertTrue(should_continue)  # Should default to continue
         action_mock.assert_called_once_with()
         self.mock_logger.error.assert_called_once_with(
             "Action for command 'badreturncmd' did not return a boolean. Assuming continue."
@@ -217,21 +275,29 @@ class TestCommandExecutor(unittest.TestCase):
 
     def test_execute_command_with_unexpected_signature(self):
         """Test execution when action has more than one argument."""
-        def action_too_many_args(arg1, arg2): pass # pragma: no cover
+
+        def action_too_many_args(arg1, arg2):
+            pass  # pragma: no cover
+
         self.executor.register("badSigCmd", action_too_many_args)
 
         app_instance = Mock()
-        executed, should_continue = self.executor.execute("badSigCmd", app_instance=app_instance)
+        executed, should_continue = self.executor.execute(
+            "badSigCmd", app_instance=app_instance
+        )
 
-        self.assertTrue(executed) # Command was matched
-        self.assertTrue(should_continue) # Default to continue on signature error
+        self.assertTrue(executed)  # Command was matched
+        self.assertTrue(should_continue)  # Default to continue on signature error
         self.mock_logger.error.assert_called_once()
         # Check that the error message contains the expected signature info
         log_call_args, _ = self.mock_logger.error.call_args
-        self.assertIn("Action for command 'badsigcmd' has an unexpected signature", log_call_args[0])
+        self.assertIn(
+            "Action for command 'badsigcmd' has an unexpected signature",
+            log_call_args[0],
+        )
         self.assertIn("(arg1, arg2)", log_call_args[0])
         self.assertIn("Cannot execute.", log_call_args[0])
 
 
 if __name__ == "__main__":
-    unittest.main() # pragma: no cover
+    unittest.main()  # pragma: no cover

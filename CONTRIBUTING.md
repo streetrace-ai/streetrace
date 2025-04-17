@@ -28,7 +28,7 @@ black src tests && \
 # 3. Check for other linting issues (style, logic)
 flake8 src tests && \
 # 4. Check for static type errors
-mypy src tests && \
+mypy --explicit-package-bases src tests && \
 # 5. Run unit tests
 pytest
 ```

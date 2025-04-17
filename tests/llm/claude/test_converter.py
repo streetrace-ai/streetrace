@@ -5,32 +5,30 @@ Ensures accurate conversion between common format and Claude API format.
 
 import json
 import unittest
-import sys
 
-# Try importing necessary modules
-try:
-    import anthropic
-    from pydantic import ValidationError
-    from streetrace.llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
-    from streetrace.llm.wrapper import (
-        ContentPart, # Base class/TypeAlias
-        ContentPartText,
-        ContentPartToolCall,
-        ContentPartToolResult,
-        History,
-        Message,
-        Role,
-        ToolCallResult,
-        ToolOutput,
-    )
-except ImportError as e:
-    print(f"Failed to import necessary modules: {e}")
-    print("Ensure anthropic library and project structure are correct.")
-    sys.exit(1) # Exit if core components can't be imported
+import anthropic
+from pydantic import ValidationError
+
+from streetrace.llm.claude.converter import (
+    ClaudeConverter,
+    ContentBlockChunkWrapper,
+)
+from streetrace.llm.wrapper import (
+    ContentPartText,
+    ContentPartToolCall,
+    ContentPartToolResult,
+    History,
+    Message,
+    Role,
+    ToolCallResult,
+    ToolOutput,
+)
+
 
 # Dummy ContentPart for testing error handling
 class DummyContentPart:
     pass
+
 
 class TestContentBlockChunkWrapper(unittest.TestCase):
     """Tests for the ContentBlockChunkWrapper class."""
@@ -47,7 +45,9 @@ class TestContentBlockChunkWrapper(unittest.TestCase):
             type="tool_use", id="t1", name="tool", input={}
         )
         wrapper = ContentBlockChunkWrapper(block)
-        self.assertEqual(wrapper.get_text(), "", "Text from ToolUseBlock should be empty")
+        self.assertEqual(
+            wrapper.get_text(), "", "Text from ToolUseBlock should be empty"
+        )
 
     def test_get_tool_calls_from_tool_use_block(self):
         """Test retrieving tool calls from a real ToolUseBlock."""
@@ -67,7 +67,9 @@ class TestContentBlockChunkWrapper(unittest.TestCase):
         block = anthropic.types.TextBlock(type="text", text="Not a tool")
         wrapper = ContentBlockChunkWrapper(block)
         tool_calls = wrapper.get_tool_calls()
-        self.assertEqual(len(tool_calls), 0, "Tool calls from TextBlock should be empty")
+        self.assertEqual(
+            len(tool_calls), 0, "Tool calls from TextBlock should be empty"
+        )
 
     def test_get_finish_message(self):
         """Test get_finish_message always returns None."""
@@ -103,9 +105,14 @@ class TestClaudeConverter(unittest.TestCase):
 
     def test_from_content_part_tool_call_non_dict_args(self):
         """Test converting ContentPartToolCall with non-dict args (should become empty dict)."""
-        part = ContentPartToolCall.model_construct(id="t1.1", name="tool", arguments="not_a_dict")
+        part = ContentPartToolCall.model_construct(
+            id="t1.1", name="tool", arguments="not_a_dict"
+        )
         expected = anthropic.types.ToolUseBlockParam(
-            type="tool_use", id="t1.1", name="tool", input={} # Expect empty dict output
+            type="tool_use",
+            id="t1.1",
+            name="tool",
+            input={},  # Expect empty dict output
         )
         result = self.converter._from_content_part(part)
         self.assertEqual(result, expected)
@@ -121,8 +128,8 @@ class TestClaudeConverter(unittest.TestCase):
         )
         result_block = self.converter._from_content_part(part)
         self.assertEqual(result_block, expected_block)
-        self.assertEqual(result_block["content"], expected_content_json) # type: ignore
-        deserialized = json.loads(result_block["content"]) # type: ignore
+        self.assertEqual(result_block["content"], expected_content_json)  # type: ignore
+        deserialized = json.loads(result_block["content"])  # type: ignore
         self.assertTrue(deserialized["success"])
         self.assertFalse(deserialized["failure"])
         self.assertIsNone(deserialized.get("error"))
@@ -130,9 +137,11 @@ class TestClaudeConverter(unittest.TestCase):
 
     def test_from_content_part_unknown(self):
         """Test converting an unknown ContentPart type raises ValueError."""
-        part = DummyContentPart() # Use the dummy class instance
-        with self.assertRaisesRegex(ValueError, "Unknown content part type encountered"):
-            self.converter._from_content_part(part) # type: ignore
+        part = DummyContentPart()  # Use the dummy class instance
+        with self.assertRaisesRegex(
+            ValueError, "Unknown content part type encountered"
+        ):
+            self.converter._from_content_part(part)  # type: ignore
 
     # --- _to_content_part tests ---
 
@@ -146,7 +155,10 @@ class TestClaudeConverter(unittest.TestCase):
     def test_to_content_part_tool_use(self):
         """Test converting Claude tool_use block dict to ContentPartToolCall."""
         claude_part_dict = {
-            "type": "tool_use", "id": "t2", "name": "claude_tool", "input": {"b": 2}
+            "type": "tool_use",
+            "id": "t2",
+            "name": "claude_tool",
+            "input": {"b": 2},
         }
         expected = ContentPartToolCall(id="t2", name="claude_tool", arguments={"b": 2})
         result = self.converter._to_content_part(claude_part_dict, {})
@@ -162,7 +174,9 @@ class TestClaudeConverter(unittest.TestCase):
             "content": content.model_dump_json(),
         }
         tool_use_names = {"t3": "original_tool_name"}
-        expected = ContentPartToolResult(id="t3", name="original_tool_name", content=content)
+        expected = ContentPartToolResult(
+            id="t3", name="original_tool_name", content=content
+        )
         result = self.converter._to_content_part(claude_part_dict, tool_use_names)
         self.assertEqual(result, expected)
         self.assertFalse(result.content.success)
@@ -178,7 +192,9 @@ class TestClaudeConverter(unittest.TestCase):
             "content": content.model_dump_json(),
         }
         tool_use_names = {"t3": "original_tool_name"}
-        expected = ContentPartToolResult(id="t4_unknown", name="unknown_tool_name", content=content)
+        expected = ContentPartToolResult(
+            id="t4_unknown", name="unknown_tool_name", content=content
+        )
         result = self.converter._to_content_part(claude_part_dict, tool_use_names)
         self.assertEqual(result, expected)
         self.assertTrue(result.content.success)
@@ -204,7 +220,9 @@ class TestClaudeConverter(unittest.TestCase):
 
     def test_to_content_part_tool_result_validation_error_content(self):
         """Test converting tool_result with valid JSON but invalid ToolCallResult structure (hits except block)."""
-        invalid_tool_call_result_json = json.dumps({"output": {"type": "text", "content": "Missing flags"}})
+        invalid_tool_call_result_json = json.dumps(
+            {"output": {"type": "text", "content": "Missing flags"}}
+        )
         claude_part_dict = {
             "type": "tool_result",
             "tool_use_id": "t_validation_err",
@@ -227,11 +245,15 @@ class TestClaudeConverter(unittest.TestCase):
         content = ToolCallResult(output=tool_output, success=True, failure=False)
         content_dict = content.model_dump()
         claude_part_dict = {
-            "type": "tool_result", "tool_use_id": "t_dict", "content": content_dict
+            "type": "tool_result",
+            "tool_use_id": "t_dict",
+            "content": content_dict,
         }
         tool_use_names = {"t_dict": "dict_tool"}
         expected_content = ToolCallResult.model_validate(content_dict)
-        expected = ContentPartToolResult(id="t_dict", name="dict_tool", content=expected_content)
+        expected = ContentPartToolResult(
+            id="t_dict", name="dict_tool", content=expected_content
+        )
         result = self.converter._to_content_part(claude_part_dict, tool_use_names)
         self.assertEqual(result, expected)
         self.assertTrue(result.content.success)
@@ -240,13 +262,17 @@ class TestClaudeConverter(unittest.TestCase):
     def test_to_content_part_unknown_type(self):
         """Test converting an unknown Claude block type dict raises ValueError."""
         claude_part_dict = {"type": "future_block", "data": "abc"}
-        with self.assertRaisesRegex(ValueError, "Unknown Claude content type encountered"):
+        with self.assertRaisesRegex(
+            ValueError, "Unknown Claude content type encountered"
+        ):
             self.converter._to_content_part(claude_part_dict, {})
 
     def test_to_content_part_non_dict_input(self):
         """Test passing non-dict input to _to_content_part raises ValueError."""
-        with self.assertRaisesRegex(ValueError, "Expected a dict for Claude content part"):
-            self.converter._to_content_part("not_a_dict", {}) # type: ignore
+        with self.assertRaisesRegex(
+            ValueError, "Expected a dict for Claude content part"
+        ):
+            self.converter._to_content_part("not_a_dict", {})  # type: ignore
 
     # --- from_history tests ---
 
@@ -281,17 +307,25 @@ class TestClaudeConverter(unittest.TestCase):
     def test_from_history_with_tool_calls_and_results(self):
         """Test converting History with tool calls and results."""
         tool_output = ToolOutput(type="text", content="Result data")
-        tool_result_content = ToolCallResult(output=tool_output, success=True, failure=False)
+        tool_result_content = ToolCallResult(
+            output=tool_output, success=True, failure=False
+        )
         history = History(
             conversation=[
                 Message(role=Role.USER, content=[ContentPartText(text="Use the tool")]),
                 Message(
                     role=Role.MODEL,
-                    content=[ContentPartToolCall(id="t5", name="my_tool", arguments={"p": 1})]
+                    content=[
+                        ContentPartToolCall(id="t5", name="my_tool", arguments={"p": 1})
+                    ],
                 ),
                 Message(
                     role=Role.TOOL,
-                    content=[ContentPartToolResult(id="t5", name="my_tool", content=tool_result_content)]
+                    content=[
+                        ContentPartToolResult(
+                            id="t5", name="my_tool", content=tool_result_content
+                        )
+                    ],
                 ),
             ]
         )
@@ -302,16 +336,22 @@ class TestClaudeConverter(unittest.TestCase):
         self.assertEqual(result[2]["role"], "user")
         self.assertEqual(result[2]["content"][0]["type"], "tool_result")
         self.assertEqual(
-            json.loads(result[2]["content"][0]["content"]), # type: ignore
+            json.loads(result[2]["content"][0]["content"]),  # type: ignore
             tool_result_content.model_dump(),
         )
 
     def test_from_history_with_invalid_content_part(self):
         """Test converting History with an invalid content part (should be skipped)."""
         # Construct messages, bypassing validation for the invalid one
-        message_user1 = Message(role=Role.USER, content=[ContentPartText(text="Good part")])
-        message_invalid = Message.model_construct(role=Role.MODEL, content=[DummyContentPart()]) # Invalid part
-        message_user2 = Message(role=Role.USER, content=[ContentPartText(text="Another good part")])
+        message_user1 = Message(
+            role=Role.USER, content=[ContentPartText(text="Good part")]
+        )
+        message_invalid = Message.model_construct(
+            role=Role.MODEL, content=[DummyContentPart()]
+        )  # Invalid part
+        message_user2 = Message(
+            role=Role.USER, content=[ContentPartText(text="Another good part")]
+        )
 
         history = History(conversation=[message_user1, message_invalid, message_user2])
         result = self.converter.from_history(history)
@@ -319,7 +359,7 @@ class TestClaudeConverter(unittest.TestCase):
         # Converter's _from_content_part raises ValueError for DummyContentPart,
         # so the invalid part is skipped. The message with only invalid parts
         # results in empty claude_content and is not added to provider_history.
-        self.assertEqual(len(result), 2) # Only messages with valid parts remain
+        self.assertEqual(len(result), 2)  # Only messages with valid parts remain
         self.assertEqual(result[0]["role"], "user")
         self.assertEqual(result[0]["content"][0]["text"], "Good part")
         self.assertEqual(result[1]["role"], "user")
@@ -350,13 +390,21 @@ class TestClaudeConverter(unittest.TestCase):
     def test_from_history_unsupported_role(self):
         """Test converting History with an unsupported role (should be skipped)."""
         try:
-            message_user = Message(role=Role.USER, content=[ContentPartText(text="User")])
-            message_weird = Message.model_construct(role="weird_role", content=[ContentPartText(text="Weird")])
-            message_model = Message(role=Role.MODEL, content=[ContentPartText(text="Model")])
+            message_user = Message(
+                role=Role.USER, content=[ContentPartText(text="User")]
+            )
+            message_weird = Message.model_construct(
+                role="weird_role", content=[ContentPartText(text="Weird")]
+            )
+            message_model = Message(
+                role=Role.MODEL, content=[ContentPartText(text="Model")]
+            )
             history = History(conversation=[message_user, message_weird, message_model])
         except ValidationError:
-             self.skipTest("Skipping test: Pydantic validation prevents constructing message with invalid role.")
-             return
+            self.skipTest(
+                "Skipping test: Pydantic validation prevents constructing message with invalid role."
+            )
+            return
         result = self.converter.from_history(history)
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["role"], "user")
@@ -380,7 +428,10 @@ class TestClaudeConverter(unittest.TestCase):
         claude_history = [
             {"role": "user", "content": [{"type": "text", "text": "Possible Context"}]},
             {"role": "assistant", "content": [{"type": "text", "text": "Okay"}]},
-            {"role": "user", "content": [{"type": "text", "text": "Actual User Prompt"}]},
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "Actual User Prompt"}],
+            },
         ]
         result = self.converter.to_history(claude_history)
         self.assertEqual(len(result), 3)
@@ -391,20 +442,31 @@ class TestClaudeConverter(unittest.TestCase):
     def test_to_history_with_tools(self):
         """Test converting Claude history dicts with tool use and results."""
         tool_output = ToolOutput(type="text", content="Tool Done")
-        tool_result_content = ToolCallResult(output=tool_output, success=True, failure=False)
+        tool_result_content = ToolCallResult(
+            output=tool_output, success=True, failure=False
+        )
         tool_result_content_json = tool_result_content.model_dump_json()
         claude_history = [
             {"role": "user", "content": [{"type": "text", "text": "Use tool"}]},
             {
                 "role": "assistant",
                 "content": [
-                    {"type": "tool_use", "id": "t6", "name": "do_stuff", "input": {"x": 1}}
+                    {
+                        "type": "tool_use",
+                        "id": "t6",
+                        "name": "do_stuff",
+                        "input": {"x": 1},
+                    }
                 ],
             },
             {
                 "role": "user",
                 "content": [
-                    {"type": "tool_result", "tool_use_id": "t6", "content": tool_result_content_json}
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "t6",
+                        "content": tool_result_content_json,
+                    }
                 ],
             },
         ]
@@ -427,18 +489,27 @@ class TestClaudeConverter(unittest.TestCase):
     def test_to_history_invalid_message_format(self):
         """Test converting Claude history with various invalid message formats."""
         claude_history = [
-            {"role": "user", "content": [{"type": "text", "text": "Good"}]}, # Valid
-            "not_a_dict",                                                     # Invalid item (skipped)
-            {"role": "unknown_role", "content": []},                         # Invalid role (skipped)
-            {"role": "assistant", "content": "not_a_list"},                   # Invalid content format (message added with empty content)
-            {"role": "user", "content": [{"type": "invalid_type"}]},          # Invalid content part type (part skipped, message added with empty content)
-            {"role": "user", "content": ["not_a_dict_part"]},               # Invalid content part format (part skipped, message added with empty content)
+            {"role": "user", "content": [{"type": "text", "text": "Good"}]},  # Valid
+            "not_a_dict",  # Invalid item (skipped)
+            {"role": "unknown_role", "content": []},  # Invalid role (skipped)
+            {
+                "role": "assistant",
+                "content": "not_a_list",
+            },  # Invalid content format (message added with empty content)
+            {
+                "role": "user",
+                "content": [{"type": "invalid_type"}],
+            },  # Invalid content part type (part skipped, message added with empty content)
+            {
+                "role": "user",
+                "content": ["not_a_dict_part"],
+            },  # Invalid content part format (part skipped, message added with empty content)
         ]
         result = self.converter.to_history(claude_history)
         # Expected: Good User, Empty Assistant, Empty User, Empty User
         self.assertEqual(len(result), 4)
         self.assertEqual(result[0].role, Role.USER)
-        self.assertEqual(result[0].content[0].text, "Good") # type: ignore
+        self.assertEqual(result[0].content[0].text, "Good")  # type: ignore
         self.assertEqual(result[1].role, Role.MODEL)
         self.assertEqual(result[1].content, [])
         self.assertEqual(result[2].role, Role.USER)
@@ -451,15 +522,22 @@ class TestClaudeConverter(unittest.TestCase):
     def test_to_history_item_from_chunks(self):
         """Test converting ContentBlockChunkWrappers to a MessageParam dict."""
         text_block = anthropic.types.TextBlock(type="text", text="Part 1 ")
-        tool_block = anthropic.types.ToolUseBlock(type="tool_use", id="t7", name="tool", input={})
-        chunks = [ContentBlockChunkWrapper(text_block), ContentBlockChunkWrapper(tool_block)]
+        tool_block = anthropic.types.ToolUseBlock(
+            type="tool_use", id="t7", name="tool", input={}
+        )
+        chunks = [
+            ContentBlockChunkWrapper(text_block),
+            ContentBlockChunkWrapper(tool_block),
+        ]
         result = self.converter.to_history_item(chunks)
         expected_message = anthropic.types.MessageParam(
             role="assistant",
             content=[
                 anthropic.types.TextBlockParam(type="text", text="Part 1 "),
-                anthropic.types.ToolUseBlockParam(type="tool_use", id="t7", name="tool", input={}),
-            ]
+                anthropic.types.ToolUseBlockParam(
+                    type="tool_use", id="t7", name="tool", input={}
+                ),
+            ],
         )
         self.assertEqual(result, expected_message)
 
@@ -476,10 +554,18 @@ class TestClaudeConverter(unittest.TestCase):
         tool_output2 = ToolOutput(type="text", content="res2")
         results = [
             ContentPartToolResult(
-                id="t8", name="tool", content=ToolCallResult(output=tool_output1, success=True, failure=False)
+                id="t8",
+                name="tool",
+                content=ToolCallResult(
+                    output=tool_output1, success=True, failure=False
+                ),
             ),
             ContentPartToolResult(
-                id="t9", name="tool2", content=ToolCallResult(output=tool_output2, success=True, failure=False)
+                id="t9",
+                name="tool2",
+                content=ToolCallResult(
+                    output=tool_output2, success=True, failure=False
+                ),
             ),
         ]
         result = self.converter.to_history_item(results)
@@ -496,7 +582,7 @@ class TestClaudeConverter(unittest.TestCase):
                     tool_use_id="t9",
                     content=results[1].content.model_dump_json(),
                 ),
-            ]
+            ],
         )
         self.assertEqual(result, expected_message)
 
@@ -509,33 +595,42 @@ class TestClaudeConverter(unittest.TestCase):
         """Test converting a list with mixed types raises TypeError."""
         text_block = anthropic.types.TextBlock(type="text", text="text")
         tool_output = ToolOutput(type="text", content="res")
-        tool_result_content = ToolCallResult(output=tool_output, success=True, failure=False)
+        tool_result_content = ToolCallResult(
+            output=tool_output, success=True, failure=False
+        )
         mixed_list = [
             ContentBlockChunkWrapper(text_block),
             ContentPartToolResult(id="t10", name="t", content=tool_result_content),
         ]
         with self.assertRaises(TypeError):
-            self.converter.to_history_item(mixed_list) # type: ignore
+            self.converter.to_history_item(mixed_list)  # type: ignore
 
     def test_to_history_item_unsupported_type(self):
         """Test converting a list with an unsupported type raises TypeError."""
         with self.assertRaises(TypeError):
-            self.converter.to_history_item(["just_a_string"]) # type: ignore
+            self.converter.to_history_item(["just_a_string"])  # type: ignore
 
     # --- _content_blocks_to_message tests (internal helper) ---
 
     def test_content_blocks_to_message(self):
         """Test internal conversion from chunks to assistant message dict."""
         text_block = anthropic.types.TextBlock(type="text", text="Text ")
-        tool_block = anthropic.types.ToolUseBlock(type="tool_use", id="t10", name="t", input={"a":1})
-        chunks = [ContentBlockChunkWrapper(text_block), ContentBlockChunkWrapper(tool_block)]
+        tool_block = anthropic.types.ToolUseBlock(
+            type="tool_use", id="t10", name="t", input={"a": 1}
+        )
+        chunks = [
+            ContentBlockChunkWrapper(text_block),
+            ContentBlockChunkWrapper(tool_block),
+        ]
         result = self.converter._content_blocks_to_message(chunks)
         expected = anthropic.types.MessageParam(
             role="assistant",
             content=[
                 anthropic.types.TextBlockParam(type="text", text="Text "),
-                anthropic.types.ToolUseBlockParam(type="tool_use", id="t10", name="t", input={"a":1}),
-            ]
+                anthropic.types.ToolUseBlockParam(
+                    type="tool_use", id="t10", name="t", input={"a": 1}
+                ),
+            ],
         )
         self.assertEqual(result, expected)
 
@@ -557,7 +652,11 @@ class TestClaudeConverter(unittest.TestCase):
         """Test internal conversion from tool results to user message dict."""
         tool_output = ToolOutput(type="text", content="r")
         results = [
-            ContentPartToolResult(id="t11", name="t", content=ToolCallResult(output=tool_output, success=True, failure=False))
+            ContentPartToolResult(
+                id="t11",
+                name="t",
+                content=ToolCallResult(output=tool_output, success=True, failure=False),
+            )
         ]
         result = self.converter._tool_results_to_message(results)
         expected = anthropic.types.MessageParam(
@@ -568,7 +667,7 @@ class TestClaudeConverter(unittest.TestCase):
                     tool_use_id="t11",
                     content=results[0].content.model_dump_json(),
                 )
-            ]
+            ],
         )
         self.assertEqual(result, expected)
 
@@ -589,8 +688,8 @@ class TestClaudeConverter(unittest.TestCase):
     def test_create_chunk_wrapper_invalid_type(self):
         """Test create_chunk_wrapper raises TypeError for invalid (None) input type."""
         with self.assertRaises(TypeError):
-            self.converter.create_chunk_wrapper(None) # type: ignore
+            self.converter.create_chunk_wrapper(None)  # type: ignore
+
 
 if __name__ == "__main__":
     unittest.main()
-

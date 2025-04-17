@@ -70,12 +70,13 @@ class InteractionManager:
 
             # Ensure history fits the context window
             if not self.provider.manage_conversation_history(provider_history):
-                raise ValueError("Conversation history exceeds the model's context window.")
+                raise ValueError(
+                    "Conversation history exceeds the model's context window."
+                )
 
             request_count = 0
             has_tool_calls = False
             finish_reason = None
-
 
             # Continue generating responses and handling tool calls until complete
             while has_tool_calls or not finish_reason:
@@ -86,14 +87,19 @@ class InteractionManager:
                     f"Starting request {request_count} with {len(provider_history)} message items."
                 )
                 logging.debug(
-                    "Messages for generation:\n%s", self.provider.pretty_print(provider_history)
+                    "Messages for generation:\n%s",
+                    self.provider.pretty_print(provider_history),
                 )
 
                 # The condition to stop is when there are no tool calls and no finish message in this turn
                 turn: List[ChunkWrapper | ContentPartToolResult] = []
                 with self.ui.status("Working..."):
                     for chunk in self.provider.generate(
-                        client, self.model_name, history.system_message, provider_history, provider_tools
+                        client,
+                        self.model_name,
+                        history.system_message,
+                        provider_history,
+                        provider_tools,
                     ):
                         if chunk.get_finish_message():
                             finish_reason = chunk.get_finish_message()
@@ -104,17 +110,23 @@ class InteractionManager:
                         if chunk.get_tool_calls():
                             for tool_call in chunk.get_tool_calls():
                                 self.ui.display_tool_call(tool_call)
-                                logging.info(f"Tool call: {tool_call.name} with args: {tool_call.arguments}")
+                                logging.info(
+                                    f"Tool call: {tool_call.name} with args: {tool_call.arguments}"
+                                )
                                 tool_result = self.tools.call_tool(tool_call, chunk.raw)
                                 if tool_result.success:
                                     self.ui.display_tool_result(tool_result)
-                                    logging.info(f"Tool '{tool_call.name}' result: {tool_result.output.content}'")
+                                    logging.info(
+                                        f"Tool '{tool_call.name}' result: {tool_result.output.content}'"
+                                    )
                                 else:
                                     self.ui.display_tool_error(tool_result)
                                     logging.error(tool_result.output.content)
                                 turn.append(
                                     ContentPartToolResult(
-                                        id=tool_call.id, name=tool_call.name, content=tool_result
+                                        id=tool_call.id,
+                                        name=tool_call.name,
+                                        content=tool_result,
                                     )
                                 )
                                 has_tool_calls = True

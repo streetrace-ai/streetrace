@@ -61,7 +61,9 @@ class Application:
         self.prompt_processor = prompt_processor
         self.interaction_manager = interaction_manager
         self.working_dir = working_dir
-        self.conversation_history: History | None = None  # Stores ongoing conversation in interactive mode
+        self.conversation_history: History | None = (
+            None  # Stores ongoing conversation in interactive mode
+        )
         logger.info("Application initialized.")
 
     def run(self):
@@ -174,7 +176,6 @@ class Application:
                         context=initial_context.project_context,
                     )
 
-
                 if user_input.strip():
                     # Process the prompt within the interactive session
                     # Build context again mainly for mentions specific to this input
@@ -184,7 +185,8 @@ class Application:
 
                     # Add mentioned files to history (if any)
                     self._add_mentions_to_history(
-                        prompt_specific_context.mentioned_files, self.conversation_history
+                        prompt_specific_context.mentioned_files,
+                        self.conversation_history,
                     )
 
                     # Add the user prompt itself
@@ -236,7 +238,9 @@ class Application:
             context_message = (
                 f"Content of mentioned file '@{filepath}':\n---\n{content}\n---"
             )
-            MAX_MENTION_CONTENT_LENGTH = 20000  # Maximum length for file content to prevent excessive tokens
+            MAX_MENTION_CONTENT_LENGTH = (
+                20000  # Maximum length for file content to prevent excessive tokens
+            )
             if len(content) > MAX_MENTION_CONTENT_LENGTH:
                 context_message = f"Content of mentioned file '@{filepath}' (truncated):\n---\n{content[:MAX_MENTION_CONTENT_LENGTH]}\n...\n---"
                 logging.warning(
@@ -304,9 +308,7 @@ class Application:
                             content_str += f"Tool Call: {part.name}({args_str})\n"
                         elif isinstance(part, ContentPartToolResult):
                             if part.content.error:
-                                content_str += (
-                                    f"Tool Result: (Error) {part.content.output.content}\n"
-                                )
+                                content_str += f"Tool Result: (Error) {part.content.output.content}\n"
                             else:
                                 content_str += "Tool Result: (OK)\n"
                         elif part is None:  # Handle potential None parts

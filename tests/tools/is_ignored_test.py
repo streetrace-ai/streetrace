@@ -1,7 +1,8 @@
 import unittest
 
 import pathspec
-from tools.read_directory_structure import is_ignored
+
+from streetrace.tools.read_directory_structure import is_ignored
 
 
 # Unit tests for is_ignored

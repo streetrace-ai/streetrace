@@ -66,6 +66,7 @@ class FinishWrapper(ChunkWrapper[str]):
         """Get text content from the chunk if it has text."""
         return f"{self.raw}: {self.finish_message}" if self.raw is not None else None
 
+
 class HistoryConverter(Generic[T_MessageParam, T_Chunk], abc.ABC):
     """
     Abstract base class for converting between common message format and provider-specific formats.

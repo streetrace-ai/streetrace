@@ -15,11 +15,11 @@ from streetrace.llm.wrapper import (
     ContentPart,
     ContentPartText,
     ContentPartToolCall,
-    ToolCallResult,
     ContentPartToolResult,
     History,
     Message,
     Role,
+    ToolCallResult,
 )
 
 _ROLES = {
@@ -323,7 +323,9 @@ class OpenAIConverter(
                                     ContentPartToolResult(
                                         id=tool_call_id,
                                         name=tool_name,
-                                        content=ToolCallResult.model_validate_json(content),
+                                        content=ToolCallResult.model_validate_json(
+                                            content
+                                        ),
                                     )
                                 ],
                             )

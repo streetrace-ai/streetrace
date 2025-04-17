@@ -4,14 +4,15 @@ import os
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 from rich.console import Console
-from rich.syntax import Syntax
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.syntax import Syntax
 
 from streetrace.llm.wrapper import ContentPartToolCall, ToolCallResult
 from streetrace.ui.colors import Styles
 
 _PROMPT = "You:"
+
 
 class ConsoleUI:
     """
@@ -60,11 +61,13 @@ class ConsoleUI:
         """
         # Use Styles for the prompt string itself
         with patch_stdout():
-            return self.prompt_session.prompt([
-                ("class:prompt",     prompt),
-                ("",    " "),
-            ]
-            , style=Styles.PT)
+            return self.prompt_session.prompt(
+                [
+                    ("class:prompt", prompt),
+                    ("", " "),
+                ],
+                style=Styles.PT,
+            )
 
     def display_system_message(self, message: str):
         """
@@ -75,7 +78,10 @@ class ConsoleUI:
             color: The Styles code to use for the message. Defaults to INFO.
         """
         self.new_line()
-        self.console.print(Panel("System instructions"), style=Styles.RICH_HISTORY_SYSTEM_INSTRUCTIONS_HEADER)
+        self.console.print(
+            Panel("System instructions"),
+            style=Styles.RICH_HISTORY_SYSTEM_INSTRUCTIONS_HEADER,
+        )
         self.console.print(message, style=Styles.RICH_HISTORY_SYSTEM_INSTRUCTIONS)
 
     def display_context_message(self, message: str):
@@ -90,9 +96,7 @@ class ConsoleUI:
         self.console.print(Panel("Context"), style=Styles.RICH_HISTORY_CONTEXT_HEADER)
         self.console.print(message, style=Styles.RICH_HISTORY_CONTEXT)
 
-    def display_history_assistant_message(
-        self, message: str
-    ):
+    def display_history_assistant_message(self, message: str):
         """
         Displays an informational message to the console.
 
@@ -146,7 +150,10 @@ class ConsoleUI:
 
     def display_tool_call(self, tool_call: ContentPartToolCall):
         """Displays information about a tool being called."""
-        display_args = { k: v if len(str(v)) < 30 else str(v)[:20] + f"... ({len(str(v))})" for k, v in tool_call.arguments.items() }
+        display_args = {
+            k: v if len(str(v)) < 30 else str(v)[:20] + f"... ({len(str(v))})"
+            for k, v in tool_call.arguments.items()
+        }
         message = f"{tool_call.name}({str(display_args)})"
         syntax = Syntax(message, "coffee", theme=Styles.RICH_TOOL_CALL)
         self.new_line()

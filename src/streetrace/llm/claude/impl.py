@@ -204,9 +204,9 @@ class Claude(LLMAPI):
                     for content_block in response.content
                 ] + (
                     [FinishWrapper(response.stop_reason, response.stop_sequence)]
-                    if response.stop_reason else []
+                    if response.stop_reason
+                    else []
                 )
-
 
             except anthropic.RateLimitError as e:
                 # TODO: Implement retryable error handling in the InteractionManager to allow proper

@@ -1,18 +1,16 @@
 # main.py
 import argparse
-import json
 import logging
 import os
 import sys
 
-# LLM and Tooling
-from llm.llmapi_factory import get_ai_provider
 from prompt_processor import PromptProcessor
-from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 
 # Core application components
 from streetrace.application import Application  # <-- Added import
 from streetrace.commands.command_executor import CommandExecutor
+from streetrace.llm.llmapi_factory import get_ai_provider
+from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
 from streetrace.ui.interaction_manager import InteractionManager

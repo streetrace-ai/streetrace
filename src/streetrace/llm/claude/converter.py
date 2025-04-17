@@ -27,7 +27,7 @@ _ROLES = {
     Role.SYSTEM: "system",
     Role.USER: "user",
     Role.MODEL: "assistant",
-    Role.TOOL: "user", # Tool results are sent in a user message in Claude
+    Role.TOOL: "user",  # Tool results are sent in a user message in Claude
 }
 _CLAUDE_ROLES = {
     "system": Role.SYSTEM,
@@ -109,7 +109,9 @@ class ClaudeConverter(
         Convert a Claude-specific content part (as dict) to common format ContentPart.
         """
         if not isinstance(part, dict):
-             raise ValueError(f"Expected a dict for Claude content part, got {type(part)}")
+            raise ValueError(
+                f"Expected a dict for Claude content part, got {type(part)}"
+            )
 
         part_type = part.get("type")
         if part_type == "text":
@@ -131,8 +133,12 @@ class ClaudeConverter(
             except Exception as e:
                 print(f"Error parsing tool result content: {e}, content: {content_str}")
                 # Fix: Create fallback ToolCallResult indicating failure correctly
-                fallback_output = ToolOutput(type="text", content=f"Error parsing result: {e}")
-                tool_content = ToolCallResult(output=fallback_output, success=False, failure=True)
+                fallback_output = ToolOutput(
+                    type="text", content=f"Error parsing result: {e}"
+                )
+                tool_content = ToolCallResult(
+                    output=fallback_output, success=False, failure=True
+                )
 
             return ContentPartToolResult(
                 id=tool_use_id,
@@ -151,7 +157,11 @@ class ClaudeConverter(
             provider_history.append(
                 anthropic.types.MessageParam(
                     role="user",
-                    content=[anthropic.types.TextBlockParam(type="text", text=history.context)],
+                    content=[
+                        anthropic.types.TextBlockParam(
+                            type="text", text=history.context
+                        )
+                    ],
                 )
             )
 
@@ -160,8 +170,10 @@ class ClaudeConverter(
                 continue
             claude_role = _ROLES.get(message.role)
             if not claude_role:
-                 print(f"Warning: Unsupported role {message.role} encountered, skipping message.")
-                 continue
+                print(
+                    f"Warning: Unsupported role {message.role} encountered, skipping message."
+                )
+                continue
             claude_content = []
             for part in message.content:
                 try:
@@ -171,7 +183,9 @@ class ClaudeConverter(
                     continue
             if claude_content:
                 provider_history.append(
-                    anthropic.types.MessageParam(role=claude_role, content=claude_content)
+                    anthropic.types.MessageParam(
+                        role=claude_role, content=claude_content
+                    )
                 )
         return provider_history
 
@@ -187,14 +201,21 @@ class ClaudeConverter(
         tool_use_names: Dict[str, str] = {}
         for message_param in provider_history:
             if not isinstance(message_param, dict):
-                 print(f"Warning: Skipping non-dict item in provider_history: {message_param}")
-                 continue
+                print(
+                    f"Warning: Skipping non-dict item in provider_history: {message_param}"
+                )
+                continue
             content_list = message_param.get("content", [])
             if not isinstance(content_list, list):
-                print(f"Warning: Content for message is not a list, skipping tool name extraction: {message_param}")
+                print(
+                    f"Warning: Content for message is not a list, skipping tool name extraction: {message_param}"
+                )
                 continue
             for content_block in content_list:
-                if isinstance(content_block, dict) and content_block.get("type") == "tool_use":
+                if (
+                    isinstance(content_block, dict)
+                    and content_block.get("type") == "tool_use"
+                ):
                     tool_id = content_block.get("id")
                     tool_name = content_block.get("name")
                     if tool_id and tool_name:
@@ -202,11 +223,13 @@ class ClaudeConverter(
 
         for message_param in provider_history:
             if not isinstance(message_param, dict):
-                 continue
+                continue
             claude_role = message_param.get("role")
             common_role = _CLAUDE_ROLES.get(str(claude_role))
             if not common_role:
-                print(f"Warning: Unknown or unmappable Claude role '{claude_role}', skipping message.")
+                print(
+                    f"Warning: Unknown or unmappable Claude role '{claude_role}', skipping message."
+                )
                 continue
             content_list = message_param.get("content", [])
             common_content: List[ContentPart] = []
@@ -214,14 +237,18 @@ class ClaudeConverter(
                 for part in content_list:
                     try:
                         if isinstance(part, dict):
-                            common_content.append(self._to_content_part(part, tool_use_names))
+                            common_content.append(
+                                self._to_content_part(part, tool_use_names)
+                            )
                         else:
-                             print(f"Warning: Skipping non-dict content part: {part}")
+                            print(f"Warning: Skipping non-dict content part: {part}")
                     except Exception as e:
                         print(f"Error converting content part: {e}, part: {part}")
                         continue
             else:
-                 print(f"Warning: Content for message is not a list, skipping content conversion: {message_param}")
+                print(
+                    f"Warning: Content for message is not a list, skipping content conversion: {message_param}"
+                )
 
             common_messages.append(Message(role=common_role, content=common_content))
         return common_messages
@@ -237,13 +264,17 @@ class ClaudeConverter(
             return None
         if isinstance(messages[0], ContentPartToolResult):
             if not all(isinstance(m, ContentPartToolResult) for m in messages):
-                 raise TypeError("Mixed types in messages list, expected all ContentPartToolResult.")
-            tool_results: List[ContentPartToolResult] = messages # type: ignore
+                raise TypeError(
+                    "Mixed types in messages list, expected all ContentPartToolResult."
+                )
+            tool_results: List[ContentPartToolResult] = messages  # type: ignore
             return self._tool_results_to_message(tool_results)
         elif isinstance(messages[0], ContentBlockChunkWrapper):
             if not all(isinstance(m, ContentBlockChunkWrapper) for m in messages):
-                 raise TypeError("Mixed types in messages list, expected all ContentBlockChunkWrapper.")
-            chunks: List[ContentBlockChunkWrapper] = messages # type: ignore
+                raise TypeError(
+                    "Mixed types in messages list, expected all ContentBlockChunkWrapper."
+                )
+            chunks: List[ContentBlockChunkWrapper] = messages  # type: ignore
             return self._content_blocks_to_message(chunks)
         else:
             raise TypeError(f"Unsupported message type in list: {type(messages[0])}")
@@ -258,17 +289,26 @@ class ClaudeConverter(
         for chunk in chunks:
             text = chunk.get_text()
             if text:
-                content_blocks.append(anthropic.types.TextBlockParam(type="text", text=text))
+                content_blocks.append(
+                    anthropic.types.TextBlockParam(type="text", text=text)
+                )
             tool_calls = chunk.get_tool_calls()
             for tool_call in tool_calls:
-                args = tool_call.arguments if isinstance(tool_call.arguments, dict) else {}
+                args = (
+                    tool_call.arguments if isinstance(tool_call.arguments, dict) else {}
+                )
                 content_blocks.append(
                     anthropic.types.ToolUseBlockParam(
-                        type="tool_use", id=tool_call.id, name=tool_call.name, input=args
+                        type="tool_use",
+                        id=tool_call.id,
+                        name=tool_call.name,
+                        input=args,
                     )
                 )
         if content_blocks:
-            return anthropic.types.MessageParam(role="assistant", content=content_blocks)
+            return anthropic.types.MessageParam(
+                role="assistant", content=content_blocks
+            )
         else:
             return None
 
@@ -282,24 +322,29 @@ class ClaudeConverter(
             return None
         tool_result_blocks = []
         for result in results:
-             try:
+            try:
                 content_json = result.content.model_dump_json()
                 tool_result_blocks.append(
                     anthropic.types.ToolResultBlockParam(
                         type="tool_result", tool_use_id=result.id, content=content_json
                     )
                 )
-             except Exception as e:
-                 print(f"Error serializing tool result content: {e}, result: {result}")
-                 error_content = json.dumps({"error": f"Serialization failed: {e}", "original_content": str(result.content)})
-                 tool_result_blocks.append(
-                     anthropic.types.ToolResultBlockParam(
+            except Exception as e:
+                print(f"Error serializing tool result content: {e}, result: {result}")
+                error_content = json.dumps(
+                    {
+                        "error": f"Serialization failed: {e}",
+                        "original_content": str(result.content),
+                    }
+                )
+                tool_result_blocks.append(
+                    anthropic.types.ToolResultBlockParam(
                         type="tool_result", tool_use_id=result.id, content=error_content
-                     )
-                 )
-                 continue
+                    )
+                )
+                continue
         if not tool_result_blocks:
-             return None
+            return None
         return anthropic.types.MessageParam(role="user", content=tool_result_blocks)
 
     def create_chunk_wrapper(
@@ -310,6 +355,5 @@ class ClaudeConverter(
         Create a wrapper for provider-specific streaming content chunks.
         """
         if chunk is None:
-             raise TypeError("Input chunk cannot be None")
+            raise TypeError("Input chunk cannot be None")
         return ContentBlockChunkWrapper(chunk)
-
