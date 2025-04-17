@@ -1,20 +1,11 @@
-# tests/test_command_executor.py
+# tests/commands/test_command_executor.py
 import logging
 import unittest
-from unittest.mock import Mock, patch  # Use patch for logger checks if needed
+from unittest.mock import Mock, patch
 
-# Assume CommandExecutor is importable (adjust path if necessary)
-# If 'app' is not automatically in pythonpath, we might need to adjust sys.path
-# For now, assume it works or we adjust later.
-try:
-    from app.command_executor import CommandExecutor
-except ImportError:
-    # If running tests from root, might need to add 'app' to path
-    import os
-    import sys
+# Use absolute import from the 'src' root
+from streetrace.commands.command_executor import CommandExecutor
 
-    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-    from app.command_executor import CommandExecutor
 
 # Disable logging during tests unless specifically testing logging output
 logging.disable(logging.CRITICAL)
@@ -115,8 +106,8 @@ class TestCommandExecutor(unittest.TestCase):
         mock_action = Mock(side_effect=RuntimeError("Action failed"))
         self.executor.register("errorCmd", mock_action)
 
-        # Use patch to check if logger.error was called
-        with patch("app.command_executor.logger") as mock_logger:
+        # Use patch with the correct absolute path
+        with patch("streetrace.commands.command_executor.logger") as mock_logger:
             executed, should_continue = self.executor.execute("errorCmd")
 
         self.assertTrue(executed)
@@ -129,7 +120,8 @@ class TestCommandExecutor(unittest.TestCase):
         mock_action = Mock(return_value="not a boolean")
         self.executor.register("badReturnCmd", mock_action)
 
-        with patch("app.command_executor.logger") as mock_logger:
+        # Use patch with the correct absolute path
+        with patch("streetrace.commands.command_executor.logger") as mock_logger:
             executed, should_continue = self.executor.execute("badReturnCmd")
 
         self.assertTrue(executed)
