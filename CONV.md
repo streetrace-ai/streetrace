@@ -66,6 +66,6 @@ Let's implement token counting for gemini. Whenever the response is received, we
 
 ===
 
-Let's make sure we have 100% test coverage for @src/streetrace/llm/claude/converter.py. The existing tests might be heavily outdated, so you might as well re-write it and remove parts that are not present in the actual converter.py.
+Let's make sure we have 100% test coverage for @src/streetrace/llm/openai/converter.py. The existing tests might be heavily outdated, so you might as well re-write it and remove parts that are not present in the actual converter.py.
 Make sure you activate venv when running tests, so that you have all the right dependencies.
 Make sure to check with the @CONTRIBUTING.md when introducing changes.

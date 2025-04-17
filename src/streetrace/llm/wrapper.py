@@ -25,7 +25,19 @@ class ContentPartToolCall(BaseModel):
 
 class ToolOutput(BaseModel):
     type: str
-    content: str | dict
+    content: list | dict | str
+
+    @staticmethod
+    def parse_any(input_value: any) -> "ToolOutput":
+        if input_value is None:
+            return None
+        elif isinstance(input_value, ToolOutput):
+            return input_value
+        elif isinstance(input_value, dict):
+            return ToolOutput.model_validate(input_value)
+        else:
+            assert isinstance(input_value, str) or isinstance(input_value, list) or isinstance(input_value, dict), f"Invalid input for ToolOutput: {type(input_value)}"
+            return ToolOutput(type="text", content=input_value)
 
 
 class ToolCallResult(BaseModel):
@@ -41,35 +53,22 @@ class ToolCallResult(BaseModel):
 
     @staticmethod
     def error(
-        output: str | ToolOutput, display_output: Optional[str | ToolOutput] = None
+        output: list | dict | str | ToolOutput, display_output: Optional[list | dict | str | ToolOutput] = None
     ) -> "ToolCallResult":
-        if isinstance(output, str):
-            output = ToolOutput(type="text", content=output)
-        elif isinstance(output, dict):
-            output = ToolOutput.model_validate(output)
-        if isinstance(display_output, str):
-            display_output = ToolOutput(type="text", content=display_output)
-        elif isinstance(display_output, dict):
-            display_output = ToolOutput.model_validate(display_output)
         return ToolCallResult(
-            failure=True, output=output, display_output=display_output
+            failure=True,
+            output=ToolOutput.parse_any(output),
+            display_output=ToolOutput.parse_any(display_output)
         )
 
     @staticmethod
     def ok(
-        output: ToolOutput | str | dict,
-        display_output: Optional[ToolOutput | str | dict] = None,
+        output: list | dict | str | ToolOutput, display_output: Optional[list | dict | str | ToolOutput] = None,
     ) -> "ToolCallResult":
-        if isinstance(output, str):
-            output = ToolOutput(type="text", content=output)
-        elif isinstance(output, dict):
-            output = ToolOutput.model_validate(output)
-        if isinstance(display_output, str):
-            display_output = ToolOutput(type="text", content=display_output)
-        elif isinstance(display_output, dict):
-            display_output = ToolOutput.model_validate(display_output)
         return ToolCallResult(
-            success=True, output=output, display_output=display_output
+            success=True,
+            output=ToolOutput.parse_any(output),
+            display_output=ToolOutput.parse_any(display_output)
         )
 
     @model_validator(mode="after")
