@@ -8,11 +8,12 @@ import sys
 # LLM and Tooling
 from llm.llmapi_factory import get_ai_provider
 from prompt_processor import PromptProcessor
-from tools.fs_tool import TOOL_IMPL, TOOLS
+from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 
 # Core application components
 from streetrace.application import Application  # <-- Added import
 from streetrace.commands.command_executor import CommandExecutor
+from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
 from streetrace.ui.interaction_manager import InteractionManager
 
@@ -69,82 +70,6 @@ def parse_arguments():
         "--debug", action="store_true", help="Enable debug logging to console and file."
     )
     return parser.parse_args()
-
-
-def call_tool(tool_name, args, original_call, work_dir, ui: ConsoleUI):
-    """
-    Calls the appropriate tool function based on the tool name, using UI for output.
-
-    Args:
-        tool_name: Name of the tool to call.
-        args: Dictionary of arguments to pass to the function.
-        original_call: The original function call object from the model (if available).
-        work_dir: Path to use as the working directory for file operations.
-        ui: The ConsoleUI instance for displaying messages.
-
-    Returns:
-        dict: A dictionary representing the tool result (success or error).
-    """
-    # Tool call display and logging (unchanged)
-    args_display = json.dumps(args)
-    if len(args_display) > 100:
-        args_display = args_display[:97] + "..."
-    ui.display_tool_call(tool_name, args_display)
-    logging.info(f"Tool call: {tool_name} with args: {args}")
-
-    if tool_name in TOOL_IMPL:
-        tool_func = TOOL_IMPL[tool_name]
-        tool_result = None
-        try:
-            # Inspect and call tool function, handling work_dir injection (unchanged)
-            import inspect
-
-            sig = inspect.signature(tool_func)
-            tool_params = sig.parameters
-            if "work_dir" in tool_params:
-                args_with_workdir = {**args, "work_dir": work_dir}
-                tool_result = tool_func(**args_with_workdir)
-            else:
-                tool_result = tool_func(**args)
-
-            # Format result for display and logging (unchanged)
-            if not isinstance(tool_result, dict):
-                result_data = {"result": tool_result}
-            else:
-                result_data = tool_result
-            display_result = str(result_data)
-            ui.display_tool_result(display_result)
-            logging.info(f"Tool '{tool_name}' result: {result_data}")
-
-            # Prepare final result payload, handling non-serializable data (unchanged)
-            final_result_payload = {}
-            try:
-                json.dumps(result_data)
-                final_result_payload = {"success": True, "result": result_data}
-            except TypeError as json_err:
-                logging.warning(
-                    f"Tool '{tool_name}' result is not fully JSON serializable: {json_err}. Returning string representation within result."
-                )
-                final_result_payload = {"success": True, "result": str(result_data)}
-            return final_result_payload
-
-        except Exception as e:
-            # Handle tool execution errors (unchanged)
-            error_msg = f"Error executing tool '{tool_name}': {str(e)}"
-            ui.display_error(error_msg)
-            logging.exception(
-                f"Error during tool call: {tool_name} with args {args}", exc_info=e
-            )
-            return {"error": True, "message": error_msg}
-    else:
-        # Handle tool not found errors (unchanged)
-        error_msg = f"Tool not found: {tool_name}"
-        ui.display_error(error_msg)
-        logging.error(error_msg)
-        return {"error": True, "message": error_msg}
-
-
-# --- End call_tool ---
 
 
 def main():
@@ -247,20 +172,17 @@ def main():
         sys.exit(1)
     # --- End AI Provider Setup ---
 
-    # --- Tool Calling Closure ---
-    # Define a closure that captures the current working directory and UI instance
-    # This is passed to the InteractionManager so it can invoke tools correctly.
-    def call_tool_f(tool_name, tool_args, original_call=None):
-        return call_tool(tool_name, tool_args, original_call, abs_working_dir, ui)
+    # --- Tool Calling ---
 
-    # --- End Tool Calling Closure ---
+    tools = ToolCall(TOOLS, TOOL_IMPL, abs_working_dir)
+
+    # --- End Tool Calling ---
 
     # --- Initialize Interaction Manager ---
     interaction_manager = InteractionManager(
         provider=provider,
         model_name=model_name,
-        tools=TOOLS,
-        tool_callback=call_tool_f,
+        tools=tools,
         ui=ui,
     )
     # --- End Initialize Interaction Manager ---

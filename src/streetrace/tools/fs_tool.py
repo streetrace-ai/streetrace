@@ -1,3 +1,5 @@
+from typing import Optional
+from pydantic import BaseModel, model_validator, root_validator
 import streetrace.tools.cli as cli
 import streetrace.tools.read_directory_structure as rds
 import streetrace.tools.read_file as rf

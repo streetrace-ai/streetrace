@@ -14,6 +14,7 @@ from streetrace.llm.wrapper import (
     ContentPart,
     ContentPartText,
     ContentPartToolCall,
+    ToolCallResult,
     ContentPartToolResult,
     History,
     Message,
@@ -86,7 +87,7 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
                 )
             case ContentPartToolResult():
                 return types.Part.from_function_response(
-                    name=part.name, response=part.content
+                    name=part.name, response=part.content.model_dump()
                 )
             case _:
                 raise ValueError(
@@ -118,7 +119,7 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
             return ContentPartToolResult(
                 id=part.function_response.id,
                 name=part.function_response.name,
-                content=part.function_response.response,
+                content=ToolCallResult.model_validate(part.function_response.response),
             )
         else:
             # Handle unknown content types
@@ -249,7 +250,7 @@ class GeminiConverter(HistoryConverter[types.Content, types.Part]):
         for result in messages:
             tool_parts.append(
                 types.Part.from_function_response(
-                    name=result.name, response=result.content
+                    name=result.name, response=result.content.model_dump()
                 )
             )
 

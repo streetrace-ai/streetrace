@@ -160,10 +160,7 @@ class PromptProcessor:
         if not mentions:
             return loaded_files
 
-        self.ui.display_info(
-            f"[Detected mentions: {', '.join(['@'+m for m in mentions])}]"
-        )
-        logging.info(f"Detected mentions after cleaning: {', '.join(mentions)}")
+        logging.debug(f"Detected mentions after cleaning: {', '.join(mentions)}")
 
         absolute_working_dir = os.path.realpath(working_dir)
 
@@ -215,7 +212,7 @@ class PromptProcessor:
 
         if mentions_found > 0:
             self.ui.display_info(
-                f"[Loaded content from {', '.join(['@'+m for m in mentions_loaded])}]"
+                f"[Loading content from {', '.join(['@'+m for m in mentions_loaded])}]"
             )
 
         return loaded_files

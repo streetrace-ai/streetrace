@@ -12,9 +12,9 @@ import ollama
 
 from streetrace.llm.history_converter import ChunkWrapper, HistoryConverter
 from streetrace.llm.wrapper import (
-    ContentPart,
     ContentPartText,
     ContentPartToolCall,
+    ToolCallResult,
     ContentPartToolResult,
     History,
     Message,
@@ -86,44 +86,6 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
     and provide a clear data flow path.
     """
 
-    def _from_content_part(self, part: ContentPart) -> Dict[str, Any]:
-        """
-        Convert a common format ContentPart to an Ollama-specific content part.
-
-        Args:
-            part: The common format content part to convert
-
-        Returns:
-            An Ollama-specific content part
-
-        Raises:
-            ValueError: If the content part type is not recognized
-        """
-        match part:
-            case ContentPartText():
-                return {"type": "text", "text": part.text}
-            case ContentPartToolCall():
-                return {
-                    "type": "tool_call",
-                    "id": part.id,
-                    "function": {"name": part.name, "arguments": part.arguments},
-                }
-            case ContentPartToolResult():
-                return {
-                    "type": "tool_result",
-                    "tool_call_id": part.id,
-                    "name": part.name,
-                    "content": (
-                        json.dumps(part.content)
-                        if isinstance(part.content, dict)
-                        else part.content
-                    ),
-                }
-            case _:
-                raise ValueError(
-                    f"Unknown content type encountered {type(part)}: {part}"
-                )
-
     def from_history(self, history: History) -> List[Dict[str, Any]]:
         """
         Convert common History format to Ollama-specific message format.
@@ -192,11 +154,7 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
                                 "role": _ROLES[message.role],
                                 "tool_call_id": part.id,
                                 "name": part.name,
-                                "content": (
-                                    json.dumps(part.content)
-                                    if isinstance(part.content, dict)
-                                    else str(part.content)
-                                ),
+                                "content": part.content.model_dump_json(),
                             }
                         )
             else:
@@ -293,14 +251,6 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
                     )
                 case "tool":
                     # Handle tool result messages
-                    tool_content = message.get("content", "{}")
-                    if isinstance(tool_content, str):
-                        try:
-                            tool_content = json.loads(tool_content)
-                        except json.JSONDecodeError:
-                            # If not valid JSON, wrap in a dict
-                            tool_content = {"result": tool_content}
-
                     common_messages.append(
                         Message(
                             role=_OLLAMA_ROLES[role],
@@ -313,7 +263,7 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
                                             message.get("tool_call_id", ""), "unknown"
                                         ),
                                     ),
-                                    content=tool_content,
+                                    content=ToolCallResult.model_validate_json(message.get("content", "{}")),
                                 )
                             ],
                         )
@@ -393,11 +343,7 @@ class OllamaConverter(HistoryConverter[Dict[str, Any], Dict[str, Any]]):
             "role": "tool",
             "tool_call_id": result.id,
             "name": result.name,
-            "content": (
-                json.dumps(result.content)
-                if isinstance(result.content, dict)
-                else str(result.content)
-            ),
+            "content": result.content.model_dump_json(),
         }
 
     def create_chunk_wrapper(

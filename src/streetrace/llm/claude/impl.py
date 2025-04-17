@@ -209,6 +209,8 @@ class Claude(LLMAPI):
 
 
             except anthropic.RateLimitError as e:
+                # TODO: Implement retryable error handling in the InteractionManager to allow proper
+                #       logging and UI handling.
                 retry_count += 1
                 wait_time = 30  # Wait for 30 seconds before retrying
 
@@ -218,16 +220,6 @@ class Claude(LLMAPI):
                 print(AnsiColors.WARNING + error_msg + AnsiColors.RESET)
                 time.sleep(wait_time)
                 continue
-
-            except Exception as e:
-                logging.exception(f"Error during API call: {e}")
-                print(
-                    AnsiColors.WARNING
-                    + f"\nError during API call: {e}"
-                    + AnsiColors.RESET
-                )
-                # For non-rate limit errors, don't retry
-                raise
 
     def append_to_history(
         self,

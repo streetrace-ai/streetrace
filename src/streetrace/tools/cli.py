@@ -2,6 +2,7 @@ import os
 import queue
 import subprocess
 import threading
+from typing import IO
 
 
 def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
@@ -38,11 +39,20 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
 
     try:
 
-        def pipe_data(text_stream, msg_queue, lines_buffer):
-            for line in iter(text_stream.readline, ""):
-                msg_queue.put(line)
-                lines_buffer.append(line)
-            msg_queue.put(None)
+        q = queue.Queue()
+
+        def monitor(text_stream, lines_buffer):
+            def pipe():
+                while True:
+                    line = text_stream.readline()
+                    if not line:
+                        break
+                    q.put(line)
+                    lines_buffer.append(line)
+                q.put(None)
+            t = threading.Thread(target=pipe, daemon=True)
+            t.start()
+            return t
 
         process = subprocess.Popen(
             args,
@@ -52,25 +62,13 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
             cwd=abs_work_dir,
         )
 
-        stdout_queue = queue.Queue()
-        stdout_thread = threading.Thread(
-            target=pipe_data, args=(process.stdout, stdout_queue, stdout_lines)
-        )
-        stdout_thread.daemon = True
-        stdout_thread.start()
+        mt = [monitor(process.stdout, stdout_lines), monitor(process.stderr, stderr_lines)]
 
-        stderr_queue = queue.Queue()
-        stderr_thread = threading.Thread(
-            target=pipe_data, args=(process.stderr, stderr_queue, stderr_lines)
-        )
-        stderr_thread.daemon = True
-        stderr_thread.start()
-
-        while stdout_thread.is_alive() or stderr_thread.is_alive():
-            for line in iter(stdout_queue.get, None):
-                print(line, end="")
-            for line in iter(stderr_queue.get, None):
-                print(line, end="")
+        while any([t.is_alive() for t in mt]):
+            # print everything into stdout
+            # b/c our stderr is for our errors, not tool errors
+            for line in iter(q.get, None):
+                print(line, end="", flush=True)
 
     except Exception as e:
         stderr_lines.append("\n")

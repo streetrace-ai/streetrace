@@ -19,6 +19,7 @@ from streetrace.llm.wrapper import (
     History,
     Message,
     Role,
+    ToolCallResult,
 )
 
 _ROLES = {
@@ -104,7 +105,7 @@ class ClaudeConverter(
                 return anthropic.types.ToolResultBlockParam(
                     type="tool_result",
                     tool_use_id=part.id,
-                    content=json.dumps(part.content),
+                    content=part.content.model_dump_json(),
                 )
             case _:
                 raise ValueError(
@@ -138,7 +139,7 @@ class ClaudeConverter(
                 return ContentPartToolResult(
                     id=part["tool_use_id"],
                     name=tool_use_names.get(part["tool_use_id"], "unknown"),
-                    content=json.loads(part["content"]),
+                    content=ToolCallResult.model_validate_json(part["content"]),
                 )
             case _:
                 raise ValueError(f"Unknown content type encountered: {part}")
@@ -286,7 +287,7 @@ class ClaudeConverter(
                 anthropic.types.ToolResultBlockParam(
                     type="tool_result",
                     tool_use_id=result.id,
-                    content=json.dumps(result.content),
+                    content=result.content.model_dump_json(),
                 )
                 for result in messages
             ],

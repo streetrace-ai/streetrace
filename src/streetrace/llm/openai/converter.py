@@ -15,6 +15,7 @@ from streetrace.llm.wrapper import (
     ContentPart,
     ContentPartText,
     ContentPartToolCall,
+    ToolCallResult,
     ContentPartToolResult,
     History,
     Message,
@@ -208,7 +209,7 @@ class OpenAIConverter(
                                 chat.ChatCompletionToolMessageParam(
                                     role=_ROLES[Role.TOOL],
                                     tool_call_id=msg.id,
-                                    content=json.dumps(msg.content),
+                                    content=msg.content.model_dump_json(),
                                 )
                             )
                 case _:
@@ -315,15 +316,6 @@ class OpenAIConverter(
                     if tool_call_id:
                         tool_name = tool_use_names.get(tool_call_id, "unknown")
 
-                        # Parse content if it's a JSON string
-                        if isinstance(content, str):
-                            try:
-                                content_obj = json.loads(content)
-                            except json.JSONDecodeError:
-                                content_obj = {"text": content}
-                        else:
-                            content_obj = content
-
                         common_messages.append(
                             Message(
                                 role=Role.TOOL,
@@ -331,7 +323,7 @@ class OpenAIConverter(
                                     ContentPartToolResult(
                                         id=tool_call_id,
                                         name=tool_name,
-                                        content=content_obj,
+                                        content=ToolCallResult.model_validate_json(content),
                                     )
                                 ],
                             )
@@ -429,7 +421,7 @@ class OpenAIConverter(
         return chat.ChatCompletionToolMessageParam(
             role=_ROLES[Role.TOOL],
             tool_call_id=result.id,
-            content=json.dumps(result.content),
+            content=result.content.model_dump_json(),
         )
 
     def create_chunk_wrapper(

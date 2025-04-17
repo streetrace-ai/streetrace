@@ -23,9 +23,16 @@ class Application:
     """
     Orchestrates the StreetRace application flow.
 
-    Initializes and coordinates components like UI, command execution,
-    prompt processing, and AI interaction. Manages the application lifecycle
-    for both interactive and non-interactive modes.
+    This class serves as the central coordinator for the application, managing the
+    interaction between components and handling the application lifecycle. It supports
+    both interactive chat mode and non-interactive single prompt execution.
+
+    The Application class initializes and coordinates key components including:
+    - User interface handling (ConsoleUI)
+    - Command execution (CommandExecutor)
+    - Prompt processing and context building (PromptProcessor)
+    - AI model interaction (InteractionManager)
+    - Conversation history management
     """
 
     def __init__(
@@ -38,15 +45,15 @@ class Application:
         working_dir: str,
     ):
         """
-        Initializes the Application.
+        Initializes the Application with necessary components and configuration.
 
         Args:
-            args: Parsed command-line arguments.
-            ui: Initialized ConsoleUI instance.
-            cmd_executor: Initialized CommandExecutor instance.
-            prompt_processor: Initialized PromptProcessor instance.
-            interaction_manager: Initialized InteractionManager instance.
-            working_dir: The absolute path to the effective working directory.
+            args: Parsed command-line arguments that control application behavior.
+            ui: ConsoleUI instance for handling user interaction and displaying output.
+            cmd_executor: CommandExecutor instance for processing internal commands.
+            prompt_processor: PromptProcessor instance for building context and processing prompts.
+            interaction_manager: InteractionManager instance for handling AI model interactions.
+            working_dir: The absolute path to the effective working directory for file operations.
         """
         self.args = args
         self.ui = ui
@@ -54,18 +61,29 @@ class Application:
         self.prompt_processor = prompt_processor
         self.interaction_manager = interaction_manager
         self.working_dir = working_dir
-        self.conversation_history: History | None = None  # Initialize history attribute
+        self.conversation_history: History | None = None  # Stores ongoing conversation in interactive mode
         logger.info("Application initialized.")
 
     def run(self):
-        """Starts the application execution based on args."""
+        """
+        Starts the application execution based on provided arguments.
+
+        Determines whether to run in interactive or non-interactive mode based on
+        whether a prompt was provided via command-line arguments.
+        """
         if self.args.prompt:
             self._run_non_interactive()
         else:
             self._run_interactive()
 
     def _run_non_interactive(self):
-        """Handles non-interactive mode (single prompt execution)."""
+        """
+        Handles non-interactive mode (single prompt execution).
+
+        Processes a single prompt provided via command-line arguments and exits.
+        First checks if the prompt is an internal command, and if not, processes
+        it through the AI model and displays the response.
+        """
         prompt_input = self.args.prompt
         self.ui.display_user_prompt(prompt_input)
 
@@ -107,7 +125,15 @@ class Application:
             logging.info("Non-interactive mode finished.")
 
     def _run_interactive(self):
-        """Handles interactive mode (conversation loop)."""
+        """
+        Handles interactive mode (conversation loop).
+
+        Initializes and maintains an ongoing conversation with the AI assistant.
+        Continuously prompts for user input, processes commands or sends prompts
+        to the AI model, and displays responses until the user chooses to exit.
+
+        Handles keyboard interrupts and EOF signals gracefully for smooth termination.
+        """
         self.ui.display_info(
             "Entering interactive mode. Type 'history', 'exit', 'quit' or press Ctrl+C/Ctrl+D to quit."
         )
@@ -122,7 +148,7 @@ class Application:
 
         while True:
             try:
-                user_input = self.ui.get_user_input()
+                user_input = self.ui.prompt()
 
                 command_executed, should_continue = self.cmd_executor.execute(
                     user_input, self
@@ -188,10 +214,20 @@ class Application:
                 logging.exception(
                     "Unexpected error in interactive loop.", exc_info=loop_err
                 )
-                # Decide whether to continue or break here. Let's continue for now.
+                # Continue the loop to maintain interactive session after error
 
     def _add_mentions_to_history(self, mentioned_files: list, history: History):
-        """Helper method to add content from mentioned files to history."""
+        """
+        Adds content from mentioned files to conversation history.
+
+        When the user references files with @ mentions in their prompt,
+        this method adds the content of those files to the conversation
+        history to provide context to the AI model.
+
+        Args:
+            mentioned_files: List of tuples containing (filepath, content) for each mentioned file.
+            history: The History object to which file contents should be added.
+        """
         if not mentioned_files:
             return
 
@@ -200,7 +236,7 @@ class Application:
             context_message = (
                 f"Content of mentioned file '@{filepath}':\n---\n{content}\n---"
             )
-            MAX_MENTION_CONTENT_LENGTH = 10000  # Consider making this configurable
+            MAX_MENTION_CONTENT_LENGTH = 10000  # Maximum length for file content to prevent excessive tokens
             if len(content) > MAX_MENTION_CONTENT_LENGTH:
                 context_message = f"Content of mentioned file '@{filepath}' (truncated):\n---\n{content[:MAX_MENTION_CONTENT_LENGTH]}\n...\n---"
                 logging.warning(
@@ -216,8 +252,13 @@ class Application:
         """
         Displays the current conversation history using the UI.
 
+        This method is called when the user requests to see the conversation
+        history via the 'history' command. It formats and displays different
+        types of message content including text, tool calls, and tool results.
+
         Returns:
-            True, indicating the application should continue.
+            True, indicating the application should continue running after
+            displaying history.
         """
         if not self.conversation_history:
             self.ui.display_warning("No history available yet.")
@@ -231,8 +272,7 @@ class Application:
 
         # Display context if present
         if self.conversation_history.context:
-            # Context might be large, maybe summarize or just indicate presence?
-            # For now, let's display the first N chars or a summary
+            # Show a preview of context due to potential large size
             context_str = str(self.conversation_history.context)
             max_len = 200
             display_context = (
@@ -263,9 +303,9 @@ class Application:
                             )
                             content_str += f"Tool Call: {part.name}({args_str})\n"
                         elif isinstance(part, ContentPartToolResult):
-                            if "error" in part.content:
+                            if part.content.error:
                                 content_str += (
-                                    f"Tool Result: (Error) {part.content['message']}\n"
+                                    f"Tool Result: (Error) {part.content.output.content}\n"
                                 )
                             else:
                                 content_str += "Tool Result: (OK)\n"
@@ -277,9 +317,10 @@ class Application:
 
                 # Use appropriate UI methods based on role
                 if msg.role == Role.MODEL:
-                    # Check if it's a tool call or regular response
+                    # Display assistant/model messages
                     self.ui.display_history_assistant_message(content_str)
                 elif msg.role == Role.USER or msg.role == Role.TOOL:
+                    # Display user messages or tool messages
                     self.ui.display_history_user_message(content_str)
                 else:  # Fallback for other potential roles
                     self.ui.display_info(f"{role_str}: {content_str.strip()}")
