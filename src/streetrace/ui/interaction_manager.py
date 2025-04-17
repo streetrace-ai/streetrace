@@ -119,8 +119,8 @@ class InteractionManager:
                                 )
                                 has_tool_calls = True
 
-                self.ui.display_info(finish_reason)
                 self.provider.append_to_history(provider_history, turn)
+            self.ui.display_info(finish_reason)
             self.provider.update_history(provider_history, history)
         except Exception as gen_err:
             # Use the UI instance to display the error
