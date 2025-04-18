@@ -77,4 +77,12 @@ run pytest and try to fix failing tests. Do not modify files under src/streetrac
 
 Claude:
 - Ignored the "do not modify" part and started making pointless changes in the codebase
-- Rate limits made imposible to dig through everything.
+- Very slow in general, but even then, rate limits made imposible to dig through everything.
+
+Gemini:
+- Ignored the "do not modify" but the modifications were at least not that dumb
+- Errored out with 500, but fixed over a half of the tests driving coverage to 60%
+
+===
+
+check git diff, also check individual file changes, and suggest a concise and clear atomic commit message for this change
