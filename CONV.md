@@ -75,6 +75,6 @@ Make sure to check with the @CONTRIBUTING.do not make sensemd when introducing c
 
 run pytest and try to fix failing tests. Do not modify files under src/streetrace as they work as expected.
 
-Result:
-- Claude ignored the "do not modify" part and started making pointless changes in the codebase
+Claude:
+- Ignored the "do not modify" part and started making pointless changes in the codebase
 - Rate limits made imposible to dig through everything.

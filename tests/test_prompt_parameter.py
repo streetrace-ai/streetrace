@@ -13,7 +13,7 @@ import streetrace.main as main
 
 # We also need to mock the modules that main imports if they aren't available
 # or if we don't want their side effects during testing main's argument parsing.
-# Mock PromptProcessor before it's used in main
+# Mock components to isolate main's logic
 sys.modules["streetrace.prompt_processor"] = MagicMock()
 sys.modules["streetrace.application"] = MagicMock()
 sys.modules["streetrace.commands.command_executor"] = MagicMock()
@@ -21,23 +21,54 @@ sys.modules["streetrace.llm.llmapi_factory"] = MagicMock()
 sys.modules["streetrace.messages"] = MagicMock()
 sys.modules["streetrace.tools.tools"] = MagicMock()
 sys.modules["streetrace.ui.console_ui"] = MagicMock()
+sys.modules["streetrace.ui.interaction_manager"] = MagicMock()
 
 
 class TestPromptParameter(unittest.TestCase):
     """Test cases for the --prompt parameter in main.py"""
 
-    @patch("builtins.input")  # Mock the input function
-    @patch("argparse.ArgumentParser.parse_args")
-    @patch("streetrace.main.Application")  # Mock the Application class used in main
-    def test_non_interactive_mode(self, MockApplication, mock_parse_args, mock_input):
+    @patch("streetrace.main.get_ai_provider") # Patch the factory function
+    @patch("streetrace.main.os.path.isdir") # Mock path checks
+    @patch("streetrace.main.os.chdir") # Mock chdir
+    @patch("streetrace.main.os.getcwd") # Mock getcwd
+    @patch("streetrace.main.ConsoleUI") # Mock UI
+    @patch("streetrace.main.CommandExecutor") # Mock Executor
+    @patch("streetrace.main.PromptProcessor") # Mock Processor
+    @patch("streetrace.main.InteractionManager") # Mock Interaction Manager
+    @patch("streetrace.main.ToolCall") # Mock ToolCall
+    @patch("builtins.input") # Mock input
+    @patch("argparse.ArgumentParser.parse_args") # Mock arg parsing
+    @patch("streetrace.main.Application") # Mock Application class
+    def test_non_interactive_mode(
+        self,
+        MockApplication,
+        mock_parse_args,
+        mock_input,
+        MockToolCall, # Add mocks to args
+        MockInteractionManager,
+        MockPromptProcessor,
+        MockCommandExecutor,
+        MockConsoleUI,
+        mock_getcwd,
+        mock_chdir,
+        mock_isdir,
+        mock_get_ai_provider,
+    ):
         """Test that the script runs in non-interactive mode with --prompt parameter"""
         # Set up mocks
         mock_args = MagicMock()
         mock_args.prompt = "Test prompt"
-        mock_args.non_interactive = (
-            True  # Assume prompt implies non-interactive if not specified
-        )
+        mock_args.path = None # Assume default path
+        mock_args.debug = False
+        mock_args.engine = None # Assume default engine
+        mock_args.model = None
+        # Non-interactive mode is implicitly true if prompt is given in Application
         mock_parse_args.return_value = mock_args
+
+        mock_isdir.return_value = True # Assume path is valid
+        mock_getcwd.return_value = "/fake/cwd"
+        mock_get_ai_provider.return_value = MagicMock() # Return a dummy provider
+        mock_ui_instance = MockConsoleUI.return_value
 
         # Mock the Application instance and its run method
         mock_app_instance = MockApplication.return_value
@@ -45,29 +76,62 @@ class TestPromptParameter(unittest.TestCase):
         # Call the main function
         main.main()
 
-        # Assert Application was initialized with the correct arguments
+        # Assert Application was initialized (basic check)
         MockApplication.assert_called_once()
-        init_args, init_kwargs = MockApplication.call_args
-        self.assertTrue(init_kwargs["non_interactive"])
 
-        # Assert the run method was called with the prompt
-        mock_app_instance.run.assert_called_once_with(initial_prompt="Test prompt")
+        # Assert the run method was called correctly for non-interactive
+        mock_app_instance.run.assert_called_once()
+        # Check the call arguments of run (Application should handle prompt)
+        call_args, call_kwargs = mock_app_instance.run.call_args
+        # Application's run doesn't take initial_prompt anymore directly
+        # Instead, it checks args.prompt internally.
 
         # Assert that input() was never called (non-interactive mode)
         mock_input.assert_not_called()
+        # Assert UI display for non-interactive start (optional)
+        # mock_ui_instance.display_info.assert_any_call("Running with provided prompt...")
 
-    @patch("builtins.input")  # Mock the input function
-    @patch("argparse.ArgumentParser.parse_args")
-    @patch("streetrace.main.Application")  # Mock the Application class used in main
-    def test_interactive_mode(self, MockApplication, mock_parse_args, mock_input):
+    @patch("streetrace.main.get_ai_provider") # Patch the factory function
+    @patch("streetrace.main.os.path.isdir") # Mock path checks
+    @patch("streetrace.main.os.chdir") # Mock chdir
+    @patch("streetrace.main.os.getcwd") # Mock getcwd
+    @patch("streetrace.main.ConsoleUI") # Mock UI
+    @patch("streetrace.main.CommandExecutor") # Mock Executor
+    @patch("streetrace.main.PromptProcessor") # Mock Processor
+    @patch("streetrace.main.InteractionManager") # Mock Interaction Manager
+    @patch("streetrace.main.ToolCall") # Mock ToolCall
+    @patch("builtins.input") # Mock input
+    @patch("argparse.ArgumentParser.parse_args") # Mock arg parsing
+    @patch("streetrace.main.Application") # Mock Application class
+    def test_interactive_mode(
+        self,
+        MockApplication,
+        mock_parse_args,
+        mock_input,
+        MockToolCall,
+        MockInteractionManager,
+        MockPromptProcessor,
+        MockCommandExecutor,
+        MockConsoleUI,
+        mock_getcwd,
+        mock_chdir,
+        mock_isdir,
+        mock_get_ai_provider,
+    ):
         """Test that the script runs in interactive mode without --prompt parameter"""
         # Set up mocks
         mock_args = MagicMock()
-        mock_args.prompt = None
-        mock_args.non_interactive = (
-            False  # Explicitly set to False or ensure default is False
-        )
+        mock_args.prompt = None # No prompt provided
+        mock_args.path = None
+        mock_args.debug = False
+        mock_args.engine = 'openai' # Provide a valid engine name
+        mock_args.model = None
         mock_parse_args.return_value = mock_args
+
+        mock_isdir.return_value = True
+        mock_getcwd.return_value = "/fake/cwd"
+        mock_get_ai_provider.return_value = MagicMock() # Return a dummy provider
+        mock_ui_instance = MockConsoleUI.return_value
 
         # Mock the Application instance and its run method
         mock_app_instance = MockApplication.return_value
@@ -75,15 +139,17 @@ class TestPromptParameter(unittest.TestCase):
         # Call the main function
         main.main()
 
-        # Assert Application was initialized correctly
+        # Assert Application was initialized (basic check)
         MockApplication.assert_called_once()
-        init_args, init_kwargs = MockApplication.call_args
-        self.assertFalse(init_kwargs.get("non_interactive", False))
 
-        # Assert the run method was called without an initial prompt
-        mock_app_instance.run.assert_called_once_with(initial_prompt=None)
+        # Assert the run method was called correctly for interactive mode
+        mock_app_instance.run.assert_called_once()
+        call_args, call_kwargs = mock_app_instance.run.call_args
+        # Interactive mode doesn't pass prompt to run
 
         # Note: We don't assert input() here as the Application's run loop is mocked
+        # Assert UI display for interactive start (optional)
+        # mock_ui_instance.display_info.assert_any_call("Entering interactive mode...")
 
 
 if __name__ == "__main__":

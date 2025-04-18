@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 from streetrace.commands.command_executor import CommandExecutor
 
 # Get a logger for this module - use the same name as in the source file
-logger = logging.getLogger("streetrace.commands.command_executor")
+# logger = logging.getLogger("streetrace.commands.command_executor") # No longer needed here
 # Keep logging disabled unless specifically needed for a test
 # logging.disable(logging.CRITICAL)
 
@@ -18,11 +18,15 @@ class TestCommandExecutor(unittest.TestCase):
 
     def setUp(self):
         """Set up a new CommandExecutor for each test."""
-        self.executor = CommandExecutor()
-        # Mock the logger used within CommandExecutor to check calls
-        self.patcher = patch("streetrace.commands.command_executor.logger", spec=True)
+        # Mock the logger instance obtained by the CommandExecutor module
+        # Patch the logger object directly by its name in the target module
+        self.patcher = patch("streetrace.commands.command_executor.logger")
         self.mock_logger = self.patcher.start()
         self.addCleanup(self.patcher.stop)  # Ensure patch is stopped even if test fails
+
+        # Now instantiate the executor AFTER the logger is patched
+        self.executor = CommandExecutor()
+
 
     def test_register_command_success(self):
         """Test successful registration of a command."""
@@ -36,6 +40,7 @@ class TestCommandExecutor(unittest.TestCase):
         self.assertEqual(
             self.executor._command_descriptions["testcmd"], "Test description"
         )
+        # Now check the mocked logger instance
         self.mock_logger.debug.assert_called_with(
             "Command 'testcmd' registered: Test description"
         )
@@ -148,8 +153,8 @@ class TestCommandExecutor(unittest.TestCase):
         self.assertTrue(executed)
         self.assertTrue(should_continue)
         action_mock.assert_called_once_with()  # Called with no arguments
-        self.mock_logger.info.assert_any_call("Executing command: 'continuecmd'")
-        self.mock_logger.debug.assert_any_call(
+        self.mock_logger.info.assert_called_with("Executing command: 'continuecmd'")
+        self.mock_logger.debug.assert_called_with(
             "Command 'continuecmd' action returned: True"
         )
 
@@ -164,8 +169,8 @@ class TestCommandExecutor(unittest.TestCase):
         self.assertTrue(executed)
         self.assertFalse(should_continue)  # Correctly check for False
         action_mock.assert_called_once_with()
-        self.mock_logger.info.assert_any_call("Executing command: 'exitcmd'")
-        self.mock_logger.debug.assert_any_call(
+        self.mock_logger.info.assert_called_with("Executing command: 'exitcmd'")
+        self.mock_logger.debug.assert_called_with(
             "Command 'exitcmd' action returned: False"
         )
 
@@ -186,8 +191,8 @@ class TestCommandExecutor(unittest.TestCase):
         self.assertTrue(executed)
         self.assertTrue(should_continue)
         action_mock.assert_called_once_with(app_instance)  # Called with app_instance
-        self.mock_logger.info.assert_any_call("Executing command: 'continuewithargcmd'")
-        self.mock_logger.debug.assert_any_call(
+        self.mock_logger.info.assert_called_with("Executing command: 'continuewithargcmd'")
+        self.mock_logger.debug.assert_called_with(
             "Command 'continuewithargcmd' action returned: True"
         )
 
@@ -205,8 +210,8 @@ class TestCommandExecutor(unittest.TestCase):
         self.assertTrue(executed)
         self.assertFalse(should_continue)
         action_mock.assert_called_once_with(app_instance)
-        self.mock_logger.info.assert_any_call("Executing command: 'exitwithargcmd'")
-        self.mock_logger.debug.assert_any_call(
+        self.mock_logger.info.assert_called_with("Executing command: 'exitwithargcmd'")
+        self.mock_logger.debug.assert_called_with(
             "Command 'exitwithargcmd' action returned: False"
         )
 

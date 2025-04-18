@@ -66,23 +66,27 @@ class TestReadDirectoryStructure(unittest.TestCase):
 
     def test_no_gitignore(self):
         """Test reading directory structure without any gitignore files"""
-        result = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
+        result_tuple = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
+        result = result_tuple[0] # Access the dictionary part
+
+        # Get the base name of the temp directory for constructing relative paths
+        temp_dir_basename = os.path.basename(self.temp_dir)
 
         # Verify structure
-        self.assertIn(os.path.basename(self.temp_dir) + "/dir1", result["dirs"])
-        self.assertIn(os.path.basename(self.temp_dir) + "/dir2", result["dirs"])
+        # Check root directories and files (relative to parent of temp_dir)
+        self.assertIn(os.path.join(temp_dir_basename, "dir1"), result["dirs"])
+        self.assertIn(os.path.join(temp_dir_basename, "dir2"), result["dirs"])
         self.assertIn(
-            os.path.basename(self.temp_dir) + "/root_file.txt", result["files"]
+            os.path.join(temp_dir_basename, "root_file.txt"), result["files"]
         )
         self.assertIn(
-            os.path.basename(self.temp_dir) + "/root_file.log", result["files"]
+            os.path.join(temp_dir_basename, "root_file.log"), result["files"]
         )
 
-        # Check dir1 contents
-        self.assertIn(os.path.basename(self.temp_dir) + "/dir1", result["dirs"])
-
-        # Check dir2 contents
-        self.assertIn(os.path.basename(self.temp_dir) + "/dir2", result["dirs"])
+        # Since it's not recursive, subdir files shouldn't be listed directly
+        self.assertNotIn(
+            os.path.join(temp_dir_basename, "dir1", "subdir1_file.txt"), result["files"]
+        )
 
     def test_root_gitignore(self):
         """Test with a gitignore in the root that ignores all .log files"""
@@ -90,21 +94,21 @@ class TestReadDirectoryStructure(unittest.TestCase):
         with open(os.path.join(self.temp_dir, ".gitignore"), "w") as f:
             f.write("*.log\n")
 
-        result = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
+        result_tuple = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
+        result = result_tuple[0] # Access the dictionary part
+        temp_dir_basename = os.path.basename(self.temp_dir)
 
         # Verify structure - log files should be ignored
         self.assertNotIn(
-            os.path.basename(self.temp_dir) + "/root_file.log", result["files"]
+            os.path.join(temp_dir_basename, "root_file.log"), result["files"]
         )
         self.assertIn(
-            os.path.basename(self.temp_dir) + "/root_file.txt", result["files"]
+            os.path.join(temp_dir_basename, "root_file.txt"), result["files"]
         )
 
-        # Check dir1 contents - log files should be ignored
-        self.assertIn(os.path.basename(self.temp_dir) + "/dir1", result["dirs"])
-
-        # Check dir2 contents - log files should be ignored
-        self.assertIn(os.path.basename(self.temp_dir) + "/dir2", result["dirs"])
+        # Check dir1 and dir2 are still present
+        self.assertIn(os.path.join(temp_dir_basename, "dir1"), result["dirs"])
+        self.assertIn(os.path.join(temp_dir_basename, "dir2"), result["dirs"])
 
     def test_nested_gitignore(self):
         """Test with gitignore files at different levels"""
@@ -112,18 +116,28 @@ class TestReadDirectoryStructure(unittest.TestCase):
         with open(os.path.join(self.temp_dir, ".gitignore"), "w") as f:
             f.write("*.log\n")
 
-        # Create dir1 gitignore - ignore tmp files
+        # Create dir1 gitignore - ignore tmp files (This won't affect root listing)
         with open(os.path.join(self.temp_dir, "dir1", ".gitignore"), "w") as f:
             f.write("*.tmp\n")
 
-        # Create dir2 gitignore - ignore cache files
+        # Create dir2 gitignore - ignore cache files (This won't affect root listing)
         with open(os.path.join(self.temp_dir, "dir2", ".gitignore"), "w") as f:
             f.write("*.cache\n")
 
-        result = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
+        result_tuple = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
+        result = result_tuple[0] # Access the dictionary part
+        temp_dir_basename = os.path.basename(self.temp_dir)
 
-        # Verify log files are ignored everywhere
-        self.assertNotIn("root_file.log", result["files"])
+        # Verify log files are ignored at the root level
+        self.assertNotIn(
+            os.path.join(temp_dir_basename, "root_file.log"), result["files"]
+        )
+        self.assertIn(
+            os.path.join(temp_dir_basename, "root_file.txt"), result["files"]
+        )
+        # Nested gitignores don't affect the listing of the parent directory itself
+        self.assertIn(os.path.join(temp_dir_basename, "dir1"), result["dirs"])
+        self.assertIn(os.path.join(temp_dir_basename, "dir2"), result["dirs"])
 
     def test_ignore_directory(self):
         """Test ignoring entire directories"""
@@ -131,30 +145,43 @@ class TestReadDirectoryStructure(unittest.TestCase):
         with open(os.path.join(self.temp_dir, ".gitignore"), "w") as f:
             f.write("dir2/\n")
 
-        result = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
+        result_tuple = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
+        result = result_tuple[0] # Access the dictionary part
+        temp_dir_basename = os.path.basename(self.temp_dir)
 
         # Verify dir2 is not included
-        self.assertIn(os.path.basename(self.temp_dir) + "/dir1", result["dirs"])
-        self.assertNotIn(os.path.basename(self.temp_dir) + "/dir2", result["dirs"])
+        self.assertIn(os.path.join(temp_dir_basename, "dir1"), result["dirs"])
+        self.assertNotIn(os.path.join(temp_dir_basename, "dir2"), result["dirs"])
 
-        # Verify dir2 entries don't exist in the result
-        self.assertNotIn("dir2", result)
-        self.assertNotIn("dir2/subdir2", result)
+        # Verify dir2 file isn't listed either
+        self.assertNotIn(
+            os.path.join(temp_dir_basename, "dir2", "dir2_file.txt"), result["files"]
+        )
 
     def test_pattern_override(self):
-        """Test that patterns can be overridden in nested directories"""
+        """Test that patterns can be overridden in nested directories (won't affect root listing)"""
         # Create root gitignore - ignore all txt files
         with open(os.path.join(self.temp_dir, ".gitignore"), "w") as f:
             f.write("*.txt\n")
 
-        # Create dir1 gitignore - but keep specific txt files
+        # Create dir1 gitignore - but keep specific txt files (doesn't affect root listing)
         with open(os.path.join(self.temp_dir, "dir1", ".gitignore"), "w") as f:
             f.write("!dir1_file.txt\n")  # Don't ignore this specific txt
 
-        result = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
+        result_tuple = read_directory_structure(self.temp_dir, os.path.dirname(self.temp_dir))
+        result = result_tuple[0] # Access the dictionary part
+        temp_dir_basename = os.path.basename(self.temp_dir)
 
-        # Verify txt files are ignored everywhere except in dir1
-        self.assertNotIn("root_file.txt", result["files"])
+        # Verify root txt file is ignored
+        self.assertNotIn(
+            os.path.join(temp_dir_basename, "root_file.txt"), result["files"]
+        )
+        self.assertIn(
+             os.path.join(temp_dir_basename, "root_file.log"), result["files"]
+        )
+        # Dirs themselves aren't ignored by *.txt
+        self.assertIn(os.path.join(temp_dir_basename, "dir1"), result["dirs"])
+        self.assertIn(os.path.join(temp_dir_basename, "dir2"), result["dirs"])
 
 
 if __name__ == "__main__":

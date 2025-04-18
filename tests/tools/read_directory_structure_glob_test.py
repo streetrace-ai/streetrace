@@ -40,7 +40,8 @@ class TestReadDirectoryStructureGlob(unittest.TestCase):
     def test_non_recursive_listing(self):
         """Test that the function only lists current directory level"""
         # Use the same path for both parameters to pass security check
-        result = read_directory_structure(self.temp_dir, self.temp_dir)
+        result_tuple = read_directory_structure(self.temp_dir, self.temp_dir)
+        result = result_tuple[0] # Access the dictionary part
 
         # Should contain both files in the root and the subdir
         expected_files = [
@@ -56,9 +57,11 @@ class TestReadDirectoryStructureGlob(unittest.TestCase):
         # Convert actual results to basenames for comparison
         actual_files = [os.path.basename(f) for f in result["files"]]
         actual_dirs = [os.path.basename(d) for d in result["dirs"]]
+        actual_files.sort()
+        actual_dirs.sort()
 
-        self.assertEqual(set(expected_files), set(actual_files))
-        self.assertEqual(set(expected_dirs), set(actual_dirs))
+        self.assertEqual(expected_files, actual_files)
+        self.assertEqual(expected_dirs, actual_dirs)
 
         # Files from nested directories should not be included
         nested_basenames = [
@@ -72,32 +75,33 @@ class TestReadDirectoryStructureGlob(unittest.TestCase):
         """Test that paths are returned relative to work_dir"""
         # Set work_dir to parent of temp_dir
         parent_dir = os.path.dirname(self.temp_dir)
-        result = read_directory_structure(self.temp_dir, parent_dir)
+        result_tuple = read_directory_structure(self.temp_dir, parent_dir)
+        result = result_tuple[0] # Access the dictionary part
 
         # All paths should be relative to parent_dir
         temp_dir_basename = os.path.basename(self.temp_dir)
 
         for file_path in result["files"]:
-            self.assertTrue(file_path.startswith(temp_dir_basename))
+            self.assertTrue(file_path.startswith(temp_dir_basename + os.sep))
 
         for dir_path in result["dirs"]:
-            self.assertTrue(dir_path.startswith(temp_dir_basename))
+            self.assertTrue(dir_path.startswith(temp_dir_basename + os.sep))
 
     def test_subdirectory_listing(self):
         """Test listing a subdirectory"""
-        result = read_directory_structure(self.temp_subdir, self.temp_dir)
+        # Use temp_dir as work_dir, list temp_subdir
+        result_tuple = read_directory_structure(self.temp_subdir, self.temp_dir)
+        result = result_tuple[0] # Access the dictionary part
 
-        # Should only contain the nested subdir and subdir_file
+        # Paths should be relative to temp_dir
+        expected_dir_rel = os.path.join(os.path.basename(self.temp_subdir), os.path.basename(self.temp_nested_subdir))
+        expected_file_rel = os.path.join(os.path.basename(self.temp_subdir), os.path.basename(self.subdir_file))
+
         self.assertEqual(len(result["dirs"]), 1)
         self.assertEqual(len(result["files"]), 1)
 
-        self.assertEqual(
-            os.path.basename(result["dirs"][0]),
-            os.path.basename(self.temp_nested_subdir),
-        )
-        self.assertEqual(
-            os.path.basename(result["files"][0]), os.path.basename(self.subdir_file)
-        )
+        self.assertEqual(result["dirs"][0], expected_dir_rel)
+        self.assertEqual(result["files"][0], expected_file_rel)
 
     def test_gitignore_respect(self):
         """Test that gitignore patterns are respected"""
@@ -107,7 +111,8 @@ class TestReadDirectoryStructureGlob(unittest.TestCase):
             f.write("*.log\n")
 
         # Use the same path for both parameters to pass security check
-        result = read_directory_structure(self.temp_dir, self.temp_dir)
+        result_tuple = read_directory_structure(self.temp_dir, self.temp_dir)
+        result = result_tuple[0] # Access the dictionary part
 
         # .log files should be excluded
         for file_path in result["files"]:
@@ -116,6 +121,7 @@ class TestReadDirectoryStructureGlob(unittest.TestCase):
         # But .txt files should be included
         txt_files = [f for f in result["files"] if f.endswith(".txt")]
         self.assertTrue(len(txt_files) > 0)
+        self.assertIn(os.path.basename(self.root_file1), txt_files)
 
     def test_security_check(self):
         """Test that security checks prevent directory traversal"""
