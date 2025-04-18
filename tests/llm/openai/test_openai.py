@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from openai_client import (
+from streetrace.llm.openai.impl import (
     initialize_client,
     manage_conversation_history,
     transform_tools,

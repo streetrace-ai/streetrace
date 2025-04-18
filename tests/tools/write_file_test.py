@@ -4,8 +4,8 @@ import shutil
 import tempfile
 import unittest
 
-from tools.read_file import read_file
-from tools.write_file import write_file
+from streetrace.tools.read_file import read_file
+from streetrace.tools.write_file import write_file
 
 
 class TestWriteFile(unittest.TestCase):

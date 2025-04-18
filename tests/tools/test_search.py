@@ -1,7 +1,7 @@
 import os
 import unittest
 
-import tools.search as search
+import streetrace.tools.search as search
 
 
 class TestSearchFiles(unittest.TestCase):

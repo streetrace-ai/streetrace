@@ -7,7 +7,7 @@ from pathlib import Path
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, parent_dir)
 
-from tools.path_utils import (
+from streetrace.tools.path_utils import (
     ensure_directory_exists,
     normalize_and_validate_path,
     validate_directory_exists,

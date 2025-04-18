@@ -1,30 +1,12 @@
 import os
 import shutil
-import sys
 import tempfile
 import unittest
 
-# Add the root directory to sys.path to allow importing main
-# Assuming tests are run from the project root or the tests directory
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
+from streetrace.main import parse_and_load_mentions, parse_arguments
 
-# Import the function to be tested
-parse_and_load_mentions_func = None  # Rename variable to avoid confusion
-parse_arguments_func = None
-import_error = None
-try:
-    # Try importing both functions needed
-    from src.streetrace.main import parse_and_load_mentions, parse_arguments
-
-    parse_and_load_mentions_func = parse_and_load_mentions
-    parse_arguments_func = parse_arguments  # Store it too
-except ImportError as e:
-    import_error = e  # Store the error
-    print(f"Failed to import from main: {e}")
-    # Keep functions as None
+parse_and_load_mentions_func = parse_and_load_mentions
+parse_arguments_func = parse_arguments  # Store it too
 
 
 class TestMentions(unittest.TestCase):
@@ -63,15 +45,6 @@ class TestMentions(unittest.TestCase):
             shutil.rmtree(cls.base_temp_dir)
 
     def setUp(self):
-        """Check if imports worked before running tests."""
-        if parse_and_load_mentions_func is None:
-            self.fail(
-                f"Import of parse_and_load_mentions failed: {import_error}. Cannot run tests."
-            )
-        if parse_arguments_func is None:
-            self.fail(
-                f"Import of parse_arguments failed: {import_error}. Cannot run tests."
-            )
         # Suppress print statements from the function under test during unit tests
         # This requires careful patching
         # For now, we'll allow the prints but they might clutter test output
@@ -181,31 +154,9 @@ class TestMentions(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # Ensure the script can find 'main.py' when run directly
-    # Adjust path if necessary based on how tests are executed
-    if project_root not in sys.path:
-        sys.path.insert(0, project_root)
-    # Re-check imports in case running the file directly works differently
-    try:
-        from src.streetrace.main import parse_and_load_mentions, parse_arguments
-
-        parse_and_load_mentions_func = parse_and_load_mentions
-        parse_arguments_func = parse_arguments
-    except ImportError as e:
-        print(f"Failed to import from main.py when running directly: {e}")
-        sys.exit(1)
-
     # Assign the functions back for the tests to run if executed directly
     # Note: This is redundant if the top-level import worked, but safe.
     TestMentions.parse_and_load_mentions_func = parse_and_load_mentions_func
     TestMentions.parse_arguments_func = parse_arguments_func
-
-    # Check again before running unittest.main()
-    if (
-        TestMentions.parse_and_load_mentions_func is None
-        or TestMentions.parse_arguments_func is None
-    ):
-        print("Imports failed, cannot run tests.")
-        sys.exit(1)
 
     unittest.main()

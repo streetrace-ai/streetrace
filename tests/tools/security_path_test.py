@@ -4,7 +4,7 @@ import shutil
 import tempfile
 import unittest
 
-from tools.read_directory_structure import read_directory_structure
+from streetrace.tools.read_directory_structure import read_directory_structure
 
 
 class TestSecurityPath(unittest.TestCase):

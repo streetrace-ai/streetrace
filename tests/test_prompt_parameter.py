@@ -8,9 +8,6 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-# Add project root to the path to allow importing streetrace modules
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 # Import main, which should now be able to import other modules
 import streetrace.main as main
 
