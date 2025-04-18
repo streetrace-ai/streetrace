@@ -23,7 +23,8 @@ def write_file(file_path, content, work_dir, encoding="utf-8", binary_mode=False
             In binary mode, content must be bytes.
 
     Returns:
-        str: Path of the written file
+        tuple[str, str]: A tuple containing the path of the written file (relative to work_dir)
+                         and a diff string (or creation message).
 
     Raises:
         ValueError: If the file path is outside the allowed root path
@@ -33,6 +34,7 @@ def write_file(file_path, content, work_dir, encoding="utf-8", binary_mode=False
     """
     # Normalize and validate the path
     abs_file_path = normalize_and_validate_path(file_path, work_dir)
+    rel_file_path = os.path.relpath(abs_file_path, work_dir) # Get relative path for return
 
     # Check content type
     if binary_mode and not isinstance(content, bytes):
@@ -43,29 +45,38 @@ def write_file(file_path, content, work_dir, encoding="utf-8", binary_mode=False
     # Create directory if it doesn't exist
     ensure_directory_exists(abs_file_path)
 
+    # Initialize diff message
+    diff = ""
+
     # Write the content to the file
     try:
         if binary_mode:
             with open(abs_file_path, "wb") as f:
-                f.write(content)
+                bytes_written = f.write(content)
+            diff = f"Binary file written: {rel_file_path} ({bytes_written} bytes)"
         else:
             written = content.splitlines(keepends=True)
             original = None
             if os.path.exists(abs_file_path):
                 with codecs.open(abs_file_path, "r", encoding=encoding) as f:
                     original = f.read()
+
             with codecs.open(abs_file_path, "w", encoding=encoding) as f:
                 f.write(content)
-            if original:
-                diff = difflib.unified_diff(
+
+            if original is not None:
+                diff_lines = difflib.unified_diff(
                     original.splitlines(keepends=True),
                     written,
-                    fromfile=file_path,
-                    tofile=file_path,
+                    fromfile=rel_file_path,
+                    tofile=rel_file_path,
                 )
-                diff = "".join(diff)
+                diff = "".join(diff_lines)
+                if not diff: # Handle case where content is identical
+                     diff = f"File content unchanged: {rel_file_path}"
             else:
-                diff = f"File created: {file_path} ({len(written)} lines)"
-        return file_path, diff
+                diff = f"File created: {rel_file_path} ({len(written)} lines)"
+
+        return rel_file_path, diff
     except IOError as e:
-        raise IOError(f"Error writing to file '{file_path}': {str(e)}")
+        raise IOError(f"Error writing to file '{rel_file_path}': {str(e)}")
