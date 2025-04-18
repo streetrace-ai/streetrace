@@ -66,7 +66,6 @@ class InteractionManager:
             client = self.provider.initialize_client()
             provider_history = self.provider.transform_history(history)
             provider_tools = self.provider.transform_tools(self.tools.tools)
-            logger.debug("AI generation call completed successfully.")
 
             # Ensure history fits the context window
             if not self.provider.manage_conversation_history(provider_history):
