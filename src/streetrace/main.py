@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 
-from prompt_processor import PromptProcessor
+from streetrace.prompt_processor import PromptProcessor
 
 # Core application components
 from streetrace.application import Application  # <-- Added import

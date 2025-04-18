@@ -1,3 +1,23 @@
+## Coding process
+
+The process is actually not as straightforward:
+
+1. Get requirements
+2. Understand the codebase
+    - separate workflow that reads MD and front matter, and creates a summary as related to the requirements
+3. Understand requirements given the codebase
+4. Create a new branch
+4. Ideate on implementation approaches -> save in a doc
+5. Choose the best implementation -> save in a doc, commit changes
+6. Implement several critical tests in TDD way, commit changes
+7. Implement the change, commit changes
+    - with every file changed, maintain its front matter
+    - maintain read me files for every directory?
+8. Iterate on critical tests created before, commit changes
+9. Freeze the implementation and create tests for 100% coverage, commit changes
+10. Update the docs, commit changes
+11. Create a PR
+
 ## Tolerant vs. fail-fast code
 
 Models tend to choose tolerant, defensive, forgiving coding style, which is not always right. You need to explain when to go tolerant vs. fail-fast code.

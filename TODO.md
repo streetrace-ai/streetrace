@@ -2,6 +2,7 @@
 
 ## release:
 
+- [ ] history is not saved when err 500 in gemnini
 - [ ] pip publishing
 - [ ] update readme
 
