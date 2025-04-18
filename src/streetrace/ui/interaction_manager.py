@@ -58,6 +58,7 @@ class InteractionManager:
             history: The conversation History object containing the context and prompt.
         """
         logger.debug("Initiating AI generation call.")
+        provider_history = None # Initialize in case client init fails
         try:
             # generate_with_tools handles the conversation loop (user -> AI -> tool -> AI ...)
             # and potentially modifies the history object directly.
@@ -134,10 +135,20 @@ class InteractionManager:
             self.ui.display_info(finish_reason)
             self.provider.update_history(provider_history, history)
         except Exception as gen_err:
-            # Use the UI instance to display the error
+            # --- Added history update here ---
+            if provider_history is not None:
+                try:
+                    self.provider.update_history(provider_history, history)
+                    logger.info("History updated with partial results before exception.")
+                except Exception as update_err:
+                    # Log if updating history itself fails, but don't overwrite original error
+                    logger.error(f"Failed to update history after generation error: {update_err}", exc_info=update_err)
+            # -----------------------------------
+
+            # Use the UI instance to display the original error
             error_message = f"An error occurred during AI generation: {gen_err}"
             self.ui.display_error(error_message)
-            # Log the full exception traceback
+            # Log the full exception traceback for the original error
             logger.exception(
                 "An error occurred during AI generation call.", exc_info=gen_err
             )
