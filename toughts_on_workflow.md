@@ -1,3 +1,10 @@
+## Collab
+
+It's tedious to wait while the task is complete. So it has to allow working in a branch.
+Every process will create its own branch to work on. In a docker maybe?
+
+Retryable errors vs Retry on other errors (just send an empty message).
+
 ## Coding process
 
 The process is actually not as straightforward:
