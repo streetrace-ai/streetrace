@@ -6,12 +6,12 @@ This module implements the LLMAPI interface for Google's Gemini models.
 
 import logging
 import os
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, override
 
 from google import genai
 from google.genai import types
 
-from streetrace.llm.gemini.converter import GeminiConverter, GenerateContentPartWrapper
+from streetrace.llm.gemini.converter import GeminiHistoryConverter, GeminiChunkWrapper
 from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
 from streetrace.llm.llmapi import LLMAPI
 from streetrace.llm.wrapper import ContentPartToolResult, History
@@ -30,8 +30,9 @@ class Gemini(LLMAPI):
     """
 
     _counter = 0
-    _adapter = GeminiConverter()
+    _adapter = GeminiHistoryConverter()
 
+    @override
     def initialize_client(self) -> genai.Client:
         """
         Initialize and return the Gemini API client.
@@ -47,6 +48,7 @@ class Gemini(LLMAPI):
             raise ValueError("GEMINI_API_KEY environment variable not set.")
         return genai.Client(api_key=api_key)
 
+    @override
     def transform_history(self, history: History) -> ProviderHistory:
         """
         Transform conversation history from common format into Gemini-specific format.
@@ -57,21 +59,9 @@ class Gemini(LLMAPI):
         Returns:
             List[Dict[str, Any]]: Conversation history in Gemini-specific format
         """
-        return self._adapter.from_history(history)
+        return self._adapter.create_provider_history(history)
 
-    def update_history(
-        self, provider_history: ProviderHistory, history: History
-    ) -> None:
-        """
-        Updates the conversation history in common format based on Gemini-specific history.
-
-        Args:
-            provider_history (List[Dict[str, Any]]): Gemini-specific conversation history
-            history (History): Conversation history in common format
-        """
-        # Replace the conversation with the new messages
-        history.conversation = self._adapter.to_history(provider_history)
-
+    @override
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[types.Tool]:
         """
         Transform tools from common format to Gemini-specific format.
@@ -129,6 +119,7 @@ class Gemini(LLMAPI):
 
         return gemini_tools
 
+    @override
     def pretty_print(self, contents: List[types.Content]) -> str:
         """
         Format content list for readable logging.
@@ -162,6 +153,7 @@ class Gemini(LLMAPI):
 
         return "\n".join(parts)
 
+    @override
     def manage_conversation_history(
         self, messages: List[Any], max_tokens: int = MAX_TOKENS
     ) -> bool:
@@ -176,6 +168,7 @@ class Gemini(LLMAPI):
             bool: True if successful, False if pruning failed
         """
         try:
+            logging.debug(f"Transformed manage_conversation_history: {messages}")
             client = self.initialize_client()
             token_count = client.models.count_tokens(
                 model=MODEL_NAME, contents=messages
@@ -212,9 +205,10 @@ class Gemini(LLMAPI):
             return False
 
         except Exception as e:
-            logging.error(f"Error managing tokens: {e}")
+            logging.error("Error managing tokens", exc_info=e)
             return False
 
+    @override
     def generate(
         self,
         client: genai.Client,
@@ -222,7 +216,7 @@ class Gemini(LLMAPI):
         system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
-    ) -> Iterable[GenerateContentPartWrapper]:
+    ) -> Iterable[GeminiChunkWrapper]:
         """
         Get API response from Gemini, process it and handle tool calls.
 
@@ -234,7 +228,7 @@ class Gemini(LLMAPI):
             tools: The Gemini-format tools to use
 
         Returns:
-            Iterable[GenerateContentPartWrapper]: An iterable of content parts
+            Iterable[GeminiChunkWrapper]: An iterable of content parts
         """
         model_name = model_name or MODEL_NAME
 
@@ -262,7 +256,7 @@ class Gemini(LLMAPI):
         candidate = response.candidates[0]
 
         for part in candidate.content.parts:
-            yield GenerateContentPartWrapper(part)
+            yield GeminiChunkWrapper(part)
 
         if candidate.finish_reason is not None:
             msg = candidate.finish_message
@@ -274,72 +268,8 @@ class Gemini(LLMAPI):
                 )
             yield FinishWrapper(str(candidate.finish_reason), msg)
 
-    def generate_stream(
-        self,
-        client: genai.Client,
-        model_name: Optional[str],
-        system_message: str,
-        messages: ProviderHistory,
-        tools: List[Dict[str, Any]],
-    ) -> Iterable[GenerateContentPartWrapper]:
-        """
-        Get API response from Gemini, process it and handle tool calls.
-
-        Args:
-            client: The Gemini client
-            model_name: The model name to use
-            system_message: The system message to send in the request
-            messages: The messages to send in the request
-            tools: The Gemini-format tools to use
-
-        Returns:
-            Iterable[GenerateContentPartWrapper]: An iterable of content parts
-        """
-
-        # Currently 2.5 pro can send a malformed JSON when streaming, so the client sdk will
-        # fail to parse the chunk with `json.decoder.JSONDecodeError`. So we will use the non-streaming
-        # API for now.
-        model_name = model_name or MODEL_NAME
-
-        # Set up generation configuration
-        generation_config = types.GenerateContentConfig(
-            tools=tools,
-            system_instruction=system_message,
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                disable=True
-            ),
-            tool_config=types.ToolConfig(
-                function_calling_config=types.FunctionCallingConfig(mode="AUTO")
-            ),
-        )
-
-        # Get the response stream
-        response_stream = client.models.generate_content_stream(
-            model=model_name, contents=messages, config=generation_config
-        )
-        for chunk in response_stream:
-            logging.debug("Raw Gemini response: %s", chunk)
-
-            if not chunk.candidates:
-                continue
-
-            for part in chunk.candidates[0].content.parts:
-                yield GenerateContentPartWrapper(part)
-
-            if chunk.candidates[0].finish_reason == "MALFORMED_FUNCTION_CALL":
-                msg = "Received MALFORMED_FUNCTION_CALL"
-                if len(chunk.candidates) > 1:
-                    msg += f" (there were {len(chunk.candidates)} other candidates in the response: "
-                    msg += (
-                        ", ".join(
-                            [f"'{c.finish_reason}'" for c in chunk.candidates[1:]]
-                        )
-                        + ")"
-                    )
-
-                raise ValueError(msg)
-
-    def append_to_history(
+    @override
+    def append_to_provider_history(
         self,
         provider_history: ProviderHistory,
         turn: List[ChunkWrapper | ContentPartToolResult],
@@ -351,22 +281,22 @@ class Gemini(LLMAPI):
             provider_history: List of provider-specific message objects
             turn: List of items in this turn
         """
-        # Separate chunks and tool results
-        chunks: list[GenerateContentPartWrapper] = []
-        tool_results: list[ContentPartToolResult] = []
+        for message in self._adapter.to_provider_history_items(turn):
+            provider_history.append(message)
 
-        for item in turn:
-            if isinstance(item, GenerateContentPartWrapper):
-                chunks.append(item)
-            elif isinstance(item, ContentPartToolResult):
-                tool_results.append(item)
+    @override
+    def append_to_common_history(
+        self,
+        history: History,
+        turn: List[ChunkWrapper | ContentPartToolResult],) -> None:
+        """
+        Updates the conversation history in common format based on provider-specific history.
 
-        # Add model message with all text and tool calls
-        model_message = self._adapter.to_history_item(chunks)
-        if model_message:
-            provider_history.append(model_message)
-
-        # Add tool results if any exist
-        tool_results_message = self._adapter.to_history_item(tool_results)
-        if tool_results_message:
-            provider_history.append(tool_results_message)
+        Args:
+            provider_history (List[Dict[str, Any]]): provider-specific conversation history
+            history (History): Conversation history in common format
+        """
+        # Replace the conversation with the new messages
+        # new implementation:
+        for message in self._adapter.to_common_history_items(turn):
+            history.conversation.append(message)

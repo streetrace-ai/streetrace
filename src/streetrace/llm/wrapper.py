@@ -12,7 +12,6 @@ class ContentType(Enum):
     UNKNOWN = 3
     TOOL_RESULT = 4
 
-
 class ContentPartText(BaseModel):
     text: str
 

@@ -52,17 +52,6 @@ class LLMAPI(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def update_history(self, messages: ProviderHistory, history: History) -> None:
-        """
-        Updates the conversation history in common format based on provider-specific history.
-
-        Args:
-            messages (ProviderHistory): Provider-specific conversation history
-            history (History): Conversation history in common format
-        """
-        pass
-
-    @abc.abstractmethod
     def transform_tools(self, tools: List[Dict[str, Any]]) -> ProviderTools:
         """
         Transform tools from common format to provider-specific format.
@@ -131,7 +120,8 @@ class LLMAPI(abc.ABC):
         """
         pass
 
-    def append_to_history(
+    @abc.abstractmethod
+    def append_to_provider_history(
         self,
         provider_history: ProviderHistory,
         turn: List[ChunkWrapper | ContentPartToolResult],
@@ -144,3 +134,54 @@ class LLMAPI(abc.ABC):
             turn: List of items in this turn
         """
         pass
+
+    @abc.abstractmethod
+    def append_to_common_history(
+        self,
+        history: History,
+        turn: List[ChunkWrapper | ContentPartToolResult],) -> None:
+        """
+        Updates the conversation history in common format based on the provided turn items.
+
+        Args:
+            messages (ProviderHistory): Provider-specific conversation history
+            history (History): Conversation history in common format
+        """
+        pass
+
+
+class RetriableError(Exception):
+    """
+    A custom exception class for retriable errors.
+
+    This class is used to raise and handle errors that can be retried,
+    such as rate limit errors from API providers.
+
+    Attributes:
+        max_retries (int): The maximum number of retry attempts allowed.
+        message (str): The error message.
+    """
+
+    def __init__(self, message: str, max_retries: int = 3):
+        """
+        Initialize the RetriableError.
+
+        Args:
+            message (str): The error message.
+            max_retries (int): The maximum number of retry attempts allowed. Defaults to 3.
+        """
+        self.max_retries = max_retries
+        self.message = message
+        super().__init__(self.message)
+
+    def wait_time(self, retry_count: int) -> int:
+        """
+        Calculate the wait time before the next retry attempt.
+
+        Args:
+            retry_count (int): The current retry attempt count.
+
+        Returns:
+            int: The time to wait in seconds before the next retry attempt.
+        """
+        return 30
