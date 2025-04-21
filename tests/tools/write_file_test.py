@@ -99,7 +99,8 @@ class TestWriteFile(unittest.TestCase):
             write_file(outside_path, "Should not write this", self.temp_dir)
 
         self.assertIn("Security error", str(context.exception))
-        self.assertIn("outside the allowed root path", str(context.exception))
+        # Updated assertion message
+        self.assertIn("outside the allowed working directory", str(context.exception))
         self.assertFalse(os.path.exists(outside_path))
 
     def test_type_checking(self):

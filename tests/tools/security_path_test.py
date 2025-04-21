@@ -63,7 +63,7 @@ class TestSecurityPath(unittest.TestCase):
 
         # Check that the error message is helpful
         self.assertIn("Security error", str(context.exception))
-        self.assertIn("outside the allowed root path", str(context.exception))
+        self.assertIn("outside the allowed working directory", str(context.exception))
 
     def test_parent_directory_traversal(self):
         """Test that parent directory traversal is prevented"""
@@ -74,7 +74,7 @@ class TestSecurityPath(unittest.TestCase):
             read_directory_structure(parent_path, self.work_dir)
 
         self.assertIn("Security error", str(context.exception))
-        self.assertIn("outside the allowed root path", str(context.exception))
+        self.assertIn("outside the allowed working directory", str(context.exception))
 
     def test_absolute_path_traversal(self):
         """Test that absolute path outside root is prevented"""
@@ -84,7 +84,7 @@ class TestSecurityPath(unittest.TestCase):
             read_directory_structure("/tmp", self.work_dir)
 
         self.assertIn("Security error", str(context.exception))
-        self.assertIn("outside the allowed root path", str(context.exception))
+        self.assertIn("outside the allowed working directory", str(context.exception))
 
 
 if __name__ == "__main__":

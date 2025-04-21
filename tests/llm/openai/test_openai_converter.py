@@ -12,8 +12,8 @@ from unittest.mock import MagicMock, patch
 from openai.types import chat
 
 from streetrace.llm.openai.converter import (
-    ChoiceDeltaWrapper,
-    OpenAIConverter,
+    OpenAIChunkWrapper,
+    OpenAIHistoryConverter,
 )
 from streetrace.llm.wrapper import (
     ContentPartText,
@@ -46,7 +46,7 @@ class MockDict(dict):
 
 
 class TestChoiceDeltaWrapper(unittest.TestCase):
-    """Tests for the ChoiceDeltaWrapper class which wraps OpenAI's ChoiceDelta."""
+    """Tests for the OpenAIChunkWrapper class which wraps OpenAI's ChoiceDelta."""
 
     def test_get_text_with_content(self):
         """Test get_text returns the content when present."""
@@ -55,7 +55,7 @@ class TestChoiceDeltaWrapper(unittest.TestCase):
         delta.content = "Hello, world!"
         delta.tool_calls = None
 
-        wrapper = ChoiceDeltaWrapper(delta)
+        wrapper = OpenAIChunkWrapper(delta)
         self.assertEqual(wrapper.get_text(), "Hello, world!")
 
     def test_get_text_with_no_content(self):
@@ -65,7 +65,7 @@ class TestChoiceDeltaWrapper(unittest.TestCase):
         delta.content = None
         delta.tool_calls = None
 
-        wrapper = ChoiceDeltaWrapper(delta)
+        wrapper = OpenAIChunkWrapper(delta)
         self.assertEqual(wrapper.get_text(), "")
 
     def test_get_tool_calls_with_tool_calls(self):
@@ -83,7 +83,7 @@ class TestChoiceDeltaWrapper(unittest.TestCase):
         delta.content = None
         delta.tool_calls = [tool_call]
 
-        wrapper = ChoiceDeltaWrapper(delta)
+        wrapper = OpenAIChunkWrapper(delta)
         tool_calls = wrapper.get_tool_calls()
 
         self.assertEqual(len(tool_calls), 1)
@@ -100,7 +100,7 @@ class TestChoiceDeltaWrapper(unittest.TestCase):
         delta.content = "Hello, world!"
         delta.tool_calls = None
 
-        wrapper = ChoiceDeltaWrapper(delta)
+        wrapper = OpenAIChunkWrapper(delta)
         self.assertEqual(wrapper.get_tool_calls(), [])
 
     def test_get_tool_calls_with_empty_arguments(self):
@@ -118,7 +118,7 @@ class TestChoiceDeltaWrapper(unittest.TestCase):
         delta.content = None
         delta.tool_calls = [tool_call]
 
-        wrapper = ChoiceDeltaWrapper(delta)
+        wrapper = OpenAIChunkWrapper(delta)
         tool_calls = wrapper.get_tool_calls()
 
         self.assertEqual(len(tool_calls), 1)
@@ -129,16 +129,16 @@ class TestChoiceDeltaWrapper(unittest.TestCase):
     def test_get_finish_message(self):
         """Test get_finish_message returns None (OpenAI doesn't use this)."""
         delta = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        wrapper = ChoiceDeltaWrapper(delta)
+        wrapper = OpenAIChunkWrapper(delta)
         self.assertIsNone(wrapper.get_finish_message())
 
 
 class TestOpenAIConverter(unittest.TestCase):
-    """Tests for the OpenAIConverter class which handles format conversions."""
+    """Tests for the OpenAIHistoryConverter class which handles format conversions."""
 
     def setUp(self):
         """Set up common test fixtures."""
-        self.converter = OpenAIConverter()
+        self.converter = OpenAIHistoryConverter()
 
         # Create a sample history for testing
         self.sample_history = History(
@@ -319,7 +319,7 @@ class TestOpenAIConverter(unittest.TestCase):
                 "model_dump_json",
                 return_value='{"success":true,"output":{"type":"text","content":{"files":["test.py"]}}}',
             ):
-                provider_history = self.converter.from_history(self.sample_history)
+                provider_history = self.converter.create_provider_history(self.sample_history)
 
                 # Verify basic structure
                 self.assertEqual(
@@ -378,7 +378,7 @@ class TestOpenAIConverter(unittest.TestCase):
         minimal_history = History()
         minimal_history.add_message(Role.USER, [ContentPartText(text="Hello")])
 
-        provider_history = self.converter.from_history(minimal_history)
+        provider_history = self.converter.create_provider_history(minimal_history)
 
         # Should only have a user message
         self.assertEqual(len(provider_history), 1)
@@ -387,7 +387,7 @@ class TestOpenAIConverter(unittest.TestCase):
 
     @patch("openai.types.chat.ChatCompletionUserMessageParam")
     def test_from_history_with_unknown_role(self, mock_user_message):
-        """Test that from_history raises ValueError for unknown roles."""
+        """Test that create_provider_history raises ValueError for unknown roles."""
         # Create a history with an unknown role
         history = History()
 
@@ -404,7 +404,7 @@ class TestOpenAIConverter(unittest.TestCase):
 
         # Verify that ValueError is raised
         with self.assertRaises(ValueError):
-            self.converter.from_history(history)
+            self.converter.create_provider_history(history)
 
     def test_to_history_empty(self):
         """Test that to_history returns an empty list for empty provider_history."""
@@ -670,8 +670,8 @@ class TestOpenAIConverter(unittest.TestCase):
         delta2.tool_calls = None
 
         # Create wrappers
-        wrapper1 = ChoiceDeltaWrapper(delta1)
-        wrapper2 = ChoiceDeltaWrapper(delta2)
+        wrapper1 = OpenAIChunkWrapper(delta1)
+        wrapper2 = OpenAIChunkWrapper(delta2)
 
         # Convert to message
         message = self.converter._content_blocks_to_message([wrapper1, wrapper2])
@@ -735,9 +735,9 @@ class TestOpenAIConverter(unittest.TestCase):
 
         # Create wrappers
         wrappers = [
-            ChoiceDeltaWrapper(delta1),
-            ChoiceDeltaWrapper(delta2),
-            ChoiceDeltaWrapper(delta3),
+            OpenAIChunkWrapper(delta1),
+            OpenAIChunkWrapper(delta2),
+            OpenAIChunkWrapper(delta3),
         ]
 
         # Convert to message
@@ -769,7 +769,7 @@ class TestOpenAIConverter(unittest.TestCase):
         delta2.content = "world"
         delta2.tool_calls = None
 
-        wrappers = [ChoiceDeltaWrapper(delta1), ChoiceDeltaWrapper(delta2)]
+        wrappers = [OpenAIChunkWrapper(delta1), OpenAIChunkWrapper(delta2)]
 
         with self.assertRaises(ValueError):
             self.converter._content_blocks_to_message(wrappers)
@@ -828,7 +828,7 @@ class TestOpenAIConverter(unittest.TestCase):
         delta.content = "Hello, world!"
         delta.tool_calls = None
 
-        wrapper = ChoiceDeltaWrapper(delta)
+        wrapper = OpenAIChunkWrapper(delta)
 
         # Mock the _content_blocks_to_message method
         expected_message = {"role": "assistant", "content": "Hello, world!"}
@@ -878,7 +878,7 @@ class TestOpenAIConverter(unittest.TestCase):
         # Create wrapper
         wrapper = self.converter.create_chunk_wrapper(delta)
 
-        self.assertIsInstance(wrapper, ChoiceDeltaWrapper)
+        self.assertIsInstance(wrapper, OpenAIChunkWrapper)
         self.assertEqual(wrapper.raw, delta)
 
 

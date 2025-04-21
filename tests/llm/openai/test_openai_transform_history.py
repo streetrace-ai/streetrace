@@ -125,10 +125,10 @@ class TestOpenAIHistory(unittest.TestCase):
             },
         ]
 
-        # Mock the adapter's from_history method
+        # Mock the adapter's create_provider_history method
         with patch.object(
             openai_provider._adapter,
-            "from_history",
+            "create_provider_history",
             return_value=expected_provider_history,
         ) as mock_from_history:
             provider_history = openai_provider.transform_history(self.history)
@@ -261,6 +261,7 @@ class TestOpenAIHistory(unittest.TestCase):
             self.assertEqual(clean_history.context, "New context info") # Context preserved
             self.assertEqual(clean_history.system_message, "Sys message") # System msg preserved
             self.assertEqual(clean_history.conversation, expected_conversation)
+            print(f"Clean history: {clean_history.conversation}") # For debugging purposes
             self.assertEqual(len(clean_history.conversation), 3)
 
             # Optional: More detailed checks on the conversation content if needed
@@ -296,10 +297,10 @@ class TestOpenAIHistory(unittest.TestCase):
             {"role": "user", "content": "Hello"},           # User message
         ]
 
-        # Mock the adapter's from_history method
+        # Mock the adapter's create_provider_history method
         with patch.object(
             openai_provider._adapter,
-            "from_history",
+            "create_provider_history",
             return_value=expected_provider_history,
         ) as mock_from_history:
             provider_history = openai_provider.transform_history(history)

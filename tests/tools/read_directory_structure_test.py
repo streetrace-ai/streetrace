@@ -96,7 +96,8 @@ class TestDirectoryStructureTool(unittest.TestCase):
             read_directory_structure(self.parent_dir, self.temp_dir)
 
         self.assertTrue("Security error" in str(context.exception))
-        self.assertTrue("outside the allowed root path" in str(context.exception))
+        # Updated assertion message
+        self.assertTrue("outside the allowed working directory" in str(context.exception))
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import unittest
 
 from google.genai import types
 
-from streetrace.llm.gemini.converter import GeminiConverter, GenerateContentPartWrapper
+from streetrace.llm.gemini.converter import GeminiHistoryConverter, GeminiChunkWrapper
 from streetrace.llm.wrapper import Role  # Import Role Enum
 from streetrace.llm.wrapper import ToolOutput  # Import ToolOutput model
 from streetrace.llm.wrapper import (
@@ -16,12 +16,12 @@ from streetrace.llm.wrapper import (
 
 
 class TestGenerateContentPartWrapper(unittest.TestCase):
-    """Tests for the GenerateContentPartWrapper class."""
+    """Tests for the GeminiChunkWrapper class."""
 
     def test_get_text_with_text(self):
         """Test retrieving text when the part contains text."""
         part = types.Part(text="Hello")
-        wrapper = GenerateContentPartWrapper(part)
+        wrapper = GeminiChunkWrapper(part)
         self.assertEqual(wrapper.get_text(), "Hello")
 
     def test_get_text_without_text(self):
@@ -31,7 +31,7 @@ class TestGenerateContentPartWrapper(unittest.TestCase):
                 name="test_func", args={"arg1": "val1"}, id="call_1"
             )
         )
-        wrapper = GenerateContentPartWrapper(part)
+        wrapper = GeminiChunkWrapper(part)
         self.assertEqual(wrapper.get_text(), "")
 
     def test_get_tool_calls_with_call(self):
@@ -40,7 +40,7 @@ class TestGenerateContentPartWrapper(unittest.TestCase):
             name="test_func", args={"arg1": "val1"}, id="call_1"
         )
         part = types.Part(function_call=func_call)
-        wrapper = GenerateContentPartWrapper(part)
+        wrapper = GeminiChunkWrapper(part)
         expected_tool_calls = [
             ContentPartToolCall(
                 id="call_1", name="test_func", arguments={"arg1": "val1"}
@@ -51,22 +51,22 @@ class TestGenerateContentPartWrapper(unittest.TestCase):
     def test_get_tool_calls_without_call(self):
         """Test retrieving tool calls when the part does not contain a function call."""
         part = types.Part(text="Hello")
-        wrapper = GenerateContentPartWrapper(part)
+        wrapper = GeminiChunkWrapper(part)
         self.assertEqual(wrapper.get_tool_calls(), [])
 
     def test_get_finish_message(self):
         """Test retrieving the finish message (always None for Gemini Parts)."""
         part = types.Part(text="Hello")
-        wrapper = GenerateContentPartWrapper(part)
+        wrapper = GeminiChunkWrapper(part)
         self.assertIsNone(wrapper.get_finish_message())
 
 
 class TestGeminiConverter(unittest.TestCase):
-    """Tests for the GeminiConverter class."""
+    """Tests for the GeminiHistoryConverter class."""
 
     def setUp(self):
-        """Set up the GeminiConverter instance for tests."""
-        self.converter = GeminiConverter()
+        """Set up the GeminiHistoryConverter instance for tests."""
+        self.converter = GeminiHistoryConverter()
 
     # --- Test _from_content_part ---
 
@@ -218,18 +218,18 @@ class TestGeminiConverter(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Unknown content type encountered"):
             self.converter._to_content_part(gemini_part)
 
-    # --- Test from_history ---
+    # --- Test create_provider_history ---
 
     def test_from_history_empty(self):
         """Test converting an empty History object."""
         history = History(context=None, conversation=[])
-        provider_history = self.converter.from_history(history)
+        provider_history = self.converter.create_provider_history(history)
         self.assertEqual(provider_history, [])
 
     def test_from_history_with_context(self):
         """Test converting History with context."""
         history = History(context="System prompt", conversation=[])
-        provider_history = self.converter.from_history(history)
+        provider_history = self.converter.create_provider_history(history)
         self.assertEqual(len(provider_history), 1)
         self.assertEqual(provider_history[0].role, "user")
         self.assertEqual(len(provider_history[0].parts), 1)
@@ -261,7 +261,7 @@ class TestGeminiConverter(unittest.TestCase):
                 ),
             ],
         )
-        provider_history = self.converter.from_history(history)
+        provider_history = self.converter.create_provider_history(history)
         self.assertEqual(len(provider_history), 4)
 
         self.assertEqual(provider_history[0].role, "user")
@@ -353,15 +353,15 @@ class TestGeminiConverter(unittest.TestCase):
         self.assertIsNone(item)
 
     def test_to_history_item_from_chunks(self):
-        """Test converting a list of GenerateContentPartWrapper chunks."""
+        """Test converting a list of GeminiChunkWrapper chunks."""
         chunks = [
-            GenerateContentPartWrapper(types.Part(text="Part 1")),
-            GenerateContentPartWrapper(
+            GeminiChunkWrapper(types.Part(text="Part 1")),
+            GeminiChunkWrapper(
                 types.Part(
                     function_call=types.FunctionCall(name="f1", args={"a": 1}, id="c1")
                 )
             ),
-            GenerateContentPartWrapper(types.Part(text="Part 2")),
+            GeminiChunkWrapper(types.Part(text="Part 2")),
         ]
         item = self.converter.to_history_item(chunks)
         self.assertIsNotNone(item)
@@ -416,8 +416,8 @@ class TestGeminiConverter(unittest.TestCase):
     def test_content_blocks_to_message_mixed(self):
         """Test _content_blocks_to_message with mixed content."""
         chunks = [
-            GenerateContentPartWrapper(types.Part(text="Text")),
-            GenerateContentPartWrapper(
+            GeminiChunkWrapper(types.Part(text="Text")),
+            GeminiChunkWrapper(
                 types.Part(
                     function_call=types.FunctionCall(name="f1", args={}, id="c1")
                 )
@@ -459,7 +459,7 @@ class TestGeminiConverter(unittest.TestCase):
         """Test creating a chunk wrapper."""
         gemini_part = types.Part(text="Hello")
         wrapper = self.converter.create_chunk_wrapper(gemini_part)
-        self.assertIsInstance(wrapper, GenerateContentPartWrapper)
+        self.assertIsInstance(wrapper, GeminiChunkWrapper)
         self.assertEqual(wrapper.raw, gemini_part)
 
 
