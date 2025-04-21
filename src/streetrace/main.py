@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 
+from streetrace.path_completer import PathCompleter
 from streetrace.prompt_processor import PromptProcessor
 
 # Core application components
@@ -69,17 +70,46 @@ def parse_arguments():
     )
     return parser.parse_args()
 
+def init_working_directory(args_path: str) -> str:
+    initial_cwd = os.getcwd()
+    target_work_dir = args_path if args_path else initial_cwd
+    abs_working_dir = os.path.abspath(target_work_dir)
+
+    # Basic validation before UI initialization
+    is_valid_dir = os.path.isdir(abs_working_dir)
+    if not is_valid_dir:
+        raise ValueError(
+            f"Specified path '{target_work_dir}' resolved to '{abs_working_dir}' which is not a valid directory."
+        )
+    # --- End Initial Working Directory Setup ---
+
+    # --- Refine Working Directory and Change CWD (if applicable) ---
+    # This part remains the same, attempting to change the directory if needed
+    if abs_working_dir != initial_cwd:
+        os.chdir(abs_working_dir)
+
+    return abs_working_dir
 
 def main():
     """Main entry point for the application."""
     args = parse_arguments()
-    ui = ConsoleUI(debug_enabled=args.debug)
 
     # --- Configure Logging Level based on args ---
     if args.debug:
         root_logger.addHandler(console_handler)
         logging.info("Debug logging enabled for console.")
     # --- End Logging Configuration ---
+
+    abs_working_dir = init_working_directory(args.path)
+    logging.info(f"Effective working directory: {abs_working_dir}")
+
+    # --- Initialize ConsoleUI with the working directory ---
+    ui = ConsoleUI(path_completer=PathCompleter(abs_working_dir), debug_enabled=args.debug)
+    # --- End UI Initialization ---
+
+    ui.display_info(f"Working directory: {abs_working_dir}")
+    # --- End Refined Working Directory Setup ---
+
 
     # --- Initialize Core Application Components ---
     cmd_executor = CommandExecutor()
@@ -110,39 +140,6 @@ def main():
     model_name = args.model.strip().lower() if args.model else None
     provider_name = args.engine.strip().lower() if args.engine else None
     # --- End Model/Provider Determination ---
-
-    # --- Determine and Validate Working Directory ---
-    initial_cwd = os.getcwd()
-    target_work_dir = args.path if args.path else initial_cwd
-    abs_working_dir = os.path.abspath(target_work_dir)
-
-    if not os.path.isdir(abs_working_dir):
-        ui.display_error(
-            f"Specified path '{target_work_dir}' is not a valid directory. Using current directory '{initial_cwd}'."
-        )
-        logging.error(
-            f"Specified path '{target_work_dir}' resolved to '{abs_working_dir}' which is not a valid directory."
-        )
-        abs_working_dir = os.path.abspath(initial_cwd)
-    else:
-        if args.path:  # Only try to change dir if --path was specified
-            try:
-                # Attempt to change the CWD for consistency, though tools use abs_working_dir
-                os.chdir(abs_working_dir)
-                logging.info(f"Changed current working directory to: {abs_working_dir}")
-            except Exception as e:
-                ui.display_error(
-                    f"Failed to change directory to '{abs_working_dir}': {e}"
-                )
-                logging.exception(
-                    f"Failed to change directory to '{abs_working_dir}': {e}"
-                )
-                # Keep using the resolved absolute path even if chdir failed
-                ui.display_warning(f"Proceeding with resolved path: {abs_working_dir}")
-
-    ui.display_info(f"Working directory: {abs_working_dir}")
-    logging.info(f"Effective working directory set to: {abs_working_dir}")
-    # --- End Working Directory Setup ---
 
     # --- Initialize AI Provider ---
     try:

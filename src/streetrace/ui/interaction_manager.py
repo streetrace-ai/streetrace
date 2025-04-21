@@ -71,33 +71,33 @@ class InteractionManager:
         render_final_reason = True
 
         # <!-- Agent self-conversation loop start -->
-        while has_tool_calls or not reason_to_finish or retry:
-            # Ensure history fits the context window
-            # if not self.provider.manage_conversation_history(provider_history):
-            #     raise ValueError(
-            #         "Conversation history exceeds the model's context window."
-            #     )
-            retry = False
-            has_tool_calls = False
-            reason_to_finish = None
-            request_count += 1
-            logging.info(
-                f"Starting request {request_count} with {len(provider_history)} message items."
-            )
-            logging.debug(
-                "Messages for generation:\n%s",
-                self.provider.pretty_print(provider_history),
-            )
-            logging.debug(
-                "Messages for generation:\n%s",
-                provider_history,
-            )
+        with self.ui.status("Working..."):
+            while has_tool_calls or not reason_to_finish or retry:
+                # Ensure history fits the context window
+                # if not self.provider.manage_conversation_history(provider_history):
+                #     raise ValueError(
+                #         "Conversation history exceeds the model's context window."
+                #     )
+                retry = False
+                has_tool_calls = False
+                reason_to_finish = None
+                request_count += 1
+                logging.info(
+                    f"Starting request {request_count} with {len(provider_history)} message items."
+                )
+                logging.debug(
+                    "Messages for generation:\n%s",
+                    self.provider.pretty_print(provider_history),
+                )
+                logging.debug(
+                    "Messages for generation:\n%s",
+                    provider_history,
+                )
 
-            buffer_assistant_text: list[str] = []
-            buffer_tool_calls: list[ContentPartToolCall] = []
-            buffer_tool_results: list[ContentPartToolResult] = []
-            try:
-                with self.ui.status("Working..."):
+                buffer_assistant_text: list[str] = []
+                buffer_tool_calls: list[ContentPartToolCall] = []
+                buffer_tool_results: list[ContentPartToolResult] = []
+                try:
                     for chunk in self.provider.generate(
                         client,
                         self.model_name,
@@ -122,60 +122,79 @@ class InteractionManager:
                                     f"Tool call: {tool_call.name} with args: {tool_call.arguments}"
                                 )
                                 tool_result = self.tools.call_tool(tool_call, chunk.raw)
-                                if tool_result.success:
-                                    self.ui.display_tool_result(tool_result)
-                                    logging.info(
-                                        f"Tool '{tool_call.name}' result: {tool_result.output.content}'"
-                                    )
-                                else:
-                                    self.ui.display_tool_error(tool_result)
-                                    logging.error(tool_result.output.content)
-                                buffer_tool_results.append(
-                                    ContentPartToolResult(
+                                tool_result_part = ContentPartToolResult(
                                         id=tool_call.id,
                                         name=tool_call.name,
                                         content=tool_result,
                                     )
-                                )
+                                if tool_result.success:
+                                    self.ui.display_tool_result(tool_result_part)
+                                    logging.info(
+                                        f"Tool '{tool_call.name}' result: {tool_result.output.content}'"
+                                    )
+                                else:
+                                    self.ui.display_tool_error(tool_result_part)
+                                    logging.error(tool_result.output.content)
+                                buffer_tool_results.append(tool_result_part)
                                 has_tool_calls = True
 
-                consecutive_retries_count = 0
-            except RetriableError as retry_err:
-                # retry means the provider_history has to stay unmodified for
-                # another similar request
-                logger.exception(retry_err)
-                if consecutive_retries_count < retry_err.max_retries:
-                    consecutive_retries_count += 1
-                    retry = True
-                    self.ui.display_warning(retry_err)
-                    wait_time = retry_err.wait_time(consecutive_retries_count)
-                    logger.info(f"Retrying in {wait_time} seconds...")
-                    time.sleep(wait_time)
-                else:
-                    reason_to_finish = "Retry attempts exceeded"
-                    self.ui.display_error(retry_err)
-                render_final_reason = False
-            except Exception as fail_err:
-                # no retry means the provider_history has to be updated with
-                # the turn messages, and we need to exit the conversation loop
-                logger.exception(fail_err)
-                consecutive_retries_count = 0
-                reason_to_finish = str(fail_err)
-                self.ui.display_error(fail_err)
-                render_final_reason = False
+                except RetriableError as retry_err:
+                    # retry means the provider_history has to stay unmodified for
+                    # another similar request
+                    logger.exception(retry_err)
+                    if consecutive_retries_count < retry_err.max_retries:
+                        consecutive_retries_count += 1
+                        retry = True
+                        self.ui.display_warning(retry_err)
+                        wait_time = retry_err.wait_time(consecutive_retries_count)
+                        logger.info(f"Retrying in {wait_time} seconds...")
+                        time.sleep(wait_time)
+                    else:
+                        reason_to_finish = "Retry attempts exceeded"
+                        self.ui.display_error(retry_err)
+                    render_final_reason = False
+                except Exception as fail_err:
+                    # no retry means the provider_history has to be updated with
+                    # the turn messages, and we need to exit the conversation loop
+                    logger.exception(fail_err)
+                    consecutive_retries_count = 0
+                    reason_to_finish = str(fail_err)
+                    self.ui.display_error(fail_err)
+                    render_final_reason = False
 
-            assistant_messages: List[ContentPart] = []
-            if buffer_assistant_text:
-                assistant_messages.append(ContentPartText(text="".join(buffer_assistant_text)))
-            assistant_messages += buffer_tool_calls
-            turn: List[Message] = []
-            if assistant_messages:
-                turn.append(history.add_message(Role.MODEL, assistant_messages))
-            if buffer_tool_results:
-                turn.append(history.add_message(Role.TOOL, buffer_tool_results))
-            # if this generation has completed successfully, update the history
-            if turn and not retry:
-                self.provider.append_history(provider_history, turn)
+                assistant_messages: List[ContentPart] = []
+                if buffer_assistant_text:
+                    assistant_messages.append(ContentPartText(text="".join(buffer_assistant_text)))
+                assistant_messages += buffer_tool_calls
+                turn: List[Message] = []
+                if assistant_messages:
+                    turn.append(history.add_message(Role.MODEL, assistant_messages))
+                if buffer_tool_results:
+                    turn.append(history.add_message(Role.TOOL, buffer_tool_results))
+                # if this generation has completed successfully, update the history
+                if not retry:
+                    if turn:
+                        self.provider.append_history(provider_history, turn)
+                        consecutive_retries_count = 0
+                    else:
+                        # if it's not a retry due to error, and the turn is empty,
+                        # the provider responded with an empty output (or we don't
+                        # know how to handle the provided output)
+                        if consecutive_retries_count < 3:
+                            consecutive_retries_count += 1
+                            retry = True
+                            self.ui.display_warning(
+                                "No output generated by provider. See logs for details in "
+                                "case there is unsupported output. Retrying...")
+                            wait_time = 10 # sec
+                            logger.info(f"Retrying in {wait_time} seconds...")
+                            time.sleep(wait_time)
+                        else:
+                            reason_to_finish = "No output generated by provider after multiple retries."
+                            self.ui.display_warning(
+                                "No output generated by provider. See logs for details in "
+                                "case there is unsupported output.")
+
 
         # <!-- Agent self-conversation loop end -->
         if render_final_reason:

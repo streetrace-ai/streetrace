@@ -20,6 +20,7 @@ _DIM = "#505050"
 _INFO = "#d0d0d0"
 _WARNING = "#f4bf75"
 _ERROR = "#ac4142"
+_CODE_THEME = "monokai"
 
 
 class Styles:
@@ -33,9 +34,10 @@ class Styles:
     )
     RICH_PROMPT = _USER_INPUT
     RICH_MODEL = _MODEL_RESPONSE
-    RICH_TOOL_CALL = "monokai"
+    RICH_TOOL_CALL = _CODE_THEME
     RICH_TOOL = _INFO
-    RICH_DIFF = "monokai"
+    RICH_DIFF = _CODE_THEME
+    RICH_MD_CODE = _CODE_THEME
 
     RICH_HISTORY_SYSTEM_INSTRUCTIONS_HEADER = _INFO
     RICH_HISTORY_SYSTEM_INSTRUCTIONS = _INFO
