@@ -1,9 +1,10 @@
 # src/streetrace/commands/base_command.py
 import logging
 from abc import ABC, abstractmethod
-from typing import List
+from typing import List, TYPE_CHECKING
 
-from streetrace.application import Application
+if TYPE_CHECKING:
+    from streetrace.application import Application
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class Command(ABC):
         pass
 
     @abstractmethod
-    def execute(self, app_instance: Application) -> bool:
+    def execute(self, app_instance: "Application") -> bool:
         """
         Executes the command's action.
 
