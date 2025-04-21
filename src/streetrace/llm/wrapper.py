@@ -102,6 +102,7 @@ ContentPart = ContentPartText | ContentPartToolCall | ContentPartToolResult
 class Role(Enum):
     SYSTEM = "system"
     USER = "user"
+    CONTEXT = "context"
     MODEL = "model"
     TOOL = "tool"
 
@@ -119,4 +120,6 @@ class History(BaseModel):
     def add_message(self, role: Role, content: List[ContentPart]):
         if not isinstance(role, Role):
             raise ValueError(f"Invalid role: {role}")
-        self.conversation.append(Message(role=role, content=content))
+        message = Message(role=role, content=content)
+        self.conversation.append(message)
+        return message

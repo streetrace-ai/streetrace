@@ -2,12 +2,14 @@
 
 ## release:
 
+- [ ] cleanup logs
 - [ ] history is not saved when err 500 in gemnini
 - [ ] pip publishing
 - [ ] update readme
 
 ## other
 
+- [ ] for streamed responses, collect all text into one message
 - [ ] fix unit tests, lint, etc
 - [ ] Prompt history
 - [ ] Token counts
@@ -24,7 +26,7 @@
 - [ ] If gemini responds with malformed tools or other model errors, feed it back so it can fix its own error
 - [ ] add datetime to Message
 - [ ] create console print module so it uses the proper colors
-- [ ] count input/output tokens consumed
+- [ ] usage stats, count input/output tokens consumed
 - [ ] _generate_with_tools needs to return finish reason
 - [ ] anthropic api 529 overloaded
 - [ ] text editor

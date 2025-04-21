@@ -14,7 +14,7 @@ from google.genai import types
 from streetrace.llm.gemini.converter import GeminiHistoryConverter, GeminiChunkWrapper
 from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
 from streetrace.llm.llmapi import LLMAPI
-from streetrace.llm.wrapper import ContentPartToolResult, History
+from streetrace.llm.wrapper import ContentPart, ContentPartToolResult, History, Message
 
 ProviderHistory = List[types.Content]
 
@@ -60,6 +60,22 @@ class Gemini(LLMAPI):
             List[Dict[str, Any]]: Conversation history in Gemini-specific format
         """
         return self._adapter.create_provider_history(history)
+
+    @override
+    def append_history(
+        self,
+        provider_history: ProviderHistory,
+        turn: List[Message],
+    ):
+        """
+        Add turn items into provider's conversation history.
+
+        Args:
+            provider_history: List of provider-specific message objects
+            turn: List of items in this turn
+        """
+        for message in self._adapter.to_provider_history_items(turn):
+            provider_history.append(message)
 
     @override
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[types.Tool]:
@@ -267,36 +283,3 @@ class Gemini(LLMAPI):
                     + ")"
                 )
             yield FinishWrapper(str(candidate.finish_reason), msg)
-
-    @override
-    def append_to_provider_history(
-        self,
-        provider_history: ProviderHistory,
-        turn: List[ChunkWrapper | ContentPartToolResult],
-    ):
-        """
-        Add turn items into provider's conversation history.
-
-        Args:
-            provider_history: List of provider-specific message objects
-            turn: List of items in this turn
-        """
-        for message in self._adapter.to_provider_history_items(turn):
-            provider_history.append(message)
-
-    @override
-    def append_to_common_history(
-        self,
-        history: History,
-        turn: List[ChunkWrapper | ContentPartToolResult],) -> None:
-        """
-        Updates the conversation history in common format based on provider-specific history.
-
-        Args:
-            provider_history (List[Dict[str, Any]]): provider-specific conversation history
-            history (History): Conversation history in common format
-        """
-        # Replace the conversation with the new messages
-        # new implementation:
-        for message in self._adapter.to_common_history_items(turn):
-            history.conversation.append(message)

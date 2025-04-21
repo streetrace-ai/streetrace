@@ -86,3 +86,9 @@ Gemini:
 ===
 
 check git diff, also check individual file changes, and suggest a concise and clear atomic commit message for this change
+
+===
+
+TEST prompt
+
+All files in the ./inputs directory contain numbers. Sum up thouse numbers and write a new file named as YYYYMMDD_HHMMSS.txt in the ./outputs directory with the resulting value.

@@ -13,7 +13,6 @@ from streetrace.llm.wrapper import (
     ContentPart,
     ContentPartText,
     ContentPartToolCall,
-    ContentPartToolResult,
     History,
     Message,
     Role,
@@ -73,15 +72,6 @@ class FinishWrapper(ChunkWrapper[str]):
 
 
 class HistoryConverter(Generic[T_AiRequestMessage, T_AiRequestPart, T_AiResponsePart, T_ChunkWrapper], abc.ABC):
-    # history converter:
-    # 1. update provider history based on turn results:
-    #    - convert assistant message chunks to provider history
-    #    - convert tool results to provider history
-    # 2. update common history based on turn results:
-    #    - convert assistant message chunks to common history messages
-    #    - add tool results to common history
-    # 3. create provider history based on common history
-
     """
     Abstract base class for converting between common message format and provider-specific formats.
 
@@ -93,7 +83,6 @@ class HistoryConverter(Generic[T_AiRequestMessage, T_AiRequestPart, T_AiResponse
         T_AiResponsePart: The provider-specific streaming content chunk type
     """
 
-    @abc.abstractmethod
     def create_chunk_wrapper(
         self,
         chunk: T_AiResponsePart,
@@ -107,9 +96,8 @@ class HistoryConverter(Generic[T_AiRequestMessage, T_AiRequestPart, T_AiResponse
         Returns:
             A ChunkWrapper[T] implementation to access chunk data
         """
-        pass
+        return T_ChunkWrapper(chunk)
 
-    @abc.abstractmethod
     def create_provider_history(self, history: History) -> List[T_AiRequestMessage]:
         """
         Convert common History format to provider-specific message format.
@@ -122,79 +110,41 @@ class HistoryConverter(Generic[T_AiRequestMessage, T_AiRequestPart, T_AiResponse
         """
         provider_history: List[T_AiRequestMessage] = []
 
+        if history.system_message:
+            msg = self._provider_message(Role.SYSTEM, [
+                self._common_to_request(ContentPartText(text=history.system_message)),
+            ])
+            if msg:
+                provider_history.append(msg)
+
         if history.context:
-            provider_history.append(
-                self._provider_message(Role.USER, [
-                    self._common_to_request(ContentPartText(text=history.context)),
-                    ])
-            )
+            msg = self._provider_message(Role.CONTEXT, [
+                self._common_to_request(ContentPartText(text=history.context)),
+            ])
+            if msg:
+                provider_history.append(msg)
 
-        for message in history.conversation:
-            content = [self._common_to_request(part) for part in message.content]
 
-            if content:
-                provider_history.append(
-                    self._provider_message(message.role, content)
-                )
+        content = self.to_provider_history_items(history.conversation)
+        if content:
+            provider_history.extend(content)
+
         return provider_history
 
-    @abc.abstractmethod
     def to_provider_history_items(
         self,
-        turn: List[ChunkWrapper | ContentPartToolResult],
+        turn: List[Message],
     ) -> Iterable[T_AiRequestMessage]:
-        if not turn:
-            return None
-        assistant_messages: List[T_AiRequestPart] = []
-        tool_results: List[T_AiRequestPart] = []
-        for item in turn:
-            if isinstance(item, ChunkWrapper):
-                part = self._response_to_request(item.raw)
-                if part is not None:
-                    assistant_messages.append(part)
-            elif isinstance(item, ContentPartToolResult):
-                tool_results.append(self._common_to_request(item))
-            else:
-                raise TypeError(f"Unsupported turn type in list: {type(item)}")
-
-        if assistant_messages:
-            yield self._provider_message(Role.MODEL, assistant_messages)
-        if tool_results:
-            yield self._provider_message(Role.TOOL, tool_results)
-
-    @abc.abstractmethod
-    def to_common_history_items(
-        self,
-        turn: List[ChunkWrapper | ContentPartToolResult],
-    ) -> Iterable[Message]:
-        if not turn:
-            return None
-        assistant_response: List[ContentPart] = []
-        tool_results: List[ContentPart] = []
-        for item in turn:
-            if isinstance(item, ChunkWrapper):
-                parts = self._response_to_common(item.raw)
-                assistant_response.extend(parts)
-            elif isinstance(item, ContentPartToolResult):
-                tool_results.append(item)
-            else:
-                raise TypeError(f"Unsupported turn type in list: {type(item)}")
-
-        if assistant_response:
-            yield Message(
-                role=Role.MODEL, content=assistant_response
-            )
-        if tool_results:
-            yield Message(
-                role=Role.TOOL, content=tool_results
-            )
+        if turn:
+            for message in turn:
+                yield self._provider_message(message.role, [
+                    self._common_to_request(part) for part in message.content
+                ])
 
     @abc.abstractmethod
     def _provider_message(self, role: Role, items: List[T_AiRequestPart]) -> T_AiRequestMessage:
         """
         Convert provider-specific response content part to common history item part.
-
-        For use in to_common_history_items.
         """
         pass
 
@@ -204,23 +154,5 @@ class HistoryConverter(Generic[T_AiRequestMessage, T_AiRequestPart, T_AiResponse
         Convert common history item part to provider-specific request content part.
 
         For use in create_provider_history, to_provider_history_items.
-        """
-        pass
-
-    @abc.abstractmethod
-    def _response_to_request(self, item: T_AiResponsePart) -> Optional[T_AiRequestPart]:
-        """
-        Convert provider-specific response content part to request content part.
-
-        For use in to_provider_history_items.
-        """
-        pass
-
-    @abc.abstractmethod
-    def _response_to_common(self, item: T_AiResponsePart) -> Iterable[ContentPart]:
-        """
-        Convert provider-specific response content part to common history item part.
-
-        For use in to_common_history_items.
         """
         pass

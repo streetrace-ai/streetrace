@@ -3,9 +3,8 @@ import logging
 import time
 from typing import List, Optional
 
-from streetrace.llm.history_converter import ChunkWrapper
 from streetrace.llm.llmapi import LLMAPI, RetriableError
-from streetrace.llm.wrapper import ContentPartToolResult, History
+from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, History, Message, Role
 from streetrace.tools.tools import ToolCall
 
 # Assuming these are accessible
@@ -94,9 +93,10 @@ class InteractionManager:
                 provider_history,
             )
 
+            buffer_assistant_text: list[str] = []
+            buffer_tool_calls: list[ContentPartToolCall] = []
+            buffer_tool_results: list[ContentPartToolResult] = []
             try:
-                turn: List[ChunkWrapper | ContentPartToolResult] = []
-                # Process one streaming response and gather all its chunks in turn[] list
                 with self.ui.status("Working..."):
                     for chunk in self.provider.generate(
                         client,
@@ -110,12 +110,14 @@ class InteractionManager:
                             # finish message has to be the last chunk of the response
                             break
 
-                        turn.append(chunk)
-                        if chunk.get_text():
-                            self.ui.display_ai_response_chunk(chunk.get_text())
+                        text_part = chunk.get_text()
+                        if text_part:
+                            self.ui.display_ai_response_chunk(text_part)
+                            buffer_assistant_text.append(text_part)
                         if chunk.get_tool_calls():
                             for tool_call in chunk.get_tool_calls():
                                 self.ui.display_tool_call(tool_call)
+                                buffer_tool_calls.append(tool_call)
                                 logging.info(
                                     f"Tool call: {tool_call.name} with args: {tool_call.arguments}"
                                 )
@@ -128,7 +130,7 @@ class InteractionManager:
                                 else:
                                     self.ui.display_tool_error(tool_result)
                                     logging.error(tool_result.output.content)
-                                turn.append(
+                                buffer_tool_results.append(
                                     ContentPartToolResult(
                                         id=tool_call.id,
                                         name=tool_call.name,
@@ -136,11 +138,7 @@ class InteractionManager:
                                     )
                                 )
                                 has_tool_calls = True
-                # if this generation has completed successfully, update the history
-                if turn:
-                    self.provider.append_to_provider_history(provider_history, turn)
-                    self.provider.append_to_common_history(history, turn)
-                    turn = []
+
                 consecutive_retries_count = 0
             except RetriableError as retry_err:
                 # retry means the provider_history has to stay unmodified for
@@ -155,8 +153,6 @@ class InteractionManager:
                     time.sleep(wait_time)
                 else:
                     reason_to_finish = "Retry attempts exceeded"
-                    if turn:
-                        self.provider.append_to_common_history(history, turn)
                     self.ui.display_error(retry_err)
                 render_final_reason = False
             except Exception as fail_err:
@@ -164,11 +160,22 @@ class InteractionManager:
                 # the turn messages, and we need to exit the conversation loop
                 logger.exception(fail_err)
                 consecutive_retries_count = 0
-                if turn:
-                    self.provider.append_to_common_history(history, turn)
                 reason_to_finish = str(fail_err)
                 self.ui.display_error(fail_err)
                 render_final_reason = False
+
+            assistant_messages: List[ContentPart] = []
+            if buffer_assistant_text:
+                assistant_messages.append(ContentPartText(text="".join(buffer_assistant_text)))
+            assistant_messages += buffer_tool_calls
+            turn: List[Message] = []
+            if assistant_messages:
+                turn.append(history.add_message(Role.MODEL, assistant_messages))
+            if buffer_tool_results:
+                turn.append(history.add_message(Role.TOOL, buffer_tool_results))
+            # if this generation has completed successfully, update the history
+            if turn and not retry:
+                self.provider.append_history(provider_history, turn)
 
         # <!-- Agent self-conversation loop end -->
         if render_final_reason:

@@ -248,7 +248,7 @@ class Application:
                 )
             # Add mention context as USER role for simplicity in display/processing for now
             history.add_message(
-                role=Role.USER, content=[ContentPartText(text=context_message)]
+                role=Role.CONTEXT, content=[ContentPartText(text=context_message)]
             )
             logging.debug(f"Added context from @{filepath} to history.")
 

@@ -6,16 +6,14 @@ This module implements the LLMAPI interface for Anthropic's Claude models.
 
 import logging
 import os
-import time
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, override
 
-import anthropic  # pip install anthropic
+import anthropic
 
-from streetrace.llm.claude.converter import ClaudeConverter, ContentBlockChunkWrapper
+from streetrace.llm.claude.converter import AnthropicHistoryConverter, AnthropicChunkWrapper
 from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
-from streetrace.llm.llmapi import LLMAPI
-from streetrace.llm.wrapper import ContentPartToolResult, History
-from streetrace.ui.colors import AnsiColors
+from streetrace.llm.llmapi import LLMAPI, RetriableError
+from streetrace.llm.wrapper import ContentPart, ContentPartToolResult, History, Message
 
 ProviderHistory = List[anthropic.types.MessageParam]
 
@@ -29,8 +27,9 @@ class Claude(LLMAPI):
     Implementation of the LLMAPI interface for Anthropic's Claude models.
     """
 
-    _adapter = ClaudeConverter()
+    _adapter = AnthropicHistoryConverter()
 
+    @override
     def initialize_client(self) -> anthropic.Anthropic:
         """
         Initialize and return the Claude API client.
@@ -46,6 +45,7 @@ class Claude(LLMAPI):
             raise ValueError("ANTHROPIC_API_KEY environment variable not set.")
         return anthropic.Anthropic(api_key=api_key)
 
+    @override
     def transform_history(self, history: History) -> ProviderHistory:
         """
         Transform conversation history from common format into Claude-specific format.
@@ -56,21 +56,25 @@ class Claude(LLMAPI):
         Returns:
             List[Dict[str, Any]]: Conversation history in Claude-specific format
         """
-        return self._adapter.from_history(history)
+        return self._adapter.create_provider_history(history)
 
-    def update_history(
-        self, provider_history: ProviderHistory, history: History
-    ) -> None:
+    @override
+    def append_history(
+        self,
+        provider_history: ProviderHistory,
+        turn: List[Message],
+    ):
         """
-        Updates the conversation history in common format based on Claude-specific history.
+        Add turn items into provider's conversation history.
 
         Args:
-            provider_history (List[Dict[str, Any]]): Claude-specific conversation history
-            history (History): Conversation history in common format
+            provider_history: List of provider-specific message objects
+            turn: List of items in this turn
         """
-        # Replace the conversation with the new messages
-        history.conversation = self._adapter.to_history(provider_history)
+        for message in self._adapter.to_provider_history_items(turn):
+            provider_history.append(message)
 
+    @override
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Transform tools from common format to Claude-specific format.
@@ -93,6 +97,7 @@ class Claude(LLMAPI):
 
         return claude_tools
 
+    @override
     def pretty_print(self, messages: ProviderHistory) -> str:
         """
         Format message list for readable logging.
@@ -111,6 +116,7 @@ class Claude(LLMAPI):
 
         return "\n".join(parts)
 
+    @override
     def manage_conversation_history(
         self, messages: ProviderHistory, max_tokens: int = MAX_TOKENS
     ) -> bool:
@@ -161,6 +167,7 @@ class Claude(LLMAPI):
             logging.error(f"Error managing tokens: {e}")
             return False
 
+    @override
     def generate(
         self,
         client: anthropic.Anthropic,
@@ -168,7 +175,7 @@ class Claude(LLMAPI):
         system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
-    ) -> Iterable[ContentBlockChunkWrapper]:
+    ) -> Iterable[AnthropicChunkWrapper]:
         """
         Get API response from Claude, process it and handle tool calls.
 
@@ -180,10 +187,9 @@ class Claude(LLMAPI):
             tools: The Claude-format tools to use
 
         Returns:
-            Iterable[ContentBlockChunkWrapper]: The response chunks from Claude
+            Iterable[AnthropicChunkWrapper]: The response chunks from Claude
         """
         model_name = model_name or MODEL_NAME
-        retry_count = 0
 
         while True:  # This loop handles retries for rate limit errors
             try:
@@ -195,12 +201,13 @@ class Claude(LLMAPI):
                     messages=messages,
                     # stream=True,
                     tools=tools,
+                    extra_headers={"x-should-retry": "false"}
                 )
 
                 logging.debug("Raw Claude response: %s", response)
 
                 return [
-                    ContentBlockChunkWrapper(content_block)
+                    AnthropicChunkWrapper(content_block)
                     for content_block in response.content
                 ] + (
                     [FinishWrapper(response.stop_reason, response.stop_sequence)]
@@ -209,44 +216,4 @@ class Claude(LLMAPI):
                 )
 
             except anthropic.RateLimitError as e:
-                # TODO: Implement retryable error handling in the InteractionManager to allow proper
-                #       logging and UI handling.
-                retry_count += 1
-                wait_time = 30  # Wait for 30 seconds before retrying
-
-                error_msg = f"Rate limit error encountered. Retrying in {wait_time} seconds... (Attempt {retry_count})"
-                logging.exception(e)
-                logging.warning(error_msg)
-                print(AnsiColors.WARNING + error_msg + AnsiColors.RESET)
-                time.sleep(wait_time)
-                continue
-
-    def append_to_history(
-        self,
-        provider_history: ProviderHistory,
-        turn: List[ChunkWrapper | ContentPartToolResult],
-    ):
-        """
-        Add turn items into provider's conversation history.
-
-        Args:
-            provider_history: List of provider-specific message objects
-            turn: List of items in this turn
-        """
-        # Separate chunks and tool results
-        chunks = []
-        tool_results = []
-
-        for item in turn:
-            if isinstance(item, ContentBlockChunkWrapper):
-                chunks.append(item)
-            elif isinstance(item, ContentPartToolResult):
-                tool_results.append(item)
-
-        # Add assistant message with all text and tool calls
-        provider_history.append(self._adapter.to_history_item(chunks))
-
-        # Add tool results if any exist
-        tool_results_message = self._adapter.to_history_item(tool_results)
-        if tool_results_message:
-            provider_history.append(tool_results_message)
+                raise RetriableError(str(e), max_retries=3) from e

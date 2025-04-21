@@ -6,14 +6,14 @@ This module implements the LLMAPI interface for Ollama models.
 
 import logging
 import os
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, override
 
 import ollama
 
 from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
 from streetrace.llm.llmapi import LLMAPI
-from streetrace.llm.ollama.converter import OllamaConverter, OllamaResponseChunkWrapper
-from streetrace.llm.wrapper import ContentPartToolResult, History
+from streetrace.llm.ollama.converter import OllamaHistoryConverter, OllamaChunkWrapper
+from streetrace.llm.wrapper import ContentPart, ContentPartToolResult, History, Message
 from streetrace.ui.colors import AnsiColors
 
 # Constants
@@ -28,8 +28,9 @@ class Ollama(LLMAPI):
     Implementation of the LLMAPI interface for Ollama models.
     """
 
-    _adapter = OllamaConverter()
+    _adapter = OllamaHistoryConverter()
 
+    @override
     def initialize_client(self) -> ollama.Client:
         """
         Initialize and return the Ollama API client.
@@ -40,6 +41,7 @@ class Ollama(LLMAPI):
         host = os.environ.get("OLLAMA_API_URL", "http://localhost:11434")
         return ollama.Client(host=host)
 
+    @override
     def transform_history(self, history: History) -> ProviderHistory:
         """
         Transform conversation history from common format into Ollama-specific format.
@@ -50,21 +52,24 @@ class Ollama(LLMAPI):
         Returns:
             List[Dict[str, Any]]: Conversation history in Ollama-specific format
         """
-        return self._adapter.from_history(history)
+        return self._adapter.create_provider_history(history)
 
-    def update_history(
-        self, provider_history: ProviderHistory, history: History
-    ) -> None:
+    def append_history(
+        self,
+        provider_history: ProviderHistory,
+        turn: List[Message],
+    ):
         """
-        Updates the conversation history in common format based on Ollama-specific history.
+        Add turn items into provider's conversation history.
 
         Args:
-            provider_history (List[Dict[str, Any]]): Ollama-specific conversation history
-            history (History): Conversation history in common format
+            provider_history: List of provider-specific message objects
+            turn: List of items in this turn
         """
-        # Replace the conversation with the new messages
-        history.conversation = self._adapter.to_history(provider_history)
+        for message in self._adapter.to_provider_history_items(turn):
+            provider_history.append(message)
 
+    @override
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Transform tools from common format to Ollama-specific format.
@@ -78,6 +83,7 @@ class Ollama(LLMAPI):
         # Ollama generally uses the same tool format as OpenAI, so no transformation is needed
         return tools
 
+    @override
     def pretty_print(self, messages: ProviderHistory) -> str:
         """
         Format message list for readable logging.
@@ -98,6 +104,7 @@ class Ollama(LLMAPI):
 
         return "\n".join(parts)
 
+    @override
     def manage_conversation_history(
         self, messages: ProviderHistory, max_tokens: int = MAX_TOKENS
     ) -> bool:
@@ -147,6 +154,7 @@ class Ollama(LLMAPI):
             logging.error(f"Error managing tokens: {e}")
             return False
 
+    @override
     def generate(
         self,
         client: ollama.Client,
@@ -154,7 +162,7 @@ class Ollama(LLMAPI):
         system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
-    ) -> Iterable[OllamaResponseChunkWrapper]:
+    ) -> Iterable[OllamaChunkWrapper]:
         """
         Get API response from Ollama, process it and handle tool calls.
 
@@ -166,7 +174,7 @@ class Ollama(LLMAPI):
             tools: The tools to use in Ollama format
 
         Returns:
-            Iterable[OllamaResponseChunkWrapper]: Stream of response chunks
+            Iterable[OllamaChunkWrapper]: Stream of response chunks
         """
         model_name = model_name or MODEL_NAME
         retry_count = 0
@@ -183,7 +191,7 @@ class Ollama(LLMAPI):
                 for chunk in response:
                     if chunk:
                         logging.debug(f"Chunk received: {chunk}")
-                        yield OllamaResponseChunkWrapper(chunk)
+                        yield OllamaChunkWrapper(chunk.message)
 
                 yield FinishWrapper("done", None)
                 break  # Exit the retry loop if successful
@@ -200,36 +208,3 @@ class Ollama(LLMAPI):
                 error_msg = f"API error encountered. Retrying... (Attempt {retry_count}/{max_retries}): {e}"
                 logging.warning(error_msg)
                 print(AnsiColors.WARNING + error_msg + AnsiColors.RESET)
-
-    def append_to_history(
-        self,
-        provider_history: ProviderHistory,
-        turn: List[ChunkWrapper | ContentPartToolResult],
-    ):
-        """
-        Add turn items into provider's conversation history.
-
-        Args:
-            provider_history: List of provider-specific message objects
-            turn: List of items in this turn
-        """
-        # Separate chunks and tool results
-        chunks = []
-        tool_results = []
-
-        for item in turn:
-            if isinstance(item, OllamaResponseChunkWrapper):
-                chunks.append(item)
-            elif isinstance(item, ContentPartToolResult):
-                tool_results.append(item)
-
-        # Add assistant message with all text and tool calls
-        assistant_message = self._adapter.to_history_item(chunks)
-        if assistant_message:
-            provider_history.append(assistant_message)
-
-        # Add tool results if any exist
-        for result in tool_results:
-            tool_result_message = self._adapter.to_history_item([result])
-            if tool_result_message:
-                provider_history.append(tool_result_message)

@@ -10,7 +10,7 @@ import abc
 from typing import Any, Dict, Iterable, List, Optional
 
 from streetrace.llm.history_converter import ChunkWrapper
-from streetrace.llm.wrapper import ContentPartToolResult, History
+from streetrace.llm.wrapper import ContentPart, ContentPartToolResult, History, Message
 
 ProviderHistory = List[Dict[str, Any]]
 ProviderTools = List[Dict[str, Any]]
@@ -48,6 +48,21 @@ class LLMAPI(abc.ABC):
 
         Returns:
             ProviderHistory: Conversation history in provider-specific format
+        """
+        pass
+
+    @abc.abstractmethod
+    def append_history(
+        self,
+        provider_history: ProviderHistory,
+        turn: List[Message],
+    ):
+        """
+        Add turn items into provider's conversation history.
+
+        Args:
+            provider_history: List of provider-specific message objects
+            turn: List of items in this turn
         """
         pass
 
@@ -117,35 +132,6 @@ class LLMAPI(abc.ABC):
         Returns:
             Iterator[Any]: Provider response stream
             or Any: The final response object
-        """
-        pass
-
-    @abc.abstractmethod
-    def append_to_provider_history(
-        self,
-        provider_history: ProviderHistory,
-        turn: List[ChunkWrapper | ContentPartToolResult],
-    ):
-        """
-        Add turn items into provider's conversation history.
-
-        Args:
-            provider_history: List of provider-specific message objects
-            turn: List of items in this turn
-        """
-        pass
-
-    @abc.abstractmethod
-    def append_to_common_history(
-        self,
-        history: History,
-        turn: List[ChunkWrapper | ContentPartToolResult],) -> None:
-        """
-        Updates the conversation history in common format based on the provided turn items.
-
-        Args:
-            messages (ProviderHistory): Provider-specific conversation history
-            history (History): Conversation history in common format
         """
         pass
 

@@ -7,15 +7,15 @@ This module implements the LLMAPI interface for OpenAI models.
 import logging
 import os
 import time
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, override
 
 import openai
 from openai.types import chat
 
 from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
 from streetrace.llm.llmapi import LLMAPI
-from streetrace.llm.openai.converter import ChoiceDeltaWrapper, OpenAIConverter
-from streetrace.llm.wrapper import ContentPartToolResult, History, Role
+from streetrace.llm.openai.converter import OpenAIChunkWrapper, OpenAIHistoryConverter
+from streetrace.llm.wrapper import ContentPart, ContentPartToolResult, History, Message, Role
 from streetrace.ui.colors import AnsiColors
 
 # Constants
@@ -30,8 +30,9 @@ class OpenAI(LLMAPI):
     Implementation of the LLMAPI interface for OpenAI models.
     """
 
-    _adapter = OpenAIConverter()
+    _adapter = OpenAIHistoryConverter()
 
+    @override
     def initialize_client(self) -> openai.OpenAI:
         """
         Initialize and return the OpenAI API client.
@@ -51,6 +52,7 @@ class OpenAI(LLMAPI):
             return openai.OpenAI(api_key=api_key, base_url=base_url)
         return openai.OpenAI(api_key=api_key)
 
+    @override
     def transform_history(self, history: History) -> ProviderHistory:
         """
         Transform conversation history from common format into OpenAI-specific format.
@@ -61,23 +63,24 @@ class OpenAI(LLMAPI):
         Returns:
             List[Dict[str, Any]]: Conversation history in OpenAI-specific format
         """
-        return self._adapter.from_history(history)
+        return self._adapter.create_provider_history(history)
 
-    def update_history(
-        self, provider_history: ProviderHistory, history: History
-    ) -> None:
+    def append_history(
+        self,
+        provider_history: ProviderHistory,
+        turn: List[Message],
+    ):
         """
-        Updates the conversation history in common format based on OpenAI-specific history.
+        Add turn items into provider's conversation history.
 
         Args:
-            provider_history (List[Dict[str, Any]]): OpenAI-specific conversation history
-            history (History): Conversation history in common format
+            provider_history: List of provider-specific message objects
+            turn: List of items in this turn
         """
-        # Replace the conversation with the new messages
-        history.conversation = self._adapter.to_history(provider_history)
-        if history.context and history.conversation[0].role == Role.USER:
-            del history.conversation[0]
+        for message in self._adapter.to_provider_history_items(turn):
+            provider_history.append(message)
 
+    @override
     def transform_tools(self, tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         Transform tools from common format to OpenAI-specific format.
@@ -91,6 +94,7 @@ class OpenAI(LLMAPI):
         # OpenAI's tool format is already compatible with the common format
         return tools
 
+    @override
     def pretty_print(self, messages: List[Dict[str, Any]]) -> str:
         """
         Format message list for readable logging.
@@ -109,6 +113,7 @@ class OpenAI(LLMAPI):
 
         return "\n".join(parts)
 
+    @override
     def manage_conversation_history(
         self, conversation_history: List[Dict[str, Any]], max_tokens: int = MAX_TOKENS
     ) -> bool:
@@ -163,6 +168,7 @@ class OpenAI(LLMAPI):
             logging.error(f"Error managing tokens: {e}")
             return False
 
+    @override
     def generate(
         self,
         client: openai.OpenAI,
@@ -170,7 +176,7 @@ class OpenAI(LLMAPI):
         system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
-    ) -> Iterable[ChoiceDeltaWrapper]:
+    ) -> Iterable[OpenAIChunkWrapper]:
         """
         Get API response from OpenAI, process it and handle tool calls.
 
@@ -182,147 +188,49 @@ class OpenAI(LLMAPI):
             tools: The tools to use
 
         Returns:
-            Iterable[ChoiceDeltaWrapper]: Stream of response chunks
+            Iterable[OpenAIChunkWrapper]: Stream of response chunks
         """
+
+        # UNRESOLVED ISSUE with streaming is that
+        # when printing to console, we need to re-draw the full content accumulated so far
+        # to render mardown output, which would require a significant upgrate on the UI.
+        # Between streaming and markdown, I choose markdown.
         model_name = model_name or MODEL_NAME
-        retry_count = 0
-        max_retries = 3
 
-        while retry_count < max_retries:  # This loop handles retries for errors
-            try:
-                # Create the message with OpenAI
-                response = client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,
-                    tools=tools,
-                    stream=True,
-                    tool_choice="auto",
-                )
+        logging.debug(f"Sending request: {messages}")
+        # Create the message with OpenAI
+        response: chat.ChatCompletion = client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            tools=tools,
+            stream=False,
+            tool_choice="auto",
+        )
+        logging.debug(f"Response received: {response}")
 
-                # Process the streamed response
-                buffered_tool_calls = {}
-                for chunk in response:
-                    logging.debug(f"Chunk received: {chunk}")
-                    if not hasattr(chunk, "choices"):
-                        continue
+        assert isinstance(response, chat.ChatCompletion)
+        assert hasattr(response, "choices")
 
-                    for idx, choice in enumerate(chunk.choices):
-                        delta = choice.delta
-                        finish_reason = choice.finish_reason
+        choice = response.choices[0]
 
-                        # OpenAI can generate partial tool calls, so we need to build
-                        # tool calls in a buffer, and will send them once the model completes
-                        # generation.
-                        if finish_reason == "tool_calls":
-                            # Yield full tool_call block if finished
-                            tool_call_msg = buffered_tool_calls.pop(idx, None)
-                            if tool_call_msg:
-                                yield ChoiceDeltaWrapper(
-                                    chat.ChatCompletionMessage(
-                                        role=delta.role or "assistant",
-                                        tool_calls=[
-                                            chat.ChatCompletionMessageToolCall(
-                                                type="function",
-                                                id=tool_call["id"],
-                                                function=chat.chat_completion_message_tool_call.Function(
-                                                    name=tool_call["function"]["name"],
-                                                    arguments=tool_call["function"][
-                                                        "arguments"
-                                                    ],
-                                                ),
-                                            )
-                                            for tool_call in tool_call_msg["tool_calls"]
-                                        ],
-                                    )
-                                )
-                            continue
+        yield OpenAIChunkWrapper(
+            chat.ChatCompletionAssistantMessageParam(
+                role=choice.message.role or "assistant",
+                content=choice.message.content,
+                refusal=choice.message.refusal,
+                tool_calls=[
+                    chat.ChatCompletionMessageToolCallParam(
+                        type="function",
+                        id=tool_call.id,
+                        function=chat.chat_completion_message_tool_call_param.Function(
+                            name=tool_call.function.name,
+                            arguments=tool_call.function.arguments,
+                        ),
+                    )
+                    for tool_call in choice.message.tool_calls
+                ] if choice.message.tool_calls else [],
+            )
+        )
 
-                        if hasattr(delta, "tool_calls") and delta.tool_calls:
-                            # Start or continue buffering tool_call
-                            if idx not in buffered_tool_calls:
-                                buffered_tool_calls[idx] = {"tool_calls": []}
-
-                            for i, tool_delta in enumerate(delta.tool_calls):
-                                # Ensure space for tool_calls[i]
-                                while len(buffered_tool_calls[idx]["tool_calls"]) <= i:
-                                    buffered_tool_calls[idx]["tool_calls"].append(
-                                        {
-                                            "id": None,
-                                            "function": {"name": "", "arguments": ""},
-                                            "type": "function",
-                                        }
-                                    )
-
-                                existing = buffered_tool_calls[idx]["tool_calls"][i]
-                                if tool_delta.id:
-                                    existing["id"] = tool_delta.id
-                                if tool_delta.function:
-                                    if tool_delta.function.name:
-                                        existing["function"][
-                                            "name"
-                                        ] += tool_delta.function.name
-                                    if tool_delta.function.arguments:
-                                        existing["function"][
-                                            "arguments"
-                                        ] += tool_delta.function.arguments
-                        elif (
-                            delta.content is not None
-                        ):  # Important, do not check for Truthy as '' messages can contain other fields.
-                            # Yield regular text deltas immediately
-                            yield ChoiceDeltaWrapper(delta)
-
-                        if finish_reason:
-                            yield FinishWrapper(finish_reason, None)
-
-                break
-
-            except Exception as e:
-                retry_count += 1
-
-                if retry_count >= max_retries:
-                    error_msg = f"Failed after {max_retries} retries: {e}"
-                    logging.error(error_msg)
-                    print(AnsiColors.MODELERROR + error_msg + AnsiColors.RESET)
-                    raise
-
-                wait_time = 5 * retry_count  # Increase wait time with each retry
-
-                error_msg = f"API error encountered. Retrying in {wait_time} seconds... (Attempt {retry_count}/{max_retries}): {e}"
-                logging.warning(error_msg)
-                print(AnsiColors.WARNING + error_msg + AnsiColors.RESET)
-
-                time.sleep(wait_time)
-
-    def append_to_history(
-        self,
-        provider_history: ProviderHistory,
-        turn: List[ChunkWrapper | ContentPartToolResult],
-    ):
-        """
-        Add turn items into provider's conversation history.
-
-        Args:
-            provider_history: List of provider-specific message objects
-            turn: List of items in this turn
-        """
-        # Separate chunks and tool results
-        chunks: list[ChoiceDeltaWrapper] = []
-        tool_results: list[ContentPartToolResult] = []
-
-        for item in turn:
-            if isinstance(item, ChoiceDeltaWrapper):
-                chunks.append(item)
-            elif isinstance(item, ContentPartToolResult):
-                tool_results.append(item)
-
-        # Add assistant message with all text and tool calls
-        assistant_message = self._adapter.to_history_item(chunks)
-        if assistant_message:
-            provider_history.append(assistant_message)
-
-        # Add tool results if any exist
-        # OpenAI expects one message per tool result
-        for result in tool_results:
-            tool_result_message = self._adapter.to_history_item([result])
-            if tool_result_message:
-                provider_history.append(tool_result_message)
+        if choice.finish_reason:
+            yield FinishWrapper(choice.finish_reason, None)
