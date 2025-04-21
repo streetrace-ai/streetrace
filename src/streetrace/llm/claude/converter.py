@@ -1,12 +1,13 @@
-from typing import Iterable, List, Optional, override
+from typing import List, Optional, override
 from streetrace.llm.history_converter import (
-    HistoryConverter, ChunkWrapper, Role, ContentPart, ContentPartText,
-    ContentPartToolCall, ContentPartToolResult
+    HistoryConverter, ChunkWrapper
 )
 from anthropic.types import (
     MessageParam, TextBlockParam, ToolUseBlockParam,
     ToolResultBlockParam, ContentBlock, ContentBlockParam
 )
+
+from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
 
 _CLAUD_ROLES = {
     Role.SYSTEM: "system",

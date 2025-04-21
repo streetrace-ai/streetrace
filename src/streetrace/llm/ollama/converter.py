@@ -1,9 +1,10 @@
 from typing import Iterable, List, Optional, override
 from streetrace.llm.history_converter import (
-    HistoryConverter, ChunkWrapper, Role, ContentPart,
-    ContentPartText, ContentPartToolCall, ContentPartToolResult
+    HistoryConverter, ChunkWrapper
 )
 from ollama import Message as OllamaMessage
+
+from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
 
 _ROLES = {
     Role.SYSTEM: "system",

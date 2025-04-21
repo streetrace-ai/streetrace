@@ -1,10 +1,10 @@
 from typing import List, Optional, override
 from streetrace.llm.history_converter import (
-    HistoryConverter, ChunkWrapper, Role, ContentPart,
-    ContentPartText, ContentPartToolCall, ContentPartToolResult
+    HistoryConverter, ChunkWrapper
 )
 from google.genai import types
 
+from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
 
 class GeminiChunkWrapper(ChunkWrapper[types.Part]):
     def get_text(self) -> str:

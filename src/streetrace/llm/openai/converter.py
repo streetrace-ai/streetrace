@@ -1,12 +1,11 @@
 import json
 from typing import Iterable, List, Optional, Union
 from streetrace.llm.history_converter import (
-    HistoryConverter, ChunkWrapper, Role, ContentPart, ContentPartText,
-    ContentPartToolCall, ContentPartToolResult
+    HistoryConverter, ChunkWrapper
 )
 from openai.types import chat
 
-from streetrace.llm.wrapper import Message
+from streetrace.llm.wrapper import Message, ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
 
 _ROLES = {
     Role.SYSTEM: "system",
