@@ -84,3 +84,9 @@ This approach **expects well-formed input** and fails loudly and early when thin
 - *Zero-tolerance parser*
 
 ---
+
+Always use strongly typed code.
+
+Use coding and design patterns so enforce SOLID principles. TODO: Harvest refactoring guru patterns for specific languages.
+
+Keep all lines unrelated to the current request unchanged.

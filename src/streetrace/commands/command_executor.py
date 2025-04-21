@@ -1,6 +1,12 @@
-# app/command_executor.py
+# src/streetrace/commands/command_executor.py
 import logging
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple, TYPE_CHECKING
+
+from .base_command import Command  # Import the base class
+
+# Use TYPE_CHECKING to avoid circular imports at runtime
+if TYPE_CHECKING:
+    from streetrace.application import Application
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
@@ -8,130 +14,130 @@ logger = logging.getLogger(__name__)
 
 class CommandExecutor:
     """
-    Manages and executes user-defined commands for the application.
+    Manages and executes commands derived from the Command base class.
 
-    Handles registration of commands and their corresponding actions.
-    Executes commands based on user input, handling case-insensitivity
-    and basic error management during action execution.
+    Handles registration of Command objects and executes them based on user input,
+    passing the Application instance to the command's execute method.
+    Handles case-insensitivity and basic error management during execution.
     """
 
     def __init__(self):
         """Initializes the CommandExecutor with an empty command registry."""
-        # Stores command names (lowercase) mapped to their action callables
-        # The callable can now optionally accept the Application instance
-        self._commands: Dict[str, Callable[..., bool]] = {}
-        self._command_descriptions: Dict[str, str] = {}
+        # Stores command names (lowercase) mapped to their Command instances
+        self._commands: Dict[str, Command] = {}
         logger.info("CommandExecutor initialized.")
 
-    def register(
-        self, name: str, action: Callable[..., bool], description: str = ""
-    ) -> None:
+    def register(self, command_instance: Command) -> None:
         """
-        Registers a command with its associated action.
-
-        The action callable can optionally accept one argument, which will be
-        the application instance if provided during execution.
+        Registers a Command instance.
 
         Args:
-            name: The name of the command (will be treated case-insensitively).
-            action: A callable that optionally takes the application instance and
-                    returns a boolean. Returning False signals the application
-                    should exit, True signals it should continue.
-            description: A short description of the command.
+            command_instance: An instance of a class derived from Command.
 
         Raises:
+            TypeError: If the provided object is not an instance of Command.
             ValueError: If the command name is empty or whitespace.
-            TypeError: If the action is not callable.
         """
-        if not callable(action):
-            raise TypeError(f"Action for command '{name}' must be callable.")
+        if not isinstance(command_instance, Command):
+            raise TypeError(
+                f"Object {command_instance} is not an instance of Command."
+            )
 
-        clean_name = name.strip().lower()
-        if not clean_name:
-            raise ValueError("Command name cannot be empty or whitespace.")
+        for name in command_instance.names:
+            if not name:
+                raise ValueError(
+                    f"Command name '{name}' from {type(command_instance).__name__} cannot be empty or whitespace."
+                )
+            if name != name.rstrip().lower():
+                raise ValueError(
+                    f"Command name '{name}' from {type(command_instance).__name__} cannot contain leading or trailing whitespace or uppercase characters."
+                )
+            if name in self._commands:
+                logger.warning(
+                    f"Command '/{name}' from {type(self._commands[name]).__name__} is being redefined by {type(command_instance).__name__}."
+                )
 
-        if clean_name in self._commands:
-            logger.warning(f"Command '{clean_name}' is being redefined.")
-
-        self._commands[clean_name] = action
-        self._command_descriptions[clean_name] = description
-        logger.debug(f"Command '{clean_name}' registered: {description}")
+            self._commands[name] = command_instance
+            logger.debug(
+                f"Command '/{name}' ({type(command_instance).__name__}) registered: {command_instance.description}"
+            )
 
     def get_commands(self) -> List[str]:
         """
-        Returns a sorted list of registered command names.
+        Returns a sorted list of registered command names (lowercase).
 
         Returns:
-            A list of command names in alphabetical order.
+            A list of command names (e.g., 'exit', 'history') in alphabetical order.
         """
         return sorted(self._commands.keys())
 
     def execute(
-        self, user_input: str, app_instance: Optional[Any] = None
+        self, user_input: str, app_instance: "Application"
     ) -> Tuple[bool, bool]:
         """
         Attempts to execute a command based on the user input.
 
         Args:
-            user_input: The raw input string from the user.
-            app_instance: Optional application instance to pass to the command action.
+            user_input: The raw input string from the user (e.g., "/exit").
+            app_instance: The Application instance to pass to the command's execute method.
 
         Returns:
             A tuple (command_executed: bool, should_continue: bool):
-            - command_executed: True if the input matched a registered command
-                                and the action was attempted, False otherwise.
-            - should_continue: The boolean result from the command's action
+            - command_executed: True if the input (stripping '/') matched a registered command
+                                and its execute method was called, False otherwise.
+            - should_continue: The boolean result from the command's execute method
                                (False to exit, True to continue). If the command
                                was not found, defaults to True. If an error
-                               occurred during action execution, defaults to True.
+                               occurred during execution, defaults to True.
         """
-        command = user_input.strip().lower()
-
-        if command in self._commands:
-            logger.info(f"Executing command: '{command}'")
-            action = self._commands[command]
-            try:
-                import inspect
-
-                sig = inspect.signature(action)
-                params = sig.parameters
-
-                # Check if the action accepts an argument
-                if len(params) == 1:
-                    # Pass the application instance if the action expects it
-                    should_continue = action(app_instance)
-                elif len(params) == 0:
-                    # Call without arguments if it expects none
-                    should_continue = action()
-                else:
-                    # Log an error if the signature is unexpected (e.g., >1 arg)
-                    logger.error(
-                        f"Action for command '{command}' has an unexpected signature: {sig}. Cannot execute."
-                    )
-                    return True, True  # Command matched, but action failed, continue
-
-                if not isinstance(should_continue, bool):
-                    logger.error(
-                        f"Action for command '{command}' did not return a boolean. Assuming continue."
-                    )
-                    return True, True  # Command executed, but faulty action, continue
-
-                logger.debug(f"Command '{command}' action returned: {should_continue}")
-                return True, should_continue  # Command executed, return action's signal
-            except Exception as e:
-                # Log the error and inform the user via logger
-                logger.error(
-                    f"Error executing action for command '{command}': {e}",
-                    exc_info=True,
-                )
-                # We might want a UI component to display this later
-                # For now, log it and signal to continue the application loop
-                return True, True  # Command executed, but failed, continue
+        # Remove leading '/' if present and make lowercase
+        command_name = user_input.strip().lower()
+        if command_name.startswith("/"):
+            command_name = command_name[1:]
         else:
-            # Input did not match any registered command
-            logger.debug(f"Input '{user_input}' is not a registered command.")
-            return False, True  # Command not executed, continue
+            # If input doesn't start with '/', it's not a command for this executor
+            return False, True
+
+        if command_name not in self._commands:
+            # Input started with '/' but didn't match any registered command
+            logger.debug(f"Input '{user_input}' is not a valid command name.")
+            # Conventionally, unrecognized commands don't stop the app.
+            # We return False because *this specific input* wasn't a known command.
+            return False, True
+
+        command_instance = self._commands[command_name]
+        logger.info(f"Executing command: '/{command_name}'")
+        try:
+            # Pass the required app_instance to the command's execute method
+            should_continue = command_instance.execute(app_instance)
+
+            assert isinstance(should_continue, bool), "Command execute method should return a boolean"
+
+            logger.debug(
+                f"Command '/{command_name}' executed. Result: {'continue' if should_continue else 'exit'}."
+            )
+            return True, should_continue # Command executed, return its signal
+
+        except Exception as e:
+            logger.error(
+                f"Error executing command '/{command_name}' ({type(command_instance).__name__}): {e}",
+                exc_info=True,
+            )
+            # Command was found and attempted, but failed during execution.
+            # Signal to continue the application loop.
+            return True, True
 
     def get_command_descriptions(self) -> Dict[str, str]:
-        """Returns a dictionary of command names and their descriptions."""
-        return self._command_descriptions.copy()
+        """Returns a dictionary of command names (lowercase) and their descriptions."""
+        return {
+            name: cmd.description for name, cmd in self._commands.items()
+        }
+
+    def get_command_names_with_prefix(self) -> List[str]:
+        """
+        Returns a sorted list of registered command names, prefixed with '/'.
+
+        Returns:
+            A list of command names (e.g., '/exit', '/history') in alphabetical order.
+        """
+        return sorted([f"/{name}" for name in self._commands.keys()])

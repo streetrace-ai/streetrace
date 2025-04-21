@@ -90,7 +90,7 @@ class Application:
         self.ui.display_user_prompt(prompt_input)
 
         # Check for internal commands first (e.g., if someone runs with --prompt history)
-        command_executed, should_continue = self.cmd_executor.execute(
+        command_executed, _ = self.cmd_executor.execute(
             prompt_input, self
         )  # Pass self
 
@@ -157,13 +157,12 @@ class Application:
                 )  # Pass self
 
                 if command_executed:
-                    if not should_continue:
-                        self.ui.display_info("Exiting.")
-                        logging.info("Exit command executed.")
-                        break  # Exit loop
-                    else:
+                    if should_continue:
                         # Command handled (like history), continue loop for next input
                         continue
+                    else:
+                        self.ui.display_info("Leaving...")
+                        break  # Exit loop
 
                 # Ensure history exists before proceeding (should always exist in interactive)
                 if not self.conversation_history:

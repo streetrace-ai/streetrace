@@ -4,13 +4,15 @@ import logging
 import os
 import sys
 
-# Updated completer import
+# Completer imports
 from streetrace.completer import PromptCompleter, PathCompleter, CommandCompleter
 from streetrace.prompt_processor import PromptProcessor
 
 # Core application components
 from streetrace.application import Application
 from streetrace.commands.command_executor import CommandExecutor
+# Import specific command classes
+from streetrace.commands.definitions import ExitCommand, HistoryCommand
 from streetrace.llm.llmapi_factory import get_ai_provider
 from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 from streetrace.tools.tools import ToolCall
@@ -72,21 +74,24 @@ def parse_arguments():
     return parser.parse_args()
 
 def init_working_directory(args_path: str) -> str:
+    """Initializes and validates the working directory."""
     initial_cwd = os.getcwd()
     target_work_dir = args_path if args_path else initial_cwd
     abs_working_dir = os.path.abspath(target_work_dir)
 
-    # Basic validation before UI initialization
-    is_valid_dir = os.path.isdir(abs_working_dir)
-    if not is_valid_dir:
+    if not os.path.isdir(abs_working_dir):
         raise ValueError(
             f"Specified path '{target_work_dir}' resolved to '{abs_working_dir}' which is not a valid directory."
         )
-    # --- End Initial Working Directory Setup ---
 
-    # --- Refine Working Directory and Change CWD (if applicable) ---
     if abs_working_dir != initial_cwd:
-        os.chdir(abs_working_dir)
+        try:
+            os.chdir(abs_working_dir)
+            logging.info(f"Changed working directory to: {abs_working_dir}")
+        except OSError as e:
+            raise OSError(
+                f"Could not change working directory to '{abs_working_dir}': {e}"
+            ) from e
 
     return abs_working_dir
 
@@ -94,52 +99,48 @@ def main():
     """Main entry point for the application."""
     args = parse_arguments()
 
-    # --- Configure Logging Level based on args ---
+    # Configure Logging Level based on args
     if args.debug:
+        # Add console handler only if debug is enabled
+        console_handler.setLevel(logging.DEBUG)
         root_logger.addHandler(console_handler)
         logging.info("Debug logging enabled for console.")
-    # --- End Logging Configuration ---
 
-    abs_working_dir = init_working_directory(args.path)
-    logging.info(f"Effective working directory: {abs_working_dir}")
+    try:
+        abs_working_dir = init_working_directory(args.path)
+        logging.info(f"Effective working directory: {abs_working_dir}")
+    except (ValueError, OSError) as e:
+        logging.critical(f"Working directory initialization failed: {e}")
+        raise e
 
-    # --- Initialize Completers ---
-    available_commands = ["/exit", "/quit", "/history"] # Add other commands here if needed
+    # Initialize CommandExecutor *before* completers that need command list
+    cmd_executor = CommandExecutor()
+
+    # Instantiate and register commands
+    cmd_executor.register(ExitCommand())
+    cmd_executor.register(HistoryCommand())
+    # Add more command registrations here as needed
+
+    # Get the list of command names *with* the prefix for the completer
+    available_commands = cmd_executor.get_command_names_with_prefix()
+
+    # Initialize Completers
     path_completer = PathCompleter(abs_working_dir)
     command_completer = CommandCompleter(available_commands)
-
-    # Instantiate the composite completer with a list of delegates
     prompt_completer = PromptCompleter([path_completer, command_completer])
-    # --- End Completer Initialization ---
 
-    # --- Initialize ConsoleUI with the composite completer ---
+    # Initialize ConsoleUI
     ui = ConsoleUI(completer=prompt_completer, debug_enabled=args.debug)
-    # --- End UI Initialization ---
-
     ui.display_info(f"Working directory: {abs_working_dir}")
-    # --- End Refined Working Directory Setup ---
 
-    # --- Initialize Core Application Components ---
-    cmd_executor = CommandExecutor()
+    # Initialize other Core Application Components
     prompt_processor = PromptProcessor(ui=ui)
-    # --- End Component Initialization ---
 
-    # --- Register Base Commands ---
-    cmd_executor.register("/exit", lambda: False, "Exit the interactive session.")
-    cmd_executor.register("/quit", lambda: False, "Quit the interactive session.")
-    cmd_executor.register(
-        "/history",
-        lambda app: app._display_history() if app else False,
-        "Display the conversation history.",
-    )
-    # --- End Command Registration ---
-
-    # --- Determine Model and Provider ---
+    # Determine Model and Provider
     model_name = args.model.strip().lower() if args.model else None
     provider_name = args.engine.strip().lower() if args.engine else None
-    # --- End Model/Provider Determination ---
 
-    # --- Initialize AI Provider ---
+    # Initialize AI Provider
     try:
         provider = get_ai_provider(provider_name)
         if not provider:
@@ -157,22 +158,19 @@ def main():
         ui.display_error(f"Could not initialize AI provider: {e}")
         logging.critical(f"Failed to initialize AI provider: {e}", exc_info=True)
         sys.exit(1)
-    # --- End AI Provider Setup ---
 
-    # --- Tool Calling ---
+    # Tool Calling Setup
     tools = ToolCall(TOOLS, TOOL_IMPL, abs_working_dir)
-    # --- End Tool Calling ---
 
-    # --- Initialize Interaction Manager ---
+    # Initialize Interaction Manager
     interaction_manager = InteractionManager(
         provider=provider,
         model_name=model_name,
         tools=tools,
         ui=ui,
     )
-    # --- End Initialize Interaction Manager ---
 
-    # --- Initialize and Run Application ---
+    # Initialize and Run Application
     app = Application(
         args=args,
         ui=ui,
@@ -182,7 +180,7 @@ def main():
         working_dir=abs_working_dir,
     )
 
-    # --- Start Application Execution ---
+    # Start Application Execution
     try:
         app.run()
     except Exception as app_err:
@@ -191,7 +189,8 @@ def main():
             "Critical error during application execution.", exc_info=app_err
         )
         sys.exit(1)
-    # --- End Application Execution ---
+    finally:
+        logging.info("Application exiting.")
 
 
 if __name__ == "__main__":
