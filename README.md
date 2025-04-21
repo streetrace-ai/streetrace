@@ -17,6 +17,7 @@ Streetrace defines a set of tools that the AI model can use to interact with the
 * `main.py`: Provides a command-line interface for interacting with the AI providers.
 * `tools/fs_tool.py`: Implements file system tools (list directory, read file, write file, execute CLI command).
 * `tools/search.py`: Implements a tool for searching text within files.
+* `completer.py`: Implements path (`@`) and command (`/`) autocompletion for the interactive prompt.
 
 **Workflow:**
 
@@ -32,6 +33,8 @@ Streetrace defines a set of tools that the AI model can use to interact with the
 
 ## Tools
 
+These are functions the AI model can request to execute:
+
 * `fs_tool.list_directory`: Lists files and directories in a given path.
 * `fs_tool.read_file`: Reads the content of a file.
 * `fs_tool.write_file`: Writes content to a file.
@@ -40,21 +43,22 @@ Streetrace defines a set of tools that the AI model can use to interact with the
 
 ## Usage
 
-The tools can be used with the AI model to perform various tasks, such as reading and writing files, executing commands, and searching for information within files. The `search.search_files` tool searches for text in files within a given root directory, defaulting to the current directory.
+Run the application using `python src/streetrace/main.py` (or `python -m streetrace.main` if installed).
 
 ### Command Line Arguments
 
 Streetrace supports the following command line arguments:
 
 ```
-python main.py [--engine {claude|gemini|ollama|openai}] [--model MODEL_NAME] [--prompt PROMPT] [--path PATH]
+python src/streetrace/main.py [--engine {claude|gemini|ollama|openai}] [--model MODEL_NAME] [--prompt PROMPT] [--path PATH]
 ```
 
 Options:
 - `--engine` - Choose AI engine (claude, gemini, ollama, or openai)
-- `--model` - Specific model name to use (e.g., claude-3-7-sonnet-20250219, gemini-2.5-pro-exp-03-25, llama3:8b, or gpt-4-turbo-2024-04-09)
+- `--model` - Specific model name to use (e.g., claude-3-opus-20240229, gemini-1.5-flash, llama3:8b, or gpt-4o)
 - `--prompt` - Prompt to send to the AI model (skips interactive mode if provided)
 - `--path` - Specify which path to use as the working directory for all file operations
+- `--debug` - Enable debug logging.
 
 If no engine is specified, Streetrace will automatically select an AI model based on the available API keys in the following order:
 1. Claude (if ANTHROPIC_API_KEY is set)
@@ -67,7 +71,7 @@ If no engine is specified, Streetrace will automatically select an AI model base
 The `--path` argument allows you to specify a different working directory for all file operations:
 
 ```
-python main.py --path /path/to/your/project
+python src/streetrace/main.py --path /path/to/your/project
 ```
 
 This path will be used as the working directory (work_dir) for all tools that interact with the file system, including:
@@ -78,12 +82,30 @@ This path will be used as the working directory (work_dir) for all tools that in
 
 This feature makes it easier to work with files in another location without changing your current directory.
 
+### Interactive Mode
+
+When run without `--prompt`, Streetrace enters interactive mode.
+
+#### Autocompletion
+
+- Type `@` followed by characters to autocomplete file or directory paths relative to the working directory.
+- Type `/` at the beginning of the line to autocomplete available internal commands.
+
+#### Internal Commands
+
+These commands can be typed directly into the prompt (with autocompletion support):
+
+* `/exit`: Exit the interactive session.
+* `/quit`: Quit the interactive session.
+* `/history`: Display the conversation history.
+* (Future commands like `/help`, `/config` could be added here)
+
 ### Non-interactive Mode
 
 You can use the `--prompt` argument to run Streetrace in non-interactive mode:
 
 ```
-python main.py --prompt "List all Python files in the current directory"
+python src/streetrace/main.py --prompt "List all Python files in the current directory"
 ```
 
 This will execute the prompt once and exit, which is useful for scripting or one-off commands.
@@ -188,19 +210,19 @@ Streetrace supports integration with OpenAI's models, such as GPT-4 and GPT-3.5 
 
 - **Default Model**: By default, Streetrace uses the `gpt-4-turbo-2024-04-09` model. You can specify a different model using the `--model` argument.
   ```
-  python main.py --engine openai --model gpt-4o-2024-05-13
+  python src/streetrace/main.py --engine openai --model gpt-4o-2024-05-13
   ```
 
 #### Usage Examples
 
 Using OpenAI with the default model:
 ```
-python main.py --engine openai
+python src/streetrace/main.py --engine openai
 ```
 
 Explicitly selecting OpenAI with a specific model:
 ```
-python main.py --engine openai --model gpt-3.5-turbo
+python src/streetrace/main.py --engine openai --model gpt-3.5-turbo
 ```
 
 For more details, see [README-openai.md](README-openai.md).
@@ -230,31 +252,31 @@ Streetrace supports integration with [Ollama](https://ollama.ai/), allowing you 
 
 - **Default Model**: By default, Streetrace uses the `llama3:8b` model. You can specify a different model using the `--model` argument.
   ```
-  python main.py --engine ollama --model mistral:7b
+  python src/streetrace/main.py --engine ollama --model mistral:7b
   ```
 
 #### Usage Examples
 
 Using default Ollama model (automatic detection if Ollama is installed):
 ```
-python main.py --engine ollama
+python src/streetrace/main.py --engine ollama
 ```
 
 Explicitly selecting Ollama with a specific model:
 ```
-python main.py --engine ollama --model codellama:13b
+python src/streetrace/main.py --engine ollama --model codellama:13b
 ```
 
 Setting a different Ollama API URL and running with a specific prompt:
 ```
 export OLLAMA_API_URL="http://192.168.1.100:11434"
-python main.py --engine ollama --model llama3:70b --prompt "Create a simple HTTP server in Python"
+python src/streetrace/main.py --engine ollama --model llama3:70b --prompt "Create a simple HTTP server in Python"
 ```
 
 For more details, see [README-ollama.md](README-ollama.md).
 
 ## Running tests
 
-To run the tests, execute `python -m unittest tests/*test*.py`.
+To run the tests, execute `python -m unittest tests/*test*.py` or `python -m unittest discover tests`.
 
 To test the interactive CLI functionality, run `python tools/test_cli.py`.

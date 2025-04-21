@@ -4,11 +4,12 @@ import logging
 import os
 import sys
 
-from streetrace.path_completer import PathCompleter
+# Updated completer import
+from streetrace.completer import PromptCompleter, PathCompleter, CommandCompleter
 from streetrace.prompt_processor import PromptProcessor
 
 # Core application components
-from streetrace.application import Application  # <-- Added import
+from streetrace.application import Application
 from streetrace.commands.command_executor import CommandExecutor
 from streetrace.llm.llmapi_factory import get_ai_provider
 from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
@@ -84,7 +85,6 @@ def init_working_directory(args_path: str) -> str:
     # --- End Initial Working Directory Setup ---
 
     # --- Refine Working Directory and Change CWD (if applicable) ---
-    # This part remains the same, attempting to change the directory if needed
     if abs_working_dir != initial_cwd:
         os.chdir(abs_working_dir)
 
@@ -103,13 +103,21 @@ def main():
     abs_working_dir = init_working_directory(args.path)
     logging.info(f"Effective working directory: {abs_working_dir}")
 
-    # --- Initialize ConsoleUI with the working directory ---
-    ui = ConsoleUI(path_completer=PathCompleter(abs_working_dir), debug_enabled=args.debug)
+    # --- Initialize Completers ---
+    available_commands = ["/exit", "/quit", "/history"] # Add other commands here if needed
+    path_completer = PathCompleter(abs_working_dir)
+    command_completer = CommandCompleter(available_commands)
+
+    # Instantiate the composite completer with a list of delegates
+    prompt_completer = PromptCompleter([path_completer, command_completer])
+    # --- End Completer Initialization ---
+
+    # --- Initialize ConsoleUI with the composite completer ---
+    ui = ConsoleUI(completer=prompt_completer, debug_enabled=args.debug)
     # --- End UI Initialization ---
 
     ui.display_info(f"Working directory: {abs_working_dir}")
     # --- End Refined Working Directory Setup ---
-
 
     # --- Initialize Core Application Components ---
     cmd_executor = CommandExecutor()
@@ -117,23 +125,13 @@ def main():
     # --- End Component Initialization ---
 
     # --- Register Base Commands ---
-    # Commands handled by the application loop or require app instance
-    cmd_executor.register("exit", lambda: False, "Exit the interactive session.")
-    cmd_executor.register("quit", lambda: False, "Quit the interactive session.")
-    # Register history - the action expects the app_instance passed by execute
+    cmd_executor.register("/exit", lambda: False, "Exit the interactive session.")
+    cmd_executor.register("/quit", lambda: False, "Quit the interactive session.")
     cmd_executor.register(
-        "history",
+        "/history",
         lambda app: app._display_history() if app else False,
         "Display the conversation history.",
     )
-    # Add help command (can now be implemented better)
-    # def display_help(ui_instance, executor_instance):
-    #     ui_instance.display_info("Available commands:")
-    #     descriptions = executor_instance.get_command_descriptions()
-    #     for name, desc in sorted(descriptions.items()):
-    #         ui_instance.display_info(f"  {name}: {desc}")
-    #     return True # Continue running
-    # cmd_executor.register("help", lambda app: display_help(ui, cmd_executor), "Show available commands.")
     # --- End Command Registration ---
 
     # --- Determine Model and Provider ---
@@ -147,7 +145,7 @@ def main():
         if not provider:
             raise ValueError(
                 f"Provider '{provider_name or 'default'}' could not be loaded."
-            )  # More specific error
+            )
         ui.display_info(
             f"Using provider: {type(provider).__name__.replace('Provider', '')}"
         )
@@ -162,9 +160,7 @@ def main():
     # --- End AI Provider Setup ---
 
     # --- Tool Calling ---
-
     tools = ToolCall(TOOLS, TOOL_IMPL, abs_working_dir)
-
     # --- End Tool Calling ---
 
     # --- Initialize Interaction Manager ---
@@ -177,26 +173,19 @@ def main():
     # --- End Initialize Interaction Manager ---
 
     # --- Initialize and Run Application ---
-    # All components are now ready, instantiate the main Application object.
     app = Application(
         args=args,
         ui=ui,
         cmd_executor=cmd_executor,
         prompt_processor=prompt_processor,
         interaction_manager=interaction_manager,
-        working_dir=abs_working_dir,  # Pass the validated absolute path
+        working_dir=abs_working_dir,
     )
 
-    # --- Optional: Add commands that require the app instance AFTER it's created ---
-    # Example: If we wanted to register history *here* instead of above:
-    # cmd_executor.register("history", app._display_history, "Display conversation history.")
-    # The initial registration method is preferred as it keeps registrations together.
-
-    # Start the application execution (handles interactive/non-interactive modes)
+    # --- Start Application Execution ---
     try:
         app.run()
     except Exception as app_err:
-        # Catch unexpected errors from the Application run loop
         ui.display_error(f"An critical error occurred: {app_err}")
         logging.critical(
             "Critical error during application execution.", exc_info=app_err

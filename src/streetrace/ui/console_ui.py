@@ -1,7 +1,7 @@
 # app/console_ui.py
 import os
 from prompt_toolkit import PromptSession
-from prompt_toolkit.completion import Completer
+from prompt_toolkit.completion import Completer # Base class
 from prompt_toolkit.patch_stdout import patch_stdout
 from rich.console import Console
 from rich.markdown import Markdown
@@ -19,24 +19,25 @@ class ConsoleUI:
     Handles all console input and output for the StreetRace application.
 
     Encapsulates print statements and ANSI color codes for consistent UI.
-    Includes path autocompletion for '@' mentions.
+    Leverages a completer for interactive input suggestions.
     """
 
     cursor_is_in_line: bool = False
 
-    def __init__(self, path_completer: Completer, debug_enabled: bool = False):
+    def __init__(self, completer: Completer, debug_enabled: bool = False):
         """
         Initializes the ConsoleUI.
 
         Args:
+            completer: An instance of a prompt_toolkit Completer implementation.
             debug_enabled: If True, enables printing of debug messages.
         """
         self.debug_enabled = debug_enabled
         self.console = Console()
-        self.path_completer = path_completer # Initialize completer
+        self.completer = completer # Use the generic completer instance
         # Enable multiline input, potentially useful for longer prompts or pasted code
         self.prompt_session = PromptSession(
-            completer=self.path_completer,
+            completer=self.completer, # Pass the completer here
             complete_while_typing=True, # Suggest completions proactively
             multiline=True # Allow multiline input with Esc+Enter
         )
@@ -47,7 +48,7 @@ class ConsoleUI:
 
     def prompt(self, prompt_str: str = _PROMPT) -> str:
         """
-        Gets input from the user via the console with path autocompletion.
+        Gets input from the user via the console with autocompletion.
 
         Args:
             prompt_str: The prompt string to display to the user.
@@ -74,7 +75,7 @@ class ConsoleUI:
         def build_bottom_toolbar():
             # Help text at the bottom
             return [
-                ("class:bottom-toolbar", " New List: Enter | Send: Esc,Enter | Autocomplete: Tab/@ | Exit: 'exit'/'quit' ") # Style in Styles.PT
+                ("class:bottom-toolbar", " New LIne: Enter | Send: Esc,Enter | Autocomplete: Tab/@,/ | Exit: /exit,/quit ") # Style in Styles.PT
                 ]
         # --- End prompt_toolkit setup ---
 
@@ -92,11 +93,11 @@ class ConsoleUI:
                 self.cursor_is_in_line = False # Prompt resets cursor position
                 return user_input
             except EOFError: # Handle Ctrl+D as a way to exit
-                return "exit"
+                return "/exit" # Consistent exit command
             except KeyboardInterrupt: # Handle Ctrl+C
                 # Optionally clear the current input line or just return empty/signal exit
                 self.new_line() # Ensure cursor is on a new line after ^C
-                self.display_warning("Input cancelled (Ctrl+C). Type 'exit' or 'quit' to leave.")
+                self.display_warning("Input cancelled (Ctrl+C). Type '/exit' or '/quit' to leave.")
                 return "" # Return empty string, let the main loop decide
 
 
@@ -178,7 +179,9 @@ class ConsoleUI:
         # `inline_code_theme` can be customized if needed
         md = Markdown(chunk, inline_code_theme=Styles.RICH_MD_CODE)
         self.console.print(md, style=Styles.RICH_MODEL, end="")
-        self.cursor_is_in_line = not chunk.endswith('\\n') # Check if chunk ends with newline
+        # if the chunk ends with a newline, we still miss one line break because
+        # it's a ui-level newline, and the one in chunk is content-level newline.
+        self.cursor_is_in_line = True
 
     def new_line(self):
         """ Ensures the next print starts on a new line if needed. """
@@ -229,7 +232,7 @@ class ConsoleUI:
         if content:
             if content.type == "diff":
                 syntax = Syntax(content.content, "diff", theme=Styles.RICH_TOOL, line_numbers=True) # Use code theme for diff
-                self.console.print(Panel(syntax, title=title))
+                self.console.print(syntax)
             elif content.type == "text":
                 # Potentially render markdown if the tool output might be markdown
                 md = Markdown(content.content, code_theme=Styles.RICH_TOOL, inline_code_theme=Styles.RICH_MD_CODE)
