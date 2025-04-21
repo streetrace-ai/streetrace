@@ -96,3 +96,12 @@ All files in the ./inputs directory contain numbers. Sum up thouse numbers and w
 ===
 
 The commands, like 'history', 'exit', and 'quit' should start with a slash, allowing the user to type a slash and then the command name. When typing slash, the autocomplete should trigger suggesting available commands. To allow that, @src/streetrace/path_completer.py should be refactored leveraging composition pattern. The main Completer called PromptCompleter will handle all completions, leveraging helper classes to provide those completions. PromptCompleter will be initialized with a list of helper completer classes. When completions are requested, it will iterate through all available helper completers and provide a concatenated list of all completioons.
+
+
+===
+
+The raw chunks in the ChunkWrapper defined in @src/streetrace/llm/history_converter.py can contain usage information.
+Please create a new class in @src/streetrace/llm/wrapper.py that contains two fields: input_tokens and output_tokens, and a function in ChunkWrapper to allow getting this information from the chunk if it's present.
+In self.provider.generate in @src/streetrace/ui/interaction_manager.py, if a chunk contains usage information, show it in the "Working" progress indicator in the form of: "Working, io tokens: {n_input}/{n_output}, total requests: n_requests." showing the cumulative token stats and the total number of tokens reported during this run of process_prompt. You can use status.update(new_status_message) to update the status message.
+The numbers should be updated every time the usage information is received from the ChunkWrapper or a self.provider.generate finishes.
+The status has to stay just "Working, total requests: n_requests" until the first usage information is received.
