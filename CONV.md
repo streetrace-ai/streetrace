@@ -92,3 +92,7 @@ check git diff, also check individual file changes, and suggest a concise and cl
 TEST prompt
 
 All files in the ./inputs directory contain numbers. Sum up thouse numbers and write a new file named as YYYYMMDD_HHMMSS.txt in the ./outputs directory with the resulting value.
+
+===
+
+The commands, like 'history', 'exit', and 'quit' should start with a slash, allowing the user to type a slash and then the command name. When typing slash, the autocomplete should trigger suggesting available commands. To allow that, @src/streetrace/path_completer.py should be refactored leveraging composition pattern. The main Completer called PromptCompleter will handle all completions, leveraging helper classes to provide those completions. PromptCompleter will be initialized with a list of helper completer classes. When completions are requested, it will iterate through all available helper completers and provide a concatenated list of all completioons.
