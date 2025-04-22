@@ -171,6 +171,11 @@ class InteractionManager:
                     reason_to_finish = str(fail_err)
                     self.ui.display_error(fail_err)
                     render_final_reason = False
+                except KeyboardInterrupt:
+                    logger.info("User interrupted.")
+                    reason_to_finish = "User interrupted"
+                    self.ui.display_info("\nExiting the working loop, press Ctrl+C again to quit.")
+                    render_final_reason = False
 
                 assistant_messages: List[ContentPart] = []
                 if buffer_assistant_text:
@@ -182,7 +187,7 @@ class InteractionManager:
                 if buffer_tool_results:
                     turn.append(history.add_message(Role.TOOL, buffer_tool_results))
                 # if this generation has completed successfully, update the history
-                if not retry:
+                if not retry and not reason_to_finish:
                     if turn:
                         self.provider.append_history(provider_history, turn)
                         consecutive_retries_count = 0
