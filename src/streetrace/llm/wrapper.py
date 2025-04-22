@@ -22,6 +22,16 @@ class ContentPartToolCall(BaseModel):
     arguments: Optional[Dict[str, Any]] = None
 
 
+class ContentPartUsage(BaseModel):
+    prompt_tokens: int
+    response_tokens: int
+
+
+class ContentPartFinishReason(BaseModel):
+    finish_reason: str
+    finish_message: Optional[str] = None
+
+
 class ToolOutput(BaseModel):
     type: str = Field(..., min_length=1)
     content: list | dict | str
@@ -96,7 +106,7 @@ class ContentPartToolResult(BaseModel):
     content: ToolCallResult
 
 
-ContentPart = ContentPartText | ContentPartToolCall | ContentPartToolResult
+ContentPart = ContentPartText | ContentPartToolCall | ContentPartToolResult | ContentPartUsage | ContentPartFinishReason
 
 
 class Role(Enum):

@@ -31,7 +31,7 @@ class ToolCall:
         self.abs_work_dir = abs_work_dir
 
     def call_tool(
-        self, tool_call: ContentPartToolCall, original_call: Any
+        self, tool_call: ContentPartToolCall
     ) -> ToolCallResult:
         """
         Executes the appropriate tool function based on the tool name and arguments.

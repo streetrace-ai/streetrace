@@ -6,14 +6,13 @@ This module implements the LLMAPI interface for Ollama models.
 
 import logging
 import os
-from typing import Any, Dict, Iterable, List, Optional, override
+from typing import Any, Dict, Iterator, List, Optional, override
 
 import ollama
 
-from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
 from streetrace.llm.llmapi import LLMAPI
-from streetrace.llm.ollama.converter import OllamaHistoryConverter, OllamaChunkWrapper
-from streetrace.llm.wrapper import ContentPart, ContentPartToolResult, History, Message
+from streetrace.llm.ollama.converter import OllamaHistoryConverter
+from streetrace.llm.wrapper import ContentPart, History, Message
 from streetrace.ui.colors import AnsiColors
 
 # Constants
@@ -162,7 +161,7 @@ class Ollama(LLMAPI):
         system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
-    ) -> Iterable[OllamaChunkWrapper]:
+    ) -> Iterator[ContentPart]:
         """
         Get API response from Ollama, process it and handle tool calls.
 
@@ -174,7 +173,7 @@ class Ollama(LLMAPI):
             tools: The tools to use in Ollama format
 
         Returns:
-            Iterable[OllamaChunkWrapper]: Stream of response chunks
+            Iterator[ContentPart]: Stream of response parts
         """
         model_name = model_name or MODEL_NAME
         retry_count = 0
@@ -184,17 +183,14 @@ class Ollama(LLMAPI):
             try:
                 # Create the message with Ollama
                 response = client.chat(
-                    model=model_name, messages=messages, tools=tools, stream=True
+                    model=model_name, messages=messages, tools=tools, stream=False
                 )
 
-                # Process the streamed response
-                for chunk in response:
-                    if chunk:
-                        logging.debug(f"Chunk received: {chunk}")
-                        yield OllamaChunkWrapper(chunk.message)
-
-                yield FinishWrapper("done", None)
-                break  # Exit the retry loop if successful
+                if isinstance(response, ollama.ChatResponse):
+                    return self._adapter.get_response_parts(response)
+                else:
+                    for message in response:
+                        yield from self._adapter.get_response_parts(message)
 
             except Exception as e:
                 retry_count += 1

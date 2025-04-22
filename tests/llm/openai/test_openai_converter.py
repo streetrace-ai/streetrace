@@ -12,7 +12,6 @@ from unittest.mock import MagicMock, patch
 from openai.types import chat
 
 from streetrace.llm.openai.converter import (
-    OpenAIChunkWrapper,
     OpenAIHistoryConverter,
 )
 from streetrace.llm.wrapper import (
@@ -43,94 +42,6 @@ class MockDict(dict):
             if hasattr(dict, "get")
             else super().get(key, default)
         )
-
-
-class TestChoiceDeltaWrapper(unittest.TestCase):
-    """Tests for the OpenAIChunkWrapper class which wraps OpenAI's ChoiceDelta."""
-
-    def test_get_text_with_content(self):
-        """Test get_text returns the content when present."""
-        # Create a mock ChoiceDelta
-        delta = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta.content = "Hello, world!"
-        delta.tool_calls = None
-
-        wrapper = OpenAIChunkWrapper(delta)
-        self.assertEqual(wrapper.get_text(), "Hello, world!")
-
-    def test_get_text_with_no_content(self):
-        """Test get_text returns empty string when content is None."""
-        # Create a mock ChoiceDelta
-        delta = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta.content = None
-        delta.tool_calls = None
-
-        wrapper = OpenAIChunkWrapper(delta)
-        self.assertEqual(wrapper.get_text(), "")
-
-    def test_get_tool_calls_with_tool_calls(self):
-        """Test get_tool_calls returns tool calls when present."""
-        # Create a mock ChoiceDelta with tool calls
-        function = MagicMock()
-        function.name = "search_files"
-        function.arguments = '{"pattern": "*.py", "search_string": "test"}'
-
-        tool_call = MagicMock()
-        tool_call.id = "tool-call-1"
-        tool_call.function = function
-
-        delta = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta.content = None
-        delta.tool_calls = [tool_call]
-
-        wrapper = OpenAIChunkWrapper(delta)
-        tool_calls = wrapper.get_tool_calls()
-
-        self.assertEqual(len(tool_calls), 1)
-        self.assertEqual(tool_calls[0].id, "tool-call-1")
-        self.assertEqual(tool_calls[0].name, "search_files")
-        self.assertEqual(
-            tool_calls[0].arguments, {"pattern": "*.py", "search_string": "test"}
-        )
-
-    def test_get_tool_calls_with_no_tool_calls(self):
-        """Test get_tool_calls returns empty list when no tool calls are present."""
-        # Create a mock ChoiceDelta with no tool calls
-        delta = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta.content = "Hello, world!"
-        delta.tool_calls = None
-
-        wrapper = OpenAIChunkWrapper(delta)
-        self.assertEqual(wrapper.get_tool_calls(), [])
-
-    def test_get_tool_calls_with_empty_arguments(self):
-        """Test get_tool_calls with a tool call that has empty arguments."""
-        # Create a mock ChoiceDelta with a tool call that has empty arguments
-        function = MagicMock()
-        function.name = "list_files"
-        function.arguments = None
-
-        tool_call = MagicMock()
-        tool_call.id = "tool-call-2"
-        tool_call.function = function
-
-        delta = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta.content = None
-        delta.tool_calls = [tool_call]
-
-        wrapper = OpenAIChunkWrapper(delta)
-        tool_calls = wrapper.get_tool_calls()
-
-        self.assertEqual(len(tool_calls), 1)
-        self.assertEqual(tool_calls[0].id, "tool-call-2")
-        self.assertEqual(tool_calls[0].name, "list_files")
-        self.assertEqual(tool_calls[0].arguments, {})
-
-    def test_get_finish_message(self):
-        """Test get_finish_message returns None (OpenAI doesn't use this)."""
-        delta = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        wrapper = OpenAIChunkWrapper(delta)
-        self.assertIsNone(wrapper.get_finish_message())
 
 
 class TestOpenAIConverter(unittest.TestCase):
@@ -645,134 +556,6 @@ class TestOpenAIConverter(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.converter.to_history(provider_history)
 
-    @patch("openai.types.chat.ChatCompletionAssistantMessageParam")
-    @patch("openai.types.chat.ChatCompletionMessageToolCallParam")
-    @patch("openai.types.chat.chat_completion_message_tool_call_param.Function")
-    def test_content_blocks_to_message(
-        self, mock_function, mock_tool_call_param, mock_assistant_message
-    ):
-        """Test converting content blocks to a message."""
-        # Setup mocks
-        mock_assistant_message.return_value = {
-            "role": "assistant",
-            "content": "Hello, world!",
-        }
-
-        # Create mock delta chunks
-        delta1 = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta1.role = "assistant"
-        delta1.content = "Hello, "
-        delta1.tool_calls = None
-
-        delta2 = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta2.role = None  # Subsequent chunks don't repeat the role
-        delta2.content = "world!"
-        delta2.tool_calls = None
-
-        # Create wrappers
-        wrapper1 = OpenAIChunkWrapper(delta1)
-        wrapper2 = OpenAIChunkWrapper(delta2)
-
-        # Convert to message
-        message = self.converter._content_blocks_to_message([wrapper1, wrapper2])
-
-        # Check that assistant message was created correctly
-        mock_assistant_message.assert_called_once_with(
-            role="assistant", content="Hello, world!", tool_calls=None
-        )
-        self.assertEqual(message["role"], "assistant")
-        self.assertEqual(message["content"], "Hello, world!")
-
-    @patch("openai.types.chat.ChatCompletionAssistantMessageParam")
-    @patch("openai.types.chat.ChatCompletionMessageToolCallParam")
-    @patch("openai.types.chat.chat_completion_message_tool_call_param.Function")
-    def test_content_blocks_to_message_with_tool_calls(
-        self, mock_function, mock_tool_call_param, mock_assistant_message
-    ):
-        """Test converting content blocks with tool calls to a message."""
-        # Setup mocks
-        mock_function.return_value = {
-            "name": "search_files",
-            "arguments": '{"pattern": "*.py"}',
-        }
-        mock_tool_call_param.return_value = {
-            "type": "function",
-            "id": "tool-1",
-            "function": mock_function.return_value,
-        }
-        mock_assistant_message.return_value = {
-            "role": "assistant",
-            "content": "Let me search for you.",
-            "tool_calls": [mock_tool_call_param.return_value],
-        }
-
-        # Create first chunk with role and partial text
-        delta1 = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta1.role = "assistant"
-        delta1.content = "Let me search "
-        delta1.tool_calls = None
-
-        # Create second chunk with the rest of the text
-        delta2 = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta2.role = None
-        delta2.content = "for you."
-        delta2.tool_calls = None
-
-        # Create third chunk with tool call
-        function = MagicMock()
-        function.name = "search_files"
-        function.arguments = '{"pattern": "*.py"}'
-
-        tool_call = MagicMock()
-        tool_call.id = "tool-1"
-        tool_call.function = function
-        tool_call.type = "function"
-
-        delta3 = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta3.role = None
-        delta3.content = None
-        delta3.tool_calls = [tool_call]
-
-        # Create wrappers
-        wrappers = [
-            OpenAIChunkWrapper(delta1),
-            OpenAIChunkWrapper(delta2),
-            OpenAIChunkWrapper(delta3),
-        ]
-
-        # Convert to message
-        message = self.converter._content_blocks_to_message(wrappers)
-
-        # Check the created message
-        mock_assistant_message.assert_called_once_with(
-            role="assistant",
-            content="Let me search for you.",
-            tool_calls=[mock_tool_call_param.return_value],
-        )
-
-        self.assertEqual(message["role"], "assistant")
-        self.assertEqual(message["content"], "Let me search for you.")
-        self.assertEqual(len(message["tool_calls"]), 1)
-        self.assertEqual(message["tool_calls"][0]["id"], "tool-1")
-        self.assertEqual(message["tool_calls"][0]["function"]["name"], "search_files")
-
-    def test_content_blocks_to_message_multiple_roles(self):
-        """Test that _content_blocks_to_message raises ValueError for multiple roles."""
-        # Create chunks with different roles
-        delta1 = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta1.role = "assistant"
-        delta1.content = "Hello"
-        delta1.tool_calls = None
-
-        delta2 = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta2.role = "user"  # Different role
-        delta2.content = "world"
-        delta2.tool_calls = None
-
-        wrappers = [OpenAIChunkWrapper(delta1), OpenAIChunkWrapper(delta2)]
-
-        with self.assertRaises(ValueError):
-            self.converter._content_blocks_to_message(wrappers)
 
     @patch("openai.types.chat.ChatCompletionToolMessageParam")
     def test_tool_results_to_message(self, mock_tool_message):
@@ -820,28 +603,6 @@ class TestOpenAIConverter(unittest.TestCase):
         """Test that _tool_results_to_message returns None for empty results."""
         self.assertIsNone(self.converter._tool_results_to_message([]))
 
-    def test_to_history_item_with_chunks(self):
-        """Test to_history_item with content chunks."""
-        # Create a chunk
-        delta = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta.role = "assistant"
-        delta.content = "Hello, world!"
-        delta.tool_calls = None
-
-        wrapper = OpenAIChunkWrapper(delta)
-
-        # Mock the _content_blocks_to_message method
-        expected_message = {"role": "assistant", "content": "Hello, world!"}
-
-        with patch.object(
-            self.converter, "_content_blocks_to_message", return_value=expected_message
-        ) as mock_method:
-            result = self.converter.to_history_item([wrapper])
-
-            # Verify the method was called with the wrapper
-            mock_method.assert_called_once_with([wrapper])
-            self.assertEqual(result, expected_message)
-
     def test_to_history_item_with_tool_results(self):
         """Test to_history_item with tool results."""
         # Create a tool result
@@ -868,18 +629,6 @@ class TestOpenAIConverter(unittest.TestCase):
     def test_to_history_item_empty(self):
         """Test that to_history_item returns None for empty input."""
         self.assertIsNone(self.converter.to_history_item([]))
-
-    def test_create_chunk_wrapper(self):
-        """Test creating a chunk wrapper."""
-        # Create a mock ChoiceDelta
-        delta = MagicMock(spec=chat.chat_completion_chunk.ChoiceDelta)
-        delta.content = "Hello, world!"
-
-        # Create wrapper
-        wrapper = self.converter.create_chunk_wrapper(delta)
-
-        self.assertIsInstance(wrapper, OpenAIChunkWrapper)
-        self.assertEqual(wrapper.raw, delta)
 
 
 if __name__ == "__main__":

@@ -7,10 +7,9 @@ initialization, API calls, and tool management across all providers.
 """
 
 import abc
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterator, List, Optional
 
-from streetrace.llm.history_converter import ChunkWrapper
-from streetrace.llm.wrapper import ContentPart, ContentPartToolResult, History, Message
+from streetrace.llm.wrapper import ContentPart, History, Message
 
 ProviderHistory = List[Dict[str, Any]]
 ProviderTools = List[Dict[str, Any]]
@@ -116,7 +115,7 @@ class LLMAPI(abc.ABC):
         system_message: str,
         messages: ProviderHistory,
         tools: ProviderTools,
-    ) -> Iterable[ChunkWrapper]:
+    ) -> Iterator[ContentPart]:
         """
         Get API response from the provider.
 

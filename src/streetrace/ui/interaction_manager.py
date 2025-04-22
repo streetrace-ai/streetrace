@@ -4,7 +4,7 @@ import time
 from typing import List, Optional
 
 from streetrace.llm.llmapi import LLMAPI, RetriableError
-from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, History, Message, Role
+from streetrace.llm.wrapper import ContentPart, ContentPartFinishReason, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentPartUsage, History, Message, Role, ToolCallResult, ToolOutput
 from streetrace.tools.tools import ToolCall
 
 # Assuming these are accessible
@@ -63,6 +63,8 @@ class InteractionManager:
 
         consecutive_retries_count = 0
         request_count = 0
+        input_tokens = 0
+        output_tokens = 0
 
         has_tool_calls = False   # always continue self-talk if there are tool calls
         reason_to_finish = None  # always continue self-talk if there is no reason to finish
@@ -71,7 +73,7 @@ class InteractionManager:
         render_final_reason = True
 
         # <!-- Agent self-conversation loop start -->
-        with self.ui.status("Working..."):
+        with self.ui.status("Working...") as status:
             while has_tool_calls or not reason_to_finish or retry:
                 # Ensure history fits the context window
                 # if not self.provider.manage_conversation_history(provider_history):
@@ -105,38 +107,46 @@ class InteractionManager:
                         provider_history,
                         provider_tools,
                     ):
-                        if chunk.get_finish_message():
-                            reason_to_finish = chunk.get_finish_message()
-                            # finish message has to be the last chunk of the response
-                            break
+                        match chunk:
+                            case ContentPartText():
+                                self.ui.display_ai_response_chunk(chunk.text)
+                                buffer_assistant_text.append(chunk.text)
 
-                        text_part = chunk.get_text()
-                        if text_part:
-                            self.ui.display_ai_response_chunk(text_part)
-                            buffer_assistant_text.append(text_part)
-                        if chunk.get_tool_calls():
-                            for tool_call in chunk.get_tool_calls():
-                                self.ui.display_tool_call(tool_call)
-                                buffer_tool_calls.append(tool_call)
+                            case ContentPartToolCall():
+                                self.ui.display_tool_call(chunk)
+                                buffer_tool_calls.append(chunk)
                                 logging.info(
-                                    f"Tool call: {tool_call.name} with args: {tool_call.arguments}"
+                                    f"Tool call: {chunk.name} with args: {chunk.arguments}"
                                 )
-                                tool_result = self.tools.call_tool(tool_call, chunk.raw)
+                                tool_result = self.tools.call_tool(chunk)
+                                # tool_result = ToolCallResult(success=True, output=ToolOutput(type='text', content='Mock tool executed, please let the user know that this is a mock result.'))
                                 tool_result_part = ContentPartToolResult(
-                                        id=tool_call.id,
-                                        name=tool_call.name,
+                                        id=chunk.id,
+                                        name=chunk.name,
                                         content=tool_result,
                                     )
                                 if tool_result.success:
                                     self.ui.display_tool_result(tool_result_part)
                                     logging.info(
-                                        f"Tool '{tool_call.name}' result: {tool_result.output.content}'"
+                                        f"Tool '{chunk.name}' result: {tool_result.output.content}'"
                                     )
                                 else:
                                     self.ui.display_tool_error(tool_result_part)
                                     logging.error(tool_result.output.content)
                                 buffer_tool_results.append(tool_result_part)
                                 has_tool_calls = True
+
+                            case ContentPartFinishReason():
+                                reason_to_finish = chunk.finish_reason
+
+                            case ContentPartUsage():
+                                input_tokens += chunk.prompt_tokens
+                                output_tokens += chunk.response_tokens
+
+                        if input_tokens + output_tokens > 0:
+                            status.update(f"Working, io tokens: {input_tokens}/{output_tokens}, total requests: {request_count}...")
+                        else:
+                            status.update(f"Working, total requests: {request_count}...")
 
                 except RetriableError as retry_err:
                     # retry means the provider_history has to stay unmodified for

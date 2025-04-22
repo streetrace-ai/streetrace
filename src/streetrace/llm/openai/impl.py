@@ -6,17 +6,14 @@ This module implements the LLMAPI interface for OpenAI models.
 
 import logging
 import os
-import time
-from typing import Any, Dict, Iterable, List, Optional, override
+from typing import Any, Dict, Iterator, List, Optional, override
 
 import openai
 from openai.types import chat
 
-from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
 from streetrace.llm.llmapi import LLMAPI
-from streetrace.llm.openai.converter import OpenAIChunkWrapper, OpenAIHistoryConverter
-from streetrace.llm.wrapper import ContentPart, ContentPartToolResult, History, Message, Role
-from streetrace.ui.colors import AnsiColors
+from streetrace.llm.openai.converter import OpenAIHistoryConverter
+from streetrace.llm.wrapper import ContentPart, History, Message
 
 # Constants
 MAX_TOKENS = 128000  # GPT-4 Turbo has a context window of 128K tokens
@@ -176,7 +173,7 @@ class OpenAI(LLMAPI):
         system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
-    ) -> Iterable[OpenAIChunkWrapper]:
+    ) -> Iterator[ContentPart]:
         """
         Get API response from OpenAI, process it and handle tool calls.
 
@@ -188,7 +185,7 @@ class OpenAI(LLMAPI):
             tools: The tools to use
 
         Returns:
-            Iterable[OpenAIChunkWrapper]: Stream of response chunks
+            Iterator[ContentPart]: Stream of response parts
         """
 
         # UNRESOLVED ISSUE with streaming is that
@@ -211,26 +208,4 @@ class OpenAI(LLMAPI):
         assert isinstance(response, chat.ChatCompletion)
         assert hasattr(response, "choices")
 
-        choice = response.choices[0]
-
-        yield OpenAIChunkWrapper(
-            chat.ChatCompletionAssistantMessageParam(
-                role=choice.message.role or "assistant",
-                content=choice.message.content,
-                refusal=choice.message.refusal,
-                tool_calls=[
-                    chat.ChatCompletionMessageToolCallParam(
-                        type="function",
-                        id=tool_call.id,
-                        function=chat.chat_completion_message_tool_call_param.Function(
-                            name=tool_call.function.name,
-                            arguments=tool_call.function.arguments,
-                        ),
-                    )
-                    for tool_call in choice.message.tool_calls
-                ] if choice.message.tool_calls else [],
-            )
-        )
-
-        if choice.finish_reason:
-            yield FinishWrapper(choice.finish_reason, None)
+        return self._adapter.get_response_parts(response)

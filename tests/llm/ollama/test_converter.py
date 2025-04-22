@@ -1065,14 +1065,3 @@ def test_to_history_item_invalid_input_types(converter, capsys):
     # List with unexpected type
     with pytest.raises(TypeError, match="Unsupported messages"):
         converter.to_history_item(["not a wrapper or result"])
-
-
-# --- Tests for OllamaHistoryConverter.create_chunk_wrapper ---
-
-
-def test_create_chunk_wrapper(converter):
-    """Test that create_chunk_wrapper returns the correct type."""
-    chunk_data = {"message": {"content": "test"}}
-    wrapper = converter.create_chunk_wrapper(chunk_data)
-    assert isinstance(wrapper, OllamaChunkWrapper)
-    assert wrapper.raw == chunk_data

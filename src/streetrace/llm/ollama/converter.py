@@ -1,10 +1,8 @@
-from typing import Iterable, List, Optional, override
-from streetrace.llm.history_converter import (
-    HistoryConverter, ChunkWrapper
-)
-from ollama import Message as OllamaMessage
+from typing import Iterator, List, override
+from streetrace.llm.history_converter import HistoryConverter
+from ollama import ChatResponse, Message as OllamaMessage
 
-from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
+from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentPartFinishReason, Role
 
 _ROLES = {
     Role.SYSTEM: "system",
@@ -14,66 +12,59 @@ _ROLES = {
     Role.TOOL: "tool",
 }
 
-class OllamaChunkWrapper(ChunkWrapper[OllamaMessage]):
-    def get_text(self) -> str:
-        return self.raw.content or ""
 
-    def get_tool_calls(self) -> List[ContentPartToolCall]:
-        if not self.raw.tool_calls:
-            return []
-        return [
-            ContentPartToolCall(
-                id=call.function.name,  # Ollama doesn't use explicit ID; fallback to name
-                name=call.function.name,
-                arguments=call.function.arguments
-            ) for call in self.raw.tool_calls
-        ]
-
-    def get_finish_message(self) -> Optional[str]:
-        return None
-
-
-class OllamaHistoryConverter(HistoryConverter[dict, dict, OllamaMessage, OllamaChunkWrapper]):
+class OllamaHistoryConverter(HistoryConverter[OllamaMessage, ChatResponse]):
     @override
-    def _provider_message(self, role: Role, items: List[dict]) -> dict:
+    def create_history_messages(self, role: Role, items: List[ContentPart]) -> Iterator[OllamaMessage]:
         if role not in _ROLES:
             raise ValueError(f"Unsupported role for Ollama: {role}")
 
         role_str = _ROLES[role]
 
-        message: dict = {
-            "role": role_str,
-        }
+        message = OllamaMessage(role = role_str, tool_calls = [])
+        yield_message = False
 
-        if role_str == "tool":
-            tool_call_id = items[0].get("id") or "tool-call"
-            message.update({
-                "tool_call_id": tool_call_id,
-                "content": items[0].get("content") or ""
-            })
-        else:
-            message["content"] = items[0].get("text") if items else ""
-            if "tool_calls" in items[0]:
-                message["tool_calls"] = items[0]["tool_calls"]
+        tool_results: list[OllamaMessage] = []
 
-        return message
+        for item in items:
+            if isinstance(item, ContentPartText):
+                message.content = item.text
+                yield_message = True
+            elif isinstance(item, ContentPartToolCall):
+                message.tool_calls.append(
+                    OllamaMessage.ToolCall(
+                        function = OllamaMessage.ToolCall.Function(
+                            name = item.name,
+                            arguments = item.arguments
+                        )
+                    )
+                )
+                yield_message = True
+            elif isinstance(item, ContentPartToolResult):
+                tool_results.append(
+                    OllamaMessage(
+                        role = 'tool',
+                        content = item.model_dump_json(exclude_none=True),
+                    )
+                )
+
+        if yield_message:
+            yield message
+        yield from tool_results
 
     @override
-    def _common_to_request(self, item: ContentPart) -> dict:
-        if isinstance(item, ContentPartText):
-            return {"text": item.text}
-        elif isinstance(item, ContentPartToolCall):
-            return {
-                "tool_calls": [{
-                    "function": {
-                        "name": item.name,
-                        "arguments": item.arguments
-                    }
-                }]
-            }
-        elif isinstance(item, ContentPartToolResult):
-            return {
-                "id": item.id or "tool-call",
-                "content": item.content.model_dump_json(exclude_none=True)
-            }
-        raise TypeError(f"Unsupported content part type for Ollama request: {type(item)}")
+    def get_response_parts(self, model_response: ChatResponse) -> Iterator[ContentPart]:
+        if not model_response.message:
+            return
+
+        if model_response.message.content:
+            yield ContentPartText(text=model_response.message.content)
+
+        if model_response.message.tool_calls:
+            for call in model_response.message.tool_calls:
+                yield ContentPartToolCall(
+                    name=call.function.name,
+                    arguments=call.function.arguments
+                )
+
+        yield ContentPartFinishReason(finish_reason="done")

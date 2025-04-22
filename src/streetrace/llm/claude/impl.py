@@ -6,14 +6,13 @@ This module implements the LLMAPI interface for Anthropic's Claude models.
 
 import logging
 import os
-from typing import Any, Dict, Iterable, List, Optional, override
+from typing import Any, Dict, Iterator, List, Optional, override
 
 import anthropic
 
-from streetrace.llm.claude.converter import AnthropicHistoryConverter, AnthropicChunkWrapper
-from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
+from streetrace.llm.claude.converter import AnthropicHistoryConverter
 from streetrace.llm.llmapi import LLMAPI, RetriableError
-from streetrace.llm.wrapper import ContentPart, ContentPartToolResult, History, Message
+from streetrace.llm.wrapper import ContentPart, History, Message
 
 ProviderHistory = List[anthropic.types.MessageParam]
 
@@ -175,7 +174,7 @@ class Claude(LLMAPI):
         system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
-    ) -> Iterable[AnthropicChunkWrapper]:
+    ) -> Iterator[ContentPart]:
         """
         Get API response from Claude, process it and handle tool calls.
 
@@ -187,7 +186,7 @@ class Claude(LLMAPI):
             tools: The Claude-format tools to use
 
         Returns:
-            Iterable[AnthropicChunkWrapper]: The response chunks from Claude
+            Iterator[ContentPart]: Stream of response parts
         """
         model_name = model_name or MODEL_NAME
 
@@ -206,14 +205,7 @@ class Claude(LLMAPI):
 
                 logging.debug("Raw Claude response: %s", response)
 
-                return [
-                    AnthropicChunkWrapper(content_block)
-                    for content_block in response.content
-                ] + (
-                    [FinishWrapper(response.stop_reason, response.stop_sequence)]
-                    if response.stop_reason
-                    else []
-                )
+                return self._adapter.get_response_parts(response)
 
             except anthropic.RateLimitError as e:
                 raise RetriableError(str(e), max_retries=3) from e

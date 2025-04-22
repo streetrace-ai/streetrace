@@ -6,15 +6,14 @@ This module implements the LLMAPI interface for Google's Gemini models.
 
 import logging
 import os
-from typing import Any, Dict, Iterable, List, Optional, override
+from typing import Any, Dict, Iterator, List, Optional, override
 
 from google import genai
 from google.genai import types
 
-from streetrace.llm.gemini.converter import GeminiHistoryConverter, GeminiChunkWrapper
-from streetrace.llm.history_converter import ChunkWrapper, FinishWrapper
+from streetrace.llm.gemini.converter import GeminiHistoryConverter
 from streetrace.llm.llmapi import LLMAPI
-from streetrace.llm.wrapper import ContentPart, ContentPartToolResult, History, Message
+from streetrace.llm.wrapper import ContentPart, History, Message
 
 ProviderHistory = List[types.Content]
 
@@ -232,7 +231,7 @@ class Gemini(LLMAPI):
         system_message: str,
         messages: ProviderHistory,
         tools: List[Dict[str, Any]],
-    ) -> Iterable[GeminiChunkWrapper]:
+    ) -> Iterator[ContentPart]:
         """
         Get API response from Gemini, process it and handle tool calls.
 
@@ -244,7 +243,7 @@ class Gemini(LLMAPI):
             tools: The Gemini-format tools to use
 
         Returns:
-            Iterable[GeminiChunkWrapper]: An iterable of content parts
+            Iterator[ContentPart]: Stream of response parts
         """
         model_name = model_name or MODEL_NAME
 
@@ -266,20 +265,4 @@ class Gemini(LLMAPI):
         )
         logging.debug("Raw Gemini response: %s", response)
 
-        if not response.candidates:
-            return
-
-        candidate = response.candidates[0]
-
-        for part in candidate.content.parts:
-            yield GeminiChunkWrapper(part)
-
-        if candidate.finish_reason is not None:
-            msg = candidate.finish_message
-            if len(response.candidates) > 1:
-                msg += f" (there were {len(response.candidates)} candidates in the response: "
-                msg += (
-                    ", ".join([f"'{c.finish_reason}'" for c in response.candidates[1:]])
-                    + ")"
-                )
-            yield FinishWrapper(str(candidate.finish_reason), msg)
+        return self._adapter.get_response_parts(response)

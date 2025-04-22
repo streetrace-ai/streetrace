@@ -678,20 +678,6 @@ class TestClaudeConverter(unittest.TestCase):
         result = self.converter._tool_results_to_message([])
         self.assertIsNone(result)
 
-    # --- create_chunk_wrapper tests ---
-
-    def test_create_chunk_wrapper(self):
-        """Test creating a AnthropicChunkWrapper."""
-        block = anthropic.types.TextBlock(type="text", text="Block data")
-        wrapper = self.converter.create_chunk_wrapper(block)
-        self.assertIsInstance(wrapper, AnthropicChunkWrapper)
-        self.assertEqual(wrapper.raw, block)
-
-    def test_create_chunk_wrapper_invalid_type(self):
-        """Test create_chunk_wrapper raises TypeError for invalid (None) input type."""
-        with self.assertRaises(TypeError):
-            self.converter.create_chunk_wrapper(None)  # type: ignore
-
 
 if __name__ == "__main__":
     unittest.main()

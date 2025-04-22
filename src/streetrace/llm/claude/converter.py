@@ -1,13 +1,11 @@
-from typing import List, Optional, override
-from streetrace.llm.history_converter import (
-    HistoryConverter, ChunkWrapper
-)
+from typing import Iterator, List, override
+from streetrace.llm.history_converter import HistoryConverter
 from anthropic.types import (
-    MessageParam, TextBlockParam, ToolUseBlockParam,
-    ToolResultBlockParam, ContentBlock, ContentBlockParam
+    MessageParam, Message as AnthropicMessage, TextBlockParam, ToolUseBlockParam,
+    ToolResultBlockParam, ContentBlockParam
 )
 
-from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, Role
+from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentPartUsage, ContentPartFinishReason, Role
 
 _CLAUD_ROLES = {
     Role.SYSTEM: "system",
@@ -17,42 +15,43 @@ _CLAUD_ROLES = {
     Role.TOOL: "user",  # Tool results are sent in a user message in Claude
 }
 
-class AnthropicChunkWrapper(ChunkWrapper[ContentBlock]):
-    def get_text(self) -> str:
-        if self.raw.type == "text":
-            return self.raw.text
-        return ""
 
-    def get_tool_calls(self) -> List[ContentPartToolCall]:
-        if self.raw.type == "tool_use":
-            return [ContentPartToolCall(
-                id=self.raw.id,
-                name=self.raw.name,
-                arguments=self.raw.input
-            )]
-        return []
-
-    def get_finish_message(self) -> Optional[str]:
-        return None
-
-
-class AnthropicHistoryConverter(HistoryConverter[MessageParam, ContentBlockParam, ContentBlock, AnthropicChunkWrapper]):
+class AnthropicHistoryConverter(HistoryConverter[MessageParam, AnthropicMessage]):
     @override
-    def _provider_message(self, role: Role, items: List[ContentBlockParam]) -> MessageParam:
+    def create_history_messages(self, role: Role, items: List[ContentPart]) -> Iterator[MessageParam]:
         if role != Role.SYSTEM:
-            return MessageParam(role=_CLAUD_ROLES[role], content=items)
+            history_item_parts: list[ContentBlockParam] = []
+            for item in items:
+                if isinstance(item, ContentPartText):
+                    history_item_parts.append(TextBlockParam(type="text", text=item.text))
+                elif isinstance(item, ContentPartToolCall):
+                    history_item_parts.append(ToolUseBlockParam(id=item.id or "tool-call", name=item.name, input=item.arguments, type="tool_use"))
+                elif isinstance(item, ContentPartToolResult):
+                    history_item_parts.append(ToolResultBlockParam(
+                        type="tool_result",
+                        tool_use_id=item.id or "tool-call",
+                        content=item.content.output.model_dump_json(exclude_none=True),
+                        is_error=item.content.failure == True  # noqa: E712
+                    ))
+            yield MessageParam(role=_CLAUD_ROLES[role], content=history_item_parts)
 
     @override
-    def _common_to_request(self, item: ContentPart) -> ContentBlockParam:
-        if isinstance(item, ContentPartText):
-            return TextBlockParam(type="text", text=item.text)
-        elif isinstance(item, ContentPartToolCall):
-            return ToolUseBlockParam(id=item.id or "tool-call", name=item.name, input=item.arguments, type="tool_use")
-        elif isinstance(item, ContentPartToolResult):
-            return ToolResultBlockParam(
-                type="tool_result",
-                tool_use_id=item.id or "tool-call",
-                content=item.content.output.model_dump_json(exclude_none=True),
-                is_error=item.content.failure == True  # noqa: E712
-            )
-        raise TypeError(f"Unsupported content type for request conversion: {type(item)}")
+    def get_response_parts(self, model_response: AnthropicMessage) -> Iterator[ContentPart]:
+        if not model_response.content:
+            return
+
+        for part in model_response.content:
+            if part.type == "text":
+                yield ContentPartText(text=part.text)
+            elif part.type == "tool_use":
+                yield ContentPartToolCall(
+                    id=part.id,
+                    name=part.name,
+                    arguments=part.input or {}
+                )
+
+        if model_response.usage:
+            yield ContentPartUsage(prompt_tokens=model_response.usage.input_tokens or 0, response_tokens=model_response.usage.output_tokens or 0)
+
+        if model_response.stop_reason is not None:
+            yield ContentPartFinishReason(finish_reason=model_response.stop_reason)

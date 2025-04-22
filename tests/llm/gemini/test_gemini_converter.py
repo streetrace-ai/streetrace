@@ -453,15 +453,6 @@ class TestGeminiConverter(unittest.TestCase):
         }
         self.assertEqual(item.parts[0].function_response.response, expected_resp)
 
-    # --- Test create_chunk_wrapper ---
-
-    def test_create_chunk_wrapper(self):
-        """Test creating a chunk wrapper."""
-        gemini_part = types.Part(text="Hello")
-        wrapper = self.converter.create_chunk_wrapper(gemini_part)
-        self.assertIsInstance(wrapper, GeminiChunkWrapper)
-        self.assertEqual(wrapper.raw, gemini_part)
-
 
 if __name__ == "__main__":
     unittest.main()
