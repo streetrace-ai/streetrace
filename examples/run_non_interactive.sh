@@ -1,5 +1,5 @@
 #!/bin/bash
-# Example script demonstrating non-interactive usage of Streetrace
+# Example script demonstrating non-interactive usage of StreetRace🚗💨
 
 # Ensure the directory exists
 mkdir -p examples

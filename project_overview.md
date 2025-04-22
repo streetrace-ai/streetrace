@@ -1,7 +1,7 @@
-# StreetRace Project Overview
+# StreetRace🚗💨 Project Overview
 
 ## Project Goal
-StreetRace is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software. It serves as a bridge between AI language models and local file systems, allowing AI to assist with coding tasks by reading, writing, and manipulating files in a local development environment.
+StreetRace🚗💨 is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software. It serves as a bridge between AI language models and local file systems, allowing AI to assist with coding tasks by reading, writing, and manipulating files in a local development environment.
 
 The primary goal is to create a seamless experience where developers can interact with an AI assistant that has access to necessary file system operations, enabling it to help write, modify, and debug code in real-time from the command line.
 
@@ -55,9 +55,9 @@ Contains unit tests for the core functionality, including:
 - Search functionality tests
 
 ### Examples Directory
-Contains example scripts demonstrating how to use the StreetRace APIs programmatically.
+Contains example scripts demonstrating how to use the StreetRace🚗💨 APIs programmatically.
 
-### .streetrace Directory
+### .StreetRace🚗💨 Directory
 Contains configuration files:
 - `system.md` - Custom system message for AI models
 - `rules.md` - Development rules and guidelines for the project
@@ -79,7 +79,7 @@ The architecture allows for easy switching between providers based on available 
 - Documentation generation
 - Reviewing conversation history (`history` command) # <-- Added history usage
 
-StreetRace bridges the gap between powerful AI language models and local development environments, making it easier for developers to leverage AI assistance in their daily workflow.
+StreetRace🚗💨 bridges the gap between powerful AI language models and local development environments, making it easier for developers to leverage AI assistance in their daily workflow.
 
 ## Instructions
 

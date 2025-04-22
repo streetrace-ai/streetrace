@@ -1,10 +1,10 @@
-# Streetrace
+# StreetRace🚗💨
 
-Streetrace is an agentic AI coding partner that enables engineers to leverage AI from the command line to create software.
+StreetRace🚗💨 is an agentic AI coding partner that enables engineers to leverage AI from the command line to create software.
 
 **Project Description:**
 
-Streetrace defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic uses a common LLMAPI interface implemented by provider-specific classes (Claude, Gemini, OpenAI, Ollama) to handle interactions with different AI models. This architecture makes it easy to switch between providers while maintaining consistent functionality.
+StreetRace🚗💨 defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic uses a common LLMAPI interface implemented by provider-specific classes (Claude, Gemini, OpenAI, Ollama) to handle interactions with different AI models. This architecture makes it easy to switch between providers while maintaining consistent functionality.
 
 **Key Components:**
 
@@ -47,7 +47,7 @@ Run the application using `python src/streetrace/main.py` (or `python -m streetr
 
 ### Command Line Arguments
 
-Streetrace supports the following command line arguments:
+StreetRace🚗💨 supports the following command line arguments:
 
 ```
 python src/streetrace/main.py [--engine {claude|gemini|ollama|openai}] [--model MODEL_NAME] [--prompt PROMPT] [--path PATH]
@@ -60,7 +60,7 @@ Options:
 - `--path` - Specify which path to use as the working directory for all file operations
 - `--debug` - Enable debug logging.
 
-If no engine is specified, Streetrace will automatically select an AI model based on the available API keys in the following order:
+If no engine is specified, StreetRace🚗💨 will automatically select an AI model based on the available API keys in the following order:
 1. Claude (if ANTHROPIC_API_KEY is set)
 2. Gemini (if GEMINI_API_KEY is set)
 3. OpenAI (if OPENAI_API_KEY is set)
@@ -84,7 +84,7 @@ This feature makes it easier to work with files in another location without chan
 
 ### Interactive Mode
 
-When run without `--prompt`, Streetrace enters interactive mode.
+When run without `--prompt`, StreetRace🚗💨 enters interactive mode.
 
 #### Autocompletion
 
@@ -102,7 +102,7 @@ These commands can be typed directly into the prompt (with autocompletion suppor
 
 ### Non-interactive Mode
 
-You can use the `--prompt` argument to run Streetrace in non-interactive mode:
+You can use the `--prompt` argument to run StreetRace🚗💨 in non-interactive mode:
 
 ```
 python src/streetrace/main.py --prompt "List all Python files in the current directory"
@@ -138,7 +138,7 @@ To exit interactive processes, use the standard method for that program (such as
 
 ### System Message Customization
 
-Streetrace centralizes system message handling in `main.py` and passes it to the provider implementations. By default, it looks for a system message in `.streetrace/system.md` and uses a default message if not found.
+StreetRace🚗💨 centralizes system message handling in `main.py` and passes it to the provider implementations. By default, it looks for a system message in `.streetrace/system.md` and uses a default message if not found.
 
 You can also programmatically specify a custom system message when using the `generate_with_tool` function:
 
@@ -161,7 +161,7 @@ conversation_history = generate_with_tool(
 
 ### AI Provider Architecture
 
-Streetrace uses a common interface for all AI providers:
+StreetRace🚗💨 uses a common interface for all AI providers:
 
 1. **AIProvider Interface**: The `AIProvider` abstract base class in `ai_interface.py` defines methods that all providers must implement:
    - `initialize_client()` - Set up the provider client
@@ -192,7 +192,7 @@ To use these tools, you need to set one of the following environment variables:
 
 ### Using with OpenAI
 
-Streetrace supports integration with OpenAI's models, such as GPT-4 and GPT-3.5 Turbo.
+StreetRace🚗💨 supports integration with OpenAI's models, such as GPT-4 and GPT-3.5 Turbo.
 
 #### Setup for OpenAI
 
@@ -208,7 +208,7 @@ Streetrace supports integration with OpenAI's models, such as GPT-4 and GPT-3.5 
 
 #### Configuration Options
 
-- **Default Model**: By default, Streetrace uses the `gpt-4-turbo-2024-04-09` model. You can specify a different model using the `--model` argument.
+- **Default Model**: By default, StreetRace🚗💨 uses the `gpt-4-turbo-2024-04-09` model. You can specify a different model using the `--model` argument.
   ```
   python src/streetrace/main.py --engine openai --model gpt-4o-2024-05-13
   ```
@@ -229,7 +229,7 @@ For more details, see [README-openai.md](README-openai.md).
 
 ### Using with Ollama
 
-Streetrace supports integration with [Ollama](https://ollama.ai/), allowing you to use locally hosted open-source models.
+StreetRace🚗💨 supports integration with [Ollama](https://ollama.ai/), allowing you to use locally hosted open-source models.
 
 #### Setup for Ollama
 
@@ -245,12 +245,12 @@ Streetrace supports integration with [Ollama](https://ollama.ai/), allowing you 
 
 #### Configuration Options
 
-- **OLLAMA_API_URL**: (Optional) Set this environment variable to specify a custom URL for the Ollama API. By default, Streetrace will use `http://localhost:11434`.
+- **OLLAMA_API_URL**: (Optional) Set this environment variable to specify a custom URL for the Ollama API. By default, StreetRace🚗💨 will use `http://localhost:11434`.
   ```
   export OLLAMA_API_URL="http://my-ollama-server:11434"
   ```
 
-- **Default Model**: By default, Streetrace uses the `llama3:8b` model. You can specify a different model using the `--model` argument.
+- **Default Model**: By default, StreetRace🚗💨 uses the `llama3:8b` model. You can specify a different model using the `--model` argument.
   ```
   python src/streetrace/main.py --engine ollama --model mistral:7b
   ```
