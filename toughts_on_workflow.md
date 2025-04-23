@@ -90,3 +90,42 @@ Always use strongly typed code.
 Use coding and design patterns so enforce SOLID principles. TODO: Harvest refactoring guru patterns for specific languages.
 
 Keep all lines unrelated to the current request unchanged.
+
+
+---
+
+What works:
+
+You:
+
+Describe user story and journey, showing impact and value.
+
+Describe where in codebase this relates to (key file pointers).
+
+Describe own implementation idea.
+
+Stress out key points.
+
+Say: Let's discuss the alternative solutions and trade-offs before coding.
+
+Assistant:
+
+Proposes solutions.
+
+You:
+
+Point out a solution.
+
+Describe what needs to be changed.
+
+Ask to define the necessary interfaces first.
+
+Say: Make sure the created interfaces are syntactically correct.
+
+Assistant:
+
+Creates interfaces.
+
+You (after reviewing code):
+
+Looks good, let's now create tests to describe base scenarios following TDD principles, and align on code structure and data model.
