@@ -201,4 +201,68 @@ In @app/application.py there is conversation history object for both interactive
 5. The history needs to be stored in .history folder within the current directory.
 6. Implement an optional command line argument to specify the conversation history ID (applicable to both interactive and non-interactive modes). If the argument is specified, the history needs to be hydrated from the referenced history file. If an invalid history ID is provided by the user, we should immediately error out and exit.
 
- Let's store the history as markdown files that look nice when rendered, but include special macros that we can use when parsing and saving to allow parsing as a proper history. The big advantage of storing in mardown is that user can immediately render the result, use a markdown editor to edit it, etc., so lets make sure the rendered format shows proper formatting for turns, roles, and all messages. Describe the alternative approaches. Keep asking questions to clarify requirements before starting to implement.
+Let's store the history as markdown files that look nice when rendered, but include special macros that we can use when parsing and saving to allow parsing as a proper history. The big advantage of storing in mardown is that user can immediately render the result, use a markdown editor to edit it, etc., so lets make sure the rendered format shows proper formatting for turns, roles, and all messages. Describe the alternative approaches. Keep asking questions to clarify requirements before starting to implement.
+
+
+---
+
+Take a look at @src/streetrace/ui/interaction_manager.py. This class is responsible for driving the main conversation loop. The process_prompt method seems to have a high cyclomatic complexity and a lot of flow control conditions. Can you suggest ideas for how to simplify it?
+
+---
+
+Take a look at @src/streetrace/ui/interaction_manager.py. Let's create a set of unit tests that test for `process_prompt` to establish ground rules for this function. Please use a mocked `self.provider`. Treat `InteractionManager` as a black box, so we can re-use these tests during refactoring. The current implementation may or may not fail these tests because it does not necessarily meet the ground truth criteria.
+
+The ground rules I'm thinking of are:
+
+* when the `process_prompt` finishes, it returns a FinishStatus message containing reason_to_finich, and token and request stats.
+
+* when initial or any consequent call to `self.provider.generate` throws a `RetriableError`, we expect `retry_err.max_retries` number of retries, after which the loop exits with the right reason.
+* when initial or any consequent call to `self.provider.generate` throws a `RetriableError`, we expect the requested wait period is waited. You can introduce another parameter in `InteractionManager` to inject a waiter.
+* when `self.provider.generate` results in tool calls, we expect the thinking session will continue.
+* when `self.provider.generate` does not provide a finish_reason, we expect the thinking session will continue.
+* when `self.provider.generate` does not throw and does not yield either tool calls or a reason to finish, the thinking session will continue for _DEFAULT_MAX_RETRIES attemts. In this scenario, if provider returns any assistant messages, they will all be stored in history.
+* when initial or any consequent call to `self.provider.generate` or `self.tools.call_tool` throws any error, we expect that the provider and common history contain all previous turn messages, but not the failed conversation turn.
+* when initial or any consequent call to `self.provider.generate` or `self.tools.call_tool` throws any non-retriable error, we expect the thinking session stops and the reason_to_finish contains a valid reason.
+* when `RetriableError` does not specify `max_retries`, the default is used.
+
+Okay, here's a summary of our conversation:
+
+Goal:
+
+The primary goal was to create a robust set of unit tests for the InteractionManager.process_prompt method. The purpose was to define clear behavioral
+"ground rules" for this critical function, covering its interaction loop, handling of different AI responses (text, tool calls, finish reasons), error
+conditions (retriable errors, non-retriable errors, keyboard interrupts), and history management. These tests would serve as a safety net for future
+refactoring and ensure the function behaves as expected.
+
+Outcomes:
+
+ 1 Ground Rules Defined: We identified and listed key scenarios and expected behaviors for process_prompt, including normal execution, multi-turn tool
+   calls, retries on specific errors, handling of unexpected errors, and behavior during user interruptions.
+ 2 Test Suite Implemented: I created the test file tests/ui/test_interaction_manager.py and implemented unit tests using pytest and unittest.mock to cover
+   the defined ground rules and additional edge cases. The tests were designed to treat InteractionManager as a black box.
+ 3 Initial Issues Identified: Upon review and simulated execution, we found:
+    • Two tests related to retries (test_process_prompt_retriable_error_max_retries and test_process_prompt_no_finish_reason_or_tool_calls_retries) had
+      issues (one with test setup, one potentially hanging due to a logic bug in the code under test).
+    • Two tests (test_process_prompt_keyboard_interrupt and test_process_prompt_non_retriable_error_during_tool_call) were failing, specifically around how
+      history was being updated (or not updated) when exceptions occurred mid-turn.
+ 4 Code and Test Fixes:
+    • I corrected the test setup for test_process_prompt_retriable_error_max_retries.
+    • I identified and fixed a potential infinite loop in InteractionManager.process_prompt related to retrying empty turns.
+    • I adjusted the logic within InteractionManager.process_prompt's exception handling (KeyboardInterrupt and general Exception) to ensure that incomplete
+      turns (e.g., a MODEL message with a tool call request, but no corresponding TOOL result message due to the error) are not added to the main history
+      object, aligning the code with the ground rules for error scenarios.
+ 5 Verification: After applying the fixes, the unit tests are expected to pass, confirming that the InteractionManager.process_prompt implementation now
+   aligns with the established ground rules.
+
+In short, we defined the contract for process_prompt, built tests to verify it, used the tests to identify and fix bugs in the implementation, and arrived
+at a state where the code meets the specified behavioral requirements.
+
+---
+
+I like the state machine approach. Could you implement that so we can see how it can look? Also, we might want to create classes for Turn data (like the TurnBuffer you mentioned, let's call it Turn), and LoopState that will hold all state information.
+
+LoopState can expose functions to update state in different cases (like Handle Retriable Error, Handle Keyboard Interrupt, etc.)
+
+Handling each type of chunk is easy to read and understand, so we can keep them in one place, perhaps a separate function in the Turn class.
+
+Please implement these changes so we can see how it works.

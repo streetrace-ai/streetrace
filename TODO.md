@@ -38,6 +38,8 @@
 - [ ] google.genai.errors.ServerError: 500 INTERNAL. {'error': {'code': 500, 'message': 'An internal error has occurred. Please retry or report
 - [ ] run cli in background
 - [ ] Add turn summary to history instead of full contents. Add command to summarize work done and store it in worklog from the user scenario perspective, as in "what's new"?
+- [ ] compact history command
+- [ ] summarize task command (Summarize this conversation describing the goal and outcomes. Mention paths to all files included in this context.)
 
 
 ## done
