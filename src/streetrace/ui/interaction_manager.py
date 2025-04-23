@@ -1,7 +1,7 @@
 # app/interaction_manager.py
 import logging
 import time
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from streetrace.llm.llmapi import LLMAPI, RetriableError
 from streetrace.llm.wrapper import ContentPart, ContentPartFinishReason, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentPartUsage, History, Message, Role, ToolCallResult, ToolOutput
@@ -13,6 +13,21 @@ from streetrace.ui.console_ui import ConsoleUI
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MAX_RETRIES = 3
+
+class ThinkingStatus:
+    """
+    Encapsulates the outcome of a thinking session, including finish reason and token usage stats.
+    """
+    def __init__(self, finish_reason: Optional[Union[str, None]], input_tokens: int, output_tokens: int, request_count: int):
+        self.finish_reason = finish_reason
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.request_count = request_count
+
+    def __repr__(self):
+        return (f"ThinkingStatus(finish_reason={self.finish_reason!r}, "
+                f"input_tokens={self.input_tokens}, output_tokens={self.output_tokens}, "
+                f"request_count={self.request_count})")
 
 
 class InteractionManager:
@@ -49,7 +64,7 @@ class InteractionManager:
             f"InteractionManager initialized for provider: {type(provider).__name__}"
         )
 
-    def process_prompt(self, history: History):
+    def process_prompt(self, history: History) -> ThinkingStatus:
         """
         Processes the prompt by calling the AI with the provided history.
 
@@ -58,6 +73,9 @@ class InteractionManager:
 
         Args:
             history: The conversation History object containing the context and prompt.
+
+        Returns:
+            ThinkingStatus: Object containing finish reason, I/O token stats, and request count.
         """
         client = self.provider.initialize_client()
         provider_history = self.provider.transform_history(history)
@@ -108,7 +126,8 @@ class InteractionManager:
                 buffer_tool_calls: list[ContentPartToolCall] = []     # all tool calls retrieved in this request
                 buffer_tool_results: list[ContentPartToolResult] = [] # all tool responses to be sent in the next request
                 try:
-                    # conversation turn
+                    # request to process current provider history and process the
+                    # response for the new conversation turn
                     for chunk in self.provider.generate(
                         client,
                         self.model_name,
@@ -239,3 +258,10 @@ class InteractionManager:
 
         if render_final_reason:
             self.ui.display_info(reason_to_finish)
+
+        return ThinkingStatus(
+            finish_reason=reason_to_finish,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            request_count=request_count
+        )
