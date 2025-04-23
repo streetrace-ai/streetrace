@@ -210,11 +210,11 @@ Take a look at @src/streetrace/ui/interaction_manager.py. This class is responsi
 
 ---
 
-Take a look at @src/streetrace/ui/interaction_manager.py. Let's create a set of unit tests that test for `process_prompt` to establish ground rules for this function. Please use a mocked `self.provider`. Treat `InteractionManager` as a black box, so we can re-use these tests during refactoring. The current implementation may or may not fail these tests because it does not necessarily meet the ground truth criteria.
+Take a look at @src/streetrace/ui/interaction_manager.py. `process_prompt` has a very high cyclomatic complexity. Could you create a minimal unit test to test a set of ground rules `process_prompt` has to follow? Please mock `self.provider`. Treat `InteractionManager` as a black box, so we can re-use these tests during refactoring. The current implementation may or may not fail these tests because it does not necessarily meet the ground truth criteria. Be careful about test timeouts because errors with retries can cause infinite loops.
 
 The ground rules I'm thinking of are:
 
-* when the `process_prompt` finishes, it returns a FinishStatus message containing reason_to_finich, and token and request stats.
+* when the `process_prompt` finishes, it returns a FinishStatus message containing reason_to_finish, and token and request stats.
 
 * when initial or any consequent call to `self.provider.generate` throws a `RetriableError`, we expect `retry_err.max_retries` number of retries, after which the loop exits with the right reason.
 * when initial or any consequent call to `self.provider.generate` throws a `RetriableError`, we expect the requested wait period is waited. You can introduce another parameter in `InteractionManager` to inject a waiter.
