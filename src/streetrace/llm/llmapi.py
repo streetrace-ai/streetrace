@@ -147,7 +147,7 @@ class RetriableError(Exception):
         message (str): The error message.
     """
 
-    def __init__(self, message: str, max_retries: int = 3):
+    def __init__(self, message: str, max_retries: int = 3, wait_seconds: int = 30) -> None:
         """
         Initialize the RetriableError.
 
@@ -157,6 +157,7 @@ class RetriableError(Exception):
         """
         self.max_retries = max_retries
         self.message = message
+        self.wait_seconds = wait_seconds
         super().__init__(self.message)
 
     def wait_time(self, retry_count: int) -> int:
@@ -169,4 +170,4 @@ class RetriableError(Exception):
         Returns:
             int: The time to wait in seconds before the next retry attempt.
         """
-        return 30
+        return self.wait_seconds
