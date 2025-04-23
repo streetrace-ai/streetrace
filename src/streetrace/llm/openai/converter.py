@@ -24,7 +24,7 @@ class OpenAIHistoryConverter(HistoryConverter[
 
         role_str = _ROLES[role]
 
-        message = { 'role': role_str, 'tool_calls': [] }
+        message = { 'role': role_str }
         yield_message = False
 
         tool_results: list[chat.ChatCompletionToolMessageParam] = []
@@ -34,6 +34,8 @@ class OpenAIHistoryConverter(HistoryConverter[
                 message['content'] = item.text
                 yield_message = True
             elif isinstance(item, ContentPartToolCall):
+                if 'tool_calls' not in message:
+                    message['tool_calls'] = []
                 message['tool_calls'].append(
                     chat.ChatCompletionMessageToolCallParam(
                         type = 'function',

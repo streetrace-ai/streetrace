@@ -127,9 +127,11 @@ class History(BaseModel):
     context: Optional[str] = None
     conversation: List[Message] = field(default_factory=list)
 
-    def add_message(self, role: Role, content: List[ContentPart]):
+    def add_message(self, role: Role, content: List[ContentPart]) -> Optional[Message]:
         if not isinstance(role, Role):
             raise ValueError(f"Invalid role: {role}")
+        if not content:
+            return None
         message = Message(role=role, content=content)
         self.conversation.append(message)
         return message
