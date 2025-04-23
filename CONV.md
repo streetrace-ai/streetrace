@@ -53,7 +53,7 @@ Describe the alternative approaches. Keep asking questions to clarify requiremen
 
 ===
 
-In @app/application.py there is conversation history object for both interactive and non-interactive mode. Let's implement conversation history management over app restarts. The conversations have to store the entire history, and every turn has to indicate the backend and model used for this turn. Each conversation history will have an ID generaged as YYYYMMDD_HHmmSSUTC, and the file name for the conversation has to match its id. The history needs to be stored in .history folder within the current directory. We should save the frequency when the user enters a new message, and when the processing of assistant's message is complete. Implement another optional command line argument to specify the conversation history (applicable to both interactive and non-interactive modes). If the argument is specified, the history needs to be hydrated from the referenced history. If an invalid history ID is provided by the user, we should immediately error out and exit. Let's store the history as markdown files that look nice when rendered, but include special macros that we can use when parsing and saving to allow parsing as a proper history. The big advantage of storing in mardown is that user can immediately render the result, use a markdown editor to edit it, etc., so lets make sure the rendered format shows proper formatting for turns, roles, and all messages. Describe the alternative approaches. Keep asking questions to clarify requirements before starting to implement.
+
 
 ===
 
@@ -105,3 +105,100 @@ Please create a new class in @src/streetrace/llm/wrapper.py that contains two fi
 In self.provider.generate in @src/streetrace/ui/interaction_manager.py, if a chunk contains usage information, show it in the "Working" progress indicator in the form of: "Working, io tokens: {n_input}/{n_output}, total requests: n_requests." showing the cumulative token stats and the total number of tokens reported during this run of process_prompt. You can use status.update(new_status_message) to update the status message.
 The numbers should be updated every time the usage information is received from the ChunkWrapper or a self.provider.generate finishes.
 The status has to stay just "Working, total requests: n_requests" until the first usage information is received.
+
+===
+
+---
+
+### 🧠 **Instruction: Chat History Markdown Format with YAML Metadata**
+
+> **Goal**: Serialize and deserialize chat history in a single, human-readable Markdown file with metadata per message.
+
+---
+
+#### ✅ **Format Specification**
+Each chat message must be written in the following structure:
+
+```markdown
+---
+role: <user|assistant|system|tool>
+timestamp: <ISO 8601 string>
+model: <model name or null>
+---
+
+<Multiline message content in Markdown>
+```
+
+- Metadata is written as a YAML front matter block (`---`).
+- Message text follows the metadata block and may contain rich Markdown formatting (e.g. bold, italics, lists, code blocks).
+- One message follows another without additional wrappers.
+
+---
+
+#### 📤 **Serialization (Python)**
+
+```python
+import yaml
+
+def serialize_chat_to_markdown(messages, path):
+    with open(path, "w", encoding="utf-8") as f:
+        for msg in messages:
+            metadata = {
+                'role': msg['role'],
+                'timestamp': msg['timestamp'],
+                'model': msg.get('model'),
+            }
+            f.write(f"---\n{yaml.safe_dump(metadata)}---\n\n{msg['text'].rstrip()}\n\n")
+```
+
+---
+
+#### 📥 **Deserialization (Python)**
+
+```python
+import yaml, re
+
+def deserialize_chat_from_markdown(path):
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    parts = re.split(r'^---$', content, flags=re.MULTILINE)
+    messages = []
+
+    for i in range(1, len(parts) - 1, 2):
+        metadata = yaml.safe_load(parts[i])
+        text = parts[i + 1].strip()
+        messages.append({**metadata, 'text': text})
+
+    return messages
+```
+
+---
+
+#### ✅ **Rendering Goals**
+- File should render cleanly in Markdown viewers.
+- Easy for humans to browse, edit, and version-control (e.g. Git).
+- Metadata must remain visible and editable.
+
+---
+
+
+
+
+
+
+
+
+
+
+
+In @app/application.py there is conversation history object for both interactive and non-interactive mode. We need to implement conversation history management over app restarts. This includes:
+
+1. Whenever the history is updated (a user sends a message, or LLM responds) the updated history needs to be saved on disk in the common format.
+2. The history will be saved in Markdown format defined below. It should look clean when rendered as Markdown, and allow reliable and error-prone serialization and deserialization.
+3. Every stored conversation turn has to contain all available turn information: role, text, tool calls, and tool results.
+4. Conversation history will have an ID generaged as YYYYMMDD_HHmmSSUTC, and the file name for the conversation has to match its id.
+5. The history needs to be stored in .history folder within the current directory.
+6. Implement an optional command line argument to specify the conversation history ID (applicable to both interactive and non-interactive modes). If the argument is specified, the history needs to be hydrated from the referenced history file. If an invalid history ID is provided by the user, we should immediately error out and exit.
+
+ Let's store the history as markdown files that look nice when rendered, but include special macros that we can use when parsing and saving to allow parsing as a proper history. The big advantage of storing in mardown is that user can immediately render the result, use a markdown editor to edit it, etc., so lets make sure the rendered format shows proper formatting for turns, roles, and all messages. Describe the alternative approaches. Keep asking questions to clarify requirements before starting to implement.

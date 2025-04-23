@@ -3,36 +3,41 @@
 ## release:
 
 - [ ] cleanup logs
-- [ ] history is not saved when err 500 in gemnini
+- [x] history is not saved when err 500 in gemnini
 - [ ] pip publishing
 - [ ] update readme
 
 ## other
 
-- [ ] for streamed responses, collect all text into one message
+- [ ] project rules (like activate venv for any bash session)
+- [x] for streamed responses, collect all text into one message
 - [ ] fix unit tests, lint, etc
 - [ ] Prompt history
-- [ ] Token counts
+- [x] Show token counts
+- [ ] Show total token count in this chat session in status bar
 - [ ] maintain conversation history over restarts,
 - [ ] show files already in context over the prompt
-- [ ] Prompting UI
+- [x] Prompting UI
 - [ ] context size management
 - [ ] support @last conversation
 - [ ] @mentions should support folders
 - [ ] prompt templates
 - [ ] web ui that works on your repo in the background, so you can work on the go
-- [ ] type retry to retry
+- [x] --type retry to retry-- Press Enter to retry
 - [ ] How to use other models on vertexai
 - [ ] If gemini responds with malformed tools or other model errors, feed it back so it can fix its own error
 - [ ] add datetime to Message
-- [ ] create console print module so it uses the proper colors
-- [ ] usage stats, count input/output tokens consumed
-- [ ] _generate_with_tools needs to return finish reason
+- [x] create console print module so it uses the proper colors
+- [x] count input/output tokens consumed
+- [ ] usage stats
+- [x] _generate_with_tools needs to return finish reason
 - [ ] anthropic api 529 overloaded
 - [ ] text editor
 - [ ] Handle retryable API errors:
         * HTTPStatusError: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'
 - [ ] google.genai.errors.ServerError: 500 INTERNAL. {'error': {'code': 500, 'message': 'An internal error has occurred. Please retry or report
+- [ ] run cli in background
+- [ ] Add turn summary to history instead of full contents. Add command to summarize work done and store it in worklog from the user scenario perspective, as in "what's new"?
 
 
 ## done
