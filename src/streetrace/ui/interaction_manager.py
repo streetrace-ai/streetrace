@@ -186,8 +186,9 @@ class InteractionManager:
                     turn.append(history.add_message(Role.MODEL, assistant_messages))
                 if buffer_tool_results:
                     turn.append(history.add_message(Role.TOOL, buffer_tool_results))
+
                 # if this generation has completed successfully, update the history
-                if not retry and not reason_to_finish:
+                if not retry:
                     if turn:
                         self.provider.append_history(provider_history, turn)
                         consecutive_retries_count = 0
