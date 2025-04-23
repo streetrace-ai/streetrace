@@ -1,7 +1,7 @@
 # app/interaction_manager.py
 import logging
 import time
-from typing import List, Optional, Union
+from typing import Callable, List, Optional, Union # Added Callable
 
 from streetrace.llm.llmapi import LLMAPI, RetriableError
 from streetrace.llm.wrapper import ContentPart, ContentPartFinishReason, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentPartUsage, History, Message, Role, ToolCallResult, ToolOutput
@@ -44,6 +44,7 @@ class InteractionManager:
         model_name: Optional[str],
         tools: ToolCall,
         ui: ConsoleUI,
+        sleeper: Callable[[Union[int, float]], None] = time.sleep, # Added sleeper dependency
     ):
         """
         Initializes the InteractionManager.
@@ -52,14 +53,15 @@ class InteractionManager:
             provider: The initialized AI provider instance (e.g., ClaudeProvider).
             model_name: The specific model name to use (or None for provider default).
             tools: Tool call implementaiton that defines tools provided to the AI.
-            tool_callback: The function to execute tool calls requested by the AI.
-                           Expected signature: tool_callback(tool_name, args, original_call) -> result_dict
             ui: The ConsoleUI instance for displaying errors.
+            sleeper: Function to use for pausing execution, defaults to time.sleep.
+                     This allows injecting a mock for testing.
         """
         self.provider = provider
         self.model_name = model_name
         self.tools = tools
         self.ui = ui
+        self.sleeper = sleeper # Store the sleeper function
         logger.info(
             f"InteractionManager initialized for provider: {type(provider).__name__}"
         )
@@ -253,7 +255,7 @@ class InteractionManager:
                          retry_wait_time = 0 # Default minimal wait if not set by error
                     logger.info(f"Retrying in {retry_wait_time} seconds...")
                     self.ui.display_info(f"Retrying in {retry_wait_time} seconds...")
-                    time.sleep(retry_wait_time)
+                    self.sleeper(retry_wait_time) # Use the injected sleeper
 
                 retry_wait_time = 0
 
