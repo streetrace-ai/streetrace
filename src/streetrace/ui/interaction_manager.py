@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 _DEFAULT_MAX_RETRIES = 3
 
-class ThinkingStatus:
+class ThinkingResult:
     """
     Encapsulates the outcome of a thinking session, including finish reason and token usage stats.
     """
@@ -25,7 +25,7 @@ class ThinkingStatus:
         self.request_count = request_count
 
     def __repr__(self):
-        return (f"ThinkingStatus(finish_reason={self.finish_reason!r}, "
+        return (f"ThinkingResult(finish_reason={self.finish_reason!r}, "
                 f"input_tokens={self.input_tokens}, output_tokens={self.output_tokens}, "
                 f"request_count={self.request_count})")
 
@@ -64,7 +64,7 @@ class InteractionManager:
             f"InteractionManager initialized for provider: {type(provider).__name__}"
         )
 
-    def process_prompt(self, history: History) -> ThinkingStatus:
+    def process_prompt(self, history: History) -> ThinkingResult:
         """
         Processes the prompt by calling the AI with the provided history.
 
@@ -75,7 +75,7 @@ class InteractionManager:
             history: The conversation History object containing the context and prompt.
 
         Returns:
-            ThinkingStatus: Object containing finish reason, I/O token stats, and request count.
+            ThinkingResult: Object containing finish reason, I/O token stats, and request count.
         """
         client = self.provider.initialize_client()
         provider_history = self.provider.transform_history(history)
@@ -91,8 +91,8 @@ class InteractionManager:
         retry = False            # always continue thining if retry is requested
         retry_wait_time = 0      # time to wait before retrying a request
 
-        render_final_reason = True   # render the reason_to_finish in the UI
-        update_history = True        # update history with the new conversation turn - Default assumption changed later
+        render_final_reason = True # render the reason_to_finish in the UI
+        turn_ok = False          # the turn has completed succcessfully
         is_keyboard_interrupt = False # flag to indicate if a keyboard interrupt occurred
 
         # <!-- thining session start -->
@@ -109,7 +109,7 @@ class InteractionManager:
                 retry_wait_time = 0
                 has_tool_calls = False
                 reason_to_finish = None
-                update_history = False # Assume history won't be updated unless the turn completes successfully
+                turn_ok = False
                 is_keyboard_interrupt = False # Should be reset if retry=True happened
                 request_count += 1
                 logging.info(
@@ -147,7 +147,7 @@ class InteractionManager:
                                 logging.info(
                                     f"Tool call: {chunk.name} with args: {chunk.arguments}"
                                 )
-                                tool_result = self.tools.call_tool(chunk) # Might raise Exception
+                                tool_result = self.tools.call_tool(chunk)
                                 tool_result_part = ContentPartToolResult(
                                         id=chunk.id,
                                         name=chunk.name,
@@ -181,8 +181,7 @@ class InteractionManager:
 
                     # If loop completed without error:
                     assert len(buffer_tool_calls) == len(buffer_tool_results), "Mismatched tool calls and results"
-                    consecutive_retries_count = 0
-                    update_history = True # Mark the turn as successful, ready for history update
+                    turn_ok = True # Mark the turn as successful, ready for history update
 
                 except RetriableError as retry_err:
                     # provider reports an error and the request can be retried
@@ -193,21 +192,20 @@ class InteractionManager:
                         consecutive_retries_count += 1
                         retry = True
                         retry_wait_time = retry_err.wait_time(consecutive_retries_count)
-                        update_history = False # Do not update history on retry
                     else:
                         # Max retries exceeded
                         retry = False
                         retry_wait_time = 0
                         reason_to_finish = "Retry attempts exceeded"
-                        update_history = False # Do not update history if retries failed
                     render_final_reason = False
 
                 except KeyboardInterrupt:
-                    # User pressed Ctrl+C, we need to exit the thinking loop without updating the history.
+                    # User pressed Ctrl+C, we need to exit the thinking loop after updating the history.
+                    # When updating common history, we need to be careful not to add tool calls without
+                    # the corresponding tool results.
                     logger.info("User interrupted.")
                     reason_to_finish = "User interrupted"
                     is_keyboard_interrupt = True
-                    update_history = False # Do not update history on interrupt
                     self.ui.display_info("\nExiting the working loop, press Ctrl+C again to quit.")
                     render_final_reason = False
 
@@ -215,58 +213,49 @@ class InteractionManager:
                     # general error, we need to exit the thinking loop without updating the history
                     logger.exception(fail_err)
                     reason_to_finish = str(fail_err)
-                    update_history = False # Do not update history on failure
                     self.ui.display_error(fail_err)
                     render_final_reason = False
-                    # Ensure loop terminates immediately on non-retriable error
-                    is_keyboard_interrupt = True # Use this flag to force exit
-
 
                 # --- History Update Logic ---
-                # This block now only runs if update_history is True (set after successful try block)
-                if update_history and not retry:
+                if turn_ok:
                     turn: List[Message] = []
+
                     assistant_messages: List[ContentPart] = []
                     if buffer_assistant_text:
                         assistant_messages.append(ContentPartText(text="".join(buffer_assistant_text)))
                     assistant_messages += buffer_tool_calls
-
                     if assistant_messages:
                         new_message = history.add_message(Role.MODEL, assistant_messages)
                         if new_message:
                             turn.append(new_message)
+
                     if buffer_tool_results:
                         new_message = history.add_message(Role.TOOL, buffer_tool_results)
                         if new_message:
                             turn.append(new_message)
-
                     if turn:
+                        consecutive_retries_count = 0 # reset only if turn_ok and has content
                         self.provider.append_history(provider_history, turn)
-                        # Reset consecutive retries if a successful turn was processed
-                        consecutive_retries_count = 0
-                    elif not reason_to_finish: # No turn generated, and no finish reason yet
-                        # This handles cases where the provider yields nothing (or just usage)
+
+                    # the turn completed successfully, but yielded no output and no reason to finish
+                    if not turn and not reason_to_finish:
+                        logger.debug("No output generated by provider, adding empty message.")
                         if consecutive_retries_count < _DEFAULT_MAX_RETRIES:
                             consecutive_retries_count += 1
                             self.ui.display_warning("No output generated by provider, retrying.")
                             retry = True
-                            retry_wait_time = 10 # sec - consider making this configurable or exponential
-                            update_history = False # Do not update history on empty retry
+                            retry_wait_time = 10 # sec
                         else:
                             self.ui.display_warning("No output generated by provider, retry attempts exceeded.")
-                            reason_to_finish = "Empty response retries exceeded" # Set a reason
-                            retry = False # Stop retrying
-                            update_history = False # Do not update history
-                            render_final_reason = False # Avoid showing None as reason
 
-                # --- Retry Sleep Logic ---
                 if retry:
-                    if retry_wait_time < 0: # Ensure there's a wait time for retries
+                    if retry_wait_time < 0:  # Ensure there's a wait time for retries
                          retry_wait_time = 0 # Default minimal wait if not set by error
                     logger.info(f"Retrying in {retry_wait_time} seconds...")
                     self.ui.display_info(f"Retrying in {retry_wait_time} seconds...")
-                    if retry_wait_time:
-                        time.sleep(retry_wait_time)
+                    time.sleep(retry_wait_time)
+
+                retry_wait_time = 0
 
 
         # <!-- thining session end -->
@@ -274,7 +263,7 @@ class InteractionManager:
         if render_final_reason:
             self.ui.display_info(reason_to_finish)
 
-        return ThinkingStatus(
+        return ThinkingResult(
             finish_reason=reason_to_finish,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
