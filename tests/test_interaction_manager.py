@@ -55,6 +55,20 @@ class TestInteractionManager(unittest.TestCase):
         # Add initial user message to the history's conversation list
         self.history.conversation.append(Message(role=Role.USER, content=[ContentPartText(text="User Prompt")]))
 
+    def test_system_message_is_processed(self):
+        """Test that a successful run returns a ThinkingResult with correct stats."""
+        # Arrange
+        self.mock_provider.generate.return_value = iter([
+            ContentPartText(text="Response text"),
+            ContentPartUsage(prompt_tokens=10, response_tokens=5),
+            ContentPartFinishReason(finish_reason="stop"),
+        ])
+
+        # Act
+        _ = self.manager.process_prompt(self.history)
+
+        self.mock_provider.generate.assert_called_once_with('mock_client', 'test_model', "System Prompt", self.history.conversation, [])
+
     def test_successful_completion_returns_thinking_result(self):
         """Test that a successful run returns a ThinkingResult with correct stats."""
         # Arrange

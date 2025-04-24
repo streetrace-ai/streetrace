@@ -181,6 +181,7 @@ class InteractionManager:
     def _call_llm_api(
         self,
         client: Any,
+        system_message: str,
         provider_history: List[Any],
         provider_tools: List[Any],
         turn: TurnData,
@@ -190,6 +191,7 @@ class InteractionManager:
 
         Args:
             client: The initialized LLM client.
+            system_message: The system message to be included in the prompt.
             provider_history: The history formatted for the specific provider.
             provider_tools: The tools formatted for the specific provider.
             turn: The TurnData object to populate. Reset before calling.
@@ -202,7 +204,7 @@ class InteractionManager:
             stream: Iterable[ContentPart] = self.provider.generate(
                 client,
                 self.model_name,
-                None,  # System message handled by history transformation
+                system_message,
                 provider_history,
                 provider_tools,
             )
@@ -330,7 +332,7 @@ class InteractionManager:
                         status.update(
                             f"Working, io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...")
                         outcome = self._call_llm_api(
-                            client, provider_history, provider_tools, conv.turn)
+                            client, history.system_message, provider_history, provider_tools, conv.turn)
                         conv.total_input_tokens += conv.turn.prompt_tokens
                         conv.total_output_tokens += conv.turn.response_tokens
                         if conv.total_input_tokens > 0 or conv.total_output_tokens > 0:
