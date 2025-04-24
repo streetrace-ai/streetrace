@@ -273,3 +273,15 @@ Investigate the process_prompt in details and understand it's logic clearly. Res
 
 Can you suggest ideas for how to refactor `process_prompt` to reduce cyclomatic complexity, increase readability and maintainability in accordance with SOLID principles?
 ```
+
+---
+
+# Static analysis
+
+Run static analysis and tests on @src/streetrace/ui/interaction_manager.py and fix all issues, add missing code docs. The tests are in @src/ui/test_interaction_manager.py.
+
+When done, code review the result and provide a short summary on findings and introduced changes. Analyze if there are important issues with the reviewed code, such as potential bugs and security issues, high cyclomatic complexity, or low maintainability, and summarize your recommendations on further optimizations.
+
+gpt-4.1
+claude
+gemini

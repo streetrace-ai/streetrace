@@ -169,6 +169,10 @@ class ConsoleUI:
         self.new_line()
         self.console.print(message, style=Styles.RICH_ERROR)
 
+    def display_finish_reason(self, message: str):
+        """Displays a standard informational message."""
+        self.display_info(message)
+
     def display_ai_response_chunk(self, chunk: str):
         """
         Displays a chunk of the AI's response, typically used for streaming.
