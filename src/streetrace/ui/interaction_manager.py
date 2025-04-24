@@ -88,7 +88,7 @@ class InteractionManager:
         input_tokens = 0         # total input tokens in this thinking session
         output_tokens = 0        # total output tokens in this thinking session
 
-        has_tool_calls = False   # always continue thining if there are tool calls
+        has_tool_results = False   # always continue thining if there are tool calls
         reason_to_finish = None  # always continue thining if there is no reason to finish
         retry = False            # always continue thining if retry is requested
         retry_wait_time = 0      # time to wait before retrying a request
@@ -99,7 +99,7 @@ class InteractionManager:
 
         # <!-- thining session start -->
         with self.ui.status("Working...") as status:
-            while not is_keyboard_interrupt and (has_tool_calls or not reason_to_finish or retry):
+            while not is_keyboard_interrupt and (has_tool_results or not reason_to_finish or retry):
                 # Ensure history fits the context window
                 # if not self.provider.manage_conversation_history(provider_history):
                 #     raise ValueError(
@@ -109,7 +109,7 @@ class InteractionManager:
                 # Reset flags for the current iteration
                 retry = False
                 retry_wait_time = 0
-                has_tool_calls = False
+                has_tool_results = False
                 reason_to_finish = None
                 turn_ok = False
                 is_keyboard_interrupt = False # Should be reset if retry=True happened
@@ -126,12 +126,12 @@ class InteractionManager:
                     provider_history,
                 )
 
-                buffer_assistant_text: list[str] = []                 # all text retrieved in this request
-                buffer_tool_calls: list[ContentPartToolCall] = []     # all tool calls retrieved in this request
-                buffer_tool_results: list[ContentPartToolResult] = [] # all tool responses to be sent in the next request
+                turn_assistant_text: list[str] = []                 # all text retrieved in this request
+                turn_tool_calls: list[ContentPartToolCall] = []     # all tool calls retrieved in this request
+                buffer_tool_calls: list[ContentPartToolCall] = []   # tool calls before they were executed
+                turn_tool_results: list[ContentPartToolResult] = [] # all tool responses to be sent in the next request
                 try:
-                    # request to process current provider history and process the
-                    # response for the new conversation turn
+                    # get assistant's response for this conversation turn
                     for chunk in self.provider.generate(
                         client,
                         self.model_name,
@@ -142,32 +142,10 @@ class InteractionManager:
                         match chunk:
                             case ContentPartText():
                                 self.ui.display_ai_response_chunk(chunk.text)
-                                buffer_assistant_text.append(chunk.text)
+                                turn_assistant_text.append(chunk.text)
 
                             case ContentPartToolCall():
-                                self.ui.display_tool_call(chunk)
-                                logging.info(
-                                    f"Tool call: {chunk.name} with args: {chunk.arguments}"
-                                )
-                                tool_result = self.tools.call_tool(chunk)
-                                tool_result_part = ContentPartToolResult(
-                                        id=chunk.id,
-                                        name=chunk.name,
-                                        content=tool_result,
-                                    )
-                                if tool_result.success:
-                                    self.ui.display_tool_result(tool_result_part)
-                                    logging.info(
-                                        f"Tool '{chunk.name}' result: {tool_result.output.content}'"
-                                    )
-                                else:
-                                    self.ui.display_tool_error(tool_result_part)
-                                    logging.error(tool_result.output.content)
-                                # add tool calls and results in adjacent lines to avoid
-                                # adding calls without results
                                 buffer_tool_calls.append(chunk)
-                                buffer_tool_results.append(tool_result_part)
-                                has_tool_calls = True
 
                             case ContentPartFinishReason():
                                 reason_to_finish = chunk.finish_reason
@@ -181,8 +159,37 @@ class InteractionManager:
                         else:
                             status.update(f"Working, total requests: {request_count}...")
 
+                    # taking tool calls out of the generate loop to keep two critical
+                    # pieces (generation and tool calls) separate;
+                    # if one fails, another is not interrupted, plus it's easy to
+                    # refactor in the future.
+                    for tool_call in buffer_tool_calls:
+                        self.ui.display_tool_call(tool_call)
+                        logging.info(
+                            f"Tool call: {tool_call.name} with args: {tool_call.arguments}"
+                        )
+                        tool_result = self.tools.call_tool(tool_call)
+                        tool_result_part = ContentPartToolResult(
+                                id=tool_call.id,
+                                name=tool_call.name,
+                                content=tool_result,
+                            )
+                        if tool_result.success:
+                            self.ui.display_tool_result(tool_result_part)
+                            logging.info(
+                                f"Tool '{tool_call.name}' result: {tool_result.output.content}'"
+                            )
+                        else:
+                            self.ui.display_tool_error(tool_result_part)
+                            logging.error(tool_result.output.content)
+                        # add tool calls and results in adjacent lines to avoid
+                        # adding calls without results
+                        turn_tool_calls.append(tool_call)
+                        turn_tool_results.append(tool_result_part)
+                        has_tool_results = True
+
                     # If loop completed without error:
-                    assert len(buffer_tool_calls) == len(buffer_tool_results), "Mismatched tool calls and results"
+                    assert len(turn_tool_calls) == len(turn_tool_results), "Mismatched tool calls and results"
                     turn_ok = True # Mark the turn as successful, ready for history update
 
                 except RetriableError as retry_err:
@@ -214,7 +221,7 @@ class InteractionManager:
                 except Exception as fail_err:
                     # general error, we need to exit the thinking loop without updating the history
                     logger.exception(fail_err)
-                    reason_to_finish = str(fail_err)
+                    reason_to_finish = str(fail_err) or type(fail_err).__name__
                     self.ui.display_error(fail_err)
                     render_final_reason = False
 
@@ -223,16 +230,16 @@ class InteractionManager:
                     turn: List[Message] = []
 
                     assistant_messages: List[ContentPart] = []
-                    if buffer_assistant_text:
-                        assistant_messages.append(ContentPartText(text="".join(buffer_assistant_text)))
-                    assistant_messages += buffer_tool_calls
+                    if turn_assistant_text:
+                        assistant_messages.append(ContentPartText(text="".join(turn_assistant_text)))
+                    assistant_messages += turn_tool_calls
                     if assistant_messages:
                         new_message = history.add_message(Role.MODEL, assistant_messages)
                         if new_message:
                             turn.append(new_message)
 
-                    if buffer_tool_results:
-                        new_message = history.add_message(Role.TOOL, buffer_tool_results)
+                    if turn_tool_results:
+                        new_message = history.add_message(Role.TOOL, turn_tool_results)
                         if new_message:
                             turn.append(new_message)
                     if turn:
@@ -248,6 +255,7 @@ class InteractionManager:
                             retry = True
                             retry_wait_time = 10 # sec
                         else:
+                            reason_to_finish = "No result"
                             self.ui.display_warning("No output generated by provider, retry attempts exceeded.")
 
                 if retry:
