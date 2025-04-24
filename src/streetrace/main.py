@@ -17,7 +17,7 @@ from streetrace.llm.llmapi_factory import get_ai_provider
 from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
-from streetrace.ui.interaction_manager import InteractionManager
+from streetrace.interaction_manager import InteractionManager
 
 # --- Logging Configuration ---
 # Basic config for file logging

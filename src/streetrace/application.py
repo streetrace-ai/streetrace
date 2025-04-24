@@ -14,7 +14,7 @@ from streetrace.llm.wrapper import (
 )
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.ui.console_ui import ConsoleUI
-from streetrace.ui.interaction_manager import InteractionManager
+from streetrace.interaction_manager import InteractionManager
 
 logger = logging.getLogger(__name__)
 

@@ -40,6 +40,7 @@
 - [ ] Add turn summary to history instead of full contents. Add command to summarize work done and store it in worklog from the user scenario perspective, as in "what's new"?
 - [ ] compact history command
 - [ ] summarize task command (Summarize this conversation describing the goal and outcomes. Mention paths to all files included in this context.)
+- [ ] read_file, when the file is missing, see if it's somewhere around and return "did you mean"
 
 
 ## done

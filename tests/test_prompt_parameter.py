@@ -21,7 +21,7 @@ sys.modules["streetrace.llm.llmapi_factory"] = MagicMock()
 sys.modules["streetrace.messages"] = MagicMock()
 sys.modules["streetrace.tools.tools"] = MagicMock()
 sys.modules["streetrace.ui.console_ui"] = MagicMock()
-sys.modules["streetrace.ui.interaction_manager"] = MagicMock()
+sys.modules["streetrace.interaction_manager"] = MagicMock()
 
 
 class TestPromptParameter(unittest.TestCase):

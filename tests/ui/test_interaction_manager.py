@@ -10,7 +10,7 @@ from streetrace.llm.wrapper import (
 )
 # Removed ToolDescription from this import
 from streetrace.ui.console_ui import ConsoleUI
-from streetrace.ui.interaction_manager import InteractionManager, ThinkingResult, _DEFAULT_MAX_RETRIES, _EMPTY_RESPONSE_MAX_RETRIES
+from streetrace.interaction_manager import InteractionManager, ThinkingResult, _DEFAULT_MAX_RETRIES, _EMPTY_RESPONSE_MAX_RETRIES
 
 # Helper function to create RetriableError with wait_time logic
 def create_retriable_error(max_retries=None, base_wait_time=1):
