@@ -183,15 +183,6 @@ def deserialize_chat_from_markdown(path):
 ---
 
 
-
-
-
-
-
-
-
-
-
 In @app/application.py there is conversation history object for both interactive and non-interactive mode. We need to implement conversation history management over app restarts. This includes:
 
 1. Whenever the history is updated (a user sends a message, or LLM responds) the updated history needs to be saved on disk in the common format.
@@ -206,10 +197,11 @@ Let's store the history as markdown files that look nice when rendered, but incl
 
 ---
 
-Take a look at @src/streetrace/ui/interaction_manager.py. This class is responsible for driving the main conversation loop. The process_prompt method seems to have a high cyclomatic complexity and a lot of flow control conditions. Can you suggest ideas for how to simplify it?
+# Create unit tests
 
----
+Bad thing about this prompt - not focused, no technical details, so the tests are ugly and clunky.
 
+```
 Take a look at @src/streetrace/ui/interaction_manager.py. `process_prompt` has a very high cyclomatic complexity. Could you create a minimal unit test to test a set of ground rules `process_prompt` has to follow? Please mock `self.provider`. Treat `InteractionManager` as a black box, so we can re-use these tests during refactoring. The current implementation may or may not fail these tests because it does not necessarily meet the ground truth criteria. Be careful about test timeouts because errors with retries can cause infinite loops.
 
 The ground rules I'm thinking of are:
@@ -224,7 +216,17 @@ The ground rules I'm thinking of are:
 * when initial or any consequent call to `self.provider.generate` or `self.tools.call_tool` throws any error, we expect that the provider and common history contain all previous turn messages, but not the failed conversation turn.
 * when initial or any consequent call to `self.provider.generate` or `self.tools.call_tool` throws any non-retriable error, we expect the thinking session stops and the reason_to_finish contains a valid reason.
 * when `RetriableError` does not specify `max_retries`, the default is used.
+```
 
+---
+
+# Compact history
+
+Prompt lost.
+
+Result:
+
+```
 Okay, here's a summary of our conversation:
 
 Goal:
@@ -256,13 +258,18 @@ Outcomes:
 
 In short, we defined the contract for process_prompt, built tests to verify it, used the tests to identify and fix bugs in the implementation, and arrived
 at a state where the code meets the specified behavioral requirements.
+```
 
 ---
 
-I like the state machine approach. Could you implement that so we can see how it can look? Also, we might want to create classes for Turn data (like the TurnBuffer you mentioned, let's call it Turn), and LoopState that will hold all state information.
+# Address a specific part of code, deep analyzis and refactoring ideas and goals.
 
-LoopState can expose functions to update state in different cases (like Handle Retriable Error, Handle Keyboard Interrupt, etc.)
+Idea: identify parts with high cyclomatic complexity / high loc in function, find relevant tests, and run this prompt on it. 40 loc is more than enough for a function.
 
-Handling each type of chunk is easy to read and understand, so we can keep them in one place, perhaps a separate function in the Turn class.
+```
+Take a look at @src/streetrace/ui/interaction_manager.py. This class is responsible for driving the main conversation loop. The process_prompt method seems to have a high cyclomatic complexity and a lot of flow control conditions.
 
-Please implement these changes so we can see how it works.
+Investigate the process_prompt in details and understand it's logic clearly. Research unit tests at @tests/ui/test_interaction_manager.py. Identify and describe key scenarios and control flow.
+
+Can you suggest ideas for how to refactor `process_prompt` to reduce cyclomatic complexity, increase readability and maintainability in accordance with SOLID principles?
+```
