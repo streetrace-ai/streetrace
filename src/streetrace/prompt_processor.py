@@ -58,7 +58,8 @@ class PromptProcessor:
 
         context.system_message = self._read_system_message()
         context.project_context = self._read_project_context()
-        context.mentioned_files = self._parse_and_load_mentions(raw_prompt, working_dir)
+        if raw_prompt:
+            context.mentioned_files = self._parse_and_load_mentions(raw_prompt, working_dir)
 
         # Future steps could be added here, modifying the context object:
         # context = self._rewrite_prompt(context)

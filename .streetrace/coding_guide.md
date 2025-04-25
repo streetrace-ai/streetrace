@@ -24,3 +24,12 @@ General rules for this codebase:
 - Always log deviations and enforce **minimum required fields**.
 - Add validation layers to detect bugs early without rejecting recoverable inputs.
 - For example, `if (format is not expected) log error, report to user immediately, fail fast`
+
+## Code style
+
+- adhere to rules defined in pyproject.toml.
+- First line of docstring should be in imperative mood.
+- Keep functions mccabe complexity under 10.
+- Use module-level logger instead of the root logger.
+- Use logger's extra parameter to pass values as arguments to the logging method to defer string formatting until required.
+- Use logging.exception when logging an exception.

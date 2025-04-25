@@ -13,7 +13,12 @@ from streetrace.application import Application
 from streetrace.commands.command_executor import CommandExecutor
 
 # Import specific command classes
-from streetrace.commands.definitions import ExitCommand, HistoryCommand, CompactCommand
+from streetrace.commands.definitions import (
+    ExitCommand,
+    HistoryCommand,
+    CompactCommand,
+    ClearCommand,  # Added ClearCommand
+)
 from streetrace.llm.llmapi_factory import get_ai_provider
 from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 from streetrace.tools.tools import ToolCall
@@ -122,7 +127,8 @@ def main():
     # Instantiate and register commands
     cmd_executor.register(ExitCommand())
     cmd_executor.register(HistoryCommand())
-    cmd_executor.register(CompactCommand())  # Register our new compact command
+    cmd_executor.register(CompactCommand())
+    cmd_executor.register(ClearCommand())  # Register ClearCommand
     # Add more command registrations here as needed
 
     # Get the list of command names *with* the prefix for the completer

@@ -276,6 +276,16 @@ Can you suggest ideas for how to refactor `process_prompt` to reduce cyclomatic 
 
 ---
 
+# Quick task
+
+... (task description)
+
+Please analyze current project structure and architecture, flowchart, data model, and coding style, and implement this new functionality.
+
+When done, run `git status -u`, and check modified code using `git --no-pager diff HEAD`. Ensure that all new and modified code has a high unit test coverage using the new and modified tests. If coverage is missing, please create new tests to introduce directed atomic tests to increase coverage. Run new tests and iterate until they pass.
+
+Finally, run static analysis to ensure the new code matches best practices and project standards.
+
 # Requirements
 
 Here is a task that we need to work on. Break it up into functional and non-functional requirements.

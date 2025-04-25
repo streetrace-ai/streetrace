@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 from prompt_toolkit.completion import Completion
 from prompt_toolkit.document import Document
-from prompt_toolkit.formatted_text import FormattedText, to_plain_text
+from prompt_toolkit.formatted_text import to_plain_text
 
 from streetrace.completer import PathCompleter, CommandCompleter, PromptCompleter
 
@@ -23,7 +23,7 @@ original_os_listdir = os.listdir
 # Helper function to simplify getting completion texts
 def get_completion_texts(completer, text, cursor_offset=0):
     # CommandCompleter now uses document.text, not just text_before_cursor
-    doc = Document(text, len(text) + cursor_offset) 
+    doc = Document(text, len(text) + cursor_offset)
     completions = list(completer.get_completions(doc, MagicMock()))
     return sorted([c.text for c in completions])
 
@@ -63,10 +63,12 @@ class TestPathCompleter(unittest.TestCase):
         mock_relpath.side_effect = relpath_side_effect
         completer = PathCompleter(working_dir)
         self.assertEqual(completer.working_dir, working_dir)
-        self.assertEqual(get_completion_texts(completer, '@'), ['README.md', 'src/'])
+        # Corrected assertion: completion text for directories does NOT end with '/'
+        self.assertEqual(get_completion_texts(completer, '@'), ['README.md', 'src']) # Reverted here
         self.assertEqual(get_completion_texts(completer, '@R'), ['README.md'])
-        self.assertEqual(get_completion_texts(completer, '@s'), ['src/'])
+        self.assertEqual(get_completion_texts(completer, '@s'), ['src']) # And here
         self.assertEqual(get_completion_texts(completer, '@.'), ['.hiddenfile'])
+        # Display text *should* have the slash for directories
         self.assertEqual(get_completion_displays(completer, '@'), ['README.md', 'src/'])
 
     @patch('os.path.isdir')
@@ -125,7 +127,7 @@ class TestCommandCompleter(unittest.TestCase):
         self.assertEqual(get_completion_texts(completer, '/hist'), ['/history'])
         self.assertEqual(get_completion_texts(completer, '/exit'), ['/exit'])
         self.assertEqual(get_completion_texts(completer, ''), []) # Empty is not / command
-        
+
         # Invalid cases (command not the only thing)
         self.assertEqual(get_completion_texts(completer, 'exit'), []) # Not command format
         self.assertEqual(get_completion_texts(completer, 'word /h'), []) # Command not alone
