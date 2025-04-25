@@ -73,7 +73,6 @@ class TurnData:
     executed_tool_results: list[ContentPartToolResult] = field(
         default_factory=list,
     )  # Their results
-    tool_execution_exception: Exception | None = None  # Tool execution phase error
 
     def has_buffered_tools(self) -> bool:
         """Returns True if there are unprocessed (buffered) tool calls."""
@@ -102,7 +101,7 @@ class TurnData:
         self.response_tokens = 0
         self.executed_tool_calls = []
         self.executed_tool_results = []
-        # Keep .generation_exception and .tool_execution_exception for debug/retry logic.
+        # Keep .generation_exception for debug/retry logic.
 
 
 @dataclass
@@ -261,7 +260,6 @@ class InteractionManager:
         logger.debug(f"Executing {len(turn.buffered_tool_calls)} tool calls...")
         turn.executed_tool_calls = []
         turn.executed_tool_results = []
-        turn.tool_execution_exception = None
         if not turn.buffered_tool_calls:
             return ToolExecutionOutcome(success=True)
         try:
@@ -295,7 +293,6 @@ class InteractionManager:
             return ToolExecutionOutcome(success=True)
         except Exception as e:
             logger.error(f"Error during tool execution phase: {e}", exc_info=True)
-            turn.tool_execution_exception = e
             turn.executed_tool_calls = []
             turn.executed_tool_results = []
             return ToolExecutionOutcome(success=False, error=e)

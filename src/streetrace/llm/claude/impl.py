@@ -93,7 +93,6 @@ class Claude(LLMAPI):
             for tool in tools
         ]
 
-
     @override
     def pretty_print(self, messages: ProviderHistory) -> str:
         """Format message list for readable logging.

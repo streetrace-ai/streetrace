@@ -117,7 +117,10 @@ class Application:
                 role=Role.USER,
                 content=[ContentPartText(text=prompt_input)],
             )
-            logger.debug("User prompt added to single-use history", extra={"prompt_input": prompt_input})
+            logger.debug(
+                "User prompt added to single-use history",
+                extra={"prompt_input": prompt_input},
+            )
 
             # Process with InteractionManager
             self.interaction_manager.process_prompt(single_prompt_history)
@@ -452,8 +455,7 @@ Return ONLY the summary without explaining what you're doing."""
             self.ui.display_info("Conversation history has been cleared.")
 
         except Exception as e:
-            logger.exception(
-                "Failed to rebuild context while clearing history")
+            logger.exception("Failed to rebuild context while clearing history")
             self.ui.display_error(
                 f"Could not clear history due to an error rebuilding context: {e}",
             )

@@ -1,21 +1,27 @@
-.PHONY: format lint typecheck security check
+.PHONY: format fixformat lint fixlint typecheck security depcheck unusedcode check
 
 format:
-	black --check src tests
+	poetry run black --check src tests
 
 fixformat:
-	black src tests
+	poetry run black src tests
 
 lint:
-	ruff check src tests
+	poetry run ruff check src tests
 
 fixlint:
-	ruff check src tests --fix
+	poetry run ruff check src tests --fix
 
 typecheck:
-	mypy src tests
+	poetry run mypy src tests
 
 security:
-	bandit -r src tests
+	poetry run bandit -r src tests
 
-check: format lint typecheck security
+depcheck:
+	poetry run deptry src tests
+
+unusedcode:
+	poetry run vulture src tests
+
+check: format lint typecheck security depcheck unusedcode

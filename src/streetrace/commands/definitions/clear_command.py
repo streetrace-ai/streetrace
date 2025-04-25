@@ -1,8 +1,8 @@
 # src/streetrace/commands/definitions/clear_command.py
 import logging
 
-from streetrace.commands.base_command import Command
 from streetrace.application import Application
+from streetrace.commands.base_command import Command
 
 logger = logging.getLogger(__name__)
 

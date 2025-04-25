@@ -35,3 +35,8 @@ General rules for this codebase:
 - Use logging.exception when logging an exception.
 - For tests, prefer regular assert statement over unittest's assertion methods.
 - Use absolute namespaces in import statements, like 'from streetrace... import ...'
+
+## Environment
+
+- I am using poetry for this project, so please use `poetry run` to run any python commands.
+- See ./Makefile for static analysis and other prject workflows.

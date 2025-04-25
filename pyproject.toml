@@ -1,8 +1,8 @@
 # pyproject.toml
 
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "streetrace"
@@ -10,25 +10,8 @@ name = "streetrace"
 version = "0.1.0"
 description = "StreetRace is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software."
 readme = "README.md"
-requires-python = ">=3.10" # Updated minimum Python version
+requires-python = ">=3.10,<4.0" # Updated minimum Python version
 license = {file = "LICENSE"}
-# Add classifiers as appropriate, e.g.:
-# classifiers = [
-#     "Programming Language :: Python :: 3",
-#     "License :: OSI Approved :: MIT License",
-#     "Operating System :: OS Independent",
-# ]
-# Add dependencies from requirements.txt here or keep using requirements.txt
-# dependencies = [
-#     "anthropic",
-#     "google-generativeai",
-#     "openai",
-#     "requests",
-#     "python-dotenv",
-#     "rich",
-#     "prompt_toolkit",
-#     "PyYAML",
-# ]
 
 [project.scripts]
 streetrace = "streetrace.main:main"
@@ -69,3 +52,26 @@ testpaths = [
     # Add integration tests path if separate
 ]
 pythonpath = ["src"] # Make src importable directly
+
+[tool.poetry.group.dev.dependencies]
+deptry = "^0.23.0"
+python-dotenv = "^1.1.0"
+black = "^25.1.0"
+ruff = "^0.11.7"
+mypy = "^1.15.0"
+bandit = "^1.8.3"
+vulture = "^2.14"
+
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.5"
+
+[tool.poetry.dependencies]
+prompt-toolkit = "^3.0.51"
+anthropic = "^0.50.0"
+google-genai = "^1.12.1"
+ollama = "^0.4.8"
+openai = "^1.76.0"
+pydantic = "^2.11.3"
+rich = "^14.0.0"
+pathspec = "^0.12.1"

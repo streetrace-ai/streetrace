@@ -21,7 +21,9 @@ class PathCompleter(Completer):
 
         """
         if not os.path.isdir(working_dir):
-            raise ValueError(f"The provided working directory '{working_dir}' is not a valid directory.")
+            raise ValueError(
+                f"The provided working directory '{working_dir}' is not a valid directory."
+            )
 
         self.working_dir = os.path.abspath(working_dir)
 
