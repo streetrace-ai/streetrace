@@ -276,12 +276,217 @@ Can you suggest ideas for how to refactor `process_prompt` to reduce cyclomatic 
 
 ---
 
+# Requirements
+
+Here is a task that we need to work on. Break it up into functional and non-functional requirements.
+Identify if any obvious requirements are missing, and ensure the non-functional requirements meed necessary
+quality goals.
+Create an implementation plan for how to modify this project to complete the described task, keeping high maintainability and code quality. Do not introduce changes at this stage.
+
+You will be penalized for reading the existing files at this stage, just leverage the provided information.
+
+Task:
+
+---
+> ...
+---
+
+Save your analysis output in tasks/0001/10-Requirements.md.
+
+---
+
+# Approach
+
+Please research the codebase of this project and read relevant files to and identify places relevant to the task described in @tasks/0001/10-Requirements.md.
+
+Read only relevant files using the provided tools.
+
+Clearly identify components that need to be changed or added to implement this feature, and explain what changes need to be made.
+
+Provide a textual description of the required class diagram and data model changes relevant to this task.
+
+Save your analysis output in tasks/0001/20-Approach.md.
+
+---
+
+# Flwochart
+
+Please explain a step-by-step logic flow, similar to a textual flowchart, for a new task that we need to work on.
+
+I have prepared an implementation approach summary that provides more context in @tasks/0001/20-Approach.md.
+
+Task:
+
+---
+> ...
+---
+
+Please provide a step-by-step detailed textual flow chart for this feature and save it in tasks/0001/30-Flwochart.md.
+
+---
+
+# Ground rule scenarios
+
+I am working on a new task described as follows:
+
+---
+> ...
+---
+
+I have summarized the requirements in @tasks/0001/10-Requirements.md.
+
+Define a set of user scenarios that can be used as ground rules for testing this functionality when it's ready, and save it in tasks/0001/40-GroundRules.md.
+
+---
+
+# Ground rule tests
+
+I am working on a new task described as follows:
+
+---
+> ...
+---
+
+I have summarized the requirements in @tasks/0001/10-Requirements.md, an implementation approach in @tasks/0001/20-Approach.md, and ground truth user scenarios in @tasks/0001/40-GroundRules.md.
+
+Write a minimal set of unit tests to cover the ground rule scenarios, and implement the unit tests.
+Also implement the necessary code stubs in accordance with the implementation approach to make these tests pass. Use mocks for interacting with system and external APIs. Make sure that implemented tests treat the system under test as black box to ensure we are only testing inputs and outputs, so we can re-use these tests in the next steps. Closely align these tests to the ground rule scenarios. Be careful with tests that can lead to infinite loops to avoid hanging tests.
+
+Run the tests using `source venv/bin/activate && pytest tests/.../test_NEWLY_CREATED_TEST_FILE_NAME.py` and make sure they pass, or fail in a predictable way due to fake data and stub implementation.
+
+Please list the created tests and stubs in tasks/0001/50-GroundRuleTests.md.
+
+---
+
+# Implementation
+
+I am working on a new task described as follows:
+
+---
+> ...
+---
+
+I have summarized the implementation approach in the following files:
+
+1. Requirements: @tasks/0001/10-Requirements.md
+2. Implementation approach in @tasks/0001/20-Approach.md
+3. A flowchart in @tasks/0001/30-Flwochart.md
+4. Ground truth user scenarios in @tasks/0001/40-GroundRules.md
+5. And also implemented some initial tests and stubs as explained in @tasks/0001/50-GroundRuleTests.md.
+
+Please go ahead and implement the complete discussed solution.
+
+Make sure to run the unit tests and iterate to make sure they pass.
+
+Analyze the implementation and describe the implementation details in tasks/0001/60-Implementation.md.
+
+---
+
+# Review changes and explain if this satisfies the requirements
+
+The original user's request was:
+
+---
+> ...
+---
+
+I've prepared a flowchart related to this feature in @tasks/0001/30-Flwochart.md, and implemented this feature describing my understanding in @tasks/0001/20-Approach.md, implementation in @tasks/0001/60-Implementation.md.
+
+Please check all added and modified files using `git status -u`. For modified files, use `git --no-pager diff HEAD RELATIVE_FILE_PATH`. Throughly review the changes, and explain the modified logic in details.
+
+Please find the critical parts of code that address the requirements.
+
+Use your understanding of user's task and check if they meet the requirements and fulfill
+the steps described in the flowchart.
+
+Explain if this implementation fulfills the requirements and addresses the original user's request. Explain if anything is missing or wrong.
+
+Save your analysis result in tasks/0001/70-Review.md
+
+## Try just explaining
+
+I have implemented a new feature. Please check all added and modified files using `git status -u`. For modified files, use `git --no-pager diff HEAD RELATIVE_FILE_PATH` to see what's changed in the file. Ignore tests and non-code changes. For code changes, explain them line by line and provide a summary for each added modified code block explaining the modification goal. Save your result in REVIEW_PREP.md.
+
+gpt 4.1 and claude failed to describe the critical part.
+gemini 2.5 explained it and I can see the bug by reading the explanation.
+gpt o1 also explained it, a little more wordy but fuzzy
+
+## Compare flowchart to this explanation
+
+I have implemented a new feature explained in @SUMMARY.md. The original flowchart I prepared for this implementation is in @FLOWCHART.md. Please check the summary of all changes I've made in @REVIEW_PREP.md and see if all changes are valid and the implemented feature completely fulfills user's request. If it doesn't, please explain what's wrong or missing. Save your analysis result in INITIAL_REVIEW.md
+
+Even with Gemini's explanation and the flowchart, no models can identify the bug.
+
+# Coverage
+
+Find newly added code and tests using `git status -u`, and check modified code using `git --no-pager diff HEAD`. Identify if the new and modified code has a high coverage using the new and modified tests. If coverage is missing, please create new tests to introduce directed atomic tests to increase coverage. Run new tests and iterate until they pass.
+
 # Static analysis
 
-Run static analysis and tests on @src/streetrace/ui/interaction_manager.py and fix all issues, add missing code docs. The tests are in @src/ui/test_interaction_manager.py.
+Identify all added or modified files using `git status -u`. Run static analysis and tests on all added or modified source code files and fix all issues add missing code docs. Make sure to run python commands in venv, like this: `source venv/bin/activate && COMMAND`.
 
-When done, code review the result and provide a short summary on findings and introduced changes. Analyze if there are important issues with the reviewed code, such as potential bugs and security issues, high cyclomatic complexity, or low maintainability, and summarize your recommendations on further optimizations.
+Save your analysis result in tasks/0001/80-StaticAnalysis.md
 
-gpt-4.1
-claude
-gemini
+# Code review
+
+The original user's request was:
+
+---
+> ...
+---
+
+Review the implemented code for quality and relevance of introduced changes, based on the given input. You can check the modified and added files using `git status -u`. Analyze if there are important issues with the reviewed code, such as potential bugs and security issues, high cyclomatic complexity, or low maintainability, and summarize your recommendations on further optimizations. Provide a short conclusion and suggestions on enhancing the code if necessary.
+
+Save your analysis result in tasks/0001/90-FinalReview.md
+
+---
+
+# Workflow
+
+Example story:
+
+```
+As a user, when I enter a `/compact` command, I want the whole conversation history to be summarized and replaced with a compact version reducing token count, but maintaining all goals and progress that was achieved during this conversation. After entering `/compact` I expect to be able to continue collaborating with the LLM maintaining the conversation flow, but removing all exccess data unrelated to this subject from the context.
+```
+
+Workflow:
+
+1. **Requirements**
+   Store the requirements
+1. **Approach**
+1. Summarize the result and store separately so we can re-write the history going forward.
+2. **Ground rule scenarios**
+   Store the scenarios.
+3. **Ground rule tests**
+   Store the test path / name.
+3. **Implement**
+   Summarize the implemented solution.
+   Store the summary.
+7. Iterate until the tests pass.
+8. Review all changes and idenfity if they fulfill the original requirements
+8. Implement additional tests to achieve high level of coverage for the new code.
+9. **Code review**
+9. **Static analysis**
+
+
+---
+
+# Story: /compact
+
+```
+As a user, when I enter a `/compact` command, I want the whole conversation history to be summarized and replaced with a compact version reducing token count, but maintaining all goals and progress that was achieved during this conversation. After entering `/compact` I expect to be able to continue collaborating with the LLM maintaining the conversation flow, but removing all exccess data unrelated to this subject from the context.
+```
+
+```
+Summarize this conversation concisely in details, focusing on:
+- The primary goals or tasks being worked on.
+- Key decisions made and important information discovered.
+- Progress made towards the goals.
+- The current state and any immediate next steps or questions.
+The summary should provide enough context for the AI assistant to seamlessly continue the conversation. Preserve the overall narrative flow. Retail paths to relevant files, and relevant code snippets that can be used in the further conversation.
+Save the summary in the SUMMARY.md file and append the last line saying "Don't start the implementation yet, wait for further instructions."
+```
+
+```
+What are the most important things we have discussed so far?
+```
