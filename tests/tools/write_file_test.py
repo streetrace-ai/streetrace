@@ -120,11 +120,15 @@ class TestWriteFile(unittest.TestCase):
         abs_path = os.path.join(self.temp_dir, self.test_type_rel)
 
         # Try to write bytes in text mode
-        with pytest.raises(TypeError, match="Content must be str when binary_mode is False"):
+        with pytest.raises(
+            TypeError, match="Content must be str when binary_mode is False",
+        ):
             write_file(abs_path, b"Bytes content", self.temp_dir, binary_mode=False)
 
         # Try to write text in binary mode
-        with pytest.raises(TypeError, match="Content must be bytes when binary_mode is True"):
+        with pytest.raises(
+            TypeError, match="Content must be bytes when binary_mode is True",
+        ):
             write_file(abs_path, "Text content", self.temp_dir, binary_mode=True)
 
     def test_round_trip(self) -> None:

@@ -24,4 +24,7 @@ depcheck:
 unusedcode:
 	poetry run vulture src tests
 
+test:
+	poetry run pytest
+
 check: format lint typecheck security depcheck unusedcode

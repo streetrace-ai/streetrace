@@ -19,7 +19,9 @@ class TestIsIgnored(unittest.TestCase):
         assert is_ignored("test_directory/ignored_file.txt", self.base_path, self.spec)
 
     def test_included_file(self) -> None:
-        assert not is_ignored("test_directory/included_file.txt", self.base_path, self.spec)
+        assert not is_ignored(
+            "test_directory/included_file.txt", self.base_path, self.spec,
+        )
 
     def test_ignored_dir(self) -> None:
         assert is_ignored("test_directory/ignored_dir/", self.base_path, self.spec)

@@ -83,7 +83,10 @@ class TestReadDirectoryStructure(unittest.TestCase):
         assert os.path.join(temp_dir_basename, "root_file.log") in result["files"]
 
         # Since it's not recursive, subdir files shouldn't be listed directly
-        assert os.path.join(temp_dir_basename, "dir1", "subdir1_file.txt") not in result["files"]
+        assert (
+            os.path.join(temp_dir_basename, "dir1", "subdir1_file.txt")
+            not in result["files"]
+        )
 
     def test_root_gitignore(self) -> None:
         """Test with a gitignore in the root that ignores all .log files."""
@@ -152,7 +155,10 @@ class TestReadDirectoryStructure(unittest.TestCase):
         assert os.path.join(temp_dir_basename, "dir2") not in result["dirs"]
 
         # Verify dir2 file isn't listed either
-        assert os.path.join(temp_dir_basename, "dir2", "dir2_file.txt") not in result["files"]
+        assert (
+            os.path.join(temp_dir_basename, "dir2", "dir2_file.txt")
+            not in result["files"]
+        )
 
     def test_pattern_override(self) -> None:
         """Test that patterns can be overridden in nested directories (won't affect root listing)."""

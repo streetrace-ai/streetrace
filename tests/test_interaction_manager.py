@@ -589,7 +589,9 @@ class TestInteractionManager(unittest.TestCase):
         total_calls = 1 + num_empty_attempts
         assert self.mock_provider.generate.call_count == total_calls
 
-        assert result.finish_reason == "No result"  # Exits due to retry limit for empty responses
+        assert (
+            result.finish_reason == "No result"
+        )  # Exits due to retry limit for empty responses
         assert result.input_tokens == 1  # Tokens from first call only
         assert result.output_tokens == 1
         assert result.request_count == total_calls  # 5 requests total
@@ -748,7 +750,9 @@ class TestInteractionManager(unittest.TestCase):
         result = self.manager.process_prompt(self.history)
 
         # Assert
-        assert self.mock_provider.generate.call_count == 2  # First success, second error
+        assert (
+            self.mock_provider.generate.call_count == 2
+        )  # First success, second error
         assert result.finish_reason == error_message
         assert result.input_tokens == 10  # Tokens from the first successful call
         assert result.output_tokens == 5

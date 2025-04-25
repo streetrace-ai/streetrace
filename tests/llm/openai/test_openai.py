@@ -102,7 +102,9 @@ class TestOpenAI(unittest.TestCase):
         # Verify that the history is pruned and the function returns True
         assert result
         assert len(conversation_history) < 5  # Should have fewer items now
-        assert conversation_history[0]["content"] == "System message"  # System message should be preserved
+        assert (
+            conversation_history[0]["content"] == "System message"
+        )  # System message should be preserved
 
     @patch("os.environ.get")
     def test_initialize_client_missing_api_key(self, mock_get) -> None:
@@ -117,7 +119,9 @@ class TestOpenAI(unittest.TestCase):
 
     @patch("os.environ.get")
     @patch("openai.OpenAI")  # Patch the correct path
-    def test_initialize_client_with_api_key(self, mock_openai_constructor, mock_get) -> None:
+    def test_initialize_client_with_api_key(
+        self, mock_openai_constructor, mock_get,
+    ) -> None:
         """Test that initialize_client creates a client when API key is present."""
         mock_get.side_effect = lambda key, default=None: {
             "OPENAI_API_KEY": "test_api_key",

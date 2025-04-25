@@ -28,6 +28,7 @@ from streetrace.llm.wrapper import (
 class DummyContentPart:
     pass
 
+
 class TestClaudeConverter(unittest.TestCase):
     """Tests for the AnthropicHistoryConverter class."""
 
@@ -276,7 +277,9 @@ class TestClaudeConverter(unittest.TestCase):
                     role=Role.MODEL,
                     content=[
                         ContentPartToolCall(
-                            id="t5", name="my_tool", arguments={"p": 1},
+                            id="t5",
+                            name="my_tool",
+                            arguments={"p": 1},
                         ),
                     ],
                 ),

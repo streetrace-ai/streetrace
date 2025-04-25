@@ -198,7 +198,9 @@ class TestCompactFunctionality:
             mock_app.conversation_history.conversation == original_history_conversation
         )
 
-    def test_compact_preserves_system_and_context(self, mock_app, sample_history) -> None:
+    def test_compact_preserves_system_and_context(
+        self, mock_app, sample_history,
+    ) -> None:
         """Verify that system message and context are preserved after compaction."""
         mock_app.conversation_history = sample_history
         summary_text = "Summary preserving context."

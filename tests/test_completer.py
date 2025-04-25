@@ -2,6 +2,7 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pytest
 from prompt_toolkit.completion import Completion
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import to_plain_text
@@ -85,7 +86,10 @@ class TestPathCompleter(unittest.TestCase):
         completer = PathCompleter(working_dir)
         assert completer.working_dir == working_dir
         # Corrected assertion: completion text for directories does NOT end with '/'
-        assert get_completion_texts(completer, "@") == ["README.md", "src"]  # Reverted here
+        assert get_completion_texts(completer, "@") == [
+            "README.md",
+            "src",
+        ]  # Reverted here
         assert get_completion_texts(completer, "@R") == ["README.md"]
         assert get_completion_texts(completer, "@s") == ["src"]  # And here
         assert get_completion_texts(completer, "@.") == [".hiddenfile"]
@@ -149,7 +153,7 @@ class TestPathCompleter(unittest.TestCase):
         assert get_completion_displays(completer, "@src/m") == ["main.py"]
 
     def test_invalid_working_dir(self) -> None:
-        with self.assertRaises(Exception):
+        with pytest.raises(Exception):
             PathCompleter("/invalid/dir")
 
 
@@ -161,7 +165,10 @@ class TestCommandCompleter(unittest.TestCase):
         completer = CommandCompleter(commands)
         # Valid cases
         assert get_completion_texts(completer, "/") == ["/exit", "/help", "/history"]
-        assert get_completion_texts(completer, "  /h  ") == ["/help", "/history"]  # Whitespace OK
+        assert get_completion_texts(completer, "  /h  ") == [
+            "/help",
+            "/history",
+        ]  # Whitespace OK
         assert get_completion_texts(completer, "/hist") == ["/history"]
         assert get_completion_texts(completer, "/exit") == ["/exit"]
         assert get_completion_texts(completer, "") == []  # Empty is not / command
@@ -170,7 +177,9 @@ class TestCommandCompleter(unittest.TestCase):
         assert get_completion_texts(completer, "exit") == []  # Not command format
         assert get_completion_texts(completer, "word /h") == []  # Command not alone
         assert get_completion_texts(completer, "/help me") == []  # Command not alone
-        assert get_completion_texts(completer, " /help abc ") == []  # Command not alone (even with whitespace)
+        assert (
+            get_completion_texts(completer, " /help abc ") == []
+        )  # Command not alone (even with whitespace)
 
 
 class TestPromptCompleterComposition(unittest.TestCase):

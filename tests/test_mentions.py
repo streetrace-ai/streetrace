@@ -133,7 +133,9 @@ class TestMentions(unittest.TestCase):
         rel_path_to_outside = os.path.relpath(outside_file_path, self.test_dir)
         prompt = f"Trying to access @{rel_path_to_outside}"
         result = self.prompt_processor._parse_and_load_mentions(prompt, self.test_dir)
-        assert result == [], f"Security check failed for relative path: {rel_path_to_outside}"
+        assert (
+            result == []
+        ), f"Security check failed for relative path: {rel_path_to_outside}"
         # Check if warning was displayed via mock UI
         self.mock_ui.display_warning.assert_called()
 
@@ -141,7 +143,9 @@ class TestMentions(unittest.TestCase):
         abs_path_to_secret = os.path.join(self.outside_dir, "secret.txt")
         prompt = f"Trying to access @{abs_path_to_secret}"
         result = self.prompt_processor._parse_and_load_mentions(prompt, self.test_dir)
-        assert result == [], f"Security check failed for absolute path: {abs_path_to_secret}"
+        assert (
+            result == []
+        ), f"Security check failed for absolute path: {abs_path_to_secret}"
         # Check if warning was displayed via mock UI
         self.mock_ui.display_warning.assert_called()
 

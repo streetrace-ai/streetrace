@@ -168,16 +168,23 @@ class TestClaudeHistory(unittest.TestCase):
 
         # 3. Check roles (adjusting indices due to extra message)
         #    Expected original order: USER (context), USER (hello), MODEL, USER (tool result)
-        assert clean_history.conversation[0].role == Role.USER  # Incorrectly added context
+        assert (
+            clean_history.conversation[0].role == Role.USER
+        )  # Incorrectly added context
         assert clean_history.conversation[1].role == Role.USER  # Hello message
         assert clean_history.conversation[2].role == Role.MODEL
-        assert clean_history.conversation[3].role == Role.USER  # Tool results land in USER role
+        assert (
+            clean_history.conversation[3].role == Role.USER
+        )  # Tool results land in USER role
 
         # 4. Check specific content (e.g., tool result content - index adjusted)
         tool_result_part = clean_history.conversation[3].content[0]
         assert isinstance(tool_result_part, ContentPartToolResult)
         # Access the nested content correctly
-        assert tool_result_part.content.output.content["result"][0] == "file.py:10:def transform_history"
+        assert (
+            tool_result_part.content.output.content["result"][0]
+            == "file.py:10:def transform_history"
+        )
         assert tool_result_part.content.success
 
     def test_from_content_part(self) -> None:

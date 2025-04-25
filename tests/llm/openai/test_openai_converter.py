@@ -109,7 +109,9 @@ class TestOpenAIConverter(unittest.TestCase):
         "openai.types.chat.Function",
         create=True,
     )  # Create the attribute if it doesn't exist
-    def test_from_content_part_tool_call(self, mock_function, mock_tool_call_param) -> None:
+    def test_from_content_part_tool_call(
+        self, mock_function, mock_tool_call_param,
+    ) -> None:
         """Test converting a ContentPartToolCall to OpenAI format."""
         # Set up mocks
         mock_function.return_value = {
@@ -243,20 +245,34 @@ class TestOpenAIConverter(unittest.TestCase):
 
                 # Check system message
                 assert provider_history[0]["role"] == "system"
-                assert provider_history[0]["content"][0]["text"] == "You are a helpful assistant."
+                assert (
+                    provider_history[0]["content"][0]["text"]
+                    == "You are a helpful assistant."
+                )
 
                 # Check context message
                 assert provider_history[1]["role"] == "user"
-                assert provider_history[1]["content"][0]["text"] == "This is some context information."
+                assert (
+                    provider_history[1]["content"][0]["text"]
+                    == "This is some context information."
+                )
 
                 # Check user message
                 assert provider_history[2]["role"] == "user"
-                assert provider_history[2]["content"][0]["text"] == "Hello, how are you?"
+                assert (
+                    provider_history[2]["content"][0]["text"] == "Hello, how are you?"
+                )
 
                 # Check model message with tool call
                 assert provider_history[3]["role"] == "assistant"
-                assert provider_history[3]["content"][0]["text"] == "I'm doing well, thank you!"
-                assert provider_history[3]["tool_calls"][0]["function"]["name"] == "search_files"
+                assert (
+                    provider_history[3]["content"][0]["text"]
+                    == "I'm doing well, thank you!"
+                )
+                assert (
+                    provider_history[3]["tool_calls"][0]["function"]["name"]
+                    == "search_files"
+                )
 
                 # Check tool message
                 assert provider_history[4]["role"] == "tool"
@@ -581,7 +597,10 @@ class TestOpenAIConverter(unittest.TestCase):
 
             assert message["role"] == "tool"
             assert message["tool_call_id"] == "tool-1"
-            assert message["content"] == '{"success":true,"output":{"type":"text","content":{"files":["test.py"]}}}'
+            assert (
+                message["content"]
+                == '{"success":true,"output":{"type":"text","content":{"files":["test.py"]}}}'
+            )
 
     def test_tool_results_to_message_empty(self) -> None:
         """Test that _tool_results_to_message returns None for empty results."""

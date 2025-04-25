@@ -148,11 +148,17 @@ class TestOpenAIHistory(unittest.TestCase):
             assert provider_history[0]["content"] == "You are a helpful assistant."
             assert provider_history[1]["content"] == "This is some context information."
             assert provider_history[2]["content"] == "Hello, how are you?"
-            assert provider_history[3]["content"] == "I'm doing well, thank you for asking!"
+            assert (
+                provider_history[3]["content"]
+                == "I'm doing well, thank you for asking!"
+            )
 
             # Check tool call in assistant message
             assert provider_history[3]["tool_calls"][0]["id"] == "tool-call-1"
-            assert provider_history[3]["tool_calls"][0]["function"]["name"] == "search_files"
+            assert (
+                provider_history[3]["tool_calls"][0]["function"]["name"]
+                == "search_files"
+            )
 
             # Check tool result
             assert provider_history[4]["tool_call_id"] == "tool-call-1"
@@ -284,7 +290,9 @@ class TestOpenAIHistory(unittest.TestCase):
             assert isinstance(tool_msg.content[0], ContentPartToolResult)
             assert tool_msg.content[0].id == "tool-call-1"
             assert tool_msg.content[0].content.success
-            assert tool_msg.content[0].content.output.content == {"result": ["file.py:10:def transform_history"]}
+            assert tool_msg.content[0].content.output.content == {
+                "result": ["file.py:10:def transform_history"],
+            }
 
     def test_transform_history_no_context(self) -> None:
         """Test transforming history without context."""
