@@ -90,9 +90,7 @@ class Application:
         self.ui.display_user_prompt(prompt_input)
 
         # Check for internal commands first (e.g., if someone runs with --prompt history)
-        command_executed, _ = self.cmd_executor.execute(
-            prompt_input, self
-        )  # Pass self
+        command_executed, _ = self.cmd_executor.execute(prompt_input, self)  # Pass self
 
         if command_executed:
             logger.info(
@@ -137,7 +135,7 @@ class Application:
         Handles keyboard interrupts and EOF signals gracefully for smooth termination.
         """
         self.ui.display_info(
-            "Entering interactive mode. Type 'history', 'exit', 'quit' or press Ctrl+C/Ctrl+D to quit."
+            "Entering interactive mode. Type '/history', '/compact', '/exit', or press Ctrl+C/Ctrl+D to quit."
         )
 
         # Initialize history for the session and store it as an instance variable
@@ -327,4 +325,80 @@ class Application:
                     self.ui.display_info(f"{role_str}: {content_str.strip()}")
 
         self.ui.display_info("--- End History ---")
+        return True  # Signal to continue the application loop
+
+    def _compact_history(self) -> bool:
+        """
+        Compacts the current conversation history by generating a summary.
+
+        This method:
+        1. Checks if there's a conversation history to compact
+        2. Prepares a prompt that instructs the LLM to create a summary
+        3. Uses the interaction manager to generate a summarized version
+        4. Replaces the current history with the summarized version
+
+        Returns:
+            True, indicating the application should continue running after
+            compacting history.
+        """
+        if not self.conversation_history or not self.conversation_history.conversation:
+            self.ui.display_warning("No history available to compact.")
+            return True  # Nothing to compact, but continue running
+
+        self.ui.display_info("Compacting conversation history...")
+
+        # Create a copy of the system message and context from the current history
+        system_message = self.conversation_history.system_message
+        context = self.conversation_history.context
+
+        # Create a new temporary history for the summarization request
+        summary_request_history = History(
+            system_message=system_message,
+            context=context,
+            conversation=self.conversation_history.conversation[:],
+        )
+
+        # Add a message requesting summarization
+        summary_prompt = """Please summarize our conversation so far, maintaining the key points and decisions.
+Your summary should:
+1. Preserve all important information, file paths, and code changes
+2. Include any important decisions or conclusions we've reached
+3. Keep any critical context needed for continuing the conversation
+4. Format the summary as a concise narrative
+
+Return ONLY the summary without explaining what you're doing."""
+
+        summary_request_history.add_message(
+            role=Role.USER, content=[ContentPartText(text=summary_prompt)]
+        )
+
+        # Process with the interaction manager to get the summary
+        logger.info("Requesting conversation summary from LLM")
+
+        # We use the existing interaction manager to process this request
+        self.interaction_manager.process_prompt(summary_request_history)
+
+        # Get the summary message from the response
+        if (
+            len(summary_request_history.conversation) >= 2
+            and summary_request_history.conversation[-1].role == Role.MODEL
+        ):
+            # Create a new history with just the summary
+            new_history = History(system_message=system_message, context=context)
+
+            # Add the summary message to the new history
+            new_history.add_message(
+                role=Role.MODEL,
+                content=summary_request_history.conversation[-1].content,
+            )
+
+            # Replace the current history with the summary
+            self.conversation_history = new_history
+
+            self.ui.display_info("History compacted successfully.")
+        else:
+            self.ui.display_error(
+                "Failed to generate summary. History remains unchanged."
+            )
+
         return True  # Signal to continue the application loop

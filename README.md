@@ -98,7 +98,10 @@ These commands can be typed directly into the prompt (with autocompletion suppor
 * `/exit`: Exit the interactive session.
 * `/quit`: Quit the interactive session.
 * `/history`: Display the conversation history.
+* `/compact`: Summarize conversation history to reduce token count.
 * (Future commands like `/help`, `/config` could be added here)
+
+For detailed information about the `/compact` command, see [docs/commands/compact.md](docs/commands/compact.md).
 
 ### Non-interactive Mode
 

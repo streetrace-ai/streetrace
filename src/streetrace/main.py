@@ -11,8 +11,9 @@ from streetrace.prompt_processor import PromptProcessor
 # Core application components
 from streetrace.application import Application
 from streetrace.commands.command_executor import CommandExecutor
+
 # Import specific command classes
-from streetrace.commands.definitions import ExitCommand, HistoryCommand
+from streetrace.commands.definitions import ExitCommand, HistoryCommand, CompactCommand
 from streetrace.llm.llmapi_factory import get_ai_provider
 from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 from streetrace.tools.tools import ToolCall
@@ -73,6 +74,7 @@ def parse_arguments():
     )
     return parser.parse_args()
 
+
 def init_working_directory(args_path: str) -> str:
     """Initializes and validates the working directory."""
     initial_cwd = os.getcwd()
@@ -94,6 +96,7 @@ def init_working_directory(args_path: str) -> str:
             ) from e
 
     return abs_working_dir
+
 
 def main():
     """Main entry point for the application."""
@@ -119,6 +122,7 @@ def main():
     # Instantiate and register commands
     cmd_executor.register(ExitCommand())
     cmd_executor.register(HistoryCommand())
+    cmd_executor.register(CompactCommand())  # Register our new compact command
     # Add more command registrations here as needed
 
     # Get the list of command names *with* the prefix for the completer
