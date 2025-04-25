@@ -30,7 +30,7 @@ class Styles:
             "prompt": _USER_INPUT,
             "prompt-continuation": _DIM,
             "bottom-toolbar": _DIM,
-        }
+        },
     )
     RICH_PROMPT = _USER_INPUT
     RICH_MODEL = _MODEL_RESPONSE

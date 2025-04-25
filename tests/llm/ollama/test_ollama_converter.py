@@ -1,17 +1,13 @@
-"""
-Tests for the Ollama Data Conversion Module.
-"""
+"""Tests for the Ollama Data Conversion Module."""
 
 # No direct ollama import needed if we test based on dicts
 # import ollama
-import json
 
 import pytest
 from pydantic import ValidationError
 
 from streetrace.llm.ollama.converter import (
     OllamaHistoryConverter,
-    OllamaChunkWrapper,
 )
 from streetrace.llm.wrapper import (
     ContentPartText,
@@ -31,191 +27,24 @@ def converter():
     return OllamaHistoryConverter()
 
 
-# --- Tests for OllamaChunkWrapper ---
-
-
-def test_ollama_chunk_wrapper_get_text_with_content():
-    """Test getting text from a chunk with message content."""
-    chunk_data = {
-        "model": "llama3",
-        "created_at": "2024-07-27T10:00:00Z",
-        "message": {"role": "assistant", "content": "Hello there!"},
-        "done": False,
-    }
-    wrapper = OllamaChunkWrapper(chunk_data)
-    assert wrapper.get_text() == "Hello there!"
-
-
-def test_ollama_chunk_wrapper_get_text_without_content_field():
-    """Test getting text from a chunk where message lacks 'content' field."""
-    chunk_data = {
-        "model": "llama3",
-        "created_at": "2024-07-27T10:00:01Z",
-        "message": {"role": "assistant"},  # No content field
-        "done": False,
-    }
-    wrapper = OllamaChunkWrapper(chunk_data)
-    assert wrapper.get_text() == ""  # Should return empty string
-
-
-def test_ollama_chunk_wrapper_get_text_with_non_dict_message():
-    """Test getting text when 'message' field is not a dictionary."""
-    chunk_data = {
-        "model": "llama3",
-        "created_at": "2024-07-27T10:00:01Z",
-        "message": "not a dict",
-        "done": False,
-    }
-    wrapper = OllamaChunkWrapper(chunk_data)
-    with pytest.raises(AssertionError, match="message should be a dict"):
-        wrapper.get_text()
-
-
-def test_ollama_chunk_wrapper_get_text_without_message():
-    """Test getting text from a chunk without a 'message' field."""
-    chunk_data = {
-        "model": "llama3",
-        "created_at": "2024-07-27T10:00:02Z",
-        "done": True,  # Example of a final chunk without message
-    }
-    wrapper = OllamaChunkWrapper(chunk_data)
-    assert wrapper.get_text() == ""
-
-
-def test_ollama_chunk_wrapper_get_tool_calls_with_calls():
-    """Test getting tool calls from a chunk with tool_calls."""
-    chunk_data = {
-        "model": "llama3",
-        "created_at": "2024-07-27T10:01:00Z",
-        "message": {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {
-                    # ID missing in this one
-                    "function": {
-                        "name": "get_weather",
-                        "arguments": '{"location": "London"}',  # JSON string
-                    },
-                },
-                {
-                    "id": "call_456",
-                    "function": {
-                        "name": "get_stock",
-                        "arguments": {"symbol": "GOOG"},  # Dict
-                    },
-                },
-                {
-                    "id": "call_789",
-                    "function": {
-                        "name": "get_time",
-                        "arguments": None,  # None arg
-                    },
-                },
-                {
-                    "id": "call_790",
-                    "function": {
-                        "name": "get_time",
-                    },
-                },
-                {
-                    "id": "call_791",
-                    "function": {
-                        "name": "get_time",
-                        "arguments": {},  # None arg
-                    },
-                },
-            ],
-        },
-        "done": False,
-    }
-    wrapper = OllamaChunkWrapper(chunk_data)
-    tool_calls = wrapper.get_tool_calls()
-    assert len(tool_calls) == 5
-    assert tool_calls[0] == ContentPartToolCall(
-        id="", name="get_weather", arguments={"location": "London"}  # ID defaults to ""
-    )
-    assert tool_calls[1] == ContentPartToolCall(
-        id="call_456", name="get_stock", arguments={"symbol": "GOOG"}
-    )
-    assert tool_calls[2] == ContentPartToolCall(id="call_789", name="get_time")
-    assert tool_calls[3] == ContentPartToolCall(id="call_790", name="get_time")
-    assert tool_calls[4] == ContentPartToolCall(
-        id="call_791", name="get_time", arguments={}
-    )
-
-
-def test_ollama_chunk_wrapper_get_tool_calls_with_malformed_json_args():
-    """Test getting tool calls when arguments are malformed json string."""
-    chunk_data = {
-        "message": {
-            "tool_calls": [
-                {
-                    "id": "call_mal",
-                    "function": {
-                        "name": "some_func",
-                        "arguments": '{"location": "London",',  # Malformed JSON
-                    },
-                }
-            ],
-        }
-    }
-    wrapper = OllamaChunkWrapper(chunk_data)
-    with pytest.raises(json.JSONDecodeError):
-        wrapper.get_tool_calls()
-
-
-def test_ollama_chunk_wrapper_get_tool_calls_invalid_formats():
-    """Test getting tool calls with various invalid structures."""
-    test_cases = [
-        {"message": {"tool_calls": "not a list"}},  # tool_calls not a list
-        {"message": {"tool_calls": ["not a dict"]}},  # item in list not a dict
-        {"message": {"tool_calls": [{"id": "1"}]}},  # item missing 'function'
-        {
-            "message": {"tool_calls": [{"id": "1", "function": "not a dict"}]}
-        },  # function not a dict
-        {"message": "not a dict"},  # message not a dict
-    ]
-    for chunk_data in test_cases:
-        wrapper = OllamaChunkWrapper(chunk_data)
-        with pytest.raises(Exception):
-            wrapper.get_tool_calls()
-
-
-def test_ollama_chunk_wrapper_get_tool_calls_without_calls():
-    """Test getting tool calls from a chunk without tool_calls field."""
-    chunk_data = {
-        "message": {"role": "assistant", "content": "No tools here."},
-    }
-    wrapper = OllamaChunkWrapper(chunk_data)
-    tool_calls = wrapper.get_tool_calls()
-    assert len(tool_calls) == 0
-
-
-def test_ollama_chunk_wrapper_get_finish_message():
-    """Test get_finish_message (currently always returns None)."""
-    wrapper = OllamaChunkWrapper({"done": True})
-    assert wrapper.get_finish_message() is None
-
-
 # --- Tests for OllamaHistoryConverter.create_provider_history ---
 
 
-def test_from_history_empty(converter):
+def test_from_history_empty(converter) -> None:
     """Test converting an empty history."""
     history = History(system_message=None, context=None, conversation=[])
     ollama_history = converter.create_provider_history(history)
     assert ollama_history == []
 
 
-def test_from_history_system_message_only(converter):
+def test_from_history_system_message_only(converter) -> None:
     """Test converting history with only a system message."""
     history = History(system_message="Be helpful", context=None, conversation=[])
     ollama_history = converter.create_provider_history(history)
     assert ollama_history == [{"role": "system", "content": "Be helpful"}]
 
 
-def test_from_history_context_only(converter):
+def test_from_history_context_only(converter) -> None:
     """Test converting history with only context."""
     history = History(system_message=None, context="File content here", conversation=[])
     ollama_history = converter.create_provider_history(history)
@@ -223,10 +52,12 @@ def test_from_history_context_only(converter):
     assert ollama_history == [{"role": "user", "content": "File content here"}]
 
 
-def test_from_history_system_and_context(converter):
+def test_from_history_system_and_context(converter) -> None:
     """Test converting history with system message and context."""
     history = History(
-        system_message="Be helpful", context="File content here", conversation=[]
+        system_message="Be helpful",
+        context="File content here",
+        conversation=[],
     )
     ollama_history = converter.create_provider_history(history)
     assert ollama_history == [
@@ -235,16 +66,16 @@ def test_from_history_system_and_context(converter):
     ]
 
 
-def test_from_history_user_message(converter):
+def test_from_history_user_message(converter) -> None:
     """Test converting history with a user message."""
     history = History(
-        conversation=[Message(role=Role.USER, content=[ContentPartText(text="Hello")])]
+        conversation=[Message(role=Role.USER, content=[ContentPartText(text="Hello")])],
     )
     ollama_history = converter.create_provider_history(history)
     assert ollama_history == [{"role": "user", "content": "Hello"}]
 
 
-def test_from_history_user_message_multiple_parts(converter):
+def test_from_history_user_message_multiple_parts(converter) -> None:
     """Test converting history with a user message with multiple text parts."""
     history = History(
         conversation=[
@@ -254,25 +85,25 @@ def test_from_history_user_message_multiple_parts(converter):
                     ContentPartText(text="Part 1."),
                     ContentPartText(text=" Part 2."),
                 ],
-            )
-        ]
+            ),
+        ],
     )
     ollama_history = converter.create_provider_history(history)
     assert ollama_history == [{"role": "user", "content": "Part 1. Part 2."}]
 
 
-def test_from_history_model_message_text_only(converter):
+def test_from_history_model_message_text_only(converter) -> None:
     """Test converting history with a model message (text only)."""
     history = History(
         conversation=[
-            Message(role=Role.MODEL, content=[ContentPartText(text="Hi there")])
-        ]
+            Message(role=Role.MODEL, content=[ContentPartText(text="Hi there")]),
+        ],
     )
     ollama_history = converter.create_provider_history(history)
     assert ollama_history == [{"role": "assistant", "content": "Hi there"}]
 
 
-def test_from_history_model_message_tool_call_only_dict_args(converter):
+def test_from_history_model_message_tool_call_only_dict_args(converter) -> None:
     """Test converting history with a model message (tool call only, dict args)."""
     history = History(
         conversation=[
@@ -280,11 +111,13 @@ def test_from_history_model_message_tool_call_only_dict_args(converter):
                 role=Role.MODEL,
                 content=[
                     ContentPartToolCall(
-                        id="call_abc", name="search_web", arguments={"query": "ollama"}
-                    )
+                        id="call_abc",
+                        name="search_web",
+                        arguments={"query": "ollama"},
+                    ),
                 ],
-            )
-        ]
+            ),
+        ],
     )
     ollama_history = converter.create_provider_history(history)
     expected_ollama_message = {
@@ -296,13 +129,13 @@ def test_from_history_model_message_tool_call_only_dict_args(converter):
                     "name": "search_web",
                     "arguments": '{"query": "ollama"}',  # Expect stringified JSON
                 },
-            }
+            },
         ],
     }
     assert ollama_history == [expected_ollama_message]
 
 
-def test_from_history_model_message_tool_call_only_str_args(converter):
+def test_from_history_model_message_tool_call_only_str_args(converter) -> None:
     """Test converting history with a model message (tool call only, string args)."""
     with pytest.raises(
         ValidationError,
@@ -311,7 +144,7 @@ def test_from_history_model_message_tool_call_only_str_args(converter):
         ContentPartToolCall(id="call_xyz", name="run_code", arguments='print("hello")')
 
 
-def test_from_history_model_message_text_and_tool_call(converter):
+def test_from_history_model_message_text_and_tool_call(converter) -> None:
     """Test converting history with a model message (text and tool call)."""
     history = History(
         conversation=[
@@ -320,11 +153,13 @@ def test_from_history_model_message_text_and_tool_call(converter):
                 content=[
                     ContentPartText(text="Okay, searching..."),
                     ContentPartToolCall(
-                        id="call_def", name="search_web", arguments={"query": "python"}
+                        id="call_def",
+                        name="search_web",
+                        arguments={"query": "python"},
                     ),
                 ],
-            )
-        ]
+            ),
+        ],
     )
     ollama_history = converter.create_provider_history(history)
     expected_ollama_message = {
@@ -337,13 +172,13 @@ def test_from_history_model_message_text_and_tool_call(converter):
                     "name": "search_web",
                     "arguments": '{"query": "python"}',  # Expect stringified
                 },
-            }
+            },
         ],
     }
     assert ollama_history == [expected_ollama_message]
 
 
-def test_from_history_tool_message(converter):
+def test_from_history_tool_message(converter) -> None:
     """Test converting history with a tool message."""
     tool_result = ToolCallResult(
         success=True,
@@ -355,11 +190,13 @@ def test_from_history_tool_message(converter):
                 role=Role.TOOL,
                 content=[
                     ContentPartToolResult(
-                        id="call_def", name="search_web", content=tool_result
-                    )
+                        id="call_def",
+                        name="search_web",
+                        content=tool_result,
+                    ),
                 ],
-            )
-        ]
+            ),
+        ],
     )
     ollama_history = converter.create_provider_history(history)
     # Use model_dump_json to get the expected JSON string, excluding None fields
@@ -373,17 +210,19 @@ def test_from_history_tool_message(converter):
     assert ollama_history == [expected_ollama_message]
 
 
-def test_from_history_complex_conversation(converter):
+def test_from_history_complex_conversation(converter) -> None:
     """Test converting a more complex conversation flow."""
     tool_result_content = ToolCallResult(
-        success=True, output=ToolOutput(type="text", content="Found in converter.py")
+        success=True,
+        output=ToolOutput(type="text", content="Found in converter.py"),
     )
     history = History(
         system_message="You are a helpful AI.",
         context="Consider the file `main.py`.",
         conversation=[
             Message(
-                role=Role.USER, content=[ContentPartText(text="Search for 'ollama'")]
+                role=Role.USER,
+                content=[ContentPartText(text="Search for 'ollama'")],
             ),
             Message(
                 role=Role.MODEL,
@@ -403,7 +242,7 @@ def test_from_history_complex_conversation(converter):
                         id="call_1",
                         name="search_files",
                         content=tool_result_content,
-                    )
+                    ),
                 ],
             ),
             Message(role=Role.USER, content=[ContentPartText(text="Thanks!")]),
@@ -425,7 +264,7 @@ def test_from_history_complex_conversation(converter):
                         "name": "search_files",
                         "arguments": '{"pattern": "*.py", "query": "ollama"}',
                     },
-                }
+                },
             ],
         },
         {
@@ -441,12 +280,12 @@ def test_from_history_complex_conversation(converter):
 # --- Tests for OllamaHistoryConverter.to_history ---
 
 
-def test_to_history_empty(converter):
+def test_to_history_empty(converter) -> None:
     """Test converting an empty Ollama history."""
     assert converter.to_history([]) == []
 
 
-def test_to_history_system_skipped_context_processed(converter):
+def test_to_history_system_skipped_context_processed(converter) -> None:
     """Test system message is skipped, context (first user message) is processed."""
     ollama_history = [
         {"role": "system", "content": "System prompt"},
@@ -456,14 +295,16 @@ def test_to_history_system_skipped_context_processed(converter):
     common_messages = converter.to_history(ollama_history)
     assert len(common_messages) == 2  # Context + Actual user msg
     assert common_messages[0] == Message(
-        role=Role.USER, content=[ContentPartText(text="Context prompt")]
+        role=Role.USER,
+        content=[ContentPartText(text="Context prompt")],
     )
     assert common_messages[1] == Message(
-        role=Role.USER, content=[ContentPartText(text="Actual user message")]
+        role=Role.USER,
+        content=[ContentPartText(text="Actual user message")],
     )
 
 
-def test_to_history_system_only_skipped(converter):
+def test_to_history_system_only_skipped(converter) -> None:
     """Test that only system message is skipped."""
     ollama_history = [
         {"role": "system", "content": "System prompt"},
@@ -472,11 +313,12 @@ def test_to_history_system_only_skipped(converter):
     common_messages = converter.to_history(ollama_history)
     assert len(common_messages) == 1
     assert common_messages[0] == Message(
-        role=Role.USER, content=[ContentPartText(text="Actual user message")]
+        role=Role.USER,
+        content=[ContentPartText(text="Actual user message")],
     )
 
 
-def test_to_history_context_only_processed(converter):
+def test_to_history_context_only_processed(converter) -> None:
     """Test context (first user message) is processed when no system message."""
     ollama_history = [
         # No system message
@@ -486,50 +328,54 @@ def test_to_history_context_only_processed(converter):
     common_messages = converter.to_history(ollama_history)
     assert len(common_messages) == 2
     assert common_messages[0] == Message(
-        role=Role.USER, content=[ContentPartText(text="Context prompt")]
+        role=Role.USER,
+        content=[ContentPartText(text="Context prompt")],
     )
     assert common_messages[1] == Message(
-        role=Role.USER, content=[ContentPartText(text="Actual user message")]
+        role=Role.USER,
+        content=[ContentPartText(text="Actual user message")],
     )
 
 
-def test_to_history_user_message(converter):
+def test_to_history_user_message(converter) -> None:
     """Test converting an Ollama user message."""
     ollama_history = [{"role": "user", "content": "Hello AI"}]
     common_messages = converter.to_history(ollama_history)
     assert common_messages == [
-        Message(role=Role.USER, content=[ContentPartText(text="Hello AI")])
+        Message(role=Role.USER, content=[ContentPartText(text="Hello AI")]),
     ]
 
 
-def test_to_history_user_message_non_string_content_ignored(converter):
+def test_to_history_user_message_non_string_content_ignored(converter) -> None:
     """Test user message with non-string content is ignored."""
     ollama_history = [{"role": "user", "content": {"not": "string"}}]
     with pytest.raises(
-        ValueError, match="ContentPartText\\s+text\\s+Input should be a valid string"
+        ValueError,
+        match="ContentPartText\\s+text\\s+Input should be a valid string",
     ):
         converter.to_history(ollama_history)
 
 
-def test_to_history_assistant_text_only(converter):
+def test_to_history_assistant_text_only(converter) -> None:
     """Test converting an Ollama assistant message with only text."""
     ollama_history = [{"role": "assistant", "content": "Hello User"}]
     common_messages = converter.to_history(ollama_history)
     assert common_messages == [
-        Message(role=Role.MODEL, content=[ContentPartText(text="Hello User")])
+        Message(role=Role.MODEL, content=[ContentPartText(text="Hello User")]),
     ]
 
 
-def test_to_history_assistant_non_string_text_content_ignored(converter):
+def test_to_history_assistant_non_string_text_content_ignored(converter) -> None:
     """Test assistant message with non-string text content is ignored."""
     ollama_history = [{"role": "assistant", "content": ["list", "content"]}]
     with pytest.raises(
-        ValueError, match="ContentPartText\\s+text\\s+Input should be a valid string"
+        ValueError,
+        match="ContentPartText\\s+text\\s+Input should be a valid string",
     ):
         converter.to_history(ollama_history)
 
 
-def test_to_history_assistant_tool_calls_only(converter):
+def test_to_history_assistant_tool_calls_only(converter) -> None:
     """Test converting an Ollama assistant message with only tool calls."""
     ollama_history = [
         {
@@ -548,7 +394,7 @@ def test_to_history_assistant_tool_calls_only(converter):
                     },
                 },
             ],
-        }
+        },
     ]
     common_messages = converter.to_history(ollama_history)
     assert common_messages == [
@@ -556,17 +402,21 @@ def test_to_history_assistant_tool_calls_only(converter):
             role=Role.MODEL,
             content=[
                 ContentPartToolCall(
-                    id="call_xyz", name="get_time", arguments={}
+                    id="call_xyz",
+                    name="get_time",
+                    arguments={},
                 ),  # Parsed JSON
                 ContentPartToolCall(
-                    id="call_abc", name="get_date", arguments={"format": "YYYY-MM-DD"}
+                    id="call_abc",
+                    name="get_date",
+                    arguments={"format": "YYYY-MM-DD"},
                 ),  # Kept dict
             ],
-        )
+        ),
     ]
 
 
-def test_to_history_assistant_tool_calls_invalid_formats(converter):
+def test_to_history_assistant_tool_calls_invalid_formats(converter) -> None:
     """Test converting assistant message with invalid tool call structures."""
     test_cases = [
         {"role": "assistant", "tool_calls": "not a list"},
@@ -579,7 +429,7 @@ def test_to_history_assistant_tool_calls_invalid_formats(converter):
             converter.to_history(ollama_msg)
 
 
-def test_to_history_assistant_text_and_tool_calls(converter):
+def test_to_history_assistant_text_and_tool_calls(converter) -> None:
     """Test converting an Ollama assistant message with text and tool calls."""
     ollama_history = [
         {
@@ -589,9 +439,9 @@ def test_to_history_assistant_text_and_tool_calls(converter):
                 {
                     "id": "call_lmn",
                     "function": {"name": "get_time", "arguments": "{}"},
-                }
+                },
             ],
-        }
+        },
     ]
     common_messages = converter.to_history(ollama_history)
     assert common_messages == [
@@ -600,14 +450,16 @@ def test_to_history_assistant_text_and_tool_calls(converter):
             content=[
                 ContentPartText(text="Getting time..."),
                 ContentPartToolCall(
-                    id="call_lmn", name="get_time", arguments={}
+                    id="call_lmn",
+                    name="get_time",
+                    arguments={},
                 ),  # Parsed
             ],
-        )
+        ),
     ]
 
 
-def test_to_history_assistant_tool_calls_malformed_json_args(converter):
+def test_to_history_assistant_tool_calls_malformed_json_args(converter) -> None:
     """Test converting an Ollama assistant message with malformed json args."""
     ollama_history = [
         {
@@ -619,9 +471,9 @@ def test_to_history_assistant_tool_calls_malformed_json_args(converter):
                         "name": "some_func",
                         "arguments": '{"key": "value",',  # Malformed
                     },
-                }
+                },
             ],
-        }
+        },
     ]
     with pytest.raises(
         ValidationError,
@@ -630,7 +482,7 @@ def test_to_history_assistant_tool_calls_malformed_json_args(converter):
         converter.to_history(ollama_history)
 
 
-def test_to_history_tool_message(converter):
+def test_to_history_tool_message(converter) -> None:
     """Test converting a valid Ollama tool message."""
     tool_content_json = (
         '{"success": true, "output": {"type": "text", "content": "10:30 AM"}}'
@@ -641,7 +493,7 @@ def test_to_history_tool_message(converter):
             "tool_call_id": "call_lmn",
             "name": "get_time",  # Name present in tool message
             "content": tool_content_json,
-        }
+        },
     ]
     common_messages = converter.to_history(ollama_history)
     expected_tool_result = ToolCallResult.model_validate_json(tool_content_json)
@@ -650,14 +502,16 @@ def test_to_history_tool_message(converter):
             role=Role.TOOL,
             content=[
                 ContentPartToolResult(
-                    id="call_lmn", name="get_time", content=expected_tool_result
-                )
+                    id="call_lmn",
+                    name="get_time",
+                    content=expected_tool_result,
+                ),
             ],
-        )
+        ),
     ]
 
 
-def test_to_history_tool_message_content_is_dict(converter):
+def test_to_history_tool_message_content_is_dict(converter) -> None:
     """Test converting tool message where content is a dict (needs dumping)."""
     tool_content_dict = {
         "success": True,
@@ -669,15 +523,16 @@ def test_to_history_tool_message_content_is_dict(converter):
             "tool_call_id": "call_dict",
             "name": "tool_dict",
             "content": tool_content_dict,
-        }
+        },
     ]
     with pytest.raises(
-        ValidationError, match="ToolCallResult\\s+JSON input should be string"
+        ValidationError,
+        match="ToolCallResult\\s+JSON input should be string",
     ):
         converter.to_history(ollama_history)
 
 
-def test_to_history_tool_message_content_is_other_type(converter, capsys):
+def test_to_history_tool_message_content_is_other_type(converter, capsys) -> None:
     """Test converting tool message where content is not str/dict (fallback to text)."""
     ollama_history = [
         {
@@ -685,15 +540,16 @@ def test_to_history_tool_message_content_is_other_type(converter, capsys):
             "tool_call_id": "call_list",
             "name": "tool_list",
             "content": ["list", "content"],  # Invalid type for validation
-        }
+        },
     ]
     with pytest.raises(
-        ValidationError, match="ToolCallResult\\s+JSON input should be string"
+        ValidationError,
+        match="ToolCallResult\\s+JSON input should be string",
     ):
         converter.to_history(ollama_history)
 
 
-def test_to_history_tool_message_invalid_json_content(converter, capsys):
+def test_to_history_tool_message_invalid_json_content(converter, capsys) -> None:
     """Test converting tool message with invalid JSON string content (fallback to text)."""
     invalid_json_content = '{"success": true, output:'
     ollama_history = [
@@ -702,13 +558,13 @@ def test_to_history_tool_message_invalid_json_content(converter, capsys):
             "tool_call_id": "call_invalid",
             "name": "tool_invalid",
             "content": invalid_json_content,
-        }
+        },
     ]
     with pytest.raises(ValidationError, match="ToolCallResult\\s+Invalid JSON"):
         converter.to_history(ollama_history)
 
 
-def test_to_history_tool_message_validation_error(converter, capsys):
+def test_to_history_tool_message_validation_error(converter, capsys) -> None:
     """Test converting tool message where content fails Pydantic validation."""
     # Valid JSON, but missing required fields for ToolCallResult (e.g., output)
     content_fails_validation = '{"success": true}'
@@ -718,15 +574,16 @@ def test_to_history_tool_message_validation_error(converter, capsys):
             "tool_call_id": "call_failval",
             "name": "tool_failval",
             "content": content_fails_validation,
-        }
+        },
     ]
     with pytest.raises(
-        ValidationError, match="ToolCallResult\\s+output\\s+Field required"
+        ValidationError,
+        match="ToolCallResult\\s+output\\s+Field required",
     ):
         converter.to_history(ollama_history)
 
 
-def test_to_history_tool_message_name_inference(converter):
+def test_to_history_tool_message_name_inference(converter) -> None:
     """Test converting an Ollama tool message where name needs inference."""
     tool_content_json = (
         '{"success": true, "output": {"type": "text", "content": "Result"}}'
@@ -738,7 +595,7 @@ def test_to_history_tool_message_name_inference(converter):
                 {
                     "id": "call_pqr",
                     "function": {"name": "inferred_tool_name", "arguments": "{}"},
-                }
+                },
             ],
         },
         {
@@ -762,7 +619,7 @@ def test_to_history_tool_message_name_inference(converter):
     assert tool_result_part.content == expected_tool_result
 
 
-def test_to_history_tool_message_name_inference_fails(converter):
+def test_to_history_tool_message_name_inference_fails(converter) -> None:
     """Test converting tool message where name inference fails (defaults to unknown)."""
     tool_content_json = (
         '{"success": true, "output": {"type": "text", "content": "Data"}}'
@@ -773,7 +630,7 @@ def test_to_history_tool_message_name_inference_fails(converter):
             "tool_call_id": "call_unknown",
             # Name missing, and no preceding assistant message to infer from
             "content": tool_content_json,
-        }
+        },
     ]
     common_messages = converter.to_history(ollama_history)
     expected_tool_result = ToolCallResult.model_validate_json(tool_content_json)
@@ -786,7 +643,7 @@ def test_to_history_tool_message_name_inference_fails(converter):
     assert tool_result_part.content == expected_tool_result
 
 
-def test_to_history_complex_conversation(converter):
+def test_to_history_complex_conversation(converter) -> None:
     """Test converting a complex Ollama conversation history."""
     tool_a_content = (
         '{"success": true, "output": {"type": "text", "content": "Result A"}}'
@@ -803,7 +660,7 @@ def test_to_history_complex_conversation(converter):
             "role": "assistant",  # Processed (Index 2)
             "content": "Okay",
             "tool_calls": [
-                {"id": "tool_a_1", "function": {"name": "tool_A", "arguments": "{}"}}
+                {"id": "tool_a_1", "function": {"name": "tool_A", "arguments": "{}"}},
             ],
         },
         {
@@ -820,7 +677,7 @@ def test_to_history_complex_conversation(converter):
                 {
                     "id": "tool_b_1",
                     "function": {"name": "tool_B", "arguments": '{"param":"val"}'},
-                }
+                },
             ],
         },
         {
@@ -838,10 +695,12 @@ def test_to_history_complex_conversation(converter):
 
     # Check messages by index
     assert common_messages[0] == Message(
-        role=Role.USER, content=[ContentPartText(text="Context prompt")]
+        role=Role.USER,
+        content=[ContentPartText(text="Context prompt")],
     )
     assert common_messages[1] == Message(
-        role=Role.USER, content=[ContentPartText(text="Call tool A")]
+        role=Role.USER,
+        content=[ContentPartText(text="Call tool A")],
     )
     assert common_messages[2] == Message(
         role=Role.MODEL,
@@ -857,18 +716,21 @@ def test_to_history_complex_conversation(converter):
                 id="tool_a_1",
                 name="tool_A",
                 content=ToolCallResult.model_validate_json(tool_a_content),
-            )
+            ),
         ],
     )
     assert common_messages[4] == Message(
-        role=Role.USER, content=[ContentPartText(text="Now call tool B")]
+        role=Role.USER,
+        content=[ContentPartText(text="Now call tool B")],
     )
     assert common_messages[5] == Message(
         role=Role.MODEL,
         content=[
             ContentPartToolCall(
-                id="tool_b_1", name="tool_B", arguments={"param": "val"}
-            )
+                id="tool_b_1",
+                name="tool_B",
+                arguments={"param": "val"},
+            ),
         ],
     )
     assert common_messages[6] == Message(
@@ -878,15 +740,16 @@ def test_to_history_complex_conversation(converter):
                 id="tool_b_1",
                 name="tool_B",  # Inferred name
                 content=ToolCallResult.model_validate_json(tool_b_content),
-            )
+            ),
         ],
     )
     assert common_messages[7] == Message(
-        role=Role.MODEL, content=[ContentPartText(text="Tool B failed.")]
+        role=Role.MODEL,
+        content=[ContentPartText(text="Tool B failed.")],
     )
 
 
-def test_to_history_unknown_role_skipped(converter):
+def test_to_history_unknown_role_skipped(converter) -> None:
     """Test that messages with unknown roles are skipped."""
     ollama_history = [
         {"role": "user", "content": "User message"},
@@ -894,7 +757,6 @@ def test_to_history_unknown_role_skipped(converter):
         {"role": "assistant", "content": "Assistant message"},
     ]
     common_messages = converter.to_history(ollama_history)
-    print(common_messages)
     assert len(common_messages) == 2
     assert common_messages[0].role == Role.USER
     assert common_messages[1].role == Role.MODEL
@@ -903,125 +765,14 @@ def test_to_history_unknown_role_skipped(converter):
 # --- Tests for OllamaHistoryConverter.to_history_item ---
 
 
-def test_to_history_item_from_chunks_text_only(converter):
-    """Test converting content chunks (text only) to an Ollama message dict."""
-    chunks = [
-        OllamaChunkWrapper({"message": {"content": "Hello "}}),
-        OllamaChunkWrapper({"message": {"content": "world!"}}),
-    ]
-    message_dict = converter.to_history_item(chunks).model_dump(exclude_none=True)
-    assert message_dict == {
-        "role": "assistant",
-        "content": "Hello world!",
-        # No tool_calls key expected if none were present
-    }
-
-
-def test_to_history_item_from_chunks_tool_calls_only(converter):
-    """Test converting content chunks (tool calls only) to an Ollama message dict."""
-    chunks = [
-        OllamaChunkWrapper(
-            {
-                "message": {
-                    "tool_calls": [
-                        {
-                            "id": "call_1",
-                            "function": {
-                                "name": "tool1",
-                                "arguments": {"arg": "val1"},
-                            },  # Dict arg
-                        }
-                    ]
-                }
-            }
-        ),
-        OllamaChunkWrapper(
-            {
-                "message": {
-                    "tool_calls": [
-                        {
-                            "id": "call_2",
-                            "function": {
-                                "name": "tool2",
-                                "arguments": '{"arg": "val2"}',
-                            },  # Str arg
-                        }
-                    ]
-                }
-            }
-        ),
-        OllamaChunkWrapper({"message": {"content": ""}}),  # Empty content chunk
-    ]
-    message_dict = converter.to_history_item(chunks).model_dump(exclude_none=True)
-    assert message_dict == {
-        "role": "assistant",
-        # No "content" key expected if only empty string content was present
-        "tool_calls": [
-            {
-                "function": {
-                    "name": "tool1",
-                    "arguments": {"arg": "val1"},
-                },
-            },
-            {
-                "function": {
-                    "name": "tool2",
-                    "arguments": {"arg": "val2"},
-                },
-            },
-        ],
-    }
-
-
-def test_to_history_item_from_chunks_mixed(converter):
-    """Test converting mixed chunks (text/tool calls) to an Ollama message dict."""
-    chunks = [
-        OllamaChunkWrapper({"message": {"content": "Using "}}),
-        OllamaChunkWrapper(
-            {
-                "message": {
-                    "tool_calls": [
-                        {"id": "call_3", "function": {"name": "tool3", "arguments": {}}}
-                    ]
-                }
-            }
-        ),
-        OllamaChunkWrapper({"message": {"content": "now."}}),
-    ]
-    message_dict = converter.to_history_item(chunks)
-    expected_dict = {
-        "role": "assistant",
-        "content": "Using now.",
-        "tool_calls": [
-            {
-                "function": {
-                    "name": "tool3",
-                    "arguments": {},
-                },  # Dict args -> JSON string
-            }
-        ],
-    }
-    assert message_dict.model_dump(exclude_none=True) == expected_dict
-
-
-def test_to_history_item_from_chunks_empty_result(converter):
-    """Test converting chunks that result in no content or tool calls returns None."""
-    chunks = [
-        OllamaChunkWrapper({"message": {"content": ""}}),
-        OllamaChunkWrapper({"message": {"tool_calls": []}}),
-        OllamaChunkWrapper({}),  # Chunk without message
-    ]
-    message_dict = converter.to_history_item(chunks)
-    assert message_dict is None
-
-
-def test_to_history_item_from_single_tool_result(converter):
+def test_to_history_item_from_single_tool_result(converter) -> None:
     """Test converting a single tool result to an Ollama message dict."""
     tool_result_part = ContentPartToolResult(
         id="call_abc",
         name="my_tool",
         content=ToolCallResult(
-            success=True, output=ToolOutput(type="text", content="Done.")
+            success=True,
+            output=ToolOutput(type="text", content="Done."),
         ),
     )
     # Input must be a list containing the single tool result
@@ -1033,35 +784,3 @@ def test_to_history_item_from_single_tool_result(converter):
         "name": "my_tool",
         "content": expected_content_json,
     }
-
-
-def test_to_history_item_invalid_input_types(converter, capsys):
-    """Test converting invalid inputs (empty list, wrong types, mixed types)."""
-    # Empty list
-    assert converter.to_history_item([]) is None
-
-    # List with multiple tool results
-    tool_result_1 = ContentPartToolResult(
-        id="1", name="t1", content=ToolCallResult.ok(output="1")
-    )
-    tool_result_2 = ContentPartToolResult(
-        id="2", name="t2", content=ToolCallResult.ok(output="2")
-    )
-    with pytest.raises(
-        AssertionError, match="Expected exactly one ContentPartToolResult"
-    ):
-        converter.to_history_item([tool_result_1, tool_result_2])
-
-    # List with mixed types
-    chunk = OllamaChunkWrapper({"message": {"content": "hello"}})
-    with pytest.raises(AssertionError, match="Expected all OllamaChunkWrapper"):
-        converter.to_history_item([chunk, tool_result_1])
-
-    with pytest.raises(
-        AssertionError, match="Expected exactly one ContentPartToolResult"
-    ):
-        converter.to_history_item([tool_result_1, chunk])
-
-    # List with unexpected type
-    with pytest.raises(TypeError, match="Unsupported messages"):
-        converter.to_history_item(["not a wrapper or result"])

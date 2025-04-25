@@ -2,12 +2,10 @@ import os
 import queue
 import subprocess
 import threading
-from typing import IO
 
 
 def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
-    """
-    Executes a CLI command and returns the output, error, and return code.
+    """Executes a CLI command and returns the output, error, and return code.
 
     The command's standard input/output/error are connected to the application's
     standard input/output/error, allowing for interactive use.
@@ -23,6 +21,7 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
         - stdout: The captured standard output of the command
         - stderr: The captured standard error of the command
         - return_code: The return code of the command
+
     """
     stdout_lines = []
     stderr_lines = []
@@ -30,9 +29,11 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
 
     # Validate work_dir exists and is a directory
     if not os.path.exists(work_dir):
-        raise ValueError(f"Working directory '{work_dir}' does not exist")
+        msg = f"Working directory '{work_dir}' does not exist"
+        raise ValueError(msg)
     if not os.path.isdir(work_dir):
-        raise ValueError(f"Path '{work_dir}' is not a directory")
+        msg = f"Path '{work_dir}' is not a directory"
+        raise ValueError(msg)
 
     # Normalize the working directory
     abs_work_dir = os.path.abspath(os.path.normpath(work_dir))
@@ -42,7 +43,7 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
         q = queue.Queue()
 
         def monitor(text_stream, lines_buffer):
-            def pipe():
+            def pipe() -> None:
                 while True:
                     line = text_stream.readline()
                     if not line:
@@ -68,11 +69,11 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
             monitor(process.stderr, stderr_lines),
         ]
 
-        while any([t.is_alive() for t in mt]):
+        while any(t.is_alive() for t in mt):
             # print everything into stdout
             # b/c our stderr is for our errors, not tool errors
-            for line in iter(q.get, None):
-                print(line, end="", flush=True)
+            for _line in iter(q.get, None):
+                pass
 
     except Exception as e:
         stderr_lines.append("\n")

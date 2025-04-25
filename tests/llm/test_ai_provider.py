@@ -1,10 +1,10 @@
-"""
-Unit tests for AI provider interface and factory.
-"""
+"""Unit tests for AI provider interface and factory."""
 
 import os
 import unittest
 from unittest.mock import patch
+
+import pytest
 
 from streetrace.llm.claude.impl import Claude
 from streetrace.llm.gemini.impl import Gemini
@@ -17,69 +17,69 @@ from streetrace.llm.openai.impl import OpenAI
 class TestAIProvider(unittest.TestCase):
     """Test cases for AI provider interface and factory."""
 
-    def test_provider_implementations(self):
+    def test_provider_implementations(self) -> None:
         """Verify that all provider implementations inherit from LLMAPI."""
-        self.assertTrue(issubclass(Claude, LLMAPI))
-        self.assertTrue(issubclass(Gemini, LLMAPI))
-        self.assertTrue(issubclass(OpenAI, LLMAPI))
-        self.assertTrue(issubclass(Ollama, LLMAPI))
+        assert issubclass(Claude, LLMAPI)
+        assert issubclass(Gemini, LLMAPI)
+        assert issubclass(OpenAI, LLMAPI)
+        assert issubclass(Ollama, LLMAPI)
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}, clear=True)
-    def test_get_provider_claude(self):
+    def test_get_provider_claude(self) -> None:
         """Test getting Claude provider when ANTHROPIC_API_KEY is set."""
         provider = get_ai_provider()
-        self.assertIsInstance(provider, Claude)
+        assert isinstance(provider, Claude)
 
     @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}, clear=True)
-    def test_get_provider_gemini(self):
+    def test_get_provider_gemini(self) -> None:
         """Test getting Gemini provider when GEMINI_API_KEY is set."""
         provider = get_ai_provider()
-        self.assertIsInstance(provider, Gemini)
+        assert isinstance(provider, Gemini)
 
     @patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}, clear=True)
-    def test_get_provider_openai(self):
+    def test_get_provider_openai(self) -> None:
         """Test getting OpenAI provider when OPENAI_API_KEY is set."""
         provider = get_ai_provider()
-        self.assertIsInstance(provider, OpenAI)
+        assert isinstance(provider, OpenAI)
 
     @patch.dict(os.environ, {}, clear=True)
-    def test_get_provider_ollama_default(self):
+    def test_get_provider_ollama_default(self) -> None:
         """Test getting Ollama provider as default when no API keys are set."""
         provider = get_ai_provider()
-        self.assertIsInstance(provider, Ollama)
+        assert isinstance(provider, Ollama)
 
-    def test_get_provider_explicit(self):
+    def test_get_provider_explicit(self) -> None:
         """Test explicitly requesting a specific provider."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}, clear=True):
             provider = get_ai_provider("claude")
-            self.assertIsInstance(provider, Claude)
+            assert isinstance(provider, Claude)
 
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}, clear=True):
             provider = get_ai_provider("gemini")
-            self.assertIsInstance(provider, Gemini)
+            assert isinstance(provider, Gemini)
 
         with patch.dict(os.environ, {"OPENAI_API_KEY": "test_key"}, clear=True):
             provider = get_ai_provider("openai")
-            self.assertIsInstance(provider, OpenAI)
+            assert isinstance(provider, OpenAI)
 
         provider = get_ai_provider("ollama")
-        self.assertIsInstance(provider, Ollama)
+        assert isinstance(provider, Ollama)
 
-    def test_get_provider_invalid(self):
+    def test_get_provider_invalid(self) -> None:
         """Test requesting an invalid provider."""
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             get_ai_provider("invalid_provider")
 
-    def test_get_provider_missing_key(self):
+    def test_get_provider_missing_key(self) -> None:
         """Test requesting a provider without required API key."""
         with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 get_ai_provider("claude")
 
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 get_ai_provider("gemini")
 
-            with self.assertRaises(ValueError):
+            with pytest.raises(ValueError):
                 get_ai_provider("openai")
 
 

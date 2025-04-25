@@ -1,5 +1,4 @@
-"""
-Unit tests for OpenAI's converter module.
+"""Unit tests for OpenAI's converter module.
 
 This module contains comprehensive tests for the OpenAI converter classes
 which handle transformations between common message formats and OpenAI-specific formats.
@@ -9,7 +8,7 @@ import builtins
 import unittest
 from unittest.mock import MagicMock, patch
 
-from openai.types import chat
+import pytest
 
 from streetrace.llm.openai.converter import (
     OpenAIHistoryConverter,
@@ -32,8 +31,9 @@ class MockDict(dict):
     def __getattr__(self, key):
         if key in self:
             return self[key]
+        msg = f"'{self.__class__.__name__}' object has no attribute '{key}'"
         raise AttributeError(
-            f"'{self.__class__.__name__}' object has no attribute '{key}'"
+            msg,
         )
 
     def get(self, key, default=None):
@@ -47,7 +47,7 @@ class MockDict(dict):
 class TestOpenAIConverter(unittest.TestCase):
     """Tests for the OpenAIHistoryConverter class which handles format conversions."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up common test fixtures."""
         self.converter = OpenAIHistoryConverter()
 
@@ -59,7 +59,8 @@ class TestOpenAIConverter(unittest.TestCase):
 
         # Add a user message
         self.sample_history.add_message(
-            Role.USER, [ContentPartText(text="Hello, how are you?")]
+            Role.USER,
+            [ContentPartText(text="Hello, how are you?")],
         )
 
         # Add a model message with text and tool call
@@ -86,12 +87,12 @@ class TestOpenAIConverter(unittest.TestCase):
                     id="tool-1",
                     name="search_files",
                     content=tool_result,
-                )
+                ),
             ],
         )
 
     @patch("openai.types.chat.ChatCompletionContentPartTextParam")
-    def test_from_content_part_text(self, mock_text_param):
+    def test_from_content_part_text(self, mock_text_param) -> None:
         """Test converting a ContentPartText to OpenAI format."""
         # Set up mock
         mock_text_param.return_value = {"type": "text", "text": "Hello, world!"}
@@ -100,14 +101,15 @@ class TestOpenAIConverter(unittest.TestCase):
         result = self.converter._from_content_part(text_part)
 
         mock_text_param.assert_called_once_with(type="text", text="Hello, world!")
-        self.assertEqual(result["type"], "text")
-        self.assertEqual(result["text"], "Hello, world!")
+        assert result["type"] == "text"
+        assert result["text"] == "Hello, world!"
 
     @patch("openai.types.chat.ChatCompletionMessageToolCallParam")
     @patch(
-        "openai.types.chat.Function", create=True
+        "openai.types.chat.Function",
+        create=True,
     )  # Create the attribute if it doesn't exist
-    def test_from_content_part_tool_call(self, mock_function, mock_tool_call_param):
+    def test_from_content_part_tool_call(self, mock_function, mock_tool_call_param) -> None:
         """Test converting a ContentPartToolCall to OpenAI format."""
         # Set up mocks
         mock_function.return_value = {
@@ -137,13 +139,14 @@ class TestOpenAIConverter(unittest.TestCase):
                     arguments='{"pattern": "*.py", "search_string": "test"}',
                 )
                 mock_tool_call_param.assert_called_once_with(
-                    id="tool-1", function=mock_function.return_value
+                    id="tool-1",
+                    function=mock_function.return_value,
                 )
 
-                self.assertEqual(result["id"], "tool-1")
-                self.assertEqual(result["function"]["name"], "search_files")
+                assert result["id"] == "tool-1"
+                assert result["function"]["name"] == "search_files"
 
-    def test_from_content_part_tool_result(self):
+    def test_from_content_part_tool_result(self) -> None:
         """Test that _from_content_part returns None for ContentPartToolResult."""
         tool_output = ToolOutput(type="text", content={"files": ["test.py"]})
         tool_result = ToolCallResult(success=True, output=tool_output)
@@ -154,11 +157,11 @@ class TestOpenAIConverter(unittest.TestCase):
         )
 
         result = self.converter._from_content_part(tool_result_part)
-        self.assertIsNone(result)
+        assert result is None
 
-    def test_from_content_part_unknown(self):
+    def test_from_content_part_unknown(self) -> None:
         """Test that _from_content_part raises ValueError for unknown content type."""
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.converter._from_content_part("not a content part")
 
     @patch("openai.types.chat.ChatCompletionSystemMessageParam")
@@ -168,7 +171,8 @@ class TestOpenAIConverter(unittest.TestCase):
     @patch("openai.types.chat.ChatCompletionContentPartTextParam")
     @patch("openai.types.chat.ChatCompletionMessageToolCallParam")
     @patch(
-        "openai.types.chat.Function", create=True
+        "openai.types.chat.Function",
+        create=True,
     )  # Create the attribute if it doesn't exist
     def test_from_history_complete(
         self,
@@ -179,7 +183,7 @@ class TestOpenAIConverter(unittest.TestCase):
         mock_assistant_message,
         mock_user_message,
         mock_system_message,
-    ):
+    ) -> None:
         """Test converting a complete History to OpenAI format."""
         # Setup mock returns
         mock_system_message.return_value = {
@@ -190,7 +194,7 @@ class TestOpenAIConverter(unittest.TestCase):
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": "This is some context information."}
+                    {"type": "text", "text": "This is some context information."},
                 ],
             },
             {
@@ -230,54 +234,40 @@ class TestOpenAIConverter(unittest.TestCase):
                 "model_dump_json",
                 return_value='{"success":true,"output":{"type":"text","content":{"files":["test.py"]}}}',
             ):
-                provider_history = self.converter.create_provider_history(self.sample_history)
+                provider_history = self.converter.create_provider_history(
+                    self.sample_history,
+                )
 
                 # Verify basic structure
-                self.assertEqual(
-                    len(provider_history), 5
-                )  # system, context, user, model, tool
+                assert len(provider_history) == 5  # system, context, user, model, tool
 
                 # Check system message
-                self.assertEqual(provider_history[0]["role"], "system")
-                self.assertEqual(
-                    provider_history[0]["content"][0]["text"],
-                    "You are a helpful assistant.",
-                )
+                assert provider_history[0]["role"] == "system"
+                assert provider_history[0]["content"][0]["text"] == "You are a helpful assistant."
 
                 # Check context message
-                self.assertEqual(provider_history[1]["role"], "user")
-                self.assertEqual(
-                    provider_history[1]["content"][0]["text"],
-                    "This is some context information.",
-                )
+                assert provider_history[1]["role"] == "user"
+                assert provider_history[1]["content"][0]["text"] == "This is some context information."
 
                 # Check user message
-                self.assertEqual(provider_history[2]["role"], "user")
-                self.assertEqual(
-                    provider_history[2]["content"][0]["text"], "Hello, how are you?"
-                )
+                assert provider_history[2]["role"] == "user"
+                assert provider_history[2]["content"][0]["text"] == "Hello, how are you?"
 
                 # Check model message with tool call
-                self.assertEqual(provider_history[3]["role"], "assistant")
-                self.assertEqual(
-                    provider_history[3]["content"][0]["text"],
-                    "I'm doing well, thank you!",
-                )
-                self.assertEqual(
-                    provider_history[3]["tool_calls"][0]["function"]["name"],
-                    "search_files",
-                )
+                assert provider_history[3]["role"] == "assistant"
+                assert provider_history[3]["content"][0]["text"] == "I'm doing well, thank you!"
+                assert provider_history[3]["tool_calls"][0]["function"]["name"] == "search_files"
 
                 # Check tool message
-                self.assertEqual(provider_history[4]["role"], "tool")
-                self.assertEqual(provider_history[4]["tool_call_id"], "tool-1")
+                assert provider_history[4]["role"] == "tool"
+                assert provider_history[4]["tool_call_id"] == "tool-1"
                 # The content should be a JSON string
-                self.assertIn("success", provider_history[4]["content"])
-                self.assertIn("output", provider_history[4]["content"])
+                assert "success" in provider_history[4]["content"]
+                assert "output" in provider_history[4]["content"]
 
     @patch("openai.types.chat.ChatCompletionUserMessageParam")
     @patch("openai.types.chat.ChatCompletionContentPartTextParam")
-    def test_from_history_minimal(self, mock_text_param, mock_user_message):
+    def test_from_history_minimal(self, mock_text_param, mock_user_message) -> None:
         """Test converting a minimal History with only required fields."""
         # Setup mock returns
         mock_text_param.return_value = {"type": "text", "text": "Hello"}
@@ -292,12 +282,12 @@ class TestOpenAIConverter(unittest.TestCase):
         provider_history = self.converter.create_provider_history(minimal_history)
 
         # Should only have a user message
-        self.assertEqual(len(provider_history), 1)
-        self.assertEqual(provider_history[0]["role"], "user")
-        self.assertEqual(provider_history[0]["content"][0]["text"], "Hello")
+        assert len(provider_history) == 1
+        assert provider_history[0]["role"] == "user"
+        assert provider_history[0]["content"][0]["text"] == "Hello"
 
     @patch("openai.types.chat.ChatCompletionUserMessageParam")
-    def test_from_history_with_unknown_role(self, mock_user_message):
+    def test_from_history_with_unknown_role(self, mock_user_message) -> None:
         """Test that create_provider_history raises ValueError for unknown roles."""
         # Create a history with an unknown role
         history = History()
@@ -314,15 +304,15 @@ class TestOpenAIConverter(unittest.TestCase):
         history.conversation = [message]
 
         # Verify that ValueError is raised
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.converter.create_provider_history(history)
 
-    def test_to_history_empty(self):
+    def test_to_history_empty(self) -> None:
         """Test that to_history returns an empty list for empty provider_history."""
         result = self.converter.to_history([])
-        self.assertEqual(result, [])
+        assert result == []
 
-    def test_to_history_complete(self):
+    def test_to_history_complete(self) -> None:
         """Test converting OpenAI format history to common History format."""
         # Create a mock OpenAI history using namedtuples or similar structure
         # that allows both dictionary access and attribute access
@@ -330,18 +320,18 @@ class TestOpenAIConverter(unittest.TestCase):
         # Dict-like objects with get method for compatibility with converter code
         class OpenAIMessageDict(dict):
             def get(self, key, default=None):
-                return self[key] if key in self else default
+                return self.get(key, default)
 
         class OpenAIToolCallDict(dict):
             def get(self, key, default=None):
-                return self[key] if key in self else default
+                return self.get(key, default)
 
         function = OpenAIToolCallDict(
-            {"name": "search_files", "arguments": '{"pattern": "*.py"}'}
+            {"name": "search_files", "arguments": '{"pattern": "*.py"}'},
         )
 
         tool_call = OpenAIToolCallDict(
-            {"id": "tool-1", "type": "function", "function": function}
+            {"id": "tool-1", "type": "function", "function": function},
         )
 
         provider_history = [
@@ -349,26 +339,26 @@ class TestOpenAIConverter(unittest.TestCase):
                 {
                     "role": "system",
                     "content": [
-                        {"type": "text", "text": "You are a helpful assistant."}
+                        {"type": "text", "text": "You are a helpful assistant."},
                     ],
-                }
+                },
             ),
             OpenAIMessageDict(
-                {"role": "user", "content": [{"type": "text", "text": "Hello"}]}
+                {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
             ),
             OpenAIMessageDict(
                 {
                     "role": "assistant",
                     "content": [{"type": "text", "text": "How can I help?"}],
                     "tool_calls": [tool_call],
-                }
+                },
             ),
             OpenAIMessageDict(
                 {
                     "role": "tool",
                     "tool_call_id": "tool-1",
                     "content": '{"success": true, "output": {"type": "text", "content": {"files": ["test.py"]}}}',
-                }
+                },
             ),
         ]
 
@@ -388,24 +378,22 @@ class TestOpenAIConverter(unittest.TestCase):
             common_messages = self.converter.to_history(provider_history)
 
             # Check the structure
-            self.assertEqual(
-                len(common_messages), 3
-            )  # Only user, model, and tool (not system)
+            assert len(common_messages) == 3  # Only user, model, and tool (not system)
 
             # Check user message
-            self.assertEqual(common_messages[0].role, Role.USER)
-            self.assertEqual(len(common_messages[0].content), 1)
-            self.assertEqual(common_messages[0].content[0].text, "Hello")
+            assert common_messages[0].role == Role.USER
+            assert len(common_messages[0].content) == 1
+            assert common_messages[0].content[0].text == "Hello"
 
             # Check model message
-            self.assertEqual(common_messages[1].role, Role.MODEL)
+            assert common_messages[1].role == Role.MODEL
 
             # Find the text part
             text_parts = [
                 p for p in common_messages[1].content if isinstance(p, ContentPartText)
             ]
-            self.assertEqual(len(text_parts), 1)
-            self.assertEqual(text_parts[0].text, "How can I help?")
+            assert len(text_parts) == 1
+            assert text_parts[0].text == "How can I help?"
 
             # Find the tool call part
             tool_calls = [
@@ -413,18 +401,18 @@ class TestOpenAIConverter(unittest.TestCase):
                 for p in common_messages[1].content
                 if isinstance(p, ContentPartToolCall)
             ]
-            self.assertEqual(len(tool_calls), 1)
-            self.assertEqual(tool_calls[0].id, "tool-1")
-            self.assertEqual(tool_calls[0].name, "search_files")
-            self.assertEqual(tool_calls[0].arguments, {"pattern": "*.py"})
+            assert len(tool_calls) == 1
+            assert tool_calls[0].id == "tool-1"
+            assert tool_calls[0].name == "search_files"
+            assert tool_calls[0].arguments == {"pattern": "*.py"}
 
             # Check tool result message
-            self.assertEqual(common_messages[2].role, Role.TOOL)
-            self.assertEqual(len(common_messages[2].content), 1)
-            self.assertEqual(common_messages[2].content[0].id, "tool-1")
-            self.assertTrue(common_messages[2].content[0].content.success)
+            assert common_messages[2].role == Role.TOOL
+            assert len(common_messages[2].content) == 1
+            assert common_messages[2].content[0].id == "tool-1"
+            assert common_messages[2].content[0].content.success
 
-    def test_to_history_with_tools_and_tool_call_ids(self):
+    def test_to_history_with_tools_and_tool_call_ids(self) -> None:
         """Test that tool use names are properly collected from the history."""
         # Create a dictionary to simulate the tool_use_names structure
         tool_use_names = {}
@@ -463,7 +451,7 @@ class TestOpenAIConverter(unittest.TestCase):
             return None
 
         # Mock get method for the function
-        def mock_function_get(key, default=None):
+        def mock_function_get(key, default=None) -> str | None:
             if key == "name":
                 return "search_files"
             return None
@@ -483,19 +471,19 @@ class TestOpenAIConverter(unittest.TestCase):
             ):
                 for tool_call in message_with_tool_calls.get("tool_calls"):
                     tool_use_names[tool_call.get("id")] = tool_call.get("function").get(
-                        "name"
+                        "name",
                     )
 
         # Test that the tool_use_names dictionary was populated correctly
-        self.assertEqual(tool_use_names["tool-call-1"], "search_files")
+        assert tool_use_names["tool-call-1"] == "search_files"
 
-    def test_to_history_with_string_content(self):
+    def test_to_history_with_string_content(self) -> None:
         """Test converting OpenAI format with string content to common format."""
 
         # Dict-like objects with get method for compatibility with converter code
         class OpenAIMessageDict(dict):
             def get(self, key, default=None):
-                return self[key] if key in self else default
+                return self.get(key, default)
 
         provider_history = [
             OpenAIMessageDict({"role": "user", "content": "Hello"}),
@@ -504,61 +492,60 @@ class TestOpenAIConverter(unittest.TestCase):
 
         common_messages = self.converter.to_history(provider_history)
 
-        self.assertEqual(len(common_messages), 2)
-        self.assertEqual(common_messages[0].role, Role.USER)
-        self.assertEqual(common_messages[0].content[0].text, "Hello")
-        self.assertEqual(common_messages[1].role, Role.MODEL)
-        self.assertEqual(common_messages[1].content[0].text, "How can I help?")
+        assert len(common_messages) == 2
+        assert common_messages[0].role == Role.USER
+        assert common_messages[0].content[0].text == "Hello"
+        assert common_messages[1].role == Role.MODEL
+        assert common_messages[1].content[0].text == "How can I help?"
 
-    def test_to_history_with_list_string_content(self):
+    def test_to_history_with_list_string_content(self) -> None:
         """Test converting OpenAI format with list of strings to common format."""
 
         # Dict-like objects with get method for compatibility with converter code
         class OpenAIMessageDict(dict):
             def get(self, key, default=None):
-                return self[key] if key in self else default
+                return self.get(key, default)
 
         # Create messages with content as a list of strings
         provider_history = [
             OpenAIMessageDict({"role": "user", "content": ["Hello", "User"]}),
             OpenAIMessageDict(
-                {"role": "assistant", "content": ["How", "can", "I", "help?"]}
+                {"role": "assistant", "content": ["How", "can", "I", "help?"]},
             ),
         ]
 
         common_messages = self.converter.to_history(provider_history)
 
         # Check user message
-        self.assertEqual(len(common_messages), 2)
-        self.assertEqual(common_messages[0].role, Role.USER)
-        self.assertEqual(len(common_messages[0].content), 2)
-        self.assertEqual(common_messages[0].content[0].text, "Hello")
-        self.assertEqual(common_messages[0].content[1].text, "User")
+        assert len(common_messages) == 2
+        assert common_messages[0].role == Role.USER
+        assert len(common_messages[0].content) == 2
+        assert common_messages[0].content[0].text == "Hello"
+        assert common_messages[0].content[1].text == "User"
 
         # Check assistant message
-        self.assertEqual(common_messages[1].role, Role.MODEL)
-        self.assertEqual(len(common_messages[1].content), 4)
-        self.assertEqual(common_messages[1].content[0].text, "How")
-        self.assertEqual(common_messages[1].content[1].text, "can")
-        self.assertEqual(common_messages[1].content[2].text, "I")
-        self.assertEqual(common_messages[1].content[3].text, "help?")
+        assert common_messages[1].role == Role.MODEL
+        assert len(common_messages[1].content) == 4
+        assert common_messages[1].content[0].text == "How"
+        assert common_messages[1].content[1].text == "can"
+        assert common_messages[1].content[2].text == "I"
+        assert common_messages[1].content[3].text == "help?"
 
-    def test_to_history_with_unknown_role(self):
+    def test_to_history_with_unknown_role(self) -> None:
         """Test that to_history raises ValueError for unknown roles."""
 
         # Dict-like objects with get method for compatibility with converter code
         class OpenAIMessageDict(dict):
             def get(self, key, default=None):
-                return self[key] if key in self else default
+                return self.get(key, default)
 
         provider_history = [OpenAIMessageDict({"role": "unknown", "content": "Hello"})]
 
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             self.converter.to_history(provider_history)
 
-
     @patch("openai.types.chat.ChatCompletionToolMessageParam")
-    def test_tool_results_to_message(self, mock_tool_message):
+    def test_tool_results_to_message(self, mock_tool_message) -> None:
         """Test converting tool results to a message."""
         # Setup mock
         mock_tool_message.return_value = {
@@ -592,18 +579,15 @@ class TestOpenAIConverter(unittest.TestCase):
                 content='{"success":true,"output":{"type":"text","content":{"files":["test.py"]}}}',
             )
 
-            self.assertEqual(message["role"], "tool")
-            self.assertEqual(message["tool_call_id"], "tool-1")
-            self.assertEqual(
-                message["content"],
-                '{"success":true,"output":{"type":"text","content":{"files":["test.py"]}}}',
-            )
+            assert message["role"] == "tool"
+            assert message["tool_call_id"] == "tool-1"
+            assert message["content"] == '{"success":true,"output":{"type":"text","content":{"files":["test.py"]}}}'
 
-    def test_tool_results_to_message_empty(self):
+    def test_tool_results_to_message_empty(self) -> None:
         """Test that _tool_results_to_message returns None for empty results."""
-        self.assertIsNone(self.converter._tool_results_to_message([]))
+        assert self.converter._tool_results_to_message([]) is None
 
-    def test_to_history_item_with_tool_results(self):
+    def test_to_history_item_with_tool_results(self) -> None:
         """Test to_history_item with tool results."""
         # Create a tool result
         tool_output = ToolOutput(type="text", content={"files": ["test.py"]})
@@ -618,17 +602,19 @@ class TestOpenAIConverter(unittest.TestCase):
         expected_message = {"role": "tool", "tool_call_id": "tool-1", "content": "{}"}
 
         with patch.object(
-            self.converter, "_tool_results_to_message", return_value=expected_message
+            self.converter,
+            "_tool_results_to_message",
+            return_value=expected_message,
         ) as mock_method:
             result = self.converter.to_history_item([tool_result_part])
 
             # Verify the method was called with the tool result
             mock_method.assert_called_once_with([tool_result_part])
-            self.assertEqual(result, expected_message)
+            assert result == expected_message
 
-    def test_to_history_item_empty(self):
+    def test_to_history_item_empty(self) -> None:
         """Test that to_history_item returns None for empty input."""
-        self.assertIsNone(self.converter.to_history_item([]))
+        assert self.converter.to_history_item([]) is None
 
 
 if __name__ == "__main__":

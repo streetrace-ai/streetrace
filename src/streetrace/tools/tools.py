@@ -1,6 +1,7 @@
 import json
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from streetrace.llm.wrapper import ContentPartToolCall, ToolCallResult
 
@@ -8,33 +9,32 @@ logger = logging.getLogger(__name__)
 
 
 class ToolCall:
-    """
-    Manages the execution of tool functions requested by the AI model.
+    """Manages the execution of tool functions requested by the AI model.
 
     This class handles the routing of tool calls to the appropriate implementation,
     manages arguments, handles errors, and ensures results are properly formatted.
     """
 
     def __init__(
-        self, tools: dict[str, Any], tools_impl: dict[str, Callable], abs_work_dir: str
-    ):
-        """
-        Initialize the ToolCall manager.
+        self,
+        tools: dict[str, Any],
+        tools_impl: dict[str, Callable],
+        abs_work_dir: str,
+    ) -> None:
+        """Initialize the ToolCall manager.
 
         Args:
             tools: Dictionary mapping tool names to their schema definitions
             tools_impl: Dictionary mapping tool names to their implementation functions
             abs_work_dir: Absolute path to the working directory for file operations
+
         """
         self.tools = tools
         self.tools_impl = tools_impl
         self.abs_work_dir = abs_work_dir
 
-    def call_tool(
-        self, tool_call: ContentPartToolCall
-    ) -> ToolCallResult:
-        """
-        Executes the appropriate tool function based on the tool name and arguments.
+    def call_tool(self, tool_call: ContentPartToolCall) -> ToolCallResult:
+        """Executes the appropriate tool function based on the tool name and arguments.
 
         Args:
             tool_call: Object containing the tool name and arguments to execute
@@ -43,6 +43,7 @@ class ToolCall:
         Returns:
             ToolCallResult: An object containing the execution result (success or error)
                            with both raw output and display-formatted output
+
         """
         if tool_call.name in self.tools_impl:
             tool_func = self.tools_impl[tool_call.name]
@@ -67,13 +68,13 @@ class ToolCall:
                     return ToolCallResult.ok(tool_result, result_view)
                 except TypeError as json_err:
                     logger.warning(
-                        f"Tool '{tool_call.name}' result is not fully JSON serializable: {json_err}. Returning string representation within result."
+                        f"Tool '{tool_call.name}' result is not fully JSON serializable: {json_err}. Returning string representation within result.",
                     )
                     return ToolCallResult.ok(str(tool_result), result_view)
 
             except Exception as e:
                 # Handle tool execution errors
-                error_msg = f"Error executing tool '{tool_call.name}': {str(e)}"
+                error_msg = f"Error executing tool '{tool_call.name}': {e!s}"
                 logger.exception(e)
                 return ToolCallResult.error(error_msg)
         else:

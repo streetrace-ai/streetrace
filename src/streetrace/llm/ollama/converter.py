@@ -1,8 +1,18 @@
-from typing import Iterator, List, override
-from streetrace.llm.history_converter import HistoryConverter
-from ollama import ChatResponse, Message as OllamaMessage
+from collections.abc import Iterator
+from typing import override
 
-from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentPartFinishReason, Role
+from ollama import ChatResponse
+from ollama import Message as OllamaMessage
+
+from streetrace.llm.history_converter import HistoryConverter
+from streetrace.llm.wrapper import (
+    ContentPart,
+    ContentPartFinishReason,
+    ContentPartText,
+    ContentPartToolCall,
+    ContentPartToolResult,
+    Role,
+)
 
 _ROLES = {
     Role.SYSTEM: "system",
@@ -15,13 +25,18 @@ _ROLES = {
 
 class OllamaHistoryConverter(HistoryConverter[OllamaMessage, ChatResponse]):
     @override
-    def create_history_messages(self, role: Role, items: List[ContentPart]) -> Iterator[OllamaMessage]:
+    def create_history_messages(
+        self,
+        role: Role,
+        items: list[ContentPart],
+    ) -> Iterator[OllamaMessage]:
         if role not in _ROLES:
-            raise ValueError(f"Unsupported role for Ollama: {role}")
+            msg = f"Unsupported role for Ollama: {role}"
+            raise ValueError(msg)
 
         role_str = _ROLES[role]
 
-        message = OllamaMessage(role = role_str, tool_calls = [])
+        message = OllamaMessage(role=role_str, tool_calls=[])
         yield_message = False
 
         tool_results: list[OllamaMessage] = []
@@ -33,19 +48,19 @@ class OllamaHistoryConverter(HistoryConverter[OllamaMessage, ChatResponse]):
             elif isinstance(item, ContentPartToolCall):
                 message.tool_calls.append(
                     OllamaMessage.ToolCall(
-                        function = OllamaMessage.ToolCall.Function(
-                            name = item.name,
-                            arguments = item.arguments
-                        )
-                    )
+                        function=OllamaMessage.ToolCall.Function(
+                            name=item.name,
+                            arguments=item.arguments,
+                        ),
+                    ),
                 )
                 yield_message = True
             elif isinstance(item, ContentPartToolResult):
                 tool_results.append(
                     OllamaMessage(
-                        role = 'tool',
-                        content = item.model_dump_json(exclude_none=True),
-                    )
+                        role="tool",
+                        content=item.model_dump_json(exclude_none=True),
+                    ),
                 )
 
         if yield_message:
@@ -64,7 +79,7 @@ class OllamaHistoryConverter(HistoryConverter[OllamaMessage, ChatResponse]):
             for call in model_response.message.tool_calls:
                 yield ContentPartToolCall(
                     name=call.function.name,
-                    arguments=call.function.arguments
+                    arguments=call.function.arguments,
                 )
 
         yield ContentPartFinishReason(finish_reason="done")

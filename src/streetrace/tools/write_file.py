@@ -9,8 +9,7 @@ from streetrace.tools.path_utils import (
 
 
 def write_file(file_path, content, work_dir, encoding="utf-8", binary_mode=False):
-    """
-    Securely write content to a file, ensuring the path is within the allowed root path.
+    """Securely write content to a file, ensuring the path is within the allowed root path.
 
     Args:
         file_path (str): Path to the file to write. Can be relative to work_dir or absolute.
@@ -31,16 +30,22 @@ def write_file(file_path, content, work_dir, encoding="utf-8", binary_mode=False
         TypeError: If content type doesn't match the mode (str for text, bytes for binary)
         IOError: If there are issues writing the file
         OSError: If directory creation fails
+
     """
     # Normalize and validate the path
     abs_file_path = normalize_and_validate_path(file_path, work_dir)
-    rel_file_path = os.path.relpath(abs_file_path, work_dir) # Get relative path for return
+    rel_file_path = os.path.relpath(
+        abs_file_path,
+        work_dir,
+    )  # Get relative path for return
 
     # Check content type
     if binary_mode and not isinstance(content, bytes):
-        raise TypeError("Content must be bytes when binary_mode is True")
+        msg = "Content must be bytes when binary_mode is True"
+        raise TypeError(msg)
     if not binary_mode and not isinstance(content, str):
-        raise TypeError("Content must be str when binary_mode is False")
+        msg = "Content must be str when binary_mode is False"
+        raise TypeError(msg)
 
     # Create directory if it doesn't exist
     ensure_directory_exists(abs_file_path)
@@ -72,11 +77,12 @@ def write_file(file_path, content, work_dir, encoding="utf-8", binary_mode=False
                     tofile=rel_file_path,
                 )
                 diff = "".join(diff_lines)
-                if not diff: # Handle case where content is identical
-                     diff = f"File content unchanged: {rel_file_path}"
+                if not diff:  # Handle case where content is identical
+                    diff = f"File content unchanged: {rel_file_path}"
             else:
                 diff = f"File created: {rel_file_path} ({len(written)} lines)"
 
         return rel_file_path, diff
-    except IOError as e:
-        raise IOError(f"Error writing to file '{rel_file_path}': {str(e)}")
+    except OSError as e:
+        msg = f"Error writing to file '{rel_file_path}': {e!s}"
+        raise OSError(msg)

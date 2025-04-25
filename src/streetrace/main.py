@@ -4,26 +4,26 @@ import logging
 import os
 import sys
 
-# Completer imports
-from streetrace.completer import PromptCompleter, PathCompleter, CommandCompleter
-from streetrace.prompt_processor import PromptProcessor
-
 # Core application components
 from streetrace.application import Application
 from streetrace.commands.command_executor import CommandExecutor
 
 # Import specific command classes
 from streetrace.commands.definitions import (
+    ClearCommand,  # Added ClearCommand
+    CompactCommand,
     ExitCommand,
     HistoryCommand,
-    CompactCommand,
-    ClearCommand,  # Added ClearCommand
 )
+
+# Completer imports
+from streetrace.completer import CommandCompleter, PathCompleter, PromptCompleter
+from streetrace.interaction_manager import InteractionManager
 from streetrace.llm.llmapi_factory import get_ai_provider
+from streetrace.prompt_processor import PromptProcessor
 from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
-from streetrace.interaction_manager import InteractionManager
 
 # --- Logging Configuration ---
 # Basic config for file logging
@@ -50,7 +50,7 @@ root_logger.setLevel(logging.DEBUG)
 def parse_arguments():
     """Parses command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Run AI assistant with different models"
+        description="Run AI assistant with different models",
     )
     parser.add_argument(
         "--engine",
@@ -75,7 +75,9 @@ def parse_arguments():
         help="Specify which path to use as the working directory for all file operations",
     )
     parser.add_argument(
-        "--debug", action="store_true", help="Enable debug logging to console and file."
+        "--debug",
+        action="store_true",
+        help="Enable debug logging to console and file.",
     )
     return parser.parse_args()
 
@@ -87,8 +89,9 @@ def init_working_directory(args_path: str) -> str:
     abs_working_dir = os.path.abspath(target_work_dir)
 
     if not os.path.isdir(abs_working_dir):
+        msg = f"Specified path '{target_work_dir}' resolved to '{abs_working_dir}' which is not a valid directory."
         raise ValueError(
-            f"Specified path '{target_work_dir}' resolved to '{abs_working_dir}' which is not a valid directory."
+            msg,
         )
 
     if abs_working_dir != initial_cwd:
@@ -96,14 +99,15 @@ def init_working_directory(args_path: str) -> str:
             os.chdir(abs_working_dir)
             logging.info(f"Changed working directory to: {abs_working_dir}")
         except OSError as e:
+            msg = f"Could not change working directory to '{abs_working_dir}': {e}"
             raise OSError(
-                f"Could not change working directory to '{abs_working_dir}': {e}"
+                msg,
             ) from e
 
     return abs_working_dir
 
 
-def main():
+def main() -> None:
     """Main entry point for the application."""
     args = parse_arguments()
 
@@ -119,7 +123,7 @@ def main():
         logging.info(f"Effective working directory: {abs_working_dir}")
     except (ValueError, OSError) as e:
         logging.critical(f"Working directory initialization failed: {e}")
-        raise e
+        raise
 
     # Initialize CommandExecutor *before* completers that need command list
     cmd_executor = CommandExecutor()
@@ -154,11 +158,12 @@ def main():
     try:
         provider = get_ai_provider(provider_name)
         if not provider:
+            msg = f"Provider '{provider_name or 'default'}' could not be loaded."
             raise ValueError(
-                f"Provider '{provider_name or 'default'}' could not be loaded."
+                msg,
             )
         ui.display_info(
-            f"Using provider: {type(provider).__name__.replace('Provider', '')}"
+            f"Using provider: {type(provider).__name__.replace('Provider', '')}",
         )
         if model_name:
             ui.display_info(f"Using model: {model_name}")
@@ -196,7 +201,8 @@ def main():
     except Exception as app_err:
         ui.display_error(f"An critical error occurred: {app_err}")
         logging.critical(
-            "Critical error during application execution.", exc_info=app_err
+            "Critical error during application execution.",
+            exc_info=app_err,
         )
         sys.exit(1)
     finally:

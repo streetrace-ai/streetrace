@@ -42,7 +42,7 @@ class Application:
         prompt_processor: PromptProcessor,
         interaction_manager: InteractionManager,
         working_dir: str,
-    ):
+    ) -> None:
         """Initialize the Application with necessary components and configuration.
 
         Args:
@@ -63,7 +63,7 @@ class Application:
         self.conversation_history: History | None = None  # Current history
         logger.info("Application initialized.")
 
-    def run(self):
+    def run(self) -> None:
         """Start the application execution based on provided arguments.
 
         Determines whether to run in interactive or non-interactive mode based on
@@ -74,7 +74,7 @@ class Application:
         else:
             self._run_interactive()
 
-    def _run_non_interactive(self):
+    def _run_non_interactive(self) -> None:
         """Handle non-interactive mode (single prompt execution).
 
         Processes a single prompt provided via command-line arguments and exits.
@@ -123,7 +123,7 @@ class Application:
             self.interaction_manager.process_prompt(single_prompt_history)
             logger.info("Non-interactive mode finished.")
 
-    def _run_interactive(self):
+    def _run_interactive(self) -> None:
         """Handle interactive mode (conversation loop).
 
         Initializes and maintains an ongoing conversation with the AI assistant.

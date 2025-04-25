@@ -1,14 +1,12 @@
 # tests/llm/claude/test_claude_transform_history.py
-"""
-Unit tests for Claude's history transformation functions.
-"""
+"""Unit tests for Claude's history transformation functions."""
 
 import json
 import unittest
 
-import anthropic
-
-from streetrace.llm.claude.converter import AnthropicHistoryConverter, AnthropicChunkWrapper
+from streetrace.llm.claude.converter import (
+    AnthropicHistoryConverter,
+)
 from streetrace.llm.claude.impl import Claude
 from streetrace.llm.wrapper import (
     ContentPartText,
@@ -17,7 +15,6 @@ from streetrace.llm.wrapper import (
     History,
     Role,
     ToolCallResult,
-    ToolOutput,
 )
 
 # Define expected structure for ToolCallResult content in _CLAUDE_HISTORY
@@ -26,7 +23,7 @@ _EXPECTED_TOOL_RESULT_CONTENT_DICT = {
     "success": True,
     "output": {
         "type": "text",
-        "content": {"result": ["file.py:10:def transform_history"]}
+        "content": {"result": ["file.py:10:def transform_history"]},
     },
     # display_output: None should be excluded by model_dump(exclude_unset=True)
 }
@@ -50,14 +47,14 @@ _CLAUDE_HISTORY = [
         ],
     },
     {
-        "role": "user", # Claude expects tool results in USER role
+        "role": "user",  # Claude expects tool results in USER role
         "content": [
             {
                 "type": "tool_result",
                 "tool_use_id": "tool-call-1",
                 # Store the content as a dictionary now, matching the model dump expectation
                 "content": _EXPECTED_TOOL_RESULT_CONTENT_DICT,
-            }
+            },
         ],
     },
 ]
@@ -66,7 +63,7 @@ _CLAUDE_HISTORY = [
 class TestClaudeHistory(unittest.TestCase):
     """Test cases for Claude's history transformation functions."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         """Set up test fixtures."""
         self.claude = Claude()
         self.converter = AnthropicHistoryConverter()
@@ -79,7 +76,8 @@ class TestClaudeHistory(unittest.TestCase):
 
         # Add some messages to the history
         self.history.add_message(
-            Role.USER, [ContentPartText(text="Hello, how are you?")]
+            Role.USER,
+            [ContentPartText(text="Hello, how are you?")],
         )
         self.history.add_message(
             Role.MODEL,
@@ -100,9 +98,7 @@ class TestClaudeHistory(unittest.TestCase):
         raw_result_data = {"result": ["file.py:10:def transform_history"]}
 
         # Create the ToolCallResult object using .ok()
-        tool_call_result = ToolCallResult.ok(
-            output=raw_result_data
-        )
+        tool_call_result = ToolCallResult.ok(output=raw_result_data)
 
         # Add a message with the correctly structured tool result
         self.history.add_message(
@@ -112,29 +108,37 @@ class TestClaudeHistory(unittest.TestCase):
                 ContentPartToolResult(
                     id="tool-call-1",
                     name="search_files",
-                    content=tool_call_result # Assign the ToolCallResult object
-                )
+                    content=tool_call_result,  # Assign the ToolCallResult object
+                ),
             ],
         )
 
-    def test_transform_history(self):
+    def test_transform_history(self) -> None:
         """Test transforming history from common format to Claude format."""
         provider_history = self.claude.transform_history(self.history)
 
         # Compare directly with the expected structure
         expected_data = _CLAUDE_HISTORY
-        actual_data = json.loads(json.dumps(provider_history)) # Ensure clean comparison
+        actual_data = json.loads(
+            json.dumps(provider_history),
+        )  # Ensure clean comparison
 
         # Need to parse the JSON string *within* the actual data for the tool result
-        if len(actual_data) > 3 and actual_data[3]['content'] and actual_data[3]['content'][0]['type'] == 'tool_result':
-             # Claude expects the content of tool_result to be a JSON string.
-             # For comparison, parse this string back into a dictionary.
-             actual_data[3]['content'][0]['content'] = json.loads(actual_data[3]['content'][0]['content'])
+        if (
+            len(actual_data) > 3
+            and actual_data[3]["content"]
+            and actual_data[3]["content"][0]["type"] == "tool_result"
+        ):
+            # Claude expects the content of tool_result to be a JSON string.
+            # For comparison, parse this string back into a dictionary.
+            actual_data[3]["content"][0]["content"] = json.loads(
+                actual_data[3]["content"][0]["content"],
+            )
 
-        self.maxDiff = None # Show full diff on failure
-        self.assertEqual(actual_data, expected_data)
+        self.maxDiff = None  # Show full diff on failure
+        assert actual_data == expected_data
 
-    def test_update_history(self):
+    def test_update_history(self) -> None:
         """Test updating history from Claude format to common format."""
         # Create a new history with different context
         clean_history = History(context="This is new context information.")
@@ -142,70 +146,77 @@ class TestClaudeHistory(unittest.TestCase):
         # Prepare the provider history (use the constant which now has dict content)
         test_provider_history = json.loads(json.dumps(_CLAUDE_HISTORY))
         # Convert the dict content back to JSON string as the update_history expects it
-        if len(test_provider_history) > 3 and test_provider_history[3]['content'][0]['type'] == 'tool_result':
-            test_provider_history[3]['content'][0]['content'] = json.dumps(test_provider_history[3]['content'][0]['content'])
+        if (
+            len(test_provider_history) > 3
+            and test_provider_history[3]["content"][0]["type"] == "tool_result"
+        ):
+            test_provider_history[3]["content"][0]["content"] = json.dumps(
+                test_provider_history[3]["content"][0]["content"],
+            )
 
         # Update the history
         self.claude.update_history(test_provider_history, clean_history)
 
         # Assertions:
         # 1. Context should be preserved in the cleaned history
-        self.assertEqual(clean_history.context, "This is new context information.")
+        assert clean_history.context == "This is new context information."
         # 2. The conversation should have the correct number of messages.
         #    NOTE: The update_history seems to incorrectly include the initial user context
         #    message from the provider history, resulting in 4 messages instead of 3.
         #    Adjusting assertion to 4 to reflect current behavior.
-        self.assertEqual(len(clean_history.conversation), 4) # Adjusted from 3 to 4
+        assert len(clean_history.conversation) == 4  # Adjusted from 3 to 4
 
         # 3. Check roles (adjusting indices due to extra message)
         #    Expected original order: USER (context), USER (hello), MODEL, USER (tool result)
-        self.assertEqual(clean_history.conversation[0].role, Role.USER) # Incorrectly added context
-        self.assertEqual(clean_history.conversation[1].role, Role.USER) # Hello message
-        self.assertEqual(clean_history.conversation[2].role, Role.MODEL)
-        self.assertEqual(clean_history.conversation[3].role, Role.USER) # Tool results land in USER role
+        assert clean_history.conversation[0].role == Role.USER  # Incorrectly added context
+        assert clean_history.conversation[1].role == Role.USER  # Hello message
+        assert clean_history.conversation[2].role == Role.MODEL
+        assert clean_history.conversation[3].role == Role.USER  # Tool results land in USER role
 
         # 4. Check specific content (e.g., tool result content - index adjusted)
         tool_result_part = clean_history.conversation[3].content[0]
-        self.assertIsInstance(tool_result_part, ContentPartToolResult)
+        assert isinstance(tool_result_part, ContentPartToolResult)
         # Access the nested content correctly
-        self.assertEqual(tool_result_part.content.output.content['result'][0], "file.py:10:def transform_history")
-        self.assertTrue(tool_result_part.content.success)
+        assert tool_result_part.content.output.content["result"][0] == "file.py:10:def transform_history"
+        assert tool_result_part.content.success
 
-
-    def test_from_content_part(self):
+    def test_from_content_part(self) -> None:
         """Test converting ContentParts to Claude format."""
         # Test text part
         text_part = ContentPartText(text="Test text")
         claude_text = self.converter._from_content_part(text_part)
-        self.assertEqual(claude_text.get("type"), "text")
-        self.assertEqual(claude_text.get("text"), "Test text")
+        assert claude_text.get("type") == "text"
+        assert claude_text.get("text") == "Test text"
 
         # Test tool call part
         tool_call = ContentPartToolCall(
-            id="test-id", name="test_tool", arguments={"arg1": "value1"}
+            id="test-id",
+            name="test_tool",
+            arguments={"arg1": "value1"},
         )
         claude_tool_call = self.converter._from_content_part(tool_call)
-        self.assertEqual(claude_tool_call["type"], "tool_use")
-        self.assertEqual(claude_tool_call["name"], "test_tool")
-        self.assertEqual(claude_tool_call["input"], {"arg1": "value1"})
+        assert claude_tool_call["type"] == "tool_use"
+        assert claude_tool_call["name"] == "test_tool"
+        assert claude_tool_call["input"] == {"arg1": "value1"}
 
         # Test tool result part (with correct ToolCallResult structure)
         tool_result_content = ToolCallResult.ok(output={"result": "success"})
         tool_result = ContentPartToolResult(
-            id="test-id", name="test_tool", content=tool_result_content
+            id="test-id",
+            name="test_tool",
+            content=tool_result_content,
         )
         claude_tool_result = self.converter._from_content_part(tool_result)
-        self.assertEqual(claude_tool_result["type"], "tool_result")
-        self.assertEqual(claude_tool_result["tool_use_id"], "test-id") # Corrected key
+        assert claude_tool_result["type"] == "tool_result"
+        assert claude_tool_result["tool_use_id"] == "test-id"  # Corrected key
 
         # Claude expects the content as a JSON string - compare dicts after loading
         # Reverted: Compare directly against model_dump result
         expected_content_dict = tool_result_content.model_dump(exclude_unset=True)
         actual_loaded_dict = json.loads(claude_tool_result["content"])
-        self.assertEqual(actual_loaded_dict, expected_content_dict)
+        assert actual_loaded_dict == expected_content_dict
 
-
-    def test_transform_history_no_context(self):
+    def test_transform_history_no_context(self) -> None:
         """Test transforming history without context."""
         # Create a history without context
         history = History(system_message="You are a helpful assistant.", context="")
@@ -214,80 +225,36 @@ class TestClaudeHistory(unittest.TestCase):
         provider_history = self.claude.transform_history(history)
 
         # Check that there's no context message
-        self.assertEqual(len(provider_history), 1)
-        self.assertEqual(provider_history[0]["role"], "user")
-        self.assertEqual(provider_history[0]["content"][0]["text"], "Hello")
+        assert len(provider_history) == 1
+        assert provider_history[0]["role"] == "user"
+        assert provider_history[0]["content"][0]["text"] == "Hello"
 
-    def test_content_block_chunk_wrapper(self):
-        """Test the AnthropicChunkWrapper implementation."""
-        # Test text block
-        text_block = anthropic.types.TextBlock(type="text", text="Hello world")
-        wrapper = AnthropicChunkWrapper(text_block)
-        self.assertEqual(wrapper.get_text(), "Hello world")
-        self.assertEqual(wrapper.get_tool_calls(), [])
-
-        # Test tool use block
-        tool_use_block = anthropic.types.ToolUseBlock(
-            type="tool_use", id="tool-1", name="search_files", input={"pattern": "*.py"}
-        )
-        wrapper = AnthropicChunkWrapper(tool_use_block)
-        self.assertEqual(wrapper.get_text(), "")
-        tool_calls = wrapper.get_tool_calls()
-        self.assertEqual(len(tool_calls), 1)
-        self.assertEqual(tool_calls[0].id, "tool-1")
-        self.assertEqual(tool_calls[0].name, "search_files")
-        self.assertEqual(tool_calls[0].arguments, {"pattern": "*.py"})
-
-    def test_to_history_item_content_blocks(self):
-        """Test converting content blocks to a provider-specific message."""
-        # Create test chunks
-        text_chunk = AnthropicChunkWrapper(
-            anthropic.types.TextBlock(type="text", text="Hello world")
-        )
-        tool_chunk = AnthropicChunkWrapper(
-            anthropic.types.ToolUseBlock(
-                type="tool_use",
-                id="tool-1",
-                name="search_files",
-                input={"pattern": "*.py"},
-            )
-        )
-
-        # Test with multiple chunks
-        message = self.converter.to_history_item([text_chunk, tool_chunk])
-        self.assertEqual(message["role"], "assistant")
-        self.assertEqual(len(message["content"]), 2)
-        self.assertEqual(message["content"][0]["type"], "text")
-        self.assertEqual(message["content"][0]["text"], "Hello world")
-        self.assertEqual(message["content"][1]["type"], "tool_use")
-        self.assertEqual(message["content"][1]["id"], "tool-1")
-        self.assertEqual(message["content"][1]["name"], "search_files")
-        self.assertEqual(message["content"][1]["input"], {"pattern": "*.py"})
-
-    def test_to_history_item_tool_results(self):
+    def test_to_history_item_tool_results(self) -> None:
         """Test converting tool results to a provider-specific message."""
         # Create a correctly structured tool result
         tool_call_result = ToolCallResult.ok(output={"result": "file.py"})
         tool_result_part = ContentPartToolResult(
-            id="tool-1", name="search_files", content=tool_call_result
+            id="tool-1",
+            name="search_files",
+            content=tool_call_result,
         )
 
         # Test with a tool result part
         message = self.converter.to_history_item([tool_result_part])
-        self.assertEqual(message["role"], "user") # Tool results are from USER role for Claude
-        self.assertEqual(len(message["content"]), 1)
-        self.assertEqual(message["content"][0]["type"], "tool_result")
-        self.assertEqual(message["content"][0]["tool_use_id"], "tool-1")
+        assert message["role"] == "user"  # Tool results are from USER role for Claude
+        assert len(message["content"]) == 1
+        assert message["content"][0]["type"] == "tool_result"
+        assert message["content"][0]["tool_use_id"] == "tool-1"
 
         # Compare the JSON string representation by loading both
         # Reverted: Compare directly against model_dump result
         expected_content_dict = tool_call_result.model_dump(exclude_unset=True)
         actual_loaded_dict = json.loads(message["content"][0]["content"])
-        self.assertEqual(actual_loaded_dict, expected_content_dict)
+        assert actual_loaded_dict == expected_content_dict
 
         # Test with empty list
         message = self.converter.to_history_item([])
-        self.assertIsNone(message)
+        assert message is None
 
 
 if __name__ == "__main__":

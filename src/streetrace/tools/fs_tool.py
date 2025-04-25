@@ -1,14 +1,12 @@
-import streetrace.tools.cli as cli
 import streetrace.tools.read_directory_structure as rds
 import streetrace.tools.read_file as rf
 import streetrace.tools.search as s
 import streetrace.tools.write_file as wf
+from streetrace.tools import cli
 
 
 def _clean_input(input_str):
-    """
-    Clean the input by removing unwanted whitespace characters, but preserving quotes.
-    """
+    """Clean the input by removing unwanted whitespace characters, but preserving quotes."""
     # Only strip whitespace, not quotes
     return input_str.strip("\"'\r\n\t ")
 
@@ -25,6 +23,7 @@ def list_directory(path, work_dir):
 
     Raises:
         ValueError: If the requested path is outside the allowed root path.
+
     """
     return rds.read_directory_structure(_clean_input(path), work_dir)
 
@@ -39,6 +38,7 @@ def read_file(path, work_dir, encoding="utf-8"):
 
     Returns:
         File contents.
+
     """
     return rf.read_file(_clean_input(path), work_dir, encoding)
 
@@ -54,9 +54,14 @@ def write_file(path, content, work_dir, encoding="utf-8"):
 
     Returns:
         Result of the operation.
+
     """
     return wf.write_file(
-        _clean_input(path), content, work_dir, encoding, binary_mode=False
+        _clean_input(path),
+        content,
+        work_dir,
+        encoding,
+        binary_mode=False,
     )
 
 
@@ -69,13 +74,13 @@ def execute_cli_command(command, work_dir):
 
     Returns:
         The stdio output.
+
     """
     return cli.execute_cli_command(command, work_dir)
 
 
 def search_files(pattern, search_string, work_dir):
-    """
-    Searches for text occurrences in files given a glob pattern and a search
+    """Searches for text occurrences in files given a glob pattern and a search
     string.
 
     Args:
@@ -87,9 +92,12 @@ def search_files(pattern, search_string, work_dir):
         list: A list of dictionaries, where each dictionary represents a match.
             Each dictionary contains the file path, line number, and a snippet
             of the line where the match was found.
+
     """
     return s.search_files(
-        _clean_input(pattern), _clean_input(search_string), work_dir=work_dir
+        _clean_input(pattern),
+        _clean_input(search_string),
+        work_dir=work_dir,
     )
 
 
@@ -130,7 +138,7 @@ TOOLS = [
                         "type": "array",
                         "items": {"type": "string"},
                         "description": "The CLI command to execute.",
-                    }
+                    },
                 },
                 "required": ["command"],
                 "additionalProperties": False,
@@ -199,7 +207,7 @@ TOOLS = [
                     "path": {
                         "type": "string",
                         "description": "Path to the directory to retrieve the contents from.",
-                    }
+                    },
                 },
                 "required": ["path"],
                 "additionalProperties": False,

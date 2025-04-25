@@ -1,6 +1,6 @@
 # src/streetrace/commands/command_executor.py
 import logging
-from typing import Dict, List, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from .base_command import Command  # Import the base class
 
@@ -13,23 +13,21 @@ logger = logging.getLogger(__name__)
 
 
 class CommandExecutor:
-    """
-    Manages and executes commands derived from the Command base class.
+    """Manages and executes commands derived from the Command base class.
 
     Handles registration of Command objects and executes them based on user input,
     passing the Application instance to the command's execute method.
     Handles case-insensitivity and basic error management during execution.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initializes the CommandExecutor with an empty command registry."""
         # Stores command names (lowercase) mapped to their Command instances
-        self._commands: Dict[str, Command] = {}
+        self._commands: dict[str, Command] = {}
         logger.info("CommandExecutor initialized.")
 
     def register(self, command_instance: Command) -> None:
-        """
-        Registers a Command instance.
+        """Registers a Command instance.
 
         Args:
             command_instance: An instance of a class derived from Command.
@@ -37,45 +35,48 @@ class CommandExecutor:
         Raises:
             TypeError: If the provided object is not an instance of Command.
             ValueError: If the command name is empty or whitespace.
+
         """
         if not isinstance(command_instance, Command):
-            raise TypeError(
-                f"Object {command_instance} is not an instance of Command."
-            )
+            msg = f"Object {command_instance} is not an instance of Command."
+            raise TypeError(msg)
 
         for name in command_instance.names:
             if not name:
+                msg = f"Command name '{name}' from {type(command_instance).__name__} cannot be empty or whitespace."
                 raise ValueError(
-                    f"Command name '{name}' from {type(command_instance).__name__} cannot be empty or whitespace."
+                    msg,
                 )
             if name != name.rstrip().lower():
+                msg = f"Command name '{name}' from {type(command_instance).__name__} cannot contain leading or trailing whitespace or uppercase characters."
                 raise ValueError(
-                    f"Command name '{name}' from {type(command_instance).__name__} cannot contain leading or trailing whitespace or uppercase characters."
+                    msg,
                 )
             if name in self._commands:
                 logger.warning(
-                    f"Command '/{name}' from {type(self._commands[name]).__name__} is being redefined by {type(command_instance).__name__}."
+                    f"Command '/{name}' from {type(self._commands[name]).__name__} is being redefined by {type(command_instance).__name__}.",
                 )
 
             self._commands[name] = command_instance
             logger.debug(
-                f"Command '/{name}' ({type(command_instance).__name__}) registered: {command_instance.description}"
+                f"Command '/{name}' ({type(command_instance).__name__}) registered: {command_instance.description}",
             )
 
-    def get_commands(self) -> List[str]:
-        """
-        Returns a sorted list of registered command names (lowercase).
+    def get_commands(self) -> list[str]:
+        """Returns a sorted list of registered command names (lowercase).
 
         Returns:
             A list of command names (e.g., 'exit', 'history') in alphabetical order.
+
         """
         return sorted(self._commands.keys())
 
     def execute(
-        self, user_input: str, app_instance: "Application"
-    ) -> Tuple[bool, bool]:
-        """
-        Attempts to execute a command based on the user input.
+        self,
+        user_input: str,
+        app_instance: "Application",
+    ) -> tuple[bool, bool]:
+        """Attempts to execute a command based on the user input.
 
         Args:
             user_input: The raw input string from the user (e.g., "/exit").
@@ -89,6 +90,7 @@ class CommandExecutor:
                                (False to exit, True to continue). If the command
                                was not found, defaults to True. If an error
                                occurred during execution, defaults to True.
+
         """
         # Remove leading '/' if present and make lowercase
         command_name = user_input.strip().lower()
@@ -111,12 +113,15 @@ class CommandExecutor:
             # Pass the required app_instance to the command's execute method
             should_continue = command_instance.execute(app_instance)
 
-            assert isinstance(should_continue, bool), "Command execute method should return a boolean"
+            assert isinstance(
+                should_continue,
+                bool,
+            ), "Command execute method should return a boolean"
 
             logger.debug(
-                f"Command '/{command_name}' executed. Result: {'continue' if should_continue else 'exit'}."
+                f"Command '/{command_name}' executed. Result: {'continue' if should_continue else 'exit'}.",
             )
-            return True, should_continue # Command executed, return its signal
+            return True, should_continue  # Command executed, return its signal
 
         except Exception as e:
             logger.error(
@@ -127,17 +132,15 @@ class CommandExecutor:
             # Signal to continue the application loop.
             return True, True
 
-    def get_command_descriptions(self) -> Dict[str, str]:
+    def get_command_descriptions(self) -> dict[str, str]:
         """Returns a dictionary of command names (lowercase) and their descriptions."""
-        return {
-            name: cmd.description for name, cmd in self._commands.items()
-        }
+        return {name: cmd.description for name, cmd in self._commands.items()}
 
-    def get_command_names_with_prefix(self) -> List[str]:
-        """
-        Returns a sorted list of registered command names, prefixed with '/'.
+    def get_command_names_with_prefix(self) -> list[str]:
+        """Returns a sorted list of registered command names, prefixed with '/'.
 
         Returns:
             A list of command names (e.g., '/exit', '/history') in alphabetical order.
+
         """
-        return sorted([f"/{name}" for name in self._commands.keys()])
+        return sorted([f"/{name}" for name in self._commands])

@@ -1,11 +1,27 @@
-from typing import Iterator, List, override
-from streetrace.llm.history_converter import HistoryConverter
+from collections.abc import Iterator
+from typing import override
+
 from anthropic.types import (
-    MessageParam, Message as AnthropicMessage, TextBlockParam, ToolUseBlockParam,
-    ToolResultBlockParam, ContentBlockParam
+    ContentBlockParam,
+    MessageParam,
+    TextBlockParam,
+    ToolResultBlockParam,
+    ToolUseBlockParam,
+)
+from anthropic.types import (
+    Message as AnthropicMessage,
 )
 
-from streetrace.llm.wrapper import ContentPart, ContentPartText, ContentPartToolCall, ContentPartToolResult, ContentPartUsage, ContentPartFinishReason, Role
+from streetrace.llm.history_converter import HistoryConverter
+from streetrace.llm.wrapper import (
+    ContentPart,
+    ContentPartFinishReason,
+    ContentPartText,
+    ContentPartToolCall,
+    ContentPartToolResult,
+    ContentPartUsage,
+    Role,
+)
 
 _CLAUD_ROLES = {
     Role.SYSTEM: "system",
@@ -18,25 +34,45 @@ _CLAUD_ROLES = {
 
 class AnthropicHistoryConverter(HistoryConverter[MessageParam, AnthropicMessage]):
     @override
-    def create_history_messages(self, role: Role, items: List[ContentPart]) -> Iterator[MessageParam]:
+    def create_history_messages(
+        self,
+        role: Role,
+        items: list[ContentPart],
+    ) -> Iterator[MessageParam]:
         if role != Role.SYSTEM:
             history_item_parts: list[ContentBlockParam] = []
             for item in items:
                 if isinstance(item, ContentPartText):
-                    history_item_parts.append(TextBlockParam(type="text", text=item.text))
+                    history_item_parts.append(
+                        TextBlockParam(type="text", text=item.text),
+                    )
                 elif isinstance(item, ContentPartToolCall):
-                    history_item_parts.append(ToolUseBlockParam(id=item.id or "tool-call", name=item.name, input=item.arguments, type="tool_use"))
+                    history_item_parts.append(
+                        ToolUseBlockParam(
+                            id=item.id or "tool-call",
+                            name=item.name,
+                            input=item.arguments,
+                            type="tool_use",
+                        ),
+                    )
                 elif isinstance(item, ContentPartToolResult):
-                    history_item_parts.append(ToolResultBlockParam(
-                        type="tool_result",
-                        tool_use_id=item.id or "tool-call",
-                        content=item.content.output.model_dump_json(exclude_none=True),
-                        is_error=item.content.failure == True  # noqa: E712
-                    ))
+                    history_item_parts.append(
+                        ToolResultBlockParam(
+                            type="tool_result",
+                            tool_use_id=item.id or "tool-call",
+                            content=item.content.output.model_dump_json(
+                                exclude_none=True,
+                            ),
+                            is_error=item.content.failure == True,  # noqa: E712
+                        ),
+                    )
             yield MessageParam(role=_CLAUD_ROLES[role], content=history_item_parts)
 
     @override
-    def get_response_parts(self, model_response: AnthropicMessage) -> Iterator[ContentPart]:
+    def get_response_parts(
+        self,
+        model_response: AnthropicMessage,
+    ) -> Iterator[ContentPart]:
         if not model_response.content:
             return
 
@@ -47,11 +83,14 @@ class AnthropicHistoryConverter(HistoryConverter[MessageParam, AnthropicMessage]
                 yield ContentPartToolCall(
                     id=part.id,
                     name=part.name,
-                    arguments=part.input or {}
+                    arguments=part.input or {},
                 )
 
         if model_response.usage:
-            yield ContentPartUsage(prompt_tokens=model_response.usage.input_tokens or 0, response_tokens=model_response.usage.output_tokens or 0)
+            yield ContentPartUsage(
+                prompt_tokens=model_response.usage.input_tokens or 0,
+                response_tokens=model_response.usage.output_tokens or 0,
+            )
 
         if model_response.stop_reason is not None:
             yield ContentPartFinishReason(finish_reason=model_response.stop_reason)

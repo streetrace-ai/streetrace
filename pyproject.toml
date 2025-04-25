@@ -34,52 +34,31 @@ license = {file = "LICENSE"}
 streetrace = "streetrace.main:main"
 
 [tool.black]
-# Consistent formatting
 line-length = 88
 target-version = ['py310'] # Updated target version for match statements
-# Using default include/exclude patterns
 
-[tool.isort]
-# Import sorting configuration
-profile = "black"
-line_length = 88 # Ensure isort also knows the line length
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-skip_gitignore = true
-# Specify your source directories
-src_paths = ["src", "tests"]
+[tool.ruff]
+line-length = 88
+fix = true
+select = ["ALL"]
+ignore = ["E501"]  # Example: ignore line-too-long if black already formats
 
-[tool.flake8]
-# Linting configuration
-max-line-length = 88 # Explicitly set for flake8
-extend-ignore = [
-    "E203", # whitespace before ':' - conflicts with black
-    "W503", # line break before binary operator - conflicts with black
+[tool.ruff.per-file-ignores]
+"tests/**/*.py" = [
+    "S101", # asserts allowed in tests.
 ]
-exclude = [
-    ".git",
-    "__pycache__",
-    ".tox",
-    ".venv",
-    "build",
-    "dist",
-]
-# Consider adding plugins like flake8-bugbear, flake8-comprehensions if desired
 
 [tool.mypy]
 # Static type checking configuration
+strict = true
 python_version = "3.10" # Updated Python version
 warn_return_any = true
 warn_unused_configs = true
-ignore_missing_imports = true # Start with this, then gradually add stubs or types
-# Add check_untyped_defs = true for stricter checking later
-# Specify source directories
+check_untyped_defs = true
 files = ["src", "tests"]
 # Escaped backslash for TOML list string
 exclude = ["\\.venv/"]
+ignore_missing_imports = false
 
 # If using pytest
 [tool.pytest.ini_options]

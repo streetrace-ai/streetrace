@@ -1,12 +1,12 @@
-"""
-Gemini AI Provider Implementation
+"""Gemini AI Provider Implementation.
 
 This module implements the LLMAPI interface for Google's Gemini models.
 """
 
 import logging
 import os
-from typing import Any, Dict, Iterator, List, Optional, override
+from collections.abc import Iterator
+from typing import Any, override
 
 from google import genai
 from google.genai import types
@@ -15,7 +15,7 @@ from streetrace.llm.gemini.converter import GeminiHistoryConverter
 from streetrace.llm.llmapi import LLMAPI
 from streetrace.llm.wrapper import ContentPart, History, Message
 
-ProviderHistory = List[types.Content]
+ProviderHistory = list[types.Content]
 
 # Constants
 MAX_TOKENS = 2**20
@@ -24,39 +24,38 @@ MAX_MALFORMED_RETRIES = 3  # Maximum number of retries for malformed function ca
 
 
 class Gemini(LLMAPI):
-    """
-    Implementation of the LLMAPI interface for Google's Gemini models.
-    """
+    """Implementation of the LLMAPI interface for Google's Gemini models."""
 
     _counter = 0
     _adapter = GeminiHistoryConverter()
 
     @override
     def initialize_client(self) -> genai.Client:
-        """
-        Initialize and return the Gemini API client.
+        """Initialize and return the Gemini API client.
 
         Returns:
             genai.Client: The initialized Gemini client
 
         Raises:
             ValueError: If GEMINI_API_KEY environment variable is not set
+
         """
         api_key = os.environ.get("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable not set.")
+            msg = "GEMINI_API_KEY environment variable not set."
+            raise ValueError(msg)
         return genai.Client(api_key=api_key)
 
     @override
     def transform_history(self, history: History) -> ProviderHistory:
-        """
-        Transform conversation history from common format into Gemini-specific format.
+        """Transform conversation history from common format into Gemini-specific format.
 
         Args:
             history (History): Conversation history to transform
 
         Returns:
             List[Dict[str, Any]]: Conversation history in Gemini-specific format
+
         """
         return self._adapter.create_provider_history(history)
 
@@ -64,28 +63,28 @@ class Gemini(LLMAPI):
     def append_history(
         self,
         provider_history: ProviderHistory,
-        turn: List[Message],
-    ):
-        """
-        Add turn items into provider's conversation history.
+        turn: list[Message],
+    ) -> None:
+        """Add turn items into provider's conversation history.
 
         Args:
             provider_history: List of provider-specific message objects
             turn: List of items in this turn
+
         """
         for message in self._adapter.to_provider_history_items(turn):
             provider_history.append(message)
 
     @override
-    def transform_tools(self, tools: List[Dict[str, Any]]) -> List[types.Tool]:
-        """
-        Transform tools from common format to Gemini-specific format.
+    def transform_tools(self, tools: list[dict[str, Any]]) -> list[types.Tool]:
+        """Transform tools from common format to Gemini-specific format.
 
         Args:
             tools: List of tool definitions in common format
 
         Returns:
             List[types.Tool]: List of tool definitions in Gemini format
+
         """
         gemini_tools = []
 
@@ -129,21 +128,21 @@ class Gemini(LLMAPI):
 
             # Add the tool to the list
             gemini_tools.append(
-                types.Tool(function_declarations=[function_declaration])
+                types.Tool(function_declarations=[function_declaration]),
             )
 
         return gemini_tools
 
     @override
-    def pretty_print(self, contents: List[types.Content]) -> str:
-        """
-        Format content list for readable logging.
+    def pretty_print(self, contents: list[types.Content]) -> str:
+        """Format content list for readable logging.
 
         Args:
             contents: List of content objects to format
 
         Returns:
             str: Formatted string representation
+
         """
         parts = []
         for i, content in enumerate(contents):
@@ -158,22 +157,23 @@ class Gemini(LLMAPI):
                         f"{attr}: {str(val).strip()}"
                         for attr, val in part.__dict__.items()
                         if val is not None
-                    ]
+                    ],
                 )
                 content_parts.append(part_attrs)
 
             parts.append(
-                f"Content {i + 1}:\n - {content.role}: {'; '.join(content_parts)}"
+                f"Content {i + 1}:\n - {content.role}: {'; '.join(content_parts)}",
             )
 
         return "\n".join(parts)
 
     @override
     def manage_conversation_history(
-        self, messages: List[Any], max_tokens: int = MAX_TOKENS
+        self,
+        messages: list[Any],
+        max_tokens: int = MAX_TOKENS,
     ) -> bool:
-        """
-        Ensure contents are within token limits by intelligently pruning when needed.
+        """Ensure contents are within token limits by intelligently pruning when needed.
 
         Args:
             messages: List of content objects to manage
@@ -181,12 +181,14 @@ class Gemini(LLMAPI):
 
         Returns:
             bool: True if successful, False if pruning failed
+
         """
         try:
             logging.debug(f"Transformed manage_conversation_history: {messages}")
             client = self.initialize_client()
             token_count = client.models.count_tokens(
-                model=MODEL_NAME, contents=messages
+                model=MODEL_NAME,
+                contents=messages,
             )
 
             # If within limits, no action needed
@@ -194,7 +196,7 @@ class Gemini(LLMAPI):
                 return True
 
             logging.info(
-                f"Token count {token_count.total_tokens} exceeds limit {max_tokens}, pruning..."
+                f"Token count {token_count.total_tokens} exceeds limit {max_tokens}, pruning...",
             )
 
             # Keep first item (usually system message) and last N exchanges
@@ -205,35 +207,35 @@ class Gemini(LLMAPI):
 
                 # Recheck token count
                 token_count = client.models.count_tokens(
-                    model=MODEL_NAME, contents=messages
+                    model=MODEL_NAME,
+                    contents=messages,
                 )
                 logging.info(
-                    f"After pruning: {token_count.total_tokens} tokens with {len(messages)} items"
+                    f"After pruning: {token_count.total_tokens} tokens with {len(messages)} items",
                 )
 
                 return token_count.total_tokens <= max_tokens
 
             # If conversation is small but still exceeding, we have a problem
             logging.warning(
-                f"Cannot reduce token count sufficiently: {token_count.total_tokens}"
+                f"Cannot reduce token count sufficiently: {token_count.total_tokens}",
             )
             return False
 
         except Exception as e:
-            logging.error("Error managing tokens", exc_info=e)
+            logging.exception("Error managing tokens", exc_info=e)
             return False
 
     @override
     def generate(
         self,
         client: genai.Client,
-        model_name: Optional[str],
+        model_name: str | None,
         system_message: str,
         messages: ProviderHistory,
-        tools: List[Dict[str, Any]],
+        tools: list[dict[str, Any]],
     ) -> Iterator[ContentPart]:
-        """
-        Get API response from Gemini, process it and handle tool calls.
+        """Get API response from Gemini, process it and handle tool calls.
 
         Args:
             client: The Gemini client
@@ -244,6 +246,7 @@ class Gemini(LLMAPI):
 
         Returns:
             Iterator[ContentPart]: Stream of response parts
+
         """
         model_name = model_name or MODEL_NAME
 
@@ -252,16 +255,18 @@ class Gemini(LLMAPI):
             tools=tools,
             system_instruction=system_message,
             automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                disable=True
+                disable=True,
             ),
             tool_config=types.ToolConfig(
-                function_calling_config=types.FunctionCallingConfig(mode="AUTO")
+                function_calling_config=types.FunctionCallingConfig(mode="AUTO"),
             ),
         )
 
         # Get the response stream
         response = client.models.generate_content(
-            model=model_name, contents=messages, config=generation_config
+            model=model_name,
+            contents=messages,
+            config=generation_config,
         )
         logging.debug("Raw Gemini response: %s", response)
 

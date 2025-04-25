@@ -29,7 +29,7 @@ def load_gitignore_for_directory(path):
     # Now read patterns from all files
     patterns = []
     for gitignore_path in gitignore_files:
-        with open(gitignore_path, "r") as f:
+        with open(gitignore_path) as f:
             for line in f:
                 line = line.strip()
                 if line and not line.startswith("#"):
@@ -62,6 +62,7 @@ def read_directory_structure(path, work_dir):
 
     Raises:
         ValueError: If the requested path is outside the allowed root path or doesn't exist.
+
     """
     # Normalize and validate the path
     abs_path = normalize_and_validate_path(path, work_dir)

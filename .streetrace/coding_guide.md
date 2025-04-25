@@ -33,3 +33,5 @@ General rules for this codebase:
 - Use module-level logger instead of the root logger.
 - Use logger's extra parameter to pass values as arguments to the logging method to defer string formatting until required.
 - Use logging.exception when logging an exception.
+- For tests, prefer regular assert statement over unittest's assertion methods.
+- Use absolute namespaces in import statements, like 'from streetrace... import ...'
