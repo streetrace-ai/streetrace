@@ -490,3 +490,11 @@ Save the summary in the SUMMARY.md file and append the last line saying "Don't s
 ```
 What are the most important things we have discussed so far?
 ```
+
+---
+
+# Story: Save History
+
+```
+As a user, I want all my conversations stored in a local Markdown file so I can continue a past conversation with a model, or open it in a Markdown viewer. I also want to be able to edit the markdown and then continue the conversation with the edited version of the chat history.
+```

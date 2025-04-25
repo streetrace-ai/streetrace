@@ -18,7 +18,7 @@
 - [ ] maintain conversation history over restarts,
 - [ ] show files already in context over the prompt
 - [x] Prompting UI
-- [ ] context size management
+- [x] context size management
 - [ ] support @last conversation
 - [ ] @mentions should support folders
 - [ ] prompt templates
