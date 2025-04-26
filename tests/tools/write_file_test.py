@@ -1,4 +1,3 @@
-import codecs
 import shutil
 import tempfile
 import unittest

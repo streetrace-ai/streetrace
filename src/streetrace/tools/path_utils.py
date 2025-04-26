@@ -1,7 +1,10 @@
+"""File utils for fs tools."""
+
 from pathlib import Path
 
+
 def normalize_and_validate_path(path: str | Path, work_dir: Path) -> Path:
-    """Normalizes and validates a file or directory path to ensure it's within the working directory.
+    """Normalize and validate a file or directory path to ensure it's within the working directory.
 
     This function performs the following:
     1. Normalizes both the path and work_dir (resolves '..', '.' etc.)
@@ -74,7 +77,7 @@ def validate_directory_exists(abs_path: Path) -> None:
 
 
 def ensure_parent_directory_exists(abs_path: Path) -> None:
-    """Ensures parent directory of the given path exists, creating it if necessary.
+    """Ensure parent directory of the given path exists, creating it if necessary.
 
     Args:
         abs_path (str): Absolute path to the directory.
