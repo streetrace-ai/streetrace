@@ -1,11 +1,14 @@
-import os
+"""execute_cli_command tool implementation."""
+
 import queue
 import subprocess
 import threading
+from pathlib import Path
+from typing import IO
 
 
-def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
-    """Executes a CLI command and returns the output, error, and return code.
+def execute_cli_command(args: str | list[str], work_dir: Path) -> tuple[dict[str, any], str]:
+    """Execute the CLI command and returns the output.
 
     The command's standard input/output/error are connected to the application's
     standard input/output/error, allowing for interactive use.
@@ -13,36 +16,29 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
     Does not provide shell access.
 
     Args:
-        command (list or str): The CLI command to execute.
-        work_dir: The working directory to execute the command in.
+        args (list or str): The CLI command to execute.
+        work_dir (Path): The working directory to execute the command in.
 
     Returns:
-        A dictionary containing:
-        - stdout: The captured standard output of the command
-        - stderr: The captured standard error of the command
-        - return_code: The return code of the command
+        tuple[dict[str, any], str]:
+            dict[str, any]: A dictionary containing:
+                - stdout: The captured standard output of the command
+                - stderr: The captured standard error of the command
+                - return_code: The return code of the command
+            str: UI view representation (rocess completed (return code))
 
     """
-    stdout_lines = []
-    stderr_lines = []
+    stdout_lines: list[str] = []
+    stderr_lines: list[str] = []
     process = None
 
-    # Validate work_dir exists and is a directory
-    if not os.path.exists(work_dir):
-        msg = f"Working directory '{work_dir}' does not exist"
-        raise ValueError(msg)
-    if not os.path.isdir(work_dir):
-        msg = f"Path '{work_dir}' is not a directory"
-        raise ValueError(msg)
-
     # Normalize the working directory
-    abs_work_dir = os.path.abspath(os.path.normpath(work_dir))
+    work_dir = work_dir.resolve()
 
     try:
-
         q = queue.Queue()
 
-        def monitor(text_stream, lines_buffer):
+        def monitor(text_stream: IO[str], lines_buffer: list[str]) -> threading.Thread:
             def pipe() -> None:
                 while True:
                     line = text_stream.readline()
@@ -61,7 +57,7 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             universal_newlines=True,
-            cwd=abs_work_dir,
+            cwd=str(work_dir),
         )
 
         mt = [
@@ -74,8 +70,9 @@ def execute_cli_command(args: str | list[str], work_dir: str) -> dict:
             # b/c our stderr is for our errors, not tool errors
             for _line in iter(q.get, None):
                 pass
-
-    except Exception as e:
+    except KeyboardInterrupt:
+        raise
+    except Exception as e:  # noqa: BLE001, we want to let LLM know what happened (security concern?)
         stderr_lines.append("\n")
         stderr_lines.append(str(e))
 

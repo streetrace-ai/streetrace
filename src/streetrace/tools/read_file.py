@@ -1,16 +1,21 @@
+"""read_file tool implementation."""
+
 import codecs
+from pathlib import Path
 
 from streetrace.tools.path_utils import (
     normalize_and_validate_path,
     validate_file_exists,
 )
 
+_BINARY_THRESHOLD = 0.3
+"""Threshold of non-text chars in file sample for the file to be considered binary."""
 
-def is_binary_file(file_path, sample_size=1024):
+def is_binary_file(file_path: Path, sample_size: int=1024) -> bool:
     """Detect if a file is binary by examining a sample of its content.
 
     Args:
-        file_path (str): Path to the file to check.
+        file_path (Path): Path to the file to check.
         sample_size (int, optional): Number of bytes to sample. Defaults to 1024.
 
     Returns:
@@ -18,7 +23,7 @@ def is_binary_file(file_path, sample_size=1024):
 
     """
     try:
-        with open(file_path, "rb") as f:
+        with file_path.open("rb") as f:
             sample = f.read(sample_size)
 
         # Check for null bytes, which are rare in text files
@@ -32,22 +37,24 @@ def is_binary_file(file_path, sample_size=1024):
             | set(range(0x80, 0x100)),
         )
         non_text_chars = sum(1 for byte in sample if byte not in text_chars)
-        return non_text_chars / len(sample) > 0.3 if sample else False
-    except:
+        return non_text_chars / len(sample) > _BINARY_THRESHOLD if sample else False
+    except Exception:  # Catching specific exceptions would be better
         # If we can't read the file, assume it's not binary
         return False
 
 
-def read_file(file_path, work_dir, encoding="utf-8"):
+def read_file(file_path: str, work_dir: Path, encoding: str="utf-8") -> tuple[str | bytes, str]:
     """Securely read a file's contents, ensuring the path is within the allowed root path.
 
     Args:
         file_path (str): Path to the file to read. Can be relative to work_dir or absolute.
-        work_dir (str): The working directory.
+        work_dir (Path): The working directory.
         encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
 
     Returns:
-        str or bytes: Contents of the file as a string (in text mode) or bytes (in binary mode)
+        tuple[str, str]:
+            str or bytes: Contents of the file as a string (in text mode) or bytes (in binary mode)
+            str: UI view of the read data (X characters read)
 
     Raises:
         ValueError: If the file path is outside the allowed root path or doesn't exist
@@ -69,10 +76,10 @@ def read_file(file_path, work_dir, encoding="utf-8"):
     try:
         with codecs.open(abs_file_path, "r", encoding=encoding) as f:
             data = f.read()
-            return data, f"{len(data)} bytes read"
+            return data, f"{len(data)} characters read"
     except OSError as e:
         msg = f"Error reading file '{file_path}': {e!s}"
-        raise OSError(msg)
+        raise OSError(msg) from e
     except UnicodeDecodeError as e:
         msg = (
             f"Failed to decode '{file_path}' with encoding '{encoding}'. "
@@ -84,4 +91,4 @@ def read_file(file_path, work_dir, encoding="utf-8"):
             e.start,
             e.end,
             e.reason,
-        )
+        ) from e

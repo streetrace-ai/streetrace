@@ -9,7 +9,6 @@
 
 ## other
 
-- [ ] project rules (like activate venv for any bash session)
 - [x] for streamed responses, collect all text into one message
 - [ ] fix unit tests, lint, etc
 - [ ] Prompt history
@@ -41,6 +40,7 @@
 - [ ] compact history command
 - [ ] summarize task command (Summarize this conversation describing the goal and outcomes. Mention paths to all files included in this context.)
 - [ ] read_file, when the file is missing, see if it's somewhere around and return "did you mean"
+- [ ] cli command validation (e.g., can configure regex in agent or streetrace config file)
 
 
 ## done

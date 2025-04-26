@@ -1,5 +1,6 @@
-import glob
-import os
+"""read_directory_structure tool implementation."""
+
+from pathlib import Path
 
 import pathspec
 
@@ -9,16 +10,26 @@ from streetrace.tools.path_utils import (
 )
 
 
-def load_gitignore_for_directory(path):
-    gitignore_files = []
-    current_path = os.path.abspath(path)
+def load_gitignore_for_directory(path: Path) -> pathspec.PathSpec:
+    """Load and compile .gitignore patterns for a given directory.
+
+    Args:
+        path (Path): The directory path to load .gitignore patterns from.
+
+    Returns:
+        pathspec.PathSpec: A compiled PathSpec object containing the ignore patterns,
+        or None if no patterns are found.
+
+    """
+    gitignore_files: list[Path] = []
+    current_path = path.resolve()
 
     # First, collect all gitignore paths from root to leaf
     while True:
-        gitignore_path = os.path.join(current_path, ".gitignore")
-        if os.path.exists(gitignore_path):
+        gitignore_path = current_path / ".gitignore"
+        if gitignore_path.exists() and gitignore_path.is_file():
             gitignore_files.append(gitignore_path)
-        parent_path = os.path.dirname(current_path)
+        parent_path = current_path.parent
         if current_path == parent_path:
             break
         current_path = parent_path
@@ -29,9 +40,9 @@ def load_gitignore_for_directory(path):
     # Now read patterns from all files
     patterns = []
     for gitignore_path in gitignore_files:
-        with open(gitignore_path) as f:
-            for line in f:
-                line = line.strip()
+        with gitignore_path.open() as f:
+            for l in f:
+                line = l.strip()
                 if line and not line.startswith("#"):
                     patterns.append(line)
 
@@ -40,17 +51,29 @@ def load_gitignore_for_directory(path):
 
 
 # Check if file or directory is ignored with pre-loaded specs
-def is_ignored(path, base_path, spec):
-    relative_path = os.path.relpath(path, base_path)
+def is_ignored(path: Path, base_path: Path, spec: pathspec.PathSpec) -> bool:
+    """Check if a file or directory is ignored based on the provided PathSpec.
+
+    Args:
+        path (Path): The path to check.
+        base_path (Path): The base directory for relative path calculation.
+        spec (pathspec.PathSpec): The PathSpec object containing ignore patterns.
+
+    Returns:
+        bool: True if the path is ignored, False otherwise.
+
+    """
+    if path.is_absolute():
+        path = path.relative_to(base_path)
     # Consider it a directory if it ends with '/' or if it exists and is a directory
-    is_dir = path.endswith("/") or os.path.isdir(path)
-    if is_dir and not relative_path.endswith("/"):
-        relative_path += "/"
-    return spec.match_file(relative_path) if spec else False
+    str_path = str(path)
+    if base_path.joinpath(path).is_dir():
+        str_path += "/"
+    return spec.match_file(str_path) if spec else False
 
 
 # Custom tool: read current directory structure honoring .gitignore correctly
-def read_directory_structure(path, work_dir):
+def read_directory_structure(path: str, work_dir: Path) -> tuple[dict[str, list[str]], str]:
     """Read directory structure at a specific level (non-recursive) honoring .gitignore rules.
 
     Args:
@@ -58,7 +81,9 @@ def read_directory_structure(path, work_dir):
         work_dir (str): The working directory.
 
     Returns:
-        dict: Dictionary with 'dirs' and 'files' lists containing paths relative to work_dir
+        tuple[dict[str, list[str]], str]:
+            dict[str, list[str]]: Dictionary with 'dirs' and 'files' lists containing paths relative to work_dir
+            str: UI view representation
 
     Raises:
         ValueError: If the requested path is outside the allowed root path or doesn't exist.
@@ -73,14 +98,11 @@ def read_directory_structure(path, work_dir):
     # Get gitignore spec for the current directory
     spec = load_gitignore_for_directory(abs_path)
 
-    # Normalize work_dir to be able to get relative paths later
-    abs_work_dir = os.path.abspath(work_dir)
+    # Use Path.glob to get all items in the current directory
+    items = list(abs_path.glob("*"))
 
-    # Use glob to get all items in the current directory
-    items = glob.glob(os.path.join(abs_path, "*"))
-
-    dirs = []
-    files = []
+    dirs: list[str] = []
+    files: list[str] = []
 
     # Filter items and classify them as directories or files
     for item in items:
@@ -89,13 +111,13 @@ def read_directory_structure(path, work_dir):
             continue
 
         # Get path relative to work_dir
-        rel_path = os.path.relpath(item, abs_work_dir)
+        rel_path = item.relative_to(work_dir)
 
         # Add to appropriate list
-        if os.path.isdir(item):
-            dirs.append(rel_path)
+        if item.is_dir():
+            dirs.append(str(rel_path))
         else:
-            files.append(rel_path)
+            files.append(str(rel_path))
 
     # Sort for consistent output
     dirs.sort()
@@ -104,4 +126,4 @@ def read_directory_structure(path, work_dir):
     return {
         "dirs": dirs,
         "files": files,
-    }, f"dirs: {', '.join(dirs)}\nfiles: {', '.join(files)}'"
+    }, f"dirs: {', '.join(dirs)}\\nfiles: {', '.join(files)}'"

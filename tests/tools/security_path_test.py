@@ -1,7 +1,7 @@
-import os
 import shutil
 import tempfile
 import unittest
+from pathlib import Path
 
 import pytest
 
@@ -11,22 +11,19 @@ from streetrace.tools.read_directory_structure import read_directory_structure
 class TestSecurityPath(unittest.TestCase):
     def setUp(self) -> None:
         # Create a temporary directory structure for testing
-        self.temp_dir = tempfile.mkdtemp()
-        self.work_dir = os.path.join(self.temp_dir, "root")
-        self.allowed_dir = os.path.join(self.work_dir, "allowed")
-        self.allowed_file = os.path.join(self.allowed_dir, "allowed_file.txt")
-        self.sibling_dir = os.path.join(self.temp_dir, "sibling")
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.work_dir = self.temp_dir / "root"
+        self.allowed_dir = self.work_dir / "allowed"
+        self.allowed_file = self.allowed_dir / "allowed_file.txt"
+        self.sibling_dir = self.temp_dir / "sibling"
 
         # Create directory structure
         for d in [self.work_dir, self.allowed_dir, self.sibling_dir]:
-            os.makedirs(d, exist_ok=True)
+            d.mkdir(parents=True, exist_ok=True)
 
         # Create some files
-        with open(self.allowed_file, "w") as f:
-            f.write("allowed content")
-
-        with open(os.path.join(self.sibling_dir, "sibling_file.txt"), "w") as f:
-            f.write("sibling content")
+        self.allowed_file.write_text("allowed content")
+        (self.sibling_dir / "sibling_file.txt").write_text("sibling content")
 
     def tearDown(self) -> None:
         # Clean up temporary directory
@@ -35,14 +32,14 @@ class TestSecurityPath(unittest.TestCase):
     def test_valid_path(self) -> None:
         """Test accessing a valid path within the root path."""
         # This should work - allowed_dir is within work_dir
-        result_tuple = read_directory_structure(self.allowed_dir, self.work_dir)
+        result_tuple = read_directory_structure(str(self.allowed_dir), self.work_dir)
         result = result_tuple[0]  # Access the dictionary part
 
         # Paths should be relative to work_dir
-        expected_file_path = os.path.relpath(self.allowed_file, self.work_dir)
+        expected_file_path = self.allowed_file.relative_to(self.work_dir)
         assert len(result["dirs"]) == 0
         assert len(result["files"]) == 1
-        assert result["files"][0] == expected_file_path
+        assert result["files"][0] == str(expected_file_path)
 
     def test_same_as_work_dir(self) -> None:
         """Test accessing the root path itself."""
@@ -51,16 +48,16 @@ class TestSecurityPath(unittest.TestCase):
         result = result_tuple[0]  # Access the dictionary part
 
         # Paths should be relative to work_dir
-        expected_dir_path = os.path.relpath(self.allowed_dir, self.work_dir)
+        expected_dir_path = self.allowed_dir.relative_to(self.work_dir)
         assert len(result["files"]) == 0  # No files directly in work_dir
         assert len(result["dirs"]) == 1
-        assert result["dirs"][0] == expected_dir_path
+        assert result["dirs"][0] == str(expected_dir_path)
 
     def test_directory_traversal(self) -> None:
         """Test that directory traversal is prevented."""
         # Try to access a sibling directory (outside work_dir)
         with pytest.raises(ValueError) as context:
-            read_directory_structure(self.sibling_dir, self.work_dir)
+            read_directory_structure(str(self.sibling_dir), self.work_dir)
 
         # Check that the error message is helpful
         assert "Security error" in str(context.value)
@@ -69,10 +66,10 @@ class TestSecurityPath(unittest.TestCase):
     def test_parent_directory_traversal(self) -> None:
         """Test that parent directory traversal is prevented."""
         # Try to access parent directory using ..
-        parent_path = os.path.join(self.work_dir, "..")
+        parent_path = self.work_dir / ".."
 
         with pytest.raises(ValueError) as context:
-            read_directory_structure(parent_path, self.work_dir)
+            read_directory_structure(str(parent_path), self.work_dir)
 
         assert "Security error" in str(context.value)
         assert "outside the allowed working directory" in str(context.value)

@@ -1,3 +1,7 @@
+"""File system tools."""
+
+from pathlib import Path
+
 import streetrace.tools.read_directory_structure as rds
 import streetrace.tools.read_file as rf
 import streetrace.tools.search as s
@@ -5,13 +9,13 @@ import streetrace.tools.write_file as wf
 from streetrace.tools import cli
 
 
-def _clean_input(input_str):
+def _clean_path(input_str: str) -> str:
     """Clean the input by removing unwanted whitespace characters, but preserving quotes."""
     # Only strip whitespace, not quotes
     return input_str.strip("\"'\r\n\t ")
 
 
-def list_directory(path, work_dir):
+def list_directory(path: str, work_dir: Path) -> tuple[dict[str, list[str]], str]:
     """Read directory structure while honoring .gitignore rules.
 
     Args:
@@ -19,16 +23,18 @@ def list_directory(path, work_dir):
         work_dir (str): The working directory.
 
     Returns:
-        dict: Directory structure with files and subdirectories.
+        tuple[dict[str, list[str]], str]:
+            dict[str, list[str]]: Dictionary with 'dirs' and 'files' lists containing paths relative to work_dir
+            str: UI view representation
 
     Raises:
         ValueError: If the requested path is outside the allowed root path.
 
     """
-    return rds.read_directory_structure(_clean_input(path), work_dir)
+    return rds.read_directory_structure(_clean_path(path), work_dir)
 
 
-def read_file(path, work_dir, encoding="utf-8"):
+def read_file(path: str, work_dir: Path, encoding: str="utf-8") -> tuple[str | bytes, str]:
     """Read file contents.
 
     Args:
@@ -37,13 +43,15 @@ def read_file(path, work_dir, encoding="utf-8"):
         encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
 
     Returns:
-        File contents.
+        tuple[str, str]:
+            str or bytes: Contents of the file as a string (in text mode) or bytes (in binary mode)
+            str: UI view of the read data (X characters read)
 
     """
-    return rf.read_file(_clean_input(path), work_dir, encoding)
+    return rf.read_file(_clean_path(path), work_dir, encoding)
 
 
-def write_file(path, content, work_dir, encoding="utf-8"):
+def write_file(path: str, content: str, work_dir: Path) -> tuple[str, str]:
     """Write content to a file.
 
     Args:
@@ -53,50 +61,56 @@ def write_file(path, content, work_dir, encoding="utf-8"):
         encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
 
     Returns:
-        Result of the operation.
+        tuple[str, str]:
+            str: Path of the written file (relative to work_dir)
+            str: A diff string if the file existed before (or creation message).
 
     """
-    return wf.write_file(
-        _clean_input(path),
+    return wf.write_utf8_file(
+        _clean_path(path),
         content,
         work_dir,
-        encoding,
-        binary_mode=False,
     )
 
 
-def execute_cli_command(command, work_dir):
+def execute_cli_command(command: list[str] | str, work_dir: Path) -> tuple[dict[str, any], str]:
     """Execute a CLI command interactively. Does not provide shell access.
 
     Args:
-        command (list or str): The command to execute.
-        work_dir (str): The working directory.
+        command (list[str] or str): The command to execute.
+        work_dir (Path): The working directory.
 
     Returns:
-        The stdio output.
+        tuple[dict[str, any], str]:
+            dict[str, any]: A dictionary containing:
+                - stdout: The captured standard output of the command
+                - stderr: The captured standard error of the command
+                - return_code: The return code of the command
+            str: UI view representation (rocess completed (return code))
 
     """
     return cli.execute_cli_command(command, work_dir)
 
 
-def search_files(pattern, search_string, work_dir):
-    """Searches for text occurrences in files given a glob pattern and a search
-    string.
+def search_files(pattern: str, search_string: str, work_dir: Path) -> tuple[list[dict[str, str]], str]:
+    """Search for text occurrences in files given a glob pattern and a search string.
 
     Args:
         pattern (str): Glob pattern to match files (relative to work_dir).
         search_string (str): The string to search for.
-        work_dir (str): The working directory for the glob pattern.
+        work_dir (Path): The working directory for the glob pattern.
 
     Returns:
-        list: A list of dictionaries, where each dictionary represents a match.
-            Each dictionary contains the file path, line number, and a snippet
-            of the line where the match was found.
+        tuple[list[dict[str, str]], str]:
+            list[dict[str, str]]: A list of dictionaries, where each dictionary
+                represents a match. Each dictionary contains the file path, line
+                number, and a snippet of the line where the match was found.
+            str: UI view of the read data (X matches found)
 
     """
     return s.search_files(
-        _clean_input(pattern),
-        _clean_input(search_string),
+        _clean_path(pattern),
+        _clean_path(search_string),
         work_dir=work_dir,
     )
 
@@ -107,7 +121,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_files",
-            "description": "Searches for text occurrences in files given a glob pattern and a search string.",
+            "description": "Search for text occurrences in files given a glob pattern and a search string.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -130,7 +144,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "execute_cli_command",
-            "description": "Executes a CLI command in interactive mode and returns the output, error, and return code. Does not provide shell access.",
+            "description": "Execute a CLI command in interactive mode and returns the output, error, and return code. Does not provide shell access.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -150,7 +164,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "write_file",
-            "description": "Write content to a file. Overwrites the file if it already exists.",
+            "description": "Write utf-8 text to a file. Overwrites the file if it already exists.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -162,12 +176,8 @@ TOOLS = [
                         "type": "string",
                         "description": "New content of the file.",
                     },
-                    "encoding": {
-                        "type": "string",
-                        "description": 'Text encoding to use. Defaults to "utf-8".',
-                    },
                 },
-                "required": ["path", "content", "encoding"],
+                "required": ["path", "content"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -200,7 +210,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "list_directory",
-            "description": "List information about the files and directories in the requested directory.",
+            "description": "List files and directories in the requested directory.",
             "parameters": {
                 "type": "object",
                 "properties": {

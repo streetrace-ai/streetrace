@@ -27,4 +27,10 @@ unusedcode:
 test:
 	poetry run pytest
 
+coverage:
+	poetry run coverage run --source=./src/streetrace -m pytest tests
+
+report:
+	poetry run coverage report
+
 check: format lint typecheck security depcheck unusedcode

@@ -1,6 +1,6 @@
-import os
 import shutil  # Import shutil for robust directory removal
 import unittest
+from pathlib import Path
 
 from streetrace.tools.search import search_files  # Use correct import path
 
@@ -9,29 +9,25 @@ class TestSearchFiles(unittest.TestCase):
 
     def setUp(self) -> None:
         # Create dummy files for testing
-        self.test_dir = "test_search_files_temp"
-        os.makedirs(self.test_dir, exist_ok=True)
+        self.test_dir = Path("test_search_files_temp")
+        self.test_dir.mkdir(exist_ok=True)
         self.file1_rel_path = "file1.txt"
         self.file2_rel_path = "file2.txt"
-        self.file1_abs_path = os.path.abspath(
-            os.path.join(self.test_dir, self.file1_rel_path),
-        )
-        self.file2_abs_path = os.path.abspath(
-            os.path.join(self.test_dir, self.file2_rel_path),
-        )
+        self.file1_abs_path = (self.test_dir / self.file1_rel_path).resolve()
+        self.file2_abs_path = (self.test_dir / self.file2_rel_path).resolve()
 
-        with open(self.file1_abs_path, "w", encoding="utf-8") as f:
-            f.write(
-                "This is the first file.\nIt contains some text.\nThis is a test.\n",
-            )
-        with open(self.file2_abs_path, "w", encoding="utf-8") as f:
-            f.write(
-                "This is the second file.\nIt has different content.\nAnother test here.\n",
-            )
+        self.file1_abs_path.write_text(
+            "This is the first file.\nIt contains some text.\nThis is a test.\n",
+            encoding="utf-8",
+        )
+        self.file2_abs_path.write_text(
+            "This is the second file.\nIt has different content.\nAnother test here.\n",
+            encoding="utf-8",
+        )
 
     def tearDown(self) -> None:
         # Remove dummy files and directory using shutil
-        if os.path.exists(self.test_dir):
+        if self.test_dir.exists():
             shutil.rmtree(self.test_dir)
 
     def test_search_files_found(self) -> None:

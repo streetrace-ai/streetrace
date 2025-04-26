@@ -27,8 +27,9 @@ select = ["ALL"]
 ignore = ["E501"]  # Example: ignore line-too-long if black already formats
 
 [tool.ruff.per-file-ignores]
-"tests/**/*.py" = [
+"tests/**/*test*.py" = [
     "S101", # asserts allowed in tests.
+    "D102"
 ]
 
 [tool.mypy]
@@ -40,7 +41,6 @@ warn_unused_configs = true
 check_untyped_defs = true
 files = ["src", "tests"]
 # Escaped backslash for TOML list string
-exclude = ["\\.venv/"]
 ignore_missing_imports = false
 
 # If using pytest
@@ -61,6 +61,7 @@ ruff = "^0.11.7"
 mypy = "^1.15.0"
 bandit = "^1.8.3"
 vulture = "^2.14"
+coverage = "^7.8.0"
 
 
 [tool.poetry.group.test.dependencies]

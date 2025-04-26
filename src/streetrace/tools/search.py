@@ -1,12 +1,12 @@
-import glob
-import os
+"""search_files tool implementation."""
+
+from pathlib import Path
 
 from streetrace.tools.path_utils import normalize_and_validate_path
 
 
-def search_files(pattern, search_string, work_dir):
-    """Searches for text occurrences in files given a glob pattern and a search
-    string.
+def search_files(pattern: str, search_string: str, work_dir: Path) -> tuple[list[dict[str, str]], str]:
+    """Search for text occurrences in files given a glob pattern and a search string.
 
     Args:
         pattern (str): Glob pattern to match files (relative to work_dir).
@@ -14,9 +14,11 @@ def search_files(pattern, search_string, work_dir):
         work_dir (str): The root directory for the glob pattern.
 
     Returns:
-        list: A list of dictionaries, where each dictionary represents a match.
-            Each dictionary contains the file path, line number, and a snippet
-            of the line where the match was found.
+        tuple[list[dict[str, str]], str]:
+            list[dict[str, str]]: A list of dictionaries, where each dictionary
+                represents a match. Each dictionary contains the file path, line
+                number, and a snippet of the line where the match was found.
+            str: UI view of the read data (X matches found)
 
     Raises:
         ValueError: If the pattern resolves to paths outside the work_dir.
@@ -24,26 +26,23 @@ def search_files(pattern, search_string, work_dir):
     """
     matches = []
 
-    # Normalize the work_dir
-    abs_work_dir = os.path.abspath(os.path.normpath(work_dir))
+    work_dir = work_dir.resolve()
 
-    # Construct the full glob pattern
-    # We'll keep the pattern relative and join with normalized work_dir
-    full_pattern = os.path.join(abs_work_dir, pattern)
-
-    for filepath in glob.glob(full_pattern, recursive=True):
+    for file_path in work_dir.glob(pattern):
         # Validate each matching file is within work_dir
         try:
-            abs_filepath = normalize_and_validate_path(filepath, work_dir)
+            abs_filepath = normalize_and_validate_path(file_path, work_dir)
+            if abs_filepath.is_dir():
+                continue
 
-            with open(abs_filepath, encoding="utf-8") as f:
+            with abs_filepath.open(encoding="utf-8") as f:
                 for i, line in enumerate(f):
                     if search_string in line:
                         # Get path relative to work_dir for display
-                        rel_path = os.path.relpath(abs_filepath, abs_work_dir)
+                        rel_path = abs_filepath.relative_to(work_dir)
                         matches.append(
                             {
-                                "filepath": rel_path,
+                                "filepath": str(rel_path),
                                 "line_number": i + 1,
                                 "snippet": line.strip(),
                             },
