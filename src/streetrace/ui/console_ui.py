@@ -56,21 +56,21 @@ class ConsoleUI:
         """
 
         # --- prompt_toolkit setup ---
-        def build_prompt():
+        def build_prompt() -> list[tuple[str, str]]:
             # Defines the main prompt appearance
             return [
                 ("class:prompt", prompt_str),  # Style defined in Styles.PT
                 ("", " "),  # Space after prompt
             ]
 
-        def build_prompt_continuation(width, line_number, is_soft_wrap):
+        def build_prompt_continuation(width: int, line_number: int, is_soft_wrap: bool) -> list[tuple[str, str]]:
             # Defines appearance for continuation lines in multiline mode
             # Simple dots for now, could be more elaborate
             return [
                 ("class:prompt-continuation", "." * width),  # Style in Styles.PT
             ]
 
-        def build_bottom_toolbar():
+        def build_bottom_toolbar() -> list[tuple[str, str]]:
             # Help text at the bottom
             return [
                 (
@@ -83,26 +83,27 @@ class ConsoleUI:
 
         # patch_stdout ensures that prints from other threads don't interfere
         # with the prompt rendering.
-        with patch_stdout():
-            try:
-                user_input = self.prompt_session.prompt(
-                    build_prompt,  # Use the function to build the prompt dynamically if needed
-                    style=Styles.PT,  # Apply the custom style map
-                    prompt_continuation=build_prompt_continuation,
-                    bottom_toolbar=build_bottom_toolbar,
-                    # completer and complete_while_typing are set in __init__
-                )
-                self.cursor_is_in_line = False  # Prompt resets cursor position
-                return user_input
-            except EOFError:  # Handle Ctrl+D as a way to exit
-                return "/exit"  # Consistent exit command
-            except KeyboardInterrupt:  # Handle Ctrl+C
-                # Optionally clear the current input line or just return empty/signal exit
-                self.new_line()  # Ensure cursor is on a new line after ^C
-                self.display_warning(
-                    "Input cancelled (Ctrl+C). Type '/exit' or '/quit' to leave.",
-                )
-                return ""  # Return empty string, let the main loop decide
+        try:
+            with patch_stdout():
+                    user_input = self.prompt_session.prompt(
+                        build_prompt,  # Use the function to build the prompt dynamically if needed
+                        style=Styles.PT,  # Apply the custom style map
+                        prompt_continuation=build_prompt_continuation,
+                        bottom_toolbar=build_bottom_toolbar,
+                        # completer and complete_while_typing are set in __init__
+                    )
+        except EOFError:  # Handle Ctrl+D as a way to exit
+            return "/exit"  # Consistent exit command
+        except KeyboardInterrupt:  # Handle Ctrl+C
+            if self.prompt_session.app.current_buffer.text:
+                self.new_line()
+                self.prompt_session.app.current_buffer.reset()
+                return "/__reprompt"
+
+            return "/exit"
+        else:
+            self.cursor_is_in_line = False  # Prompt resets cursor position
+            return user_input
 
     # --- Display methods remain largely the same ---
 

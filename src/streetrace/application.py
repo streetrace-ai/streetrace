@@ -155,6 +155,8 @@ class Application:
         while True:
             try:
                 user_input = self.ui.prompt()
+                if user_input == "/__reprompt":
+                    continue
 
                 command_executed, should_continue = self.cmd_executor.execute(
                     user_input,

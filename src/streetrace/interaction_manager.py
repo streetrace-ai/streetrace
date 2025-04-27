@@ -1,5 +1,7 @@
 # app/interaction_manager.py
-"""This module contains the InteractionManager class and auxiliary data classes to manage the stateful,
+"""Manage stateful interaction with LLM APIs and tool execution.
+
+This module contains the InteractionManager class and auxiliary data classes to manage the stateful,
 reliable interaction with LLM APIs and tool execution in a conversational state machine.
 Implements client-facing glue code for StreetRace🚗💨 UI and LLM wrappers.
 """
@@ -9,7 +11,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
+from typing import Any, NoReturn
 
 from streetrace.llm.llmapi import LLMAPI, RetriableError
 from streetrace.llm.wrapper import (
@@ -35,7 +37,8 @@ _EMPTY_RESPONSE_WAIT_SEC = 10  # Wait time for empty response retry
 
 
 class InteractionState(Enum):
-    """Defines states of the interaction manager's state machine loop.
+    """Define states of the interaction manager's state machine loop.
+
     Helps control conversational and tool execution flow.
     """
 
@@ -54,7 +57,8 @@ class InteractionState(Enum):
 
 @dataclass
 class TurnData:
-    """Transient data for a single turn within the interaction loop.
+    """Store transient data for a single turn within the interaction loop.
+
     Tracks all received/generated content and tool info for that turn.
     """
 
@@ -75,25 +79,26 @@ class TurnData:
     )  # Their results
 
     def has_buffered_tools(self) -> bool:
-        """Returns True if there are unprocessed (buffered) tool calls."""
+        """Check if there are unprocessed (buffered) tool calls."""
         return bool(self.buffered_tool_calls)
 
     def has_executed_tools(self) -> bool:
-        """True if any tools were executed in this turn."""
+        """Check if any tools were executed in this turn."""
         return bool(self.executed_tool_results)
 
     def has_text_content(self) -> bool:
-        """True if any assistant text was collected from the LLM for this turn."""
+        """Check if any assistant text was collected from the LLM for this turn."""
         return bool(self.assistant_text_parts)
 
     def has_any_content(self) -> bool:
-        """Returns True if the turn produced any assistant text or buffered tool calls.
+        """Check if the turn produced any assistant text or buffered tool calls.
+
         Executed tool calls may be cleared on error and should not be checked alone for this.
         """
         return self.has_text_content() or self.has_buffered_tools()
 
     def reset(self) -> None:
-        """Resets the main turn content for a new turn or retry, leaving exceptions for inspection."""
+        """Reset the main turn content for a new turn or retry, leaving exceptions for inspection."""
         self.assistant_text_parts = []
         self.buffered_tool_calls = []
         self.turn_finish_reason = None
@@ -106,7 +111,8 @@ class TurnData:
 
 @dataclass
 class ConversationData:
-    """Summary state and counters for a full conversation loop execution.
+    """Track summary state and counters for a full conversation loop execution.
+
     The TurnData is held as .turn and reset in each STARTING_TURN phase.
     """
 
@@ -138,7 +144,7 @@ class ToolExecutionOutcome:
 
 
 class ThinkingResult:
-    """Describes the result of one interactive loop session: reason, tokens, requests."""
+    """Describe the result of one interactive loop session: reason, tokens, requests."""
 
     def __init__(
         self,
@@ -154,6 +160,7 @@ class ThinkingResult:
         self.request_count = request_count
 
     def __repr__(self) -> str:
+        """Return string representation of ThinkingResult."""
         return (
             f"ThinkingResult(finish_reason={self.finish_reason!r}, "
             f"input_tokens={self.input_tokens}, output_tokens={self.output_tokens}, "
@@ -162,7 +169,7 @@ class ThinkingResult:
 
 
 class InteractionManager:
-    """Handles the main interaction state machine for LLM chat and tool-augmented code generation.
+    """Handle the main interaction state machine for LLM chat and tool-augmented code generation.
 
     - Orchestrates prompt/response with the model, tool execution, error/retry logic,
       token/timing tracking, and stateful user feedback.
@@ -193,18 +200,29 @@ class InteractionManager:
         self.ui = ui
         self.sleeper = sleeper
         logger.info(
-            f"InteractionManager initialized for provider: {type(provider).__name__}",
+            "InteractionManager initialized for provider: %s",
+            type(provider).__name__,
         )
+
+    def _raise_mismatch_error(self, msg: str) -> NoReturn:
+        """Raise a runtime error for mismatched tool calls and results."""
+        logger.error(msg)
+        raise RuntimeError(msg)
+
+    def _raise_type_error(self, msg: str) -> NoReturn:
+        """Raise a type error for incorrect error type."""
+        logger.error(msg)
+        raise TypeError(msg)
 
     def _call_llm_api(
         self,
-        client: Any,
+        client: Any,  # noqa: ANN401 Provider-specific client types vary, must use Any
         system_message: str,
         provider_history: list[Any],
         provider_tools: list[Any],
         turn: TurnData,
     ) -> GenerationOutcome:
-        """Calls the LLM API, processes the stream, and updates TurnData.
+        """Call the LLM API, process the stream, and update TurnData.
 
         Args:
             client: The initialized LLM client.
@@ -235,29 +253,30 @@ class InteractionManager:
                         turn.buffered_tool_calls.append(chunk)
                     case ContentPartFinishReason():
                         turn.turn_finish_reason = chunk.finish_reason
-                        logger.debug(f"Received finish reason: {chunk.finish_reason}")
+                        logger.debug("Received finish reason: %s", chunk.finish_reason)
                     case ContentPartUsage():
                         turn.prompt_tokens += chunk.prompt_tokens
                         turn.response_tokens += chunk.response_tokens
                     case _:
-                        logger.warning(f"Unhandled content part type: {type(chunk)}")
+                        logger.warning("Unhandled content part type: %s", type(chunk))
             logger.debug("LLM API call finished.")
             return GenerationOutcome(success=True)
         except RetriableError as retry_err:
             logger.warning(
-                f"Retriable error during generation: {retry_err}",
+                "Retriable error during generation: %s",
+                retry_err,
                 exc_info=False,
             )
             turn.generation_exception = retry_err
             return GenerationOutcome(success=False, is_retriable=True, error=retry_err)
         except Exception as e:
-            logger.error(f"Non-retriable error during generation: {e}", exc_info=True)
+            logger.exception("Non-retriable error during generation")
             turn.generation_exception = e
             return GenerationOutcome(success=False, is_retriable=False, error=e)
 
     def _execute_tools(self, turn: TurnData) -> ToolExecutionOutcome:
-        """Executes all tool calls currently buffered. Updates execution lists/results."""
-        logger.debug(f"Executing {len(turn.buffered_tool_calls)} tool calls...")
+        """Execute all tool calls currently buffered. Updates execution lists/results."""
+        logger.debug("Executing %d tool calls...", len(turn.buffered_tool_calls))
         turn.executed_tool_calls = []
         turn.executed_tool_results = []
         if not turn.buffered_tool_calls:
@@ -266,7 +285,9 @@ class InteractionManager:
             for tool_call in turn.buffered_tool_calls:
                 self.ui.display_tool_call(tool_call)
                 logger.info(
-                    f"Tool call: {tool_call.name} with args: {tool_call.arguments}",
+                    "Tool call: %s with args: %s",
+                    tool_call.name,
+                    tool_call.arguments,
                 )
                 tool_result: ToolCallResult = self.tools.call_tool(tool_call)
                 tool_result_part = ContentPartToolResult(
@@ -277,22 +298,28 @@ class InteractionManager:
                 if tool_result.success:
                     self.ui.display_tool_result(tool_result_part)
                     logger.info(
-                        f"Tool '{tool_call.name}' result: {tool_result.output.content}",
+                        "Tool '%s' result: %s",
+                        tool_call.name,
+                        tool_result.output.content,
                     )
                 else:
                     self.ui.display_tool_error(tool_result_part)
                     logger.error(
-                        f"Tool '{tool_call.name}' error: {tool_result.output.content}",
+                        "Tool '%s' error: %s",
+                        tool_call.name,
+                        tool_result.output.content,
                     )
                 turn.executed_tool_calls.append(tool_call)
                 turn.executed_tool_results.append(tool_result_part)
-            assert len(turn.executed_tool_calls) == len(
-                turn.executed_tool_results,
-            ), "Mismatched tool calls and results after execution"
+
+            # Check tool calls and results match
+            if len(turn.executed_tool_calls) != len(turn.executed_tool_results):
+                self._raise_mismatch_error("Mismatched tool calls and results after execution")
+
             logger.debug("Tool execution finished.")
             return ToolExecutionOutcome(success=True)
         except Exception as e:
-            logger.error(f"Error during tool execution phase: {e}", exc_info=True)
+            logger.exception("Error during tool execution phase")
             turn.executed_tool_calls = []
             turn.executed_tool_results = []
             return ToolExecutionOutcome(success=False, error=e)
@@ -304,6 +331,7 @@ class InteractionManager:
         turn: TurnData,
     ) -> list[Message]:
         """Update the user-facing and provider-facing chat histories after each turn.
+
         Appends generated text/tool-calls, tool results as messages, and
         synchronizes with provider's internal format.
 
@@ -328,12 +356,17 @@ class InteractionManager:
                 new_messages.append(tool_message)
         if new_messages:
             self.provider.append_history(provider_history, new_messages)
-            logger.debug(f"Appended {len(new_messages)} messages to histories.")
+            logger.debug("Appended %d messages to histories.", len(new_messages))
         return new_messages
 
-    def process_prompt(self, history: History) -> ThinkingResult:
-        """Runs a chat prompt through the full state machine loop: generates, dispatches tools,
-        retries as needed, and updates both visible user and provider history.
+    # The process_prompt method is deliberately complex as it implements a complete
+    # state machine with multiple pathways. Refactoring attempts have been made but didn't
+    # show better readability.
+    def process_prompt(self, history: History) -> ThinkingResult:  # noqa: C901, PLR0912, PLR0915 See note above
+        """Run a chat prompt through the full state machine loop.
+
+        Generates responses, dispatches tools, retries as needed, and updates
+        both visible user and provider history.
         Returns a ThinkingResult giving the final status.
         """
         client = self.provider.initialize_client()
@@ -347,17 +380,19 @@ class InteractionManager:
                 InteractionState.INTERRUPTED,
             ):
                 try:
-                    logger.debug(f"Current state: {conv.state.name}")
+                    logger.debug("Current state: %s", conv.state.name)
                     if conv.state == InteractionState.STARTING_TURN:
                         conv.turn.reset()
                         conv.state = InteractionState.GENERATING
                     elif conv.state == InteractionState.GENERATING:
                         conv.total_requests += 1
                         logger.info(
-                            f"Starting request {conv.total_requests} with {len(provider_history)} history items.",
+                            "Starting request %d with %d history items.",
+                            conv.total_requests,
+                            len(provider_history),
                         )
                         logger.debug(
-                            "Provider history for generation:\n%s",
+                            "Provider history for generation:\\n%s",
                             provider_history,
                         )
                         logger.debug("System Message: %s", history.system_message)
@@ -439,14 +474,18 @@ class InteractionManager:
                             conv.state = InteractionState.HANDLING_EMPTY_RETRY
                     elif conv.state == InteractionState.HANDLING_API_RETRY:
                         error = conv.turn.generation_exception
-                        assert isinstance(error, RetriableError)
+                        if not isinstance(error, RetriableError):
+                            self._raise_type_error("Expected RetriableError for API retry")
                         self.ui.display_warning(error)
                         max_retries = error.max_retries or _DEFAULT_MAX_RETRIES
                         if conv.api_retry_count < max_retries:
                             conv.api_retry_count += 1
                             wait_time = error.wait_time(conv.api_retry_count)
                             logger.info(
-                                f"Retrying API call in {wait_time} seconds... (Attempt {conv.api_retry_count+1}/{max_retries})",
+                                "Retrying API call in %d seconds... (Attempt %d/%d)",
+                                wait_time,
+                                conv.api_retry_count+1,
+                                max_retries,
                             )
                             self.ui.display_info(
                                 f"Retrying API call in {wait_time} seconds...",
@@ -469,7 +508,10 @@ class InteractionManager:
                             conv.empty_response_retry_count += 1
                             wait_time = _EMPTY_RESPONSE_WAIT_SEC
                             logger.info(
-                                f"Empty response detected. Retrying in {wait_time} seconds... (Attempt {conv.empty_response_retry_count}/{_EMPTY_RESPONSE_MAX_RETRIES})",
+                                "Empty response detected. Retrying in %d seconds... (Attempt %d/%d)",
+                                wait_time,
+                                conv.empty_response_retry_count,
+                                _EMPTY_RESPONSE_MAX_RETRIES,
                             )
                             self.ui.display_warning(
                                 "No output generated by provider, retrying.",
@@ -483,17 +525,14 @@ class InteractionManager:
                             logger.error("Empty response retry limit exceeded.")
                             conv.final_reason = "No result"
                             conv.state = InteractionState.FAILED
-                except KeyboardInterrupt:
+                except KeyboardInterrupt:  # noqa: PERF203 try-except is required for robust error handling in the state machine
                     logger.warning(
                         "KeyboardInterrupt detected (outside inner try/except).",
                     )
                     conv.final_reason = "User interrupted"
                     conv.state = InteractionState.INTERRUPTED
                 except Exception as e:
-                    logger.error(
-                        f"Unexpected error in state machine: {e}",
-                        exc_info=True,
-                    )
+                    logger.exception("Unexpected error in state machine")
                     conv.final_reason = f"Internal error: {e}"
                     conv.state = InteractionState.FAILED
         if conv.state == InteractionState.FINISHED:

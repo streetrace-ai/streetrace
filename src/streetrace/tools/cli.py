@@ -70,8 +70,6 @@ def execute_cli_command(args: str | list[str], work_dir: Path) -> tuple[dict[str
             # b/c our stderr is for our errors, not tool errors
             for _line in iter(q.get, None):
                 pass
-    except KeyboardInterrupt:
-        raise
     except Exception as e:  # noqa: BLE001, we want to let LLM know what happened (security concern?)
         stderr_lines.append("\n")
         stderr_lines.append(str(e))
