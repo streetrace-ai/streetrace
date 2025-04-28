@@ -13,9 +13,10 @@ from streetrace.llm.llmapi import LLMAPI
 from streetrace.llm.ollama.impl import Ollama
 from streetrace.llm.openai.impl import OpenAI
 
+logger = logging.getLogger(__name__)
 
-def get_ai_provider(provider_name: str | None = None) -> LLMAPI:
-    """Factory function to get the appropriate AI provider instance.
+def get_ai_provider(provider_name: str | None = None) -> LLMAPI:  # noqa: C901, PLR0911
+    """Create the appropriate AI provider instance.
 
     Args:
         provider_name: Optional explicitly specified provider name
@@ -31,43 +32,45 @@ def get_ai_provider(provider_name: str | None = None) -> LLMAPI:
     # If provider is explicitly specified, use that
     if provider_name:
         provider_name = provider_name.lower()
-        if provider_name == "claude":
-            if not os.environ.get("ANTHROPIC_API_KEY"):
-                msg = "Requested Claude provider but ANTHROPIC_API_KEY not found"
-                raise ValueError(
-                    msg,
-                )
-            return Claude()
-        if provider_name == "gemini":
-            if not os.environ.get("GEMINI_API_KEY"):
-                msg = "Requested Gemini provider but GEMINI_API_KEY not found"
-                raise ValueError(
-                    msg,
-                )
-            return Gemini()
-        if provider_name == "openai":
-            if not os.environ.get("OPENAI_API_KEY"):
-                msg = "Requested OpenAI provider but OPENAI_API_KEY not found"
-                raise ValueError(
-                    msg,
-                )
-            return OpenAI()
-        if provider_name == "ollama":
-            # Ollama can use local models, so no API key check
-            return Ollama()
+        match provider_name:
+            case "claude":
+                if not os.environ.get("ANTHROPIC_API_KEY"):
+                    msg = "Requested Claude provider but ANTHROPIC_API_KEY not found"
+                    raise ValueError(
+                        msg,
+                    )
+                return Claude()
+            case "gemini":
+                if not os.environ.get("GEMINI_API_KEY"):
+                    msg = "Requested Gemini provider but GEMINI_API_KEY not found"
+                    raise ValueError(
+                        msg,
+                    )
+                return Gemini()
+            case "openai":
+                if not os.environ.get("OPENAI_API_KEY"):
+                    msg = "Requested OpenAI provider but OPENAI_API_KEY not found"
+                    raise ValueError(
+                        msg,
+                    )
+                return OpenAI()
+            case "ollama":
+                # Ollama can use local models, so no API key check
+                return Ollama()
+
         msg = f"Unknown provider name: {provider_name}"
         raise ValueError(msg)
 
     # Auto-detect provider based on available API keys
     if os.environ.get("ANTHROPIC_API_KEY"):
-        logging.info("Using Claude provider (ANTHROPIC_API_KEY found)")
+        logger.info("Using Claude provider (ANTHROPIC_API_KEY found)")
         return Claude()
     if os.environ.get("GEMINI_API_KEY"):
-        logging.info("Using Gemini provider (GEMINI_API_KEY found)")
+        logger.info("Using Gemini provider (GEMINI_API_KEY found)")
         return Gemini()
     if os.environ.get("OPENAI_API_KEY"):
-        logging.info("Using OpenAI provider (OPENAI_API_KEY found)")
+        logger.info("Using OpenAI provider (OPENAI_API_KEY found)")
         return OpenAI()
-    # Default to Ollama if no API keys are found
-    logging.info("Using Ollama provider (no API keys found)")
-    return Ollama()
+
+    msg = f"Provider '{provider_name or 'default'}' could not be loaded."
+    raise ValueError(msg)

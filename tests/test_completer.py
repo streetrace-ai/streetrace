@@ -1,6 +1,6 @@
 import os
-from typing import Callable, Iterator
 import unittest
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 

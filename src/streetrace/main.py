@@ -1,9 +1,8 @@
 # main.py
 import argparse
 import logging
-import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 # Core application components
 from streetrace.application import Application
@@ -49,8 +48,8 @@ root_logger.setLevel(logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
-def parse_arguments():
-    """Parses command line arguments."""
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Run AI assistant with different models",
     )
@@ -151,11 +150,6 @@ def main() -> None:
     # Initialize AI Provider
     try:
         provider = get_ai_provider(provider_name)
-        if not provider:
-            msg = f"Provider '{provider_name or 'default'}' could not be loaded."
-            raise ValueError(
-                msg,
-            )
         ui.display_info(
             f"Using provider: {type(provider).__name__.replace('Provider', '')}",
         )
@@ -164,8 +158,9 @@ def main() -> None:
         else:
             ui.display_info("Using default model for the provider.")
     except Exception as e:
-        ui.display_error(f"Could not initialize AI provider: {e}")
-        logger.critical(f"Failed to initialize AI provider: {e}", exc_info=True)
+        msg = f"Could not initialize AI provider: {e}"
+        ui.display_error(msg)
+        logger.exception(msg)
         sys.exit(1)
 
     # Tool Calling Setup
@@ -193,11 +188,9 @@ def main() -> None:
     try:
         app.run()
     except Exception as app_err:
-        ui.display_error(f"An critical error occurred: {app_err}")
-        logger.critical(
-            "Critical error during application execution.",
-            exc_info=app_err,
-        )
+        msg = f"Critical error during application execution: {app_err}"
+        ui.display_error(msg)
+        logger.exception(msg)
         sys.exit(1)
     finally:
         logger.info("Application exiting.")
