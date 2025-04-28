@@ -61,7 +61,10 @@ class TestWriteFile(unittest.TestCase):
         # Use an absolute path outside temp_dir to be sure
         outside_path = parent_dir / "outside_file.txt"
 
-        with pytest.raises(ValueError) as context:
+        with pytest.raises(
+            ValueError,
+            match="location outside the allowed working directory",
+        ) as context:
             write_utf8_file(str(outside_path), "Should not write this", self.temp_dir)
 
         assert "Security error" in str(context.value)
@@ -80,7 +83,11 @@ class TestWriteFile(unittest.TestCase):
 
         # Read it back with the same encoding using the read_file function
         # Assuming read_file returns (content, msg)
-        read_content, read_msg = read_file(str(abs_path), self.temp_dir, encoding=encoding)
+        read_content, read_msg = read_file(
+            str(abs_path),
+            self.temp_dir,
+            encoding=encoding,
+        )
 
         # Verify content is preserved
         assert read_content == content

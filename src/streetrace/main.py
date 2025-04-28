@@ -1,4 +1,5 @@
-# main.py
+"""StreetRace🚗💨 CLI entry point."""
+
 import argparse
 import logging
 import sys
@@ -47,6 +48,7 @@ root_logger.setLevel(logging.DEBUG)
 # --- End Logging Configuration ---
 
 logger = logging.getLogger(__name__)
+
 
 def parse_arguments() -> argparse.Namespace:
     """Parse command line arguments."""
@@ -138,7 +140,7 @@ def main() -> None:
     prompt_completer = PromptCompleter([path_completer, command_completer])
 
     # Initialize ConsoleUI
-    ui = ConsoleUI(completer=prompt_completer, debug_enabled=args.debug)
+    ui = ConsoleUI(completer=prompt_completer)
 
     # Initialize other Core Application Components
     prompt_processor = PromptProcessor(ui=ui)

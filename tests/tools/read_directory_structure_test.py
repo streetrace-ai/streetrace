@@ -55,7 +55,9 @@ class TestDirectoryStructureTool(unittest.TestCase):
 
             # Verify the current directory file isn't in the result
             assert current_marker.name not in result["files"]
-            assert not any(current_marker.name in p for p in result["files"])  # Double check
+            assert not any(
+                current_marker.name in p for p in result["files"]
+            )  # Double check
 
         finally:
             # Remove the marker file

@@ -120,7 +120,9 @@ class TestOpenAI(unittest.TestCase):
     @patch("os.environ.get")
     @patch("openai.OpenAI")  # Patch the correct path
     def test_initialize_client_with_api_key(
-        self, mock_openai_constructor, mock_get,
+        self,
+        mock_openai_constructor,
+        mock_get,
     ) -> None:
         """Test that initialize_client creates a client when API key is present."""
         mock_get.side_effect = lambda key, default=None: {

@@ -5,7 +5,11 @@ from pathlib import Path
 from streetrace.tools.path_utils import normalize_and_validate_path
 
 
-def search_files(pattern: str, search_string: str, work_dir: Path) -> tuple[list[dict[str, str]], str]:
+def search_files(
+    pattern: str,
+    search_string: str,
+    work_dir: Path,
+) -> tuple[list[dict[str, str]], str]:
     """Search for text occurrences in files given a glob pattern and a search string.
 
     Args:

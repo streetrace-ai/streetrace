@@ -34,7 +34,11 @@ def list_directory(path: str, work_dir: Path) -> tuple[dict[str, list[str]], str
     return rds.read_directory_structure(_clean_path(path), work_dir)
 
 
-def read_file(path: str, work_dir: Path, encoding: str="utf-8") -> tuple[str | bytes, str]:
+def read_file(
+    path: str,
+    work_dir: Path,
+    encoding: str = "utf-8",
+) -> tuple[str | bytes, str]:
     """Read file contents.
 
     Args:
@@ -73,7 +77,10 @@ def write_file(path: str, content: str, work_dir: Path) -> tuple[str, str]:
     )
 
 
-def execute_cli_command(command: list[str] | str, work_dir: Path) -> tuple[dict[str, any], str]:
+def execute_cli_command(
+    command: list[str] | str,
+    work_dir: Path,
+) -> tuple[dict[str, any], str]:
     """Execute a CLI command interactively. Does not provide shell access.
 
     Args:
@@ -92,7 +99,11 @@ def execute_cli_command(command: list[str] | str, work_dir: Path) -> tuple[dict[
     return cli.execute_cli_command(command, work_dir)
 
 
-def search_files(pattern: str, search_string: str, work_dir: Path) -> tuple[list[dict[str, str]], str]:
+def search_files(
+    pattern: str,
+    search_string: str,
+    work_dir: Path,
+) -> tuple[list[dict[str, str]], str]:
     """Search for text occurrences in files given a glob pattern and a search string.
 
     Args:

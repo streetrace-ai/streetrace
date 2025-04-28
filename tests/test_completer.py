@@ -21,14 +21,22 @@ original_os_listdir = os.listdir
 
 
 # Helper function to simplify getting completion texts
-def _get_completion_texts(completer: PathCompleter, text: str, cursor_offset: int=0) -> list[str]:
+def _get_completion_texts(
+    completer: PathCompleter,
+    text: str,
+    cursor_offset: int = 0,
+) -> list[str]:
     doc = Document(text, len(text) + cursor_offset)
     completions = list(completer.get_completions(doc, MagicMock()))
     return sorted([c.text for c in completions])
 
 
 # Helper function to simplify getting completion displays
-def _get_completion_displays(completer: PathCompleter, text: str, cursor_offset: int=0) -> list[str]:
+def _get_completion_displays(
+    completer: PathCompleter,
+    text: str,
+    cursor_offset: int = 0,
+) -> list[str]:
     doc = Document(text, len(text) + cursor_offset)
     completions = list(completer.get_completions(doc, MagicMock()))
     return sorted([to_plain_text(c.display) for c in completions])
@@ -49,7 +57,11 @@ class _FakePath:
     @staticmethod
     def make_fake_is_dir(mock_is_dir: Callable[[Path], bool]) -> None:
         def fake_is_dir(path: Path) -> bool:
-            return path.name in ["fake", "work", "src"] and path.parent.name in ["fake", "work"]
+            return path.name in ["fake", "work", "src"] and path.parent.name in [
+                "fake",
+                "work",
+            ]
+
         mock_is_dir.side_effect = fake_is_dir
 
     @staticmethod
@@ -58,15 +70,19 @@ class _FakePath:
             if path.name == "fake":
                 yield from [path.joinpath(p) for p in ["work"]]
             elif path.name == "work":
-                yield from [path.joinpath(p) for p in ["src", "README.md", ".hiddenfile"]]
+                yield from [
+                    path.joinpath(p) for p in ["src", "README.md", ".hiddenfile"]
+                ]
             elif path.name == "src":
                 yield from [path.joinpath(p) for p in ["main.py"]]
+
         mock_iterdir.side_effect = fake_iterdir
 
     @staticmethod
     def make_fake_iterdir_err(mock_iterdir: Callable[[Path], Iterator[Path]]) -> None:
         def fake_iterdir(_: Path) -> Iterator[Path]:
             raise OSError
+
         mock_iterdir.side_effect = fake_iterdir
 
 
@@ -201,14 +217,14 @@ class TestPathCompleter(unittest.TestCase):
         assert _get_completion_texts(completer, "bar @src/m") == ["src/main.py"]
         assert _get_completion_displays(completer, "bar @src/m") == ["main.py"]
 
-    @patch("pathlib.Path.is_dir")
-    def test_invalid_working_dir(self, mock_is_dir) -> None:
+    @patch("pathlib.Path.is_dir", autospec=True)
+    def test_invalid_working_dir(self, mock_is_dir: Callable[[Path], bool]) -> None:
         mock_is_dir.return_value = False
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="not a valid directory"):
             PathCompleter(Path("/invalid/dir"))
 
         # Also test with string path
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="not a valid directory"):
             PathCompleter("/invalid/dir")
 
 

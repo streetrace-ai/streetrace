@@ -32,6 +32,7 @@ ignore = ["E501", "D203", "D213"]  # Example: ignore line-too-long if black alre
 "tests/**/*test*.py" = [
     "S101", # asserts allowed in tests.
     "D100", # module-level docstrings for test files are not required.
+    "D101", # class-level docstrings for test files are not required.
     "D102", # test code should be documented in-line as opposed to docstrings.
     "INP001", # don't require __init__.py in tests folders.
 ]

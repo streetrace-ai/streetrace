@@ -12,6 +12,9 @@ lint:
 fixlint:
 	poetry run ruff check src tests --fix
 
+fixlintunsafe:
+	poetry run ruff check src tests --fix --unsafe-fixes
+
 typecheck:
 	poetry run mypy src tests
 

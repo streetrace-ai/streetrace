@@ -104,18 +104,21 @@ class TestCommandExecutor(unittest.TestCase):
             return True
 
         with pytest.raises(
-            ValueError, match="Command name cannot be empty or whitespace.",
+            ValueError,
+            match="Command name cannot be empty or whitespace.",
         ):
             self.executor.register("", dummy_action)
         with pytest.raises(
-            ValueError, match="Command name cannot be empty or whitespace.",
+            ValueError,
+            match="Command name cannot be empty or whitespace.",
         ):
             self.executor.register("   ", dummy_action)
 
     def test_register_command_non_callable_action_raises_error(self) -> None:
         """Test that registering a non-callable action raises TypeError."""
         with pytest.raises(
-            TypeError, match="Action for command 'testCmd' must be callable.",
+            TypeError,
+            match="Action for command 'testCmd' must be callable.",
         ):
             self.executor.register("testCmd", "not a function")
 

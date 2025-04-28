@@ -88,7 +88,8 @@ class TestGeminiConverter(unittest.TestCase):
 
         part = UnknownPart()
         with pytest.raises(
-            ValueError, match="Unknown content type encountered .*UnknownPart",
+            ValueError,
+            match="Unknown content type encountered .*UnknownPart",
         ):
             self.converter._from_content_part(part)
 
@@ -173,7 +174,8 @@ class TestGeminiConverter(unittest.TestCase):
         gemini_part = types.Part(function_response=func_response)
         # Fix: Expect ValueError from manual parsing
         with pytest.raises(
-            ValueError, match="ToolCallResult\\s+output\\s+Field required",
+            ValueError,
+            match="ToolCallResult\\s+output\\s+Field required",
         ):
             self.converter._to_content_part(gemini_part)
 

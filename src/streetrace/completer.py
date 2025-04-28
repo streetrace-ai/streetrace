@@ -71,7 +71,10 @@ class PathCompleter(Completer):
         # if the last typed path fragment == '.' then we need to interpret the
         # dot as a dot in the file name, but Path will interpret it as
         # a current directory specifier
-        is_trailing_dot = path_part and (path_part.endswith(os.sep + ".") or (not partial_path_typed.name and path_part.endswith(".")))
+        is_trailing_dot = path_part and (
+            path_part.endswith(os.sep + ".")
+            or (not partial_path_typed.name and path_part.endswith("."))
+        )
 
         if is_in_subdir:
             prefix = "." if is_trailing_dot else ""
@@ -88,7 +91,6 @@ class PathCompleter(Completer):
         completions = []
         try:
             if current_search_dir.is_dir():
-                print(f"{current_search_dir}.iterdir(): {current_search_dir.iterdir()}")
                 items = sorted(item.name for item in current_search_dir.iterdir())
                 for item in items:
                     # don't show hidden files unless requested
@@ -185,7 +187,10 @@ class CommandCompleter(Completer):
                 start_position=start_pos,
                 display=cmd,
                 display_meta="command",
-            ) for cmd in self.commands if cmd.startswith(prefix)]
+            )
+            for cmd in self.commands
+            if cmd.startswith(prefix)
+        ]
 
 
 # --- Main Prompt Completer (True Composition) ---

@@ -146,7 +146,9 @@ class TestReadDirectoryStructure(unittest.TestCase):
         (self.temp_dir / ".gitignore").write_text("*.txt\n")
 
         # Create dir1 gitignore - but keep specific txt files (doesn't affect root listing)
-        (self.temp_dir / "dir1" / ".gitignore").write_text("!dir1_file.txt\n")  # Don't ignore this specific txt
+        (self.temp_dir / "dir1" / ".gitignore").write_text(
+            "!dir1_file.txt\n",
+        )  # Don't ignore this specific txt
 
         result_tuple = read_directory_structure(
             str(self.temp_dir),

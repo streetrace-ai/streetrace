@@ -35,7 +35,9 @@ class TestIsIgnored(unittest.TestCase):
 
     def test_included_file(self) -> None:
         assert not is_ignored(
-            self.included_file, self.base_path, self.spec,
+            self.included_file,
+            self.base_path,
+            self.spec,
         )
 
     def test_ignored_dir(self) -> None:

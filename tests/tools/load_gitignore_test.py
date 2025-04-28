@@ -98,7 +98,9 @@ class TestLoadGitignore(unittest.TestCase):
         root_gitignore.write_text("*.txt\n")  # Ignore all .txt files
 
         nested_gitignore = self.nested_dir / ".gitignore"
-        nested_gitignore.write_text("!important.txt\n")  # But don't ignore important.txt
+        nested_gitignore.write_text(
+            "!important.txt\n",
+        )  # But don't ignore important.txt
 
         result = load_gitignore_for_directory(self.nested_dir)
 
@@ -114,7 +116,12 @@ class TestLoadGitignore(unittest.TestCase):
         assert not self._is_file_ignored(important_txt_path, self.nested_dir, result)
 
     # Helper method to check if a file is ignored
-    def _is_file_ignored(self, path: Path, base_path: Path, spec: pathspec.PathSpec) -> bool:
+    def _is_file_ignored(
+        self,
+        path: Path,
+        base_path: Path,
+        spec: pathspec.PathSpec,
+    ) -> bool:
         relative_path = path.relative_to(base_path)
         return spec.match_file(str(relative_path)) if spec else False
 

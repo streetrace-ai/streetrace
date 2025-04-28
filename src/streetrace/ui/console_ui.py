@@ -1,10 +1,12 @@
-# app/console_ui.py
+"""Console UI."""
+
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer  # Base class
 from prompt_toolkit.patch_stdout import patch_stdout
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.status import Status
 from rich.syntax import Syntax
 
 from streetrace.llm.wrapper import ContentPartToolCall, ContentPartToolResult
@@ -22,15 +24,13 @@ class ConsoleUI:
 
     cursor_is_in_line: bool = False
 
-    def __init__(self, completer: Completer, debug_enabled: bool = False) -> None:
-        """Initializes the ConsoleUI.
+    def __init__(self, completer: Completer) -> None:
+        """Initialize the ConsoleUI.
 
         Args:
             completer: An instance of a prompt_toolkit Completer implementation.
-            debug_enabled: If True, enables printing of debug messages.
 
         """
-        self.debug_enabled = debug_enabled
         self.console = Console()
         self.completer = completer  # Use the generic completer instance
         # Enable multiline input, potentially useful for longer prompts or pasted code
@@ -40,12 +40,12 @@ class ConsoleUI:
             multiline=True,  # Allow multiline input with Esc+Enter
         )
 
-    def status(self, message: str):
-        """Displays a status message using rich.console.status."""
+    def status(self, message: str) -> Status:
+        """Display a status message using rich.console.status."""
         return self.console.status(message, spinner="hamburger")
 
     def prompt(self, prompt_str: str = _PROMPT) -> str:
-        """Gets input from the user via the console with autocompletion.
+        """Get input from the user via the console with autocompletion.
 
         Args:
             prompt_str: The prompt string to display to the user.
@@ -63,7 +63,11 @@ class ConsoleUI:
                 ("", " "),  # Space after prompt
             ]
 
-        def build_prompt_continuation(width: int, line_number: int, is_soft_wrap: bool) -> list[tuple[str, str]]:
+        def build_prompt_continuation(
+            width: int,
+            _1: int,
+            _2: bool,  # noqa: FBT001
+        ) -> list[tuple[str, str]]:
             # Defines appearance for continuation lines in multiline mode
             # Simple dots for now, could be more elaborate
             return [
@@ -85,13 +89,13 @@ class ConsoleUI:
         # with the prompt rendering.
         try:
             with patch_stdout():
-                    user_input = self.prompt_session.prompt(
-                        build_prompt,  # Use the function to build the prompt dynamically if needed
-                        style=Styles.PT,  # Apply the custom style map
-                        prompt_continuation=build_prompt_continuation,
-                        bottom_toolbar=build_bottom_toolbar,
-                        # completer and complete_while_typing are set in __init__
-                    )
+                user_input = self.prompt_session.prompt(
+                    build_prompt,  # Use the function to build the prompt dynamically if needed
+                    style=Styles.PT,  # Apply the custom style map
+                    prompt_continuation=build_prompt_continuation,
+                    bottom_toolbar=build_bottom_toolbar,
+                    # completer and complete_while_typing are set in __init__
+                )
         except EOFError:  # Handle Ctrl+D as a way to exit
             return "/exit"  # Consistent exit command
         except KeyboardInterrupt:  # Handle Ctrl+C
@@ -108,7 +112,7 @@ class ConsoleUI:
     # --- Display methods remain largely the same ---
 
     def display_system_message(self, message: str) -> None:
-        """Displays an informational message to the console.
+        """Display an informational message to the console.
 
         Args:
             message: The message string to display.
@@ -123,7 +127,7 @@ class ConsoleUI:
         self.console.print(message, style=Styles.RICH_HISTORY_SYSTEM_INSTRUCTIONS)
 
     def display_context_message(self, message: str) -> None:
-        """Displays an informational message to the console.
+        """Display an informational message to the console.
 
         Args:
             message: The message string to display.
@@ -135,7 +139,7 @@ class ConsoleUI:
         self.console.print(message, style=Styles.RICH_HISTORY_CONTEXT)
 
     def display_history_assistant_message(self, message: str) -> None:
-        """Displays an informational message to the console.
+        """Display an informational message to the console.
 
         Args:
             message: The message string to display.
@@ -147,7 +151,7 @@ class ConsoleUI:
         self.console.print(message, style=Styles.RICH_HISTORY_ASSISTANT)
 
     def display_history_user_message(self, message: str) -> None:
-        """Displays an informational message to the console.
+        """Display an informational message to the console.
 
         Args:
             message: The message string to display.
@@ -159,26 +163,28 @@ class ConsoleUI:
         self.console.print(message, style=Styles.RICH_HISTORY_USER)
 
     def display_info(self, message: str) -> None:
-        """Displays a standard informational message."""
+        """Display a standard informational message."""
         self.new_line()
         self.console.print(message, style=Styles.RICH_INFO)
 
     def display_warning(self, message: str) -> None:
-        """Displays a warning message."""
+        """Display a warning message."""
         self.new_line()
         self.console.print(message, style=Styles.RICH_WARNING)
 
     def display_error(self, message: str) -> None:
-        """Displays an error message."""
+        """Display an error message."""
         self.new_line()
         self.console.print(message, style=Styles.RICH_ERROR)
 
     def display_finish_reason(self, message: str) -> None:
-        """Displays a standard informational message."""
+        """Display a standard informational message."""
         self.display_info(message)
 
     def display_ai_response_chunk(self, chunk: str) -> None:
-        """Displays a chunk of the AI's response, typically used for streaming.
+        """Display a chunk of the AI's response.
+
+        Typically used for streaming.
         Prints directly without extra formatting or newlines.
         Handles Markdown rendering.
         """
@@ -191,13 +197,13 @@ class ConsoleUI:
         self.cursor_is_in_line = True
 
     def new_line(self) -> None:
-        """Ensures the next print starts on a new line if needed."""
+        """Ensure the next print starts on a new line if needed."""
         if self.cursor_is_in_line:
             self.console.print()
             self.cursor_is_in_line = False
 
     def display_tool_call(self, tool_call: ContentPartToolCall) -> None:
-        """Displays information about a tool being called."""
+        """Display information about a tool being called."""
         # Shorten long arguments for display clarity
         display_args = {}
         if isinstance(tool_call.arguments, dict):
@@ -205,7 +211,7 @@ class ConsoleUI:
                 # Convert value to string, handle potential errors
                 try:
                     v_str = str(v)
-                except Exception:
+                except (TypeError, ValueError):
                     v_str = "[Error converting arg to string]"
 
                 if len(v_str) > 100:
@@ -218,7 +224,7 @@ class ConsoleUI:
         # Format arguments nicely
         try:
             args_str = ", ".join(f"{k}={v!r}" for k, v in display_args.items())
-        except Exception:
+        except (TypeError, ValueError, KeyError):
             args_str = "[Error formatting args]"
 
         message = f"{tool_call.name}({args_str})"
@@ -235,7 +241,7 @@ class ConsoleUI:
         self.cursor_is_in_line = False
 
     def display_tool_result(self, result: ContentPartToolResult) -> None:
-        """Displays the result of a tool execution."""
+        """Display the result of a tool execution."""
         content = result.content.display_output or result.content.output
         title = f"Tool Result ({result.name})"
 
@@ -266,7 +272,7 @@ class ConsoleUI:
         self.cursor_is_in_line = False
 
     def display_tool_error(self, result: ContentPartToolResult) -> None:
-        """Displays an error from a tool execution."""
+        """Display an error from a tool execution."""
         output = result.content.display_output or result.content.output
         error_message = output.content if output else "[No error message]"
         title = f"Tool Error ({result.name})"
@@ -276,15 +282,7 @@ class ConsoleUI:
         self.cursor_is_in_line = False
 
     def display_user_prompt(self, message: str) -> None:
-        """Displays the user's prompt (e.g., in non-interactive mode)."""
+        """Display the user's prompt (e.g., in non-interactive mode)."""
         self.new_line()
         self.console.print(f"{_PROMPT} {message}", style=Styles.RICH_PROMPT)
         self.cursor_is_in_line = False  # Assume prompt display finishes the line
-
-    # --- Placeholder for future help command ---
-    # def display_help(self, commands: list[str]):
-    #     """Displays help information."""
-    #     self.display_info("Available commands:")
-    #     for cmd in commands:
-    #         self.display_info(f"  {cmd}")
-    #     self.display_info("Enter a prompt or @mention files to interact with the AI.")

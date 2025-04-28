@@ -110,7 +110,9 @@ class TestOpenAIConverter(unittest.TestCase):
         create=True,
     )  # Create the attribute if it doesn't exist
     def test_from_content_part_tool_call(
-        self, mock_function, mock_tool_call_param,
+        self,
+        mock_function,
+        mock_tool_call_param,
     ) -> None:
         """Test converting a ContentPartToolCall to OpenAI format."""
         # Set up mocks

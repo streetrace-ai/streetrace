@@ -41,8 +41,8 @@ def load_gitignore_for_directory(path: Path) -> pathspec.PathSpec:
     patterns = []
     for gitignore_path in gitignore_files:
         with gitignore_path.open() as f:
-            for l in f:
-                line = l.strip()
+            for file_line in f:
+                line = file_line.strip()
                 if line and not line.startswith("#"):
                     patterns.append(line)
 
@@ -73,7 +73,10 @@ def is_ignored(path: Path, base_path: Path, spec: pathspec.PathSpec) -> bool:
 
 
 # Custom tool: read current directory structure honoring .gitignore correctly
-def read_directory_structure(path: str, work_dir: Path) -> tuple[dict[str, list[str]], str]:
+def read_directory_structure(
+    path: str,
+    work_dir: Path,
+) -> tuple[dict[str, list[str]], str]:
     """Read directory structure at a specific level (non-recursive) honoring .gitignore rules.
 
     Args:

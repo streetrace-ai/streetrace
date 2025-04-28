@@ -15,6 +15,7 @@ from streetrace.llm.openai.impl import OpenAI
 
 logger = logging.getLogger(__name__)
 
+
 def get_ai_provider(provider_name: str | None = None) -> LLMAPI:  # noqa: C901, PLR0911
     """Create the appropriate AI provider instance.
 

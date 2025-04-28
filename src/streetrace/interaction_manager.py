@@ -314,7 +314,9 @@ class InteractionManager:
 
             # Check tool calls and results match
             if len(turn.executed_tool_calls) != len(turn.executed_tool_results):
-                self._raise_mismatch_error("Mismatched tool calls and results after execution")
+                self._raise_mismatch_error(
+                    "Mismatched tool calls and results after execution",
+                )
 
             logger.debug("Tool execution finished.")
             return ToolExecutionOutcome(success=True)
@@ -362,7 +364,10 @@ class InteractionManager:
     # The process_prompt method is deliberately complex as it implements a complete
     # state machine with multiple pathways. Refactoring attempts have been made but didn't
     # show better readability.
-    def process_prompt(self, history: History) -> ThinkingResult:  # noqa: C901, PLR0912, PLR0915 See note above
+    def process_prompt(  # noqa: C901, PLR0912, PLR0915 See note above
+        self,
+        history: History,
+    ) -> ThinkingResult:
         """Run a chat prompt through the full state machine loop.
 
         Generates responses, dispatches tools, retries as needed, and updates
@@ -475,7 +480,9 @@ class InteractionManager:
                     elif conv.state == InteractionState.HANDLING_API_RETRY:
                         error = conv.turn.generation_exception
                         if not isinstance(error, RetriableError):
-                            self._raise_type_error("Expected RetriableError for API retry")
+                            self._raise_type_error(
+                                "Expected RetriableError for API retry",
+                            )
                         self.ui.display_warning(error)
                         max_retries = error.max_retries or _DEFAULT_MAX_RETRIES
                         if conv.api_retry_count < max_retries:
@@ -484,7 +491,7 @@ class InteractionManager:
                             logger.info(
                                 "Retrying API call in %d seconds... (Attempt %d/%d)",
                                 wait_time,
-                                conv.api_retry_count+1,
+                                conv.api_retry_count + 1,
                                 max_retries,
                             )
                             self.ui.display_info(
@@ -525,7 +532,9 @@ class InteractionManager:
                             logger.error("Empty response retry limit exceeded.")
                             conv.final_reason = "No result"
                             conv.state = InteractionState.FAILED
-                except KeyboardInterrupt:  # noqa: PERF203 try-except is required for robust error handling in the state machine
+                except (  # noqa: PERF203 try-except is required for robust error handling in the state machine
+                    KeyboardInterrupt
+                ):
                     logger.warning(
                         "KeyboardInterrupt detected (outside inner try/except).",
                     )

@@ -11,7 +11,8 @@ from streetrace.tools.path_utils import (
 _BINARY_THRESHOLD = 0.3
 """Threshold of non-text chars in file sample for the file to be considered binary."""
 
-def is_binary_file(file_path: Path, sample_size: int=1024) -> bool:
+
+def is_binary_file(file_path: Path, sample_size: int = 1024) -> bool:
     """Detect if a file is binary by examining a sample of its content.
 
     Args:
@@ -38,12 +39,16 @@ def is_binary_file(file_path: Path, sample_size: int=1024) -> bool:
         )
         non_text_chars = sum(1 for byte in sample if byte not in text_chars)
         return non_text_chars / len(sample) > _BINARY_THRESHOLD if sample else False
-    except Exception:  # Catching specific exceptions would be better
+    except OSError:
         # If we can't read the file, assume it's not binary
         return False
 
 
-def read_file(file_path: str, work_dir: Path, encoding: str="utf-8") -> tuple[str | bytes, str]:
+def read_file(
+    file_path: str,
+    work_dir: Path,
+    encoding: str = "utf-8",
+) -> tuple[str | bytes, str]:
     """Securely read a file's contents, ensuring the path is within the allowed root path.
 
     Args:
