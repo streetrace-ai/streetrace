@@ -2,6 +2,7 @@
 import argparse
 import logging
 import os
+from pathlib import Path
 import sys
 
 # Core application components
@@ -46,6 +47,7 @@ root_logger = logging.getLogger()
 root_logger.setLevel(logging.DEBUG)
 # --- End Logging Configuration ---
 
+logger = logging.getLogger(__name__)
 
 def parse_arguments():
     """Parses command line arguments."""
@@ -82,33 +84,26 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def init_working_directory(args_path: str) -> str:
-    """Initializes and validates the working directory."""
-    initial_cwd = os.getcwd()
-    target_work_dir = args_path if args_path else initial_cwd
-    abs_working_dir = os.path.abspath(target_work_dir)
+def init_working_directory(args_path: str) -> Path:
+    """Initialize and validate the working directory."""
+    if args_path:
+        work_dir = Path(args_path)
+        if not work_dir.is_absolute():
+            work_dir = Path.cwd().joinpath(work_dir).resolve()
+    else:
+        work_dir = Path.cwd().resolve()
 
-    if not os.path.isdir(abs_working_dir):
-        msg = f"Specified path '{target_work_dir}' resolved to '{abs_working_dir}' which is not a valid directory."
+    if not work_dir.is_dir():
+        msg = f"Specified path '{args_path}' resolved to '{work_dir}' which is not a valid directory."
         raise ValueError(
             msg,
         )
 
-    if abs_working_dir != initial_cwd:
-        try:
-            os.chdir(abs_working_dir)
-            logging.info(f"Changed working directory to: {abs_working_dir}")
-        except OSError as e:
-            msg = f"Could not change working directory to '{abs_working_dir}': {e}"
-            raise OSError(
-                msg,
-            ) from e
-
-    return abs_working_dir
+    return work_dir
 
 
 def main() -> None:
-    """Main entry point for the application."""
+    """Run StreetRace🚗💨."""
     args = parse_arguments()
 
     # Configure Logging Level based on args
@@ -116,13 +111,13 @@ def main() -> None:
         # Add console handler only if debug is enabled
         console_handler.setLevel(logging.DEBUG)
         root_logger.addHandler(console_handler)
-        logging.info("Debug logging enabled for console.")
+        logger.info("Debug logging enabled for console.")
 
     try:
         abs_working_dir = init_working_directory(args.path)
-        logging.info(f"Effective working directory: {abs_working_dir}")
-    except (ValueError, OSError) as e:
-        logging.critical(f"Working directory initialization failed: {e}")
+        logger.info("Effective working directory: %s", abs_working_dir)
+    except (ValueError, OSError):
+        logger.exception("Working directory initialization failed")
         raise
 
     # Initialize CommandExecutor *before* completers that need command list
@@ -139,13 +134,12 @@ def main() -> None:
     available_commands = cmd_executor.get_command_names_with_prefix()
 
     # Initialize Completers
-    path_completer = PathCompleter(abs_working_dir)
+    path_completer = PathCompleter(str(abs_working_dir))
     command_completer = CommandCompleter(available_commands)
     prompt_completer = PromptCompleter([path_completer, command_completer])
 
     # Initialize ConsoleUI
     ui = ConsoleUI(completer=prompt_completer, debug_enabled=args.debug)
-    ui.display_info(f"Working directory: {abs_working_dir}")
 
     # Initialize other Core Application Components
     prompt_processor = PromptProcessor(ui=ui)
@@ -171,7 +165,7 @@ def main() -> None:
             ui.display_info("Using default model for the provider.")
     except Exception as e:
         ui.display_error(f"Could not initialize AI provider: {e}")
-        logging.critical(f"Failed to initialize AI provider: {e}", exc_info=True)
+        logger.critical(f"Failed to initialize AI provider: {e}", exc_info=True)
         sys.exit(1)
 
     # Tool Calling Setup
@@ -200,13 +194,13 @@ def main() -> None:
         app.run()
     except Exception as app_err:
         ui.display_error(f"An critical error occurred: {app_err}")
-        logging.critical(
+        logger.critical(
             "Critical error during application execution.",
             exc_info=app_err,
         )
         sys.exit(1)
     finally:
-        logging.info("Application exiting.")
+        logger.info("Application exiting.")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 import json
 import logging
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from streetrace.llm.wrapper import ContentPartToolCall, ToolCallResult
@@ -19,7 +20,7 @@ class ToolCall:
         self,
         tools: dict[str, Any],
         tools_impl: dict[str, Callable],
-        abs_work_dir: str,
+        abs_work_dir: Path,
     ) -> None:
         """Initialize the ToolCall manager.
 

@@ -1,5 +1,7 @@
 import os
+from typing import Callable, Iterator
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -19,141 +21,194 @@ original_os_listdir = os.listdir
 
 
 # Helper function to simplify getting completion texts
-def get_completion_texts(completer, text, cursor_offset=0):
-    # CommandCompleter now uses document.text, not just text_before_cursor
+def _get_completion_texts(completer: PathCompleter, text: str, cursor_offset: int=0) -> list[str]:
     doc = Document(text, len(text) + cursor_offset)
     completions = list(completer.get_completions(doc, MagicMock()))
     return sorted([c.text for c in completions])
 
 
 # Helper function to simplify getting completion displays
-def get_completion_displays(completer, text, cursor_offset=0):
+def _get_completion_displays(completer: PathCompleter, text: str, cursor_offset: int=0) -> list[str]:
     doc = Document(text, len(text) + cursor_offset)
     completions = list(completer.get_completions(doc, MagicMock()))
-    displays = []
-    for c in completions:
-        display_val = getattr(c, "display", "")
-        displays.append(to_plain_text(display_val))
-    return sorted(displays)
+    return sorted([to_plain_text(c.display) for c in completions])
+
+
+class _FakePath:
+    """Implements a fake directory structure.
+
+    /fake/work
+    /fake/work/src
+    /fake/work/src/main.py
+    /fake/work/README.md
+    /fake/work/.hiddenfile
+    """
+
+    WORK_DIR = Path("/fake/work")
+
+    @staticmethod
+    def make_fake_is_dir(mock_is_dir: Callable[[Path], bool]) -> None:
+        def fake_is_dir(path: Path) -> bool:
+            return path.name in ["fake", "work", "src"] and path.parent.name in ["fake", "work"]
+        mock_is_dir.side_effect = fake_is_dir
+
+    @staticmethod
+    def make_fake_iterdir(mock_iterdir: Callable[[Path], Iterator[Path]]) -> None:
+        def fake_iterdir(path: Path) -> Iterator[Path]:
+            if path.name == "fake":
+                yield from [path.joinpath(p) for p in ["work"]]
+            elif path.name == "work":
+                yield from [path.joinpath(p) for p in ["src", "README.md", ".hiddenfile"]]
+            elif path.name == "src":
+                yield from [path.joinpath(p) for p in ["main.py"]]
+        mock_iterdir.side_effect = fake_iterdir
+
+    @staticmethod
+    def make_fake_iterdir_err(mock_iterdir: Callable[[Path], Iterator[Path]]) -> None:
+        def fake_iterdir(_: Path) -> Iterator[Path]:
+            raise OSError
+        mock_iterdir.side_effect = fake_iterdir
 
 
 class TestPathCompleter(unittest.TestCase):
-    # These tests remain the same as PathCompleter logic is stable
-    @patch("os.path.isdir")
-    @patch("os.listdir")
-    @patch("os.path.abspath")
-    @patch("os.path.join")
-    @patch("os.path.relpath")
+    @patch("pathlib.Path.is_dir", autospec=True)
+    @patch("pathlib.Path.iterdir", autospec=True)
+    def test_oserr(
+        self,
+        mock_iterdir: Callable[[Path], Iterator[Path]],
+        mock_is_dir: Callable[[Path], bool],
+    ) -> None:
+        _FakePath.make_fake_is_dir(mock_is_dir)
+        _FakePath.make_fake_iterdir_err(mock_iterdir)
+
+        completer = PathCompleter(_FakePath.WORK_DIR)
+
+        assert _get_completion_displays(completer, "@\n") == []
+        assert _get_completion_displays(completer, "@src/") == []
+
+    @patch("pathlib.Path.is_dir", autospec=True)
+    @patch("pathlib.Path.iterdir", autospec=True)
+    def test_not_a_path(
+        self,
+        mock_iterdir: Callable[[Path], Iterator[Path]],
+        mock_is_dir: Callable[[Path], bool],
+    ) -> None:
+        _FakePath.make_fake_is_dir(mock_is_dir)
+        _FakePath.make_fake_iterdir(mock_iterdir)
+
+        completer = PathCompleter(_FakePath.WORK_DIR)
+
+        assert _get_completion_displays(completer, "@\n") == []
+
+    @patch("pathlib.Path.is_dir", autospec=True)
+    @patch("pathlib.Path.iterdir", autospec=True)
+    def test_not_a_mention(
+        self,
+        mock_iterdir: Callable[[Path], Iterator[Path]],
+        mock_is_dir: Callable[[Path], bool],
+    ) -> None:
+        _FakePath.make_fake_is_dir(mock_is_dir)
+        _FakePath.make_fake_iterdir(mock_iterdir)
+
+        completer = PathCompleter(_FakePath.WORK_DIR)
+
+        assert _get_completion_displays(completer, "src/") == []
+
+    @patch("pathlib.Path.is_dir", autospec=True)
+    @patch("pathlib.Path.iterdir", autospec=True)
+    def test_not_a_dir(
+        self,
+        mock_iterdir: Callable[[Path], Iterator[Path]],
+        mock_is_dir: Callable[[Path], bool],
+    ) -> None:
+        _FakePath.make_fake_is_dir(mock_is_dir)
+        _FakePath.make_fake_iterdir(mock_iterdir)
+
+        completer = PathCompleter(_FakePath.WORK_DIR)
+
+        # Completions without a prefix should show non-hidden files/dirs
+        assert _get_completion_texts(completer, "@src/abc/") == []
+        assert _get_completion_texts(completer, "@src/abc/src") == []
+        assert _get_completion_texts(completer, "@src/src") == []
+        assert _get_completion_texts(completer, "@src/src/") == []
+        assert _get_completion_texts(completer, "@abc/") == []
+        assert _get_completion_texts(completer, "@README.md/") == []
+        assert _get_completion_texts(completer, "@README.md/.") == []
+
+    @patch("pathlib.Path.is_dir", autospec=True)
+    @patch("pathlib.Path.iterdir", autospec=True)
+    def test_missing_dot(
+        self,
+        mock_iterdir: Callable[[Path], Iterator[Path]],
+        mock_is_dir: Callable[[Path], bool],
+    ) -> None:
+        _FakePath.make_fake_is_dir(mock_is_dir)
+        _FakePath.make_fake_iterdir(mock_iterdir)
+
+        completer = PathCompleter(_FakePath.WORK_DIR)
+
+        # Completions without a prefix should show non-hidden files/dirs
+        assert _get_completion_texts(completer, "@src/.") == []
+        assert _get_completion_texts(completer, "@.") == [".hiddenfile"]
+
+    @patch("pathlib.Path.is_dir", autospec=True)
+    @patch("pathlib.Path.iterdir", autospec=True)
     def test_complete_root_files_and_dirs(
         self,
-        mock_relpath,
-        mock_join,
-        mock_abspath,
-        mock_listdir,
-        mock_isdir,
+        mock_iterdir: Callable[[Path], Iterator[Path]],
+        mock_is_dir: Callable[[Path], bool],
     ) -> None:
-        working_dir = "/fake/work"
-        src_dir_path = original_os_path_join(working_dir, "src")
-        readme_path = original_os_path_join(working_dir, "README.md")
-        hidden_path = original_os_path_join(working_dir, ".hiddenfile")
-        mock_isdir.side_effect = lambda p: original_os_path_normpath(p) in [
-            working_dir,
-            src_dir_path,
-        ]
-        mock_listdir.side_effect = lambda p: (
-            ["README.md", "src", ".hiddenfile"]
-            if original_os_path_normpath(p) == working_dir
-            else []
-        )
-        mock_abspath.return_value = working_dir
-        mock_join.side_effect = original_os_path_join
+        _FakePath.make_fake_is_dir(mock_is_dir)
+        _FakePath.make_fake_iterdir(mock_iterdir)
 
-        def relpath_side_effect(p, start) -> str:
-            if start != working_dir:
-                msg = f"Unexpected start path: {start}"
-                raise ValueError(msg)
-            norm_p = original_os_path_normpath(p)
-            if norm_p == readme_path:
-                return "README.md"
-            if norm_p == src_dir_path:
-                return "src"
-            if norm_p == hidden_path:
-                return ".hiddenfile"
-            msg = f"Unexpected path: {p}"
-            raise ValueError(msg)
+        completer = PathCompleter(_FakePath.WORK_DIR)
 
-        mock_relpath.side_effect = relpath_side_effect
-        completer = PathCompleter(working_dir)
-        assert completer.working_dir == working_dir
-        # Corrected assertion: completion text for directories does NOT end with '/'
-        assert get_completion_texts(completer, "@") == [
+        # Completions without a prefix should show non-hidden files/dirs
+        assert _get_completion_texts(completer, "@") == [
             "README.md",
             "src",
-        ]  # Reverted here
-        assert get_completion_texts(completer, "@R") == ["README.md"]
-        assert get_completion_texts(completer, "@s") == ["src"]  # And here
-        assert get_completion_texts(completer, "@.") == [".hiddenfile"]
-        # Display text *should* have the slash for directories
-        assert get_completion_displays(completer, "@") == ["README.md", "src/"]
+        ]
+        # Filtering by prefix
+        assert _get_completion_texts(completer, "@R") == ["README.md"]
+        assert _get_completion_texts(completer, "@s") == ["src"]
+        # Hidden files should be shown when the prefix starts with .
+        assert _get_completion_texts(completer, "@.") == [".hiddenfile"]
+        # Display text should have the slash for directories
+        assert _get_completion_displays(completer, "@") == ["README.md", "src/"]
 
-    @patch("os.path.isdir")
-    @patch("os.listdir")
-    @patch("os.path.abspath")
-    @patch("os.path.join")
-    @patch("os.path.relpath")
+    @patch("pathlib.Path.is_dir", autospec=True)
+    @patch("pathlib.Path.iterdir", autospec=True)
     def test_complete_subdirectory(
         self,
-        mock_relpath,
-        mock_join,
-        mock_abspath,
-        mock_listdir,
-        mock_isdir,
+        mock_iterdir: Callable[[Path], Iterator[Path]],
+        mock_is_dir: Callable[[Path], bool],
     ) -> None:
-        working_dir = "/fake/work"
-        src_dir = original_os_path_join(working_dir, "src")
-        main_py_path = original_os_path_join(src_dir, "main.py")
-        mock_isdir.side_effect = lambda p: original_os_path_normpath(p) in [
-            working_dir,
-            src_dir,
-        ]
+        # Mock is_dir method to always return True
+        _FakePath.make_fake_is_dir(mock_is_dir)
+        _FakePath.make_fake_iterdir(mock_iterdir)
 
-        def abspath_side_effect(path):
-            if path == working_dir:
-                return working_dir
-            if path == src_dir:
-                return src_dir
-            if path == original_os_path_join(working_dir, "src"):
-                return src_dir
-            if path == ".":
-                return working_dir
-            return original_os_path_abspath(path)
+        completer = PathCompleter(_FakePath.WORK_DIR)
 
-        mock_abspath.side_effect = abspath_side_effect
+        # Test completions for src directory
+        assert _get_completion_texts(completer, "@src/") == ["src/main.py"]
+        assert _get_completion_displays(completer, "@src/") == ["main.py"]
+        assert _get_completion_texts(completer, "foo @src/") == ["src/main.py"]
+        assert _get_completion_displays(completer, "foo @src/") == ["main.py"]
 
-        def listdir_side_effect_subdir(path):
-            norm_path = original_os_path_normpath(path)
-            if norm_path == src_dir:
-                return ["main.py"]
-            if norm_path == working_dir:
-                return ["src"]
-            return []
+        # Test completions with partial prefix
+        assert _get_completion_texts(completer, "@src/m") == ["src/main.py"]
+        assert _get_completion_displays(completer, "@src/m") == ["main.py"]
+        assert _get_completion_texts(completer, "bar @src/m") == ["src/main.py"]
+        assert _get_completion_displays(completer, "bar @src/m") == ["main.py"]
 
-        mock_listdir.side_effect = listdir_side_effect_subdir
-        mock_join.side_effect = original_os_path_join
-        mock_relpath.side_effect = lambda p, start: (
-            "src/main.py"
-            if p == main_py_path and start == working_dir
-            else original_os_path_relpath(p, start).replace("\\", "/")
-        )
-        completer = PathCompleter(working_dir)
-        assert completer.working_dir == working_dir
-        assert get_completion_texts(completer, "@src/") == ["src/main.py"]
-        assert get_completion_displays(completer, "@src/") == ["main.py"]
-        assert get_completion_texts(completer, "@src/m") == ["src/main.py"]
-        assert get_completion_displays(completer, "@src/m") == ["main.py"]
+    @patch("pathlib.Path.is_dir")
+    def test_invalid_working_dir(self, mock_is_dir) -> None:
+        mock_is_dir.return_value = False
+        with pytest.raises(ValueError):
+            PathCompleter(Path("/invalid/dir"))
 
-    def test_invalid_working_dir(self) -> None:
-        with pytest.raises(Exception):
+        # Also test with string path
+        with pytest.raises(ValueError):
             PathCompleter("/invalid/dir")
 
 
@@ -164,21 +219,21 @@ class TestCommandCompleter(unittest.TestCase):
         commands = ["/exit", "/help", "/history"]
         completer = CommandCompleter(commands)
         # Valid cases
-        assert get_completion_texts(completer, "/") == ["/exit", "/help", "/history"]
-        assert get_completion_texts(completer, "  /h  ") == [
+        assert _get_completion_texts(completer, "/") == ["/exit", "/help", "/history"]
+        assert _get_completion_texts(completer, "  /h  ") == [
             "/help",
             "/history",
         ]  # Whitespace OK
-        assert get_completion_texts(completer, "/hist") == ["/history"]
-        assert get_completion_texts(completer, "/exit") == ["/exit"]
-        assert get_completion_texts(completer, "") == []  # Empty is not / command
+        assert _get_completion_texts(completer, "/hist") == ["/history"]
+        assert _get_completion_texts(completer, "/exit") == ["/exit"]
+        assert _get_completion_texts(completer, "") == []  # Empty is not / command
 
         # Invalid cases (command not the only thing)
-        assert get_completion_texts(completer, "exit") == []  # Not command format
-        assert get_completion_texts(completer, "word /h") == []  # Command not alone
-        assert get_completion_texts(completer, "/help me") == []  # Command not alone
+        assert _get_completion_texts(completer, "exit") == []  # Not command format
+        assert _get_completion_texts(completer, "word /h") == []  # Command not alone
+        assert _get_completion_texts(completer, "/help me") == []  # Command not alone
         assert (
-            get_completion_texts(completer, " /help abc ") == []
+            _get_completion_texts(completer, " /help abc ") == []
         )  # Command not alone (even with whitespace)
 
 
