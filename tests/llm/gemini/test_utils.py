@@ -4,18 +4,16 @@ This module provides helper functions and classes for testing Gemini implementat
 """
 
 from dataclasses import dataclass
-from typing import Any, List, Optional
-
-from google.genai import types
+from typing import Any
 
 
 @dataclass
 class MockPart:
     """Mock for Gemini Part class."""
 
-    text: Optional[str] = None
-    function_call: Optional[dict] = None
-    function_response: Optional[dict] = None
+    text: str | None = None
+    function_call: dict | None = None
+    function_response: dict | None = None
 
     @classmethod
     def from_text(cls, text: str) -> "MockPart":
@@ -38,7 +36,7 @@ class MockContent:
     """Mock for Gemini Content class."""
 
     role: str
-    parts: List[MockPart]
+    parts: list[MockPart]
 
 
 @dataclass
@@ -46,8 +44,8 @@ class MockCandidate:
     """Mock for Gemini candidate in response."""
 
     content: Any
-    finish_reason: Optional[str] = None
-    finish_message: Optional[str] = None
+    finish_reason: str | None = None
+    finish_message: str | None = None
 
 
 @dataclass
@@ -60,10 +58,10 @@ class MockUsageMetadata:
 
 
 def create_mock_response(
-    text: Optional[str] = None,
-    parts: Optional[List[MockPart]] = None,
-    finish_reason: Optional[str] = None,
-    finish_message: Optional[str] = None,
+    text: str | None = None,
+    parts: list[MockPart] | None = None,
+    finish_reason: str | None = None,
+    finish_message: str | None = None,
     prompt_tokens: int = 0,
     response_tokens: int = 0,
     tool_tokens: int = 0,
@@ -81,6 +79,7 @@ def create_mock_response(
 
     Returns:
         Mock Gemini response object
+
     """
     content = MockContent(role="model", parts=parts or [])
 
@@ -96,11 +95,15 @@ def create_mock_response(
         tool_use_prompt_token_count=tool_tokens,
     )
 
-    response = type("MockResponse", (), {
-        "text": text,
-        "candidates": [candidate],
-        "usage_metadata": usage,
-    })
+    response = type(
+        "MockResponse",
+        (),
+        {
+            "text": text,
+            "candidates": [candidate],
+            "usage_metadata": usage,
+        },
+    )
 
     return response
 
@@ -108,7 +111,7 @@ def create_mock_response(
 def create_mock_tool_call_response(
     tool_name: str,
     tool_args: dict,
-    tool_id: Optional[str] = None,
+    tool_id: str | None = None,
     finish_reason: str = "TOOL_CALL",
     finish_message: str = "Tool call requested",
 ) -> Any:
@@ -123,6 +126,7 @@ def create_mock_tool_call_response(
 
     Returns:
         Mock Gemini response object with tool call
+
     """
     function_call = {
         "name": tool_name,
@@ -140,10 +144,14 @@ def create_mock_tool_call_response(
         finish_message=finish_message,
     )
 
-    response = type("MockResponse", (), {
-        "text": "",
-        "candidates": [candidate],
-        "usage_metadata": None,
-    })
+    response = type(
+        "MockResponse",
+        (),
+        {
+            "text": "",
+            "candidates": [candidate],
+            "usage_metadata": None,
+        },
+    )
 
     return response

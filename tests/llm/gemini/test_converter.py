@@ -7,17 +7,12 @@ between Streetrace history and Gemini-specific formats.
 import unittest
 from unittest.mock import MagicMock, patch
 
-from google.genai import types
-
 from streetrace.llm.gemini.converter import GeminiHistoryConverter
 from streetrace.llm.wrapper import (
-    ContentPartFinishReason,
     ContentPartText,
     ContentPartToolCall,
     ContentPartToolResult,
-    ContentPartUsage,
     History,
-    Message,
     Role,
     ToolCallResult,
     ToolOutput,
@@ -31,7 +26,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         """Set up test fixtures."""
         # We need to patch the create_provider_history to control the output
         self.converter = GeminiHistoryConverter()
-        self.patcher = patch.object(self.converter, 'create_history_messages')
+        self.patcher = patch.object(self.converter, "create_history_messages")
         self.mock_create_history = self.patcher.start()
 
         # Default behavior - do nothing for system and context messages
@@ -64,15 +59,11 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         )
 
         # Add a user message
-        history.add_message(
-            Role.USER,
-            [ContentPartText(text="Hello, how are you?")]
-        )
+        history.add_message(Role.USER, [ContentPartText(text="Hello, how are you?")])
 
         # Add a model response
         history.add_message(
-            Role.MODEL,
-            [ContentPartText(text="I'm doing well, thank you for asking!")]
+            Role.MODEL, [ContentPartText(text="I'm doing well, thank you for asking!")],
         )
 
         # Set up the mock to return specific messages for each role
@@ -123,6 +114,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
 
     def test_complex_content_types(self):
         """Test conversion of messages with multiple content types."""
+
         # Setup the mock to handle different content types
         def mock_content_handler(role, items):
             if role in [Role.SYSTEM, Role.CONTEXT]:
@@ -133,13 +125,15 @@ class TestGeminiHistoryConverter(unittest.TestCase):
                 if isinstance(item, ContentPartText):
                     mock_parts.append(MagicMock(text=item.text))
                 elif isinstance(item, ContentPartToolCall):
-                    mock_parts.append(MagicMock(
-                        function_call=MagicMock(name=item.name, args=item.arguments)
-                    ))
+                    mock_parts.append(
+                        MagicMock(
+                            function_call=MagicMock(name=item.name, args=item.arguments),
+                        ),
+                    )
                 elif isinstance(item, ContentPartToolResult):
-                    mock_parts.append(MagicMock(
-                        function_response=MagicMock(name=item.name)
-                    ))
+                    mock_parts.append(
+                        MagicMock(function_response=MagicMock(name=item.name)),
+                    )
 
             return [MagicMock(role=role.value, parts=mock_parts)]
 
@@ -155,10 +149,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
                 ContentPartToolCall(
                     id="search-1",
                     name="search_files",
-                    arguments={
-                        "pattern": "*.py",
-                        "search_string": "def test"
-                    },
+                    arguments={"pattern": "*.py", "search_string": "def test"},
                 ),
             ],
         )
@@ -174,7 +165,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
                         output=ToolOutput(
                             type="text",
                             content="Found 5 files matching the pattern",
-                        )
+                        ),
                     ),
                 ),
             ],
@@ -239,26 +230,29 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         self.patcher.stop()
 
         # Test with SYSTEM role - should produce no messages
-        system_result = list(self.converter.create_history_messages(
-            Role.SYSTEM,
-            [ContentPartText(text="You are a helpful assistant")]
-        ))
+        system_result = list(
+            self.converter.create_history_messages(
+                Role.SYSTEM, [ContentPartText(text="You are a helpful assistant")],
+            ),
+        )
         assert len(system_result) == 0
 
         # Test with CONTEXT role - should convert to USER role
-        context_result = list(self.converter.create_history_messages(
-            Role.CONTEXT,
-            [ContentPartText(text="Some context information")]
-        ))
+        context_result = list(
+            self.converter.create_history_messages(
+                Role.CONTEXT, [ContentPartText(text="Some context information")],
+            ),
+        )
         assert len(context_result) == 1
         assert context_result[0].role == "user"
         assert context_result[0].parts[0].text == "Some context information"
 
         # Test with USER role and text
-        user_result = list(self.converter.create_history_messages(
-            Role.USER,
-            [ContentPartText(text="Hello, how are you?")]
-        ))
+        user_result = list(
+            self.converter.create_history_messages(
+                Role.USER, [ContentPartText(text="Hello, how are you?")],
+            ),
+        )
         assert len(user_result) == 1
         assert user_result[0].role == "user"
         assert user_result[0].parts[0].text == "Hello, how are you?"
@@ -272,20 +266,27 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         self.patcher.stop()
 
         # Test with a tool call content part
-        tool_call_result = list(self.converter.create_history_messages(
-            Role.USER,
-            [ContentPartToolCall(
-                id="tool-123",
-                name="search_files",
-                arguments={"pattern": "*.py", "search_string": "test"}
-            )]
-        ))
+        tool_call_result = list(
+            self.converter.create_history_messages(
+                Role.USER,
+                [
+                    ContentPartToolCall(
+                        id="tool-123",
+                        name="search_files",
+                        arguments={"pattern": "*.py", "search_string": "test"},
+                    ),
+                ],
+            ),
+        )
 
         assert len(tool_call_result) == 1
         assert tool_call_result[0].role == "user"
         assert len(tool_call_result[0].parts) == 1
         assert tool_call_result[0].parts[0].function_call.name == "search_files"
-        assert tool_call_result[0].parts[0].function_call.args == {"pattern": "*.py", "search_string": "test"}
+        assert tool_call_result[0].parts[0].function_call.args == {
+            "pattern": "*.py",
+            "search_string": "test",
+        }
 
         # Restart the patch for other tests
         self.patcher.start()
@@ -296,27 +297,34 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         self.patcher.stop()
 
         # Test with a tool result content part
-        tool_result = list(self.converter.create_history_messages(
-            Role.TOOL,
-            [ContentPartToolResult(
-                id="result-123",
-                name="search_files",
-                content=ToolCallResult.ok(
-                    output=ToolOutput(
-                        type="text",
-                        content="Found 10 matches"
-                    )
-                )
-            )]
-        ))
+        tool_result = list(
+            self.converter.create_history_messages(
+                Role.TOOL,
+                [
+                    ContentPartToolResult(
+                        id="result-123",
+                        name="search_files",
+                        content=ToolCallResult.ok(
+                            output=ToolOutput(type="text", content="Found 10 matches"),
+                        ),
+                    ),
+                ],
+            ),
+        )
 
         assert len(tool_result) == 1
         assert tool_result[0].role == "tool"
         assert len(tool_result[0].parts) == 1
         assert tool_result[0].parts[0].function_response.name == "search_files"
         assert "output" in tool_result[0].parts[0].function_response.response
-        assert tool_result[0].parts[0].function_response.response["output"]["type"] == "text"
-        assert tool_result[0].parts[0].function_response.response["output"]["content"] == "Found 10 matches"
+        assert (
+            tool_result[0].parts[0].function_response.response["output"]["type"]
+            == "text"
+        )
+        assert (
+            tool_result[0].parts[0].function_response.response["output"]["content"]
+            == "Found 10 matches"
+        )
 
         # Restart the patch for other tests
         self.patcher.start()
@@ -327,17 +335,19 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         self.patcher.stop()
 
         # Test with multiple content parts
-        result = list(self.converter.create_history_messages(
-            Role.USER,
-            [
-                ContentPartText(text="I need to search for something"),
-                ContentPartToolCall(
-                    id="tool-123",
-                    name="search_files",
-                    arguments={"pattern": "*.py", "search_string": "test"}
-                )
-            ]
-        ))
+        result = list(
+            self.converter.create_history_messages(
+                Role.USER,
+                [
+                    ContentPartText(text="I need to search for something"),
+                    ContentPartToolCall(
+                        id="tool-123",
+                        name="search_files",
+                        arguments={"pattern": "*.py", "search_string": "test"},
+                    ),
+                ],
+            ),
+        )
 
         assert len(result) == 1
         assert result[0].role == "user"
@@ -374,9 +384,12 @@ class TestGeminiHistoryConverter(unittest.TestCase):
 
         # Verify that the function call was parsed correctly
         assert len(response_parts) == 2  # Tool call and finish reason
-        assert hasattr(response_parts[0], 'name')
+        assert hasattr(response_parts[0], "name")
         assert response_parts[0].name == "search_files"
-        assert response_parts[0].arguments == {"pattern": "*.py", "search_string": "test"}
+        assert response_parts[0].arguments == {
+            "pattern": "*.py",
+            "search_string": "test",
+        }
         assert response_parts[0].id == "func-123"
 
     def test_response_parsing_with_multiple_candidates(self):

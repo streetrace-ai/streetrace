@@ -5,7 +5,7 @@ between Streetrace history and Claude-specific formats.
 """
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from streetrace.llm.claude.converter import AnthropicHistoryConverter
 from streetrace.llm.wrapper import (
@@ -15,7 +15,6 @@ from streetrace.llm.wrapper import (
     ContentPartToolResult,
     ContentPartUsage,
     History,
-    Message,
     Role,
     ToolCallResult,
     ToolOutput,
@@ -38,15 +37,11 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
         )
 
         # Add a user message
-        history.add_message(
-            Role.USER,
-            [ContentPartText(text="Hello, how are you?")]
-        )
+        history.add_message(Role.USER, [ContentPartText(text="Hello, how are you?")])
 
         # Add a model response
         history.add_message(
-            Role.MODEL,
-            [ContentPartText(text="I'm doing well, thank you for asking!")]
+            Role.MODEL, [ContentPartText(text="I'm doing well, thank you for asking!")],
         )
 
         # Convert to provider history
@@ -62,9 +57,15 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
 
         # Verify content
         assert provider_history[0]["content"][0]["type"] == "text"
-        assert provider_history[0]["content"][0]["text"] == "This is contextual information"
+        assert (
+            provider_history[0]["content"][0]["text"]
+            == "This is contextual information"
+        )
         assert provider_history[1]["content"][0]["text"] == "Hello, how are you?"
-        assert provider_history[2]["content"][0]["text"] == "I'm doing well, thank you for asking!"
+        assert (
+            provider_history[2]["content"][0]["text"]
+            == "I'm doing well, thank you for asking!"
+        )
 
     def test_empty_history(self):
         """Test conversion of an empty History object."""
@@ -94,10 +95,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
                 ContentPartToolCall(
                     id="search-1",
                     name="search_files",
-                    arguments={
-                        "pattern": "*.py",
-                        "search_string": "def test"
-                    },
+                    arguments={"pattern": "*.py", "search_string": "def test"},
                 ),
             ],
         )
@@ -113,7 +111,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
                         output=ToolOutput(
                             type="text",
                             content="Found 5 files matching the pattern",
-                        )
+                        ),
                     ),
                 ),
             ],

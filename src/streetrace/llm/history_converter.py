@@ -78,16 +78,24 @@ class HistoryConverter(Generic[T_AiRequestMessage, T_AiResponseMessage], abc.ABC
         provider_history: list[T_AiRequestMessage] = []
 
         if history.system_message:
-            provider_history.extend(list(self.create_history_messages(
-                Role.SYSTEM,
-                [ContentPartText(text=history.system_message)],
-            )))
+            provider_history.extend(
+                list(
+                    self.create_history_messages(
+                        Role.SYSTEM,
+                        [ContentPartText(text=history.system_message)],
+                    ),
+                ),
+            )
 
         if history.context:
-            provider_history.extend(list(self.create_history_messages(
-                Role.CONTEXT,
-                [ContentPartText(text=history.context)],
-            )))
+            provider_history.extend(
+                list(
+                    self.create_history_messages(
+                        Role.CONTEXT,
+                        [ContentPartText(text=history.context)],
+                    ),
+                ),
+            )
 
         provider_history.extend(self.to_provider_history_items(history.conversation))
 

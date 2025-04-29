@@ -6,23 +6,26 @@ This module provides helper functions and fixtures for Claude tests.
 from anthropic.types import (
     ContentBlockParam,
     MessageParam,
-    Message as AnthropicMessage,
     TextBlockParam,
     ToolResultBlockParam,
     ToolUseBlockParam,
     Usage,
 )
+from anthropic.types import (
+    Message as AnthropicMessage,
+)
 
 
 def create_text_message(role: str, text: str) -> MessageParam:
     """Create a Claude message with text content.
-    
+
     Args:
         role: The role of the message sender (user or assistant)
         text: The text content
-        
+
     Returns:
         MessageParam: A Claude-format message
+
     """
     text_block = TextBlockParam(type="text", text=text)
     return MessageParam(
@@ -33,14 +36,15 @@ def create_text_message(role: str, text: str) -> MessageParam:
 
 def create_tool_use_message(role: str, name: str, input_args: dict) -> MessageParam:
     """Create a Claude message with a tool use.
-    
+
     Args:
         role: The role of the message sender (usually assistant)
         name: The name of the tool
         input_args: The input arguments for the tool
-        
+
     Returns:
         MessageParam: A Claude-format message with tool use
+
     """
     tool_use_block = ToolUseBlockParam(
         type="tool_use",
@@ -55,21 +59,19 @@ def create_tool_use_message(role: str, name: str, input_args: dict) -> MessagePa
 
 
 def create_tool_result_message(
-    role: str, 
-    tool_use_id: str, 
-    result_content: str, 
-    is_error: bool = False
+    role: str, tool_use_id: str, result_content: str, is_error: bool = False,
 ) -> MessageParam:
     """Create a Claude message with a tool result.
-    
+
     Args:
         role: The role of the message sender (usually user)
         tool_use_id: The ID of the corresponding tool use
         result_content: The result content
         is_error: Whether this result represents an error
-        
+
     Returns:
         MessageParam: A Claude-format message with tool result
+
     """
     tool_result_block = ToolResultBlockParam(
         type="tool_result",
@@ -83,17 +85,20 @@ def create_tool_result_message(
     )
 
 
-def create_mixed_message(role: str, text: str, tool_name: str, input_args: dict) -> MessageParam:
+def create_mixed_message(
+    role: str, text: str, tool_name: str, input_args: dict,
+) -> MessageParam:
     """Create a Claude message with both text and tool use.
-    
+
     Args:
         role: The role of the message sender
         text: The text content
         tool_name: The name of the tool
         input_args: The input arguments for the tool
-        
+
     Returns:
         MessageParam: A Claude-format message with mixed content
+
     """
     text_block = TextBlockParam(type="text", text=text)
     tool_use_block = ToolUseBlockParam(
@@ -115,15 +120,16 @@ def create_anthropic_message_response(
     output_tokens: int = 50,
 ) -> AnthropicMessage:
     """Create a complete Anthropic message response.
-    
+
     Args:
         content_blocks: The content blocks in the response
         stop_reason: The reason the model stopped generating
         input_tokens: Number of input tokens
         output_tokens: Number of output tokens
-        
+
     Returns:
         AnthropicMessage: A complete Anthropic message response
+
     """
     return AnthropicMessage(
         id="msg_123456",

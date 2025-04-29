@@ -36,4 +36,6 @@ coverage:
 report:
 	poetry run coverage report --show-missing
 
+quickfix: fixformat fixlint
+
 check: format lint typecheck security depcheck unusedcode

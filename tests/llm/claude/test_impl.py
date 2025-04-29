@@ -5,17 +5,15 @@ This module contains tests for the Claude implementation of the LLMAPI interface
 
 import os
 import unittest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import anthropic
 import pytest
 
-from streetrace.llm.claude.impl import Claude, ProviderHistory
+from streetrace.llm.claude.impl import Claude
 from streetrace.llm.llmapi import RetriableError
 from streetrace.llm.wrapper import (
-    ContentPart,
     ContentPartText,
-    ContentPartToolCall,
     History,
     Message,
     Role,
@@ -28,7 +26,7 @@ class TestClaudeImpl(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Patch the anthropic imports
-        self.anthropic_patcher = patch('streetrace.llm.claude.impl.anthropic')
+        self.anthropic_patcher = patch("streetrace.llm.claude.impl.anthropic")
         self.mock_anthropic = self.anthropic_patcher.start()
 
         # Create a mock client
@@ -66,16 +64,16 @@ class TestClaudeImpl(unittest.TestCase):
     def test_initialize_client_missing_api_key(self):
         """Test client initialization fails without API key."""
         # Remove the API key from environment
-        with patch.dict(os.environ, {}, clear=True):
-            # Verify exception is raised
-            with self.assertRaises(ValueError):
+        with patch.dict(os.environ, {}, clear=True), pytest.raises(ValueError):
                 self.claude.initialize_client()
 
     def test_transform_history(self):
         """Test transformation of history to Claude format."""
         # Mock the adapter's create_provider_history method
         expected_provider_history = [MagicMock(), MagicMock()]
-        self.mock_adapter.create_provider_history.return_value = expected_provider_history
+        self.mock_adapter.create_provider_history.return_value = (
+            expected_provider_history
+        )
 
         # Create a history with messages
         history = History(
@@ -84,10 +82,7 @@ class TestClaudeImpl(unittest.TestCase):
         )
 
         # Add a message
-        history.add_message(
-            Role.USER,
-            [ContentPartText(text="Hello, Claude")]
-        )
+        history.add_message(Role.USER, [ContentPartText(text="Hello, Claude")])
 
         # Convert to provider history
         provider_history = self.claude.transform_history(history)
@@ -107,14 +102,8 @@ class TestClaudeImpl(unittest.TestCase):
 
         # Create messages to append
         messages = [
-            Message(
-                role=Role.USER,
-                content=[ContentPartText(text="New message")]
-            ),
-            Message(
-                role=Role.MODEL,
-                content=[ContentPartText(text="Model response")]
-            ),
+            Message(role=Role.USER, content=[ContentPartText(text="New message")]),
+            Message(role=Role.MODEL, content=[ContentPartText(text="Model response")]),
         ]
 
         # Append to history
@@ -135,12 +124,12 @@ class TestClaudeImpl(unittest.TestCase):
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "pattern": {"type": "string", "description": "Pattern"}
+                            "pattern": {"type": "string", "description": "Pattern"},
                         },
-                        "required": ["pattern"]
-                    }
-                }
-            }
+                        "required": ["pattern"],
+                    },
+                },
+            },
         ]
 
         # Transform to Claude format
@@ -158,7 +147,7 @@ class TestClaudeImpl(unittest.TestCase):
         # Create mock content
         messages = [
             {"role": "user", "content": "Hello, world"},
-            {"role": "assistant", "content": "Hello, how can I help?"}
+            {"role": "assistant", "content": "Hello, how can I help?"},
         ]
 
         # Get pretty print output
@@ -177,7 +166,7 @@ class TestClaudeImpl(unittest.TestCase):
         # Create mock messages (small enough to be within limits)
         messages = [
             {"role": "user", "content": "Hello"},
-            {"role": "assistant", "content": "Hi"}
+            {"role": "assistant", "content": "Hi"},
         ]
 
         # Call method with a large token limit
@@ -191,7 +180,7 @@ class TestClaudeImpl(unittest.TestCase):
         """Test conversation history management when exceeding token limits."""
         # Create mock messages with lots of content to exceed token limits
         # Using patch to override the token estimation calculation
-        with patch('streetrace.llm.claude.impl.sum') as mock_sum:
+        with patch("streetrace.llm.claude.impl.sum") as mock_sum:
             # Mock the token estimation to return a large value first, and smaller after pruning
             mock_sum.side_effect = [1000000, 1000]  # Above limit, then below limit
 
@@ -202,11 +191,16 @@ class TestClaudeImpl(unittest.TestCase):
                 {"role": "user", "content": "Tell me about Python"},
                 {"role": "assistant", "content": "Python is a programming language..."},
                 {"role": "user", "content": "What about JavaScript?"},
-                {"role": "assistant", "content": "JavaScript is a web programming language..."},
+                {
+                    "role": "assistant",
+                    "content": "JavaScript is a web programming language...",
+                },
             ]
 
             # Call method with a small token limit
-            result = self.claude.manage_conversation_history(messages, max_tokens=100000)
+            result = self.claude.manage_conversation_history(
+                messages, max_tokens=100000,
+            )
 
             # Verify pruning occurred and result is True
             assert result is True
@@ -227,13 +221,15 @@ class TestClaudeImpl(unittest.TestCase):
         self.mock_client.messages.create.return_value = mock_response
 
         # Call generate method
-        response_parts = list(self.claude.generate(
-            client=self.mock_client,
-            model_name="claude-test-model",
-            system_message="You are a helpful assistant",
-            messages=messages,
-            tools=claude_tools,
-        ))
+        response_parts = list(
+            self.claude.generate(
+                client=self.mock_client,
+                model_name="claude-test-model",
+                system_message="You are a helpful assistant",
+                messages=messages,
+                tools=claude_tools,
+            ),
+        )
 
         # Verify messages.create was called
         self.mock_client.messages.create.assert_called_once()
@@ -274,7 +270,10 @@ class TestClaudeImpl(unittest.TestCase):
                     model_name="test-model",
                     system_message="sys",
                     messages=[
-                        {"role": "user", "content": [{"type": "text", "text": "Hello"}]},
+                        {
+                            "role": "user",
+                            "content": [{"type": "text", "text": "Hello"}],
+                        },
                     ],
                     tools=[],
                 ),
@@ -291,24 +290,30 @@ class TestClaudeImpl(unittest.TestCase):
     def test_generate_with_default_model(self):
         """Test generation with default model when none is specified."""
         # Mock the adapter's get_response_parts method
-        self.mock_adapter.get_response_parts.return_value = [ContentPartText(text="Response")]
+        self.mock_adapter.get_response_parts.return_value = [
+            ContentPartText(text="Response"),
+        ]
 
         # Mock messages.create response
         mock_response = MagicMock()
         self.mock_client.messages.create.return_value = mock_response
 
         # Call generate method without model_name
-        list(self.claude.generate(
-            client=self.mock_client,
-            model_name=None,  # No model specified
-            system_message="You are a helpful assistant",
-            messages=[MagicMock()],
-            tools=[],
-        ))
+        list(
+            self.claude.generate(
+                client=self.mock_client,
+                model_name=None,  # No model specified
+                system_message="You are a helpful assistant",
+                messages=[MagicMock()],
+                tools=[],
+            ),
+        )
 
         # Verify default model was used
         call_args = self.mock_client.messages.create.call_args[1]
-        assert call_args["model"] == "claude-3-7-sonnet-20250219"  # Default model in impl.py
+        assert (
+            call_args["model"] == "claude-3-7-sonnet-20250219"
+        )  # Default model in impl.py
 
 
 if __name__ == "__main__":

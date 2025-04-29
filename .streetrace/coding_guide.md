@@ -38,6 +38,7 @@ General rules for this codebase:
 - Use a single `with` statement with multiple contexts instead of nested `with` statements.
 - Use double quotes for strings.
 - Keep newline at end of file.
+- When you change files, run black and ruff on the changed files.
 
 ## Environment
 

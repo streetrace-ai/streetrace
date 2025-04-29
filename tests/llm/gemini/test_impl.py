@@ -5,13 +5,11 @@ This module contains tests for the Gemini implementation of the LLMAPI interface
 
 import os
 import unittest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
-from streetrace.llm.gemini.impl import Gemini, ProviderHistory
+from streetrace.llm.gemini.impl import Gemini
 from streetrace.llm.wrapper import (
-    ContentPart,
     ContentPartText,
-    ContentPartToolCall,
     History,
     Message,
     Role,
@@ -24,7 +22,7 @@ class TestGeminiImpl(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Patch the google.genai imports
-        self.genai_patcher = patch('streetrace.llm.gemini.impl.genai')
+        self.genai_patcher = patch("streetrace.llm.gemini.impl.genai")
         self.mock_genai = self.genai_patcher.start()
 
         # Create a mock client
@@ -68,7 +66,9 @@ class TestGeminiImpl(unittest.TestCase):
         """Test transformation of history to Gemini format."""
         # Mock the adapter's create_provider_history method
         expected_provider_history = [MagicMock(), MagicMock()]
-        self.mock_adapter.create_provider_history.return_value = expected_provider_history
+        self.mock_adapter.create_provider_history.return_value = (
+            expected_provider_history
+        )
 
         # Create a history with messages
         history = History(
@@ -77,10 +77,7 @@ class TestGeminiImpl(unittest.TestCase):
         )
 
         # Add a message
-        history.add_message(
-            Role.USER,
-            [ContentPartText(text="Hello, Gemini")]
-        )
+        history.add_message(Role.USER, [ContentPartText(text="Hello, Gemini")])
 
         # Convert to provider history
         provider_history = self.gemini.transform_history(history)
@@ -100,14 +97,8 @@ class TestGeminiImpl(unittest.TestCase):
 
         # Create messages to append
         messages = [
-            Message(
-                role=Role.USER,
-                content=[ContentPartText(text="New message")]
-            ),
-            Message(
-                role=Role.MODEL,
-                content=[ContentPartText(text="Model response")]
-            ),
+            Message(role=Role.USER, content=[ContentPartText(text="New message")]),
+            Message(role=Role.MODEL, content=[ContentPartText(text="Model response")]),
         ]
 
         # Append to history
@@ -135,12 +126,12 @@ class TestGeminiImpl(unittest.TestCase):
                     "parameters": {
                         "type": "object",
                         "properties": {
-                            "pattern": {"type": "string", "description": "Pattern"}
+                            "pattern": {"type": "string", "description": "Pattern"},
                         },
-                        "required": ["pattern"]
-                    }
-                }
-            }
+                        "required": ["pattern"],
+                    },
+                },
+            },
         ]
 
         # Test that the method doesn't raise exceptions
@@ -199,7 +190,8 @@ class TestGeminiImpl(unittest.TestCase):
         mock_count_tokens2.total_tokens = 1500  # Below limit
 
         self.mock_client.models.count_tokens.side_effect = [
-            mock_count_tokens1, mock_count_tokens2
+            mock_count_tokens1,
+            mock_count_tokens2,
         ]
 
         # Create mock messages (more than 3 to trigger pruning)
@@ -236,13 +228,15 @@ class TestGeminiImpl(unittest.TestCase):
         self.mock_client.models.generate_content.return_value = mock_response
 
         # Call generate method
-        response_parts = list(self.gemini.generate(
-            client=self.mock_client,
-            model_name="gemini-test-model",
-            system_message="You are a helpful assistant",
-            messages=messages,
-            tools=gemini_tools,
-        ))
+        response_parts = list(
+            self.gemini.generate(
+                client=self.mock_client,
+                model_name="gemini-test-model",
+                system_message="You are a helpful assistant",
+                messages=messages,
+                tools=gemini_tools,
+            ),
+        )
 
         # Verify generate_content was called
         self.mock_client.models.generate_content.assert_called_once()

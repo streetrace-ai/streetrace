@@ -50,7 +50,8 @@ def execute_cli_command(
         q: queue.Queue[str | None] = queue.Queue()
 
         def monitor(
-            text_stream: IO[str] | None, lines_buffer: list[str],
+            text_stream: IO[str] | None,
+            lines_buffer: list[str],
         ) -> threading.Thread:
             def pipe() -> None:
                 while True:
@@ -83,9 +84,7 @@ def execute_cli_command(
             # b/c our stderr is for our errors, not tool errors
             for _line in iter(q.get, None):
                 pass
-    except (
-        Exception
-    ) as e:
+    except Exception as e:
         stderr_lines.append("\n")
         stderr_lines.append(str(e))
 
