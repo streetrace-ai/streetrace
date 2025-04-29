@@ -34,6 +34,6 @@ coverage:
 	poetry run coverage run --source=./src/streetrace -m pytest tests
 
 report:
-	poetry run coverage report
+	poetry run coverage report --show-missing
 
 check: format lint typecheck security depcheck unusedcode
