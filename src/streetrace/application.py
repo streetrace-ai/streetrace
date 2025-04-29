@@ -324,8 +324,11 @@ class Application:
                             )
                             content_str += f"Tool Call: {part.name}({args_str})\n"
                         elif isinstance(part, ContentPartToolResult):
-                            if part.content.error:
-                                content_str += f"Tool Result: (Error) {part.content.output.content}\n"
+                            if part.content.failure:
+                                if "return_code" in part.content.output.content:
+                                    content_str += f"Tool Result: (Error)\n\n**RETURN CODE**: {part.content.output.content.get('return_code')}\n\n**STDOUT**:\n\n{part.content.output.content.get('stdout')}\n\n**STDERR**:\n\n{part.content.output.content.get('stderr')}\n"
+                                else:
+                                    content_str += f"Tool Result: (Error) {part.content.output.content}\n"
                             else:
                                 content_str += "Tool Result: (OK)\n"
                         elif part is None:  # Handle potential None parts
