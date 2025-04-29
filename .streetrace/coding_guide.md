@@ -27,7 +27,6 @@ General rules for this codebase:
 
 ## Code style
 
-- adhere to rules defined in pyproject.toml.
 - First line of docstring should be in imperative mood.
 - Keep functions mccabe complexity under 10.
 - Use module-level logger instead of the root logger.
@@ -35,6 +34,10 @@ General rules for this codebase:
 - Use logging.exception when logging an exception.
 - For tests, prefer regular assert statement over unittest's assertion methods.
 - Use absolute namespaces in import statements, like 'from streetrace... import ...'
+- Introduce descriptive constants instead of magic values in comparisons.
+- Use a single `with` statement with multiple contexts instead of nested `with` statements.
+- Use double quotes for strings.
+- Keep newline at end of file.
 
 ## Environment
 

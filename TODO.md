@@ -1,5 +1,16 @@
 # todo
 
+## 2025-04-29
+
+To make this a real tool, I need to:
+
+1. Use an LLM gateway to access LLMs, e.g. https://github.com/BerriAI/litellm
+2. Use a2a to run tasks, and make agent definition in a folder
+3. Use MCP for all context, allow adding new MCP providers and implement a set of default tools, e.g. local files
+4. Make sure the user can define their custom agents and tools.
+5. Show an example of leveraging coding agents with this, e.g. https://github.com/noahshinn/reflexion, https://github.com/alekst23/creo-cortex
+6. Show an example of implementing a full eng workflow from requirements to tests, perfect code, docs, etc.
+
 ## release:
 
 - [ ] cleanup logs
