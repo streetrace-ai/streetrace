@@ -1,15 +1,24 @@
 """search_files tool implementation."""
 
 from pathlib import Path
+from typing import TypedDict
 
 from streetrace.tools.path_utils import normalize_and_validate_path
+
+
+class SearchResult(TypedDict):
+    """A single search result."""
+
+    filepath: str
+    line_number: int
+    snippet: str
 
 
 def search_files(
     pattern: str,
     search_string: str,
     work_dir: Path,
-) -> tuple[list[dict[str, str]], str]:
+) -> tuple[list[SearchResult], str]:
     """Search for text occurrences in files given a glob pattern and a search string.
 
     Args:
@@ -18,8 +27,8 @@ def search_files(
         work_dir (str): The root directory for the glob pattern.
 
     Returns:
-        tuple[list[dict[str, str]], str]:
-            list[dict[str, str]]: A list of dictionaries, where each dictionary
+        tuple[SearchResult, str]:
+            SearchResult: A list of dictionaries, where each dictionary
                 represents a match. Each dictionary contains the file path, line
                 number, and a snippet of the line where the match was found.
             str: UI view of the read data (X matches found)
@@ -45,11 +54,11 @@ def search_files(
                         # Get path relative to work_dir for display
                         rel_path = abs_filepath.relative_to(work_dir)
                         matches.append(
-                            {
-                                "filepath": str(rel_path),
-                                "line_number": i + 1,
-                                "snippet": line.strip(),
-                            },
+                            SearchResult(
+                                filepath=str(rel_path),
+                                line_number=i + 1,
+                                snippet=line.strip(),
+                            ),
                         )
         except (OSError, ValueError, UnicodeDecodeError):
             # If the file is outside work_dir, can't be read, or is binary

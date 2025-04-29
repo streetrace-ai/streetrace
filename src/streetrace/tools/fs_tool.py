@@ -80,7 +80,7 @@ def write_file(path: str, content: str, work_dir: Path) -> tuple[str, str]:
 def execute_cli_command(
     command: list[str] | str,
     work_dir: Path,
-) -> tuple[dict[str, any], str]:
+) -> tuple[cli.CliResult, str]:
     """Execute a CLI command interactively. Does not provide shell access.
 
     Args:
@@ -88,8 +88,8 @@ def execute_cli_command(
         work_dir (Path): The working directory.
 
     Returns:
-        tuple[dict[str, any], str]:
-            dict[str, any]: A dictionary containing:
+        tuple[cli.CliResult, str]:
+            cli.CliResult: A dictionary containing:
                 - stdout: The captured standard output of the command
                 - stderr: The captured standard error of the command
                 - return_code: The return code of the command
@@ -103,7 +103,7 @@ def search_files(
     pattern: str,
     search_string: str,
     work_dir: Path,
-) -> tuple[list[dict[str, str]], str]:
+) -> tuple[list[s.SearchResult], str]:
     """Search for text occurrences in files given a glob pattern and a search string.
 
     Args:
@@ -112,8 +112,8 @@ def search_files(
         work_dir (Path): The working directory for the glob pattern.
 
     Returns:
-        tuple[list[dict[str, str]], str]:
-            list[dict[str, str]]: A list of dictionaries, where each dictionary
+        tuple[list[s.SearchResult], str]:
+            list[s.SearchResult]: A list of dictionaries, where each dictionary
                 represents a match. Each dictionary contains the file path, line
                 number, and a snippet of the line where the match was found.
             str: UI view of the read data (X matches found)

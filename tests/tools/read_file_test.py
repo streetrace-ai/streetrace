@@ -165,7 +165,7 @@ class TestReadFile(unittest.TestCase):
 
         # Reading should return "<binary>"
         content = read_file(str(self.binary_file_path), self.temp_dir)
-        assert content == "<binary>"
+        assert content == ("<binary>", "<binary>")
 
     def test_custom_encoding(self) -> None:
         """Test reading a file with a specific encoding."""
@@ -188,7 +188,7 @@ class TestReadFile(unittest.TestCase):
         # Auto-detect should identify this as binary and return "<binary>"
         # Note: read_file now returns tuple or <binary>, check the return type
         result = read_file(str(self.binary_file_path), self.temp_dir)
-        assert result == "<binary>"
+        assert result == ("<binary>", "<binary>")
 
         # Create a text file that looks like a binary file (has many special chars)
         text_with_special_chars = "'.;○□♣♠☻☺ High proportion of special chars"

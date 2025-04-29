@@ -25,7 +25,8 @@ class TestLoadGitignore(unittest.TestCase):
     def test_no_gitignore(self) -> None:
         # Test when no .gitignore files exist
         result = load_gitignore_for_directory(self.nested_dir)
-        assert result is None
+        assert result is not None
+        assert len(result.patterns) == 0
 
     def test_single_gitignore(self) -> None:
         # Create a .gitignore file in the nested directory

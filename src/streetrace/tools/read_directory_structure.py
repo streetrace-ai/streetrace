@@ -47,7 +47,7 @@ def load_gitignore_for_directory(path: Path) -> pathspec.PathSpec:
                     patterns.append(line)
 
     # Create a single PathSpec from all collected patterns
-    return pathspec.PathSpec.from_lines("gitwildmatch", patterns) if patterns else None
+    return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
 
 
 # Check if file or directory is ignored with pre-loaded specs

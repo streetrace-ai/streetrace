@@ -4,13 +4,21 @@ import queue
 import subprocess
 import threading
 from pathlib import Path
-from typing import IO
+from typing import IO, Any, TypedDict
+
+
+class CliResult(TypedDict):
+    """Execute CLI result."""
+
+    stdout: str
+    stderr: str
+    return_code: int | Any
 
 
 def execute_cli_command(
     args: str | list[str],
     work_dir: Path,
-) -> tuple[dict[str, any], str]:
+) -> tuple[CliResult, str]:
     """Execute the CLI command and returns the output.
 
     The command's standard input/output/error are connected to the application's
@@ -23,8 +31,8 @@ def execute_cli_command(
         work_dir (Path): The working directory to execute the command in.
 
     Returns:
-        tuple[dict[str, any], str]:
-            dict[str, any]: A dictionary containing:
+        tuple[CliResult, str]:
+            CliResult: A dictionary containing:
                 - stdout: The captured standard output of the command
                 - stderr: The captured standard error of the command
                 - return_code: The return code of the command
@@ -39,12 +47,14 @@ def execute_cli_command(
     work_dir = work_dir.resolve()
 
     try:
-        q = queue.Queue()
+        q: queue.Queue[str | None] = queue.Queue()
 
-        def monitor(text_stream: IO[str], lines_buffer: list[str]) -> threading.Thread:
+        def monitor(
+            text_stream: IO[str] | None, lines_buffer: list[str],
+        ) -> threading.Thread:
             def pipe() -> None:
                 while True:
-                    line = text_stream.readline()
+                    line = text_stream.readline() if text_stream else None
                     if not line:
                         break
                     q.put(line)
@@ -74,13 +84,16 @@ def execute_cli_command(
             for _line in iter(q.get, None):
                 pass
     except (
-        Exception  # noqa: BLE001, we want to let LLM know what happened (security concern?)
+        Exception
     ) as e:
         stderr_lines.append("\n")
         stderr_lines.append(str(e))
 
-    return {
-        "stdout": "".join(stdout_lines),
-        "stderr": "".join(stderr_lines),
-        "return_code": process.returncode if process else 1,
-    }, f"process completed ({process.returncode if process else 1})"
+    return (
+        CliResult(
+            stdout="".join(stdout_lines),
+            stderr="".join(stderr_lines),
+            return_code=process.returncode if process else 1,
+        ),
+        f"process completed ({process.returncode if process else 1})",
+    )

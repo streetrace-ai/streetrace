@@ -48,7 +48,7 @@ def read_file(
     file_path: str,
     work_dir: Path,
     encoding: str = "utf-8",
-) -> tuple[str | bytes, str]:
+) -> tuple[str, str]:
     """Securely read a file's contents, ensuring the path is within the allowed root path.
 
     Args:
@@ -75,11 +75,11 @@ def read_file(
 
     # Auto-detect binary if requested and we're not in binary mode already
     if is_binary_file(abs_file_path):
-        return "<binary>"
+        return "<binary>", "<binary>"
 
     # Read and return file contents
     try:
-        with codecs.open(abs_file_path, "r", encoding=encoding) as f:
+        with codecs.open(str(abs_file_path), "r", encoding=encoding) as f:
             data = f.read()
             return data, f"{len(data)} characters read"
     except OSError as e:
