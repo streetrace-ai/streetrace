@@ -1,11 +1,69 @@
-# app/interaction_manager.py
-"""ReAct Agent implementation.
+"""ReAct Agent implementation. See https://arxiv.org/abs/2210.03629.
 
-See https://arxiv.org/abs/2210.03629.
+The basic intuition is that this module can be replaced with several lines of langchain and
+ultimately with one line of `create_react_agent`. But when doing so, most part of this module
+will need to stay to allow managing conversation state, usage, history, etc.
 
-This module contains the InteractionManager class and auxiliary data classes to manage the stateful,
-reliable interaction with LLM APIs and tool execution in a conversational state machine.
-Implements client-facing glue code for StreetRace🚗💨 UI and LLM wrappers.
+I.e., process_prompt could look something like this:
+
+```python
+def process_prompt(self, history: History) -> ThinkingResult:
+    config = {"configurable": {"thread_id": "1"}}
+
+    client = self.provider.initialize_client()
+    provider_history = self.provider.transform_history(history)
+    provider_tools = self.provider.transform_tools(self.tools.tools).as_langchain_tools()
+    llm = client.as_langchain_bind_tools(provider_tools)
+
+    def stream_graph_updates(provider_history: list[dict[str, Any]]):
+        for event in graph.stream(
+            {"messages": provider_history},
+            config,
+            stream_mode="values",
+        ):
+            self._update_histories(history, provider_history, event)
+
+    def chatbot(provider_history: ProviderHistory):
+        global llm_i
+        return {"messages": [llm.invoke(provider_history["messages"])]}
+
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("chatbot", chatbot)
+    graph_builder.add_node("tools", ToolNode(tools=tools))
+    graph_builder.add_edge(START, "chatbot")
+    graph_builder.add_conditional_edges(
+        "chatbot",
+        tools_condition,
+    )
+    graph_builder.add_edge("tools", "chatbot")
+    graph = graph_builder.compile(checkpointer=memory)
+    print(graph.get_graph().draw_ascii())
+
+    while True:
+        stream_graph_updates(provider_history)
+        ... etc
+```
+
+Which immediately shows that history and error management needs to be implemented anyway, which
+most of this module does. But there is still a strong advantage, mostly coming from the community
+tools db, which would allow users to build agents with any existing tools easily. Overall pros and
+cons of migrating to langchain:
+
+Downsides:
+- while removing some complexity, it adds complexity where it's not needed
+- linear and graph aproaches are a fundamental limitations for real agentic workflows <- this is
+    probably the main one. As StreetRace grows, I don't know if it will stay in this form of a
+    simple looping ReAct agent, or will change into a more event driven dynamic graph space, in
+    which case langgraph will not be an option.
+Advantages:
+- quick and easy
+- lots of community contributions
+
+I'll need to re-asses migrating this module to langchain after first migrating to litellm as
+the llm gateway, which will reduce a lot of boilerplate code (if it works). Ideally, what I want
+is to implement an Actors model for all agents and tools, where agents and tools are interchangeable
+terms from the architecture standpoint (inputs+outputs, who cares?), while allowing to use langchain
+community tools and other libraries. This is a long term goal, but I think it's worth it.
 """
 
 import logging
