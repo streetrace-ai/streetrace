@@ -313,7 +313,7 @@ class TestAnthropicImpl(unittest.TestCase):
         # Verify default model was used
         call_args = self.mock_client.messages.create.call_args[1]
         assert (
-            call_args["model"] == "anthropic-3-7-sonnet-20250219"
+            call_args["model"] == "claude-3-7-sonnet-20250219"
         )  # Default model in impl.py
 
 

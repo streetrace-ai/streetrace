@@ -1,4 +1,4 @@
-.PHONY: format fixformat lint fixlint typecheck security depcheck unusedcode check
+.PHONY: format fixformat lint fixlint typecheck security depcheck unusedcode check test coverage report quickfix publishpatch
 
 format:
 	poetry run black --check src tests
@@ -39,3 +39,8 @@ report:
 quickfix: fixformat fixlint
 
 check: format lint typecheck security depcheck unusedcode
+
+publishpatch:
+	poetry version patch
+	poetry build
+	poetry run poetry publish --username __token__ --password $$POETRY_PYPI_TOKEN

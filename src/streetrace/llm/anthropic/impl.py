@@ -18,7 +18,7 @@ ProviderHistory = list[anthropic.types.MessageParam]
 
 # Constants
 MAX_TOKENS = 200000  # Anthropic 3 Sonnet has a context window of approximately 200K tokens
-MODEL_NAME = "anthropic-3-7-sonnet-20250219"
+MODEL_NAME = "claude-3-7-sonnet-20250219"
 
 
 class Anthropic(LLMAPI):

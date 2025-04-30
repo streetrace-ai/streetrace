@@ -32,8 +32,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     filename="generation.log",
-    filemode="a",
-)  # Append mode
+    filemode="w", # overwrite log file on each run
+)
 
 # Console handler for user-facing logs
 console_handler = logging.StreamHandler()
