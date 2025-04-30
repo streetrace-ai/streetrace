@@ -19,7 +19,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10' # Or your target Python version
+        python-version: '3.12' # Or your target Python version
 
     - name: Run image
       uses: abatilo/actions-poetry@v3

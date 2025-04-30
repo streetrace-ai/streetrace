@@ -10,7 +10,7 @@ name = "streetrace"
 version = "0.1.3"
 description = "StreetRace is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software."
 readme = "README.md"
-requires-python = ">=3.10,<4.0" # Updated minimum Python version
+requires-python = ">=3.12,<4.0" # Updated minimum Python version
 license = {file = "LICENSE"}
 
 [project.scripts]
@@ -41,7 +41,7 @@ ignore = ["E501", "D203", "D213"]  # Example: ignore line-too-long if black alre
 [tool.mypy]
 # Static type checking configuration
 strict = true
-python_version = "3.10" # Updated Python version
+python_version = "3.12" # Updated Python version
 warn_return_any = true
 warn_unused_configs = true
 check_untyped_defs = true
