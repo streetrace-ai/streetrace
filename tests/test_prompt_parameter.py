@@ -56,7 +56,7 @@ class TestPromptParameter(unittest.TestCase):
         mock_args.prompt = "Test prompt"
         mock_args.path = None  # Assume default path
         mock_args.debug = False
-        mock_args.engine = None  # Assume default engine
+        mock_args.provider = None  # Assume default provider
         mock_args.model = None
         # Non-interactive mode is implicitly true if prompt is given in Application
         mock_parse_args.return_value = mock_args
@@ -117,7 +117,7 @@ class TestPromptParameter(unittest.TestCase):
         mock_args.prompt = None  # No prompt provided
         mock_args.path = None
         mock_args.debug = False
-        mock_args.engine = "openai"  # Provide a valid engine name
+        mock_args.provider = "openai"  # Provide a valid provider name
         mock_args.model = None
         mock_parse_args.return_value = mock_args
 

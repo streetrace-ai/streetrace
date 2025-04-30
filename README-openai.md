@@ -23,16 +23,16 @@ This integration allows you to use OpenAI's models (like GPT-4 Turbo) with the S
 
 ## Usage
 
-You can use the OpenAI integration with the `--engine` flag:
+You can use the OpenAI integration with the `--provider` flag:
 
 ```bash
-python main.py --engine openai
+python main.py --provider openai
 ```
 
 Or you can specify a specific model:
 
 ```bash
-python main.py --engine openai --model gpt-4-turbo-2024-04-09
+python main.py --provider openai --model gpt-4-turbo-2024-04-09
 ```
 
 Available models include:
@@ -44,7 +44,7 @@ Available models include:
 You can also provide a prompt directly:
 
 ```bash
-python main.py --engine openai --prompt "Create a simple Python function to calculate factorial"
+python main.py --provider openai --prompt "Create a simple Python function to calculate factorial"
 ```
 
 ## Custom System Message

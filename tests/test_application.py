@@ -23,7 +23,7 @@ class TestApplication(unittest.TestCase):
         self.mock_args = argparse.Namespace(
             prompt=None,
             debug=False,
-            engine=None,
+            provider=None,
             model=None,
             path=None,
         )

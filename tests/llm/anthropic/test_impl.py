@@ -1,6 +1,6 @@
-"""Unit tests for Claude AI Provider Implementation.
+"""Unit tests for Anthropic AI Provider Implementation.
 
-This module contains tests for the Claude implementation of the LLMAPI interface.
+This module contains tests for the Anthropic implementation of the LLMAPI interface.
 """
 
 import os
@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import anthropic
 import pytest
 
-from streetrace.llm.claude.impl import Claude
+from streetrace.llm.anthropic.impl import Anthropic
 from streetrace.llm.llmapi import RetriableError
 from streetrace.llm.wrapper import (
     ContentPartText,
@@ -20,13 +20,13 @@ from streetrace.llm.wrapper import (
 )
 
 
-class TestClaudeImpl(unittest.TestCase):
-    """Tests for Claude implementation of LLMAPI."""
+class TestAnthropicImpl(unittest.TestCase):
+    """Tests for Anthropic implementation of LLMAPI."""
 
     def setUp(self):
         """Set up test fixtures."""
         # Patch the anthropic imports
-        self.anthropic_patcher = patch("streetrace.llm.claude.impl.anthropic")
+        self.anthropic_patcher = patch("streetrace.llm.anthropic.impl.anthropic")
         self.mock_anthropic = self.anthropic_patcher.start()
 
         # Create a mock client
@@ -36,12 +36,12 @@ class TestClaudeImpl(unittest.TestCase):
         # Make a proper RateLimitError
         self.mock_anthropic.RateLimitError = Exception
 
-        # Create the Claude instance with mocked dependencies
-        self.claude = Claude()
+        # Create the Anthropic instance with mocked dependencies
+        self.anthropic = Anthropic()
 
         # Mock the adapter
         self.mock_adapter = MagicMock()
-        self.claude._adapter = self.mock_adapter
+        self.anthropic._adapter = self.mock_adapter
 
         # Mock environment variable
         self.env_patcher = patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-api-key"})
@@ -55,7 +55,7 @@ class TestClaudeImpl(unittest.TestCase):
     def test_initialize_client(self):
         """Test client initialization with API key."""
         # Call the method
-        client = self.claude.initialize_client()
+        client = self.anthropic.initialize_client()
 
         # Verify the client was initialized with the API key
         self.mock_anthropic.Anthropic.assert_called_once_with(api_key="test-api-key")
@@ -65,10 +65,10 @@ class TestClaudeImpl(unittest.TestCase):
         """Test client initialization fails without API key."""
         # Remove the API key from environment
         with patch.dict(os.environ, {}, clear=True), pytest.raises(ValueError):
-            self.claude.initialize_client()
+            self.anthropic.initialize_client()
 
     def test_transform_history(self):
-        """Test transformation of history to Claude format."""
+        """Test transformation of history to Anthropic format."""
         # Mock the adapter's create_provider_history method
         expected_provider_history = [MagicMock(), MagicMock()]
         self.mock_adapter.create_provider_history.return_value = (
@@ -82,10 +82,10 @@ class TestClaudeImpl(unittest.TestCase):
         )
 
         # Add a message
-        history.add_message(Role.USER, [ContentPartText(text="Hello, Claude")])
+        history.add_message(Role.USER, [ContentPartText(text="Hello, Anthropic")])
 
         # Convert to provider history
-        provider_history = self.claude.transform_history(history)
+        provider_history = self.anthropic.transform_history(history)
 
         # Verify the transformation
         assert provider_history == expected_provider_history
@@ -107,14 +107,14 @@ class TestClaudeImpl(unittest.TestCase):
         ]
 
         # Append to history
-        self.claude.append_history(provider_history, messages)
+        self.anthropic.append_history(provider_history, messages)
 
         # Verify the adapter was called and items appended
         self.mock_adapter.to_provider_history_items.assert_called_once_with(messages)
         assert provider_history == mock_items
 
     def test_transform_tools(self):
-        """Test transformation of tools to Claude format."""
+        """Test transformation of tools to Anthropic format."""
         # Create tool definition in the common format
         tools = [
             {
@@ -132,8 +132,8 @@ class TestClaudeImpl(unittest.TestCase):
             },
         ]
 
-        # Transform to Claude format
-        claude_tools = self.claude.transform_tools(tools)
+        # Transform to Anthropic format
+        claude_tools = self.anthropic.transform_tools(tools)
 
         # Verify the transformation
         assert len(claude_tools) == 1
@@ -151,7 +151,7 @@ class TestClaudeImpl(unittest.TestCase):
         ]
 
         # Get pretty print output
-        output = self.claude.pretty_print(messages)
+        output = self.anthropic.pretty_print(messages)
 
         # Verify output contains expected information
         assert "Message 1:" in output
@@ -170,7 +170,7 @@ class TestClaudeImpl(unittest.TestCase):
         ]
 
         # Call method with a large token limit
-        result = self.claude.manage_conversation_history(messages, max_tokens=10000)
+        result = self.anthropic.manage_conversation_history(messages, max_tokens=10000)
 
         # Verify no pruning occurred and result is True
         assert result is True
@@ -180,13 +180,13 @@ class TestClaudeImpl(unittest.TestCase):
         """Test conversation history management when exceeding token limits."""
         # Create mock messages with lots of content to exceed token limits
         # Using patch to override the token estimation calculation
-        with patch("streetrace.llm.claude.impl.sum") as mock_sum:
+        with patch("streetrace.llm.anthropic.impl.sum") as mock_sum:
             # Mock the token estimation to return a large value first, and smaller after pruning
             mock_sum.side_effect = [1000000, 1000]  # Above limit, then below limit
 
             messages = [
                 {"role": "system", "content": "You are a helpful assistant"},
-                {"role": "user", "content": "Hello, Claude!"},
+                {"role": "user", "content": "Hello, Anthropic!"},
                 {"role": "assistant", "content": "Hi there, how can I help you?"},
                 {"role": "user", "content": "Tell me about Python"},
                 {"role": "assistant", "content": "Python is a programming language..."},
@@ -198,7 +198,7 @@ class TestClaudeImpl(unittest.TestCase):
             ]
 
             # Call method with a small token limit
-            result = self.claude.manage_conversation_history(
+            result = self.anthropic.manage_conversation_history(
                 messages,
                 max_tokens=100000,
             )
@@ -223,9 +223,9 @@ class TestClaudeImpl(unittest.TestCase):
 
         # Call generate method
         response_parts = list(
-            self.claude.generate(
+            self.anthropic.generate(
                 client=self.mock_client,
-                model_name="claude-test-model",
+                model_name="anthropic-test-model",
                 system_message="You are a helpful assistant",
                 messages=messages,
                 tools=claude_tools,
@@ -235,7 +235,7 @@ class TestClaudeImpl(unittest.TestCase):
         # Verify messages.create was called
         self.mock_client.messages.create.assert_called_once()
         call_args = self.mock_client.messages.create.call_args[1]
-        assert call_args["model"] == "claude-test-model"
+        assert call_args["model"] == "anthropic-test-model"
         assert call_args["system"] == "You are a helpful assistant"
         assert call_args["messages"] == messages
         assert call_args["tools"] == claude_tools
@@ -266,7 +266,7 @@ class TestClaudeImpl(unittest.TestCase):
         # Call the generate method and expect RetriableError
         with pytest.raises(RetriableError) as exc_info:
             list(
-                self.claude.generate(
+                self.anthropic.generate(
                     client=self.mock_client,
                     model_name="test-model",
                     system_message="sys",
@@ -301,7 +301,7 @@ class TestClaudeImpl(unittest.TestCase):
 
         # Call generate method without model_name
         list(
-            self.claude.generate(
+            self.anthropic.generate(
                 client=self.mock_client,
                 model_name=None,  # No model specified
                 system_message="You are a helpful assistant",
@@ -313,7 +313,7 @@ class TestClaudeImpl(unittest.TestCase):
         # Verify default model was used
         call_args = self.mock_client.messages.create.call_args[1]
         assert (
-            call_args["model"] == "claude-3-7-sonnet-20250219"
+            call_args["model"] == "anthropic-3-7-sonnet-20250219"
         )  # Default model in impl.py
 
 

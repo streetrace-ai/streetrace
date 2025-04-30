@@ -56,15 +56,15 @@ def parse_arguments() -> argparse.Namespace:
         description="Run AI assistant with different models",
     )
     parser.add_argument(
-        "--engine",
+        "--provider",
         type=str,
-        choices=["claude", "gemini", "ollama", "openai"],
-        help="Choose AI engine (claude, gemini, ollama, or openai)",
+        choices=["anthropic", "gemini", "ollama", "openai"],
+        help="Choose AI provider (anthropic, gemini, ollama, or openai)",
     )
     parser.add_argument(
         "--model",
         type=str,
-        help="Specific model name to use (e.g., claude-3-opus-20240229, gemini-1.5-flash, llama3:8b, or gpt-4o)",
+        help="Specific model name to use (e.g., anthropic-3-opus-20240229, gemini-1.5-flash, llama3:8b, or gpt-4o)",
     )
     parser.add_argument(
         "--prompt",
@@ -147,7 +147,7 @@ def main() -> None:
 
     # Determine Model and Provider
     model_name = args.model.strip().lower() if args.model else None
-    provider_name = args.engine.strip().lower() if args.engine else None
+    provider_name = args.provider.strip().lower() if args.provider else None
 
     # Initialize AI Provider
     try:

@@ -1,6 +1,6 @@
-"""Claude AI Provider Implementation.
+"""Anthropic AI Provider Implementation.
 
-This module implements the LLMAPI interface for Anthropic's Claude models.
+This module implements the LLMAPI interface for Anthropic's Anthropic models.
 """
 
 import logging
@@ -10,28 +10,28 @@ from typing import Any, override
 
 import anthropic
 
-from streetrace.llm.claude.converter import AnthropicHistoryConverter
+from streetrace.llm.anthropic.converter import AnthropicHistoryConverter
 from streetrace.llm.llmapi import LLMAPI, RetriableError
 from streetrace.llm.wrapper import ContentPart, History, Message
 
 ProviderHistory = list[anthropic.types.MessageParam]
 
 # Constants
-MAX_TOKENS = 200000  # Claude 3 Sonnet has a context window of approximately 200K tokens
-MODEL_NAME = "claude-3-7-sonnet-20250219"
+MAX_TOKENS = 200000  # Anthropic 3 Sonnet has a context window of approximately 200K tokens
+MODEL_NAME = "anthropic-3-7-sonnet-20250219"
 
 
-class Claude(LLMAPI):
-    """Implementation of the LLMAPI interface for Anthropic's Claude models."""
+class Anthropic(LLMAPI):
+    """Implementation of the LLMAPI interface for Anthropic's Anthropic models."""
 
     _adapter = AnthropicHistoryConverter()
 
     @override
     def initialize_client(self) -> anthropic.Anthropic:
-        """Initialize and return the Claude API client.
+        """Initialize and return the Anthropic API client.
 
         Returns:
-            anthropic.Anthropic: The initialized Claude client
+            anthropic.Anthropic: The initialized Anthropic client
 
         Raises:
             ValueError: If ANTHROPIC_API_KEY environment variable is not set
@@ -45,13 +45,13 @@ class Claude(LLMAPI):
 
     @override
     def transform_history(self, history: History) -> ProviderHistory:
-        """Transform conversation history from common format into Claude-specific format.
+        """Transform conversation history from common format into Anthropic-specific format.
 
         Args:
             history (History): Conversation history to transform
 
         Returns:
-            List[Dict[str, Any]]: Conversation history in Claude-specific format
+            List[Dict[str, Any]]: Conversation history in Anthropic-specific format
 
         """
         return self._adapter.create_provider_history(history)
@@ -74,13 +74,13 @@ class Claude(LLMAPI):
 
     @override
     def transform_tools(self, tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Transform tools from common format to Claude-specific format.
+        """Transform tools from common format to Anthropic-specific format.
 
         Args:
             tools: List of tool definitions in common format
 
         Returns:
-            List[Dict[str, Any]]: List of tool definitions in Claude format
+            List[Dict[str, Any]]: List of tool definitions in Anthropic format
 
         """
         return [
@@ -174,14 +174,14 @@ class Claude(LLMAPI):
         messages: ProviderHistory,
         tools: list[dict[str, Any]],
     ) -> Iterator[ContentPart]:
-        """Get API response from Claude, process it and handle tool calls.
+        """Get API response from Anthropic, process it and handle tool calls.
 
         Args:
-            client: The Claude client
+            client: The Anthropic client
             model_name: The model name to use
             system_message: The system message to send
             messages: The messages to send in the request
-            tools: The Claude-format tools to use
+            tools: The Anthropic-format tools to use
 
         Returns:
             Iterator[ContentPart]: Stream of response parts
@@ -191,7 +191,7 @@ class Claude(LLMAPI):
 
         while True:  # This loop handles retries for rate limit errors
             try:
-                # Create the message with Claude
+                # Create the message with Anthropic
                 response = client.messages.create(
                     model=model_name,
                     max_tokens=20000,
@@ -202,7 +202,7 @@ class Claude(LLMAPI):
                     extra_headers={"x-should-retry": "false"},
                 )
 
-                logging.debug("Raw Claude response: %s", response)
+                logging.debug("Raw Anthropic response: %s", response)
 
                 return self._adapter.get_response_parts(response)
 

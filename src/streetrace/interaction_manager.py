@@ -189,7 +189,7 @@ class InteractionManager:
         """Construct an InteractionManager for a specific LLM provider, model, tool set, and UI.
 
         Args:
-            provider: LLMAPI (implementation of backend, e.g. OpenAI, Claude)
+            provider: LLMAPI (implementation of backend, e.g. OpenAI, Anthropic)
             model_name: Name of model to use for LLM backend (provider-specific string)
             tools: ToolCall delegator (handles dispatch to actual code tools)
             ui: ConsoleUI for all user/output interaction, feedback etc.

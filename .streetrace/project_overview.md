@@ -9,7 +9,7 @@ The primary goal is to create a seamless experience where developers can interac
 - Provides a set of tools for AI models to interact with the file system (read/write files, list directories)
 - Executes CLI commands with interactive capabilities (allowing real-time input/output)
 - Searches for text within files using glob patterns
-- Supports multiple AI backends including Claude, Gemini, OpenAI, and locally-hosted models via Ollama
+- Supports multiple AI backends including Anthropic, Gemini, OpenAI, and locally-hosted models via Ollama
 - Offers both interactive and non-interactive command-line interfaces
 
 ## Project Structure
@@ -36,7 +36,7 @@ StreetRace🚗💨 supports command line arguments described in `main.py`.
 
 StreetRace works with multiple AI providers:
 
-- Anthropic's Claude (via `ANTHROPIC_API_KEY`)
+- Anthropic's Anthropic (via `ANTHROPIC_API_KEY`)
 - Google's Gemini (via `GEMINI_API_KEY`)
 - OpenAI models (via `OPENAI_API_KEY`)
 - Open-source models via Ollama (local or remote)

@@ -1,20 +1,20 @@
-In llm/claude.py I have several blocks that handle data conversions. There are three data formants - the common format managed by llm/wrapper.py, provider response format (e.g. messages returned from Claude's streaming client.messages.create function), and provider input format (e.g., messages accepted by client.messages.create function. The data flow is - we accumulate messages in the Common format, then convert them to provider input format to send a request to the provider, and then convert the messages from provider's response to the Common format to put them back into history. Currently this happens in several places. ContentBlockChunkWrapper helps access data in response messages to process them, then Claude.update_history helps convert them to the Common format, and Claude.transform_history converts the Common format history messages into provider-specific format. Also, Claude.append_to_history allows adding processed messages to provider history.
+In llm/anthropic.py I have several blocks that handle data conversions. There are three data formants - the common format managed by llm/wrapper.py, provider response format (e.g. messages returned from Anthropic's streaming client.messages.create function), and provider input format (e.g., messages accepted by client.messages.create function. The data flow is - we accumulate messages in the Common format, then convert them to provider input format to send a request to the provider, and then convert the messages from provider's response to the Common format to put them back into history. Currently this happens in several places. ContentBlockChunkWrapper helps access data in response messages to process them, then Anthropic.update_history helps convert them to the Common format, and Anthropic.transform_history converts the Common format history messages into provider-specific format. Also, Anthropic.append_to_history allows adding processed messages to provider history.
 
-The overall logic is to continuously maintain the communication history in the Common format, transform it to provider-specific format when sending a request to the provider, then receive new messages from the provider, allow other parts of the application to process those messages, then loop with the provider and the tools until the process is done, and finally store the new final conversation history in the Common format. The loop between the provider and tools happens using the ContentBlockChunkWrapper and Claude.update_history functions.
+The overall logic is to continuously maintain the communication history in the Common format, transform it to provider-specific format when sending a request to the provider, then receive new messages from the provider, allow other parts of the application to process those messages, then loop with the provider and the tools until the process is done, and finally store the new final conversation history in the Common format. The loop between the provider and tools happens using the ContentBlockChunkWrapper and Anthropic.update_history functions.
 
-There are other providers like Claude, including Gemini, ChatGPT, and ollama, which is why the history needs to be maintained in the Common format.
+There are other providers like Anthropic, including Gemini, ChatGPT, and ollama, which is why the history needs to be maintained in the Common format.
 
-The problem is that currently the data transformation code is spread across the Claude.py, and difficult to test. Please find a solution to implement a SOLID data adapter that will encapsulate all data transformation logic for the given provider, that is easy to test and maintain. Create data adapters for Gemini, ChatGPT, and ollama.
+The problem is that currently the data transformation code is spread across the Anthropic.py, and difficult to test. Please find a solution to implement a SOLID data adapter that will encapsulate all data transformation logic for the given provider, that is easy to test and maintain. Create data adapters for Gemini, ChatGPT, and ollama.
 
 Before starting to code, please analyze the current implementation, evaluate alternative approaches to implementation, and keep asking clarification questions about the implementation until until I say stop, and only then start coding.
 
 ===
 
-Extract an abstract base class from llm/claude_converter.py called TypeConverter with generic parameters for types owned by Claude sdk (e.g., anthropic.types.MessageParam)
+Extract an abstract base class from llm/claude_converter.py called TypeConverter with generic parameters for types owned by Anthropic sdk (e.g., anthropic.types.MessageParam)
 
 ===
 
-Investigate claude, gemini, and openai implementations of LLMAPI and HistoryConverter in llm folder, and refactor the current ollama implementaion to match the code structure
+Investigate anthropic, gemini, and openai implementations of LLMAPI and HistoryConverter in llm folder, and refactor the current ollama implementaion to match the code structure
 
 ===
 
@@ -66,8 +66,8 @@ Let's implement token counting for gemini. Whenever the response is received, we
 
 ===
 
-Let's make sure we have 100% test coverage for @src/streetrace/llm/claude/impl.py. The existing tests might be heavily outdated, please go ahead and remove or re-write implausible tests, the ground truth is in the implementation. Please keep the implementation as-is, unless there are obvious issues with it. I want the code to be concise and assertive, may be , so you might as well re-write it and remove parts that do not make senseare not present in the actual converter.py.
-Make sure you activate venv when running tests, so that you have claude and may be /impl right dependencies.
+Let's make sure we have 100% test coverage for @src/streetrace/llm/anthropic/impl.py. The existing tests might be heavily outdated, please go ahead and remove or re-write implausible tests, the ground truth is in the implementation. Please keep the implementation as-is, unless there are obvious issues with it. I want the code to be concise and assertive, may be , so you might as well re-write it and remove parts that do not make senseare not present in the actual converter.py.
+Make sure you activate venv when running tests, so that you have anthropic and may be /impl right dependencies.
 Make sure to check with the @CONTRIBUTING.do not make sensemd when introducing changes.
 
 
@@ -75,7 +75,7 @@ Make sure to check with the @CONTRIBUTING.do not make sensemd when introducing c
 
 run pytest and try to fix failing tests. Do not modify files under src/streetrace as they work as expected.
 
-Claude:
+Anthropic:
 - Ignored the "do not modify" part and started making pointless changes in the codebase
 - Very slow in general, but even then, rate limits made imposible to dig through everything.
 
@@ -417,7 +417,7 @@ Save your analysis result in tasks/0001/70-Review.md
 
 I have implemented a new feature. Please check all added and modified files using `git status -u`. For modified files, use `git --no-pager diff HEAD RELATIVE_FILE_PATH` to see what's changed in the file. Ignore tests and non-code changes. For code changes, explain them line by line and provide a summary for each added modified code block explaining the modification goal. Save your result in REVIEW_PREP.md.
 
-gpt 4.1 and claude failed to describe the critical part.
+gpt 4.1 and anthropic failed to describe the critical part.
 gemini 2.5 explained it and I can see the bug by reading the explanation.
 gpt o1 also explained it, a little more wordy but fuzzy
 

@@ -4,7 +4,7 @@ This document explains the LLMAPI interface architecture and how to use it in St
 
 ## Overview
 
-StreetRace has been refactored to use a common interface for all AI providers (Claude, Gemini, OpenAI, Ollama). This design improves code maintainability, makes it easier to add new providers, and provides a consistent way to interact with different AI models.
+StreetRace has been refactored to use a common interface for all AI providers (Anthropic, Gemini, OpenAI, Ollama). This design improves code maintainability, makes it easier to add new providers, and provides a consistent way to interact with different AI models.
 
 ## Key Components
 
@@ -47,7 +47,7 @@ class LLMAPI(abc.ABC):
 
 Each AI provider has its own implementation class:
 
-- `Claude` in `./tools/claude.py`
+- `Anthropic` in `./tools/anthropic.py`
 - `Gemini` in `./tools/gemini.py`
 - `OpenAI` in `./tools/openai.py`
 - `Ollama` in `./tools/ollama.py`
@@ -86,7 +86,7 @@ response = generate_with_tool(
     "List all Python files in this directory",
     TOOLS,
     call_tool_function,  # Your tool call handler function
-    provider_name="claude"  # Optional - will auto-detect if not provided
+    provider_name="anthropic"  # Optional - will auto-detect if not provided
 )
 ```
 
@@ -137,7 +137,7 @@ class NewProvider(LLMAPI):
 
 When migrating from the old direct implementations to the new interface:
 
-1. The former standalone implementations (`claude.py`, `gemini.py`, etc.) have been refactored into provider classes.
+1. The former standalone implementations (`anthropic.py`, `gemini.py`, etc.) have been refactored into provider classes.
 2. The `main.py` file has been updated to use the factory pattern.
 3. All function signatures remain compatible with the previous implementations for backwards compatibility.
 

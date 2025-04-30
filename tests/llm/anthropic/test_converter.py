@@ -1,13 +1,13 @@
-"""Unit tests for Claude history converter.
+"""Unit tests for Anthropic history converter.
 
 This module contains tests for the AnthropicHistoryConverter class that converts
-between Streetrace history and Claude-specific formats.
+between Streetrace history and Anthropic-specific formats.
 """
 
 import unittest
 from unittest.mock import MagicMock
 
-from streetrace.llm.claude.converter import AnthropicHistoryConverter
+from streetrace.llm.anthropic.converter import AnthropicHistoryConverter
 from streetrace.llm.wrapper import (
     ContentPartFinishReason,
     ContentPartText,
@@ -81,7 +81,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
         history = History(system_message="You are a helpful assistant")
         provider_history = self.converter.create_provider_history(history)
 
-        # Should return an empty list as system messages are not added directly in Claude
+        # Should return an empty list as system messages are not added directly in Anthropic
         assert provider_history == []
 
     def test_complex_content_types(self):
@@ -132,7 +132,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
         assert provider_history[0]["content"][1]["name"] == "search_files"
         assert provider_history[0]["content"][1]["input"]["pattern"] == "*.py"
 
-        # Check the tool result message (sent as user in Claude)
+        # Check the tool result message (sent as user in Anthropic)
         assert provider_history[1]["role"] == "user"
         assert len(provider_history[1]["content"]) == 1
         assert provider_history[1]["content"][0]["type"] == "tool_result"
@@ -140,11 +140,11 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
         assert "Found 5 files" in provider_history[1]["content"][0]["content"]
 
     def test_response_parsing_text(self):
-        """Test parsing a simple text response from Claude."""
-        # Create a mock Claude response with text content
+        """Test parsing a simple text response from Anthropic."""
+        # Create a mock Anthropic response with text content
         mock_response = MagicMock()
         mock_response.content = [
-            MagicMock(type="text", text="This is a response from Claude"),
+            MagicMock(type="text", text="This is a response from Anthropic"),
         ]
         mock_response.stop_reason = "end_turn"
         input_tokens = 10
@@ -161,7 +161,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
         expect_response_parts_count = 3  # Text, Usage, FinishReason
         assert len(response_parts) == expect_response_parts_count
         assert isinstance(response_parts[0], ContentPartText)
-        assert response_parts[0].text == "This is a response from Claude"
+        assert response_parts[0].text == "This is a response from Anthropic"
         assert isinstance(response_parts[1], ContentPartUsage)
         assert response_parts[1].prompt_tokens == input_tokens
         assert response_parts[1].response_tokens == output_tokens
@@ -170,7 +170,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
 
     def test_empty_response(self):
         """Test handling of empty responses."""
-        # Create a mock empty Claude response
+        # Create a mock empty Anthropic response
         mock_response = MagicMock()
         mock_response.content = []  # Empty content
 
@@ -182,7 +182,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
 
     def test_response_parsing_with_tool_call(self):
         """Test parsing a response containing a tool call."""
-        # Create a mock Claude response with a tool call
+        # Create a mock Anthropic response with a tool call
         mock_response = MagicMock()
         mock_tool_use = MagicMock()
         mock_tool_use.type = "tool_use"
@@ -212,7 +212,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
 
     def test_mixed_content_response(self):
         """Test parsing a response with mixed content types."""
-        # Create a mock Claude response with text and tool_use
+        # Create a mock Anthropic response with text and tool_use
         mock_response = MagicMock()
         mock_text = MagicMock()
         mock_text.type = "text"
@@ -245,7 +245,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
 
     def test_response_parsing_partial_usage_metadata(self):
         """Test parsing a response with partial usage metadata."""
-        # Create a mock Claude response with partial usage data
+        # Create a mock Anthropic response with partial usage data
         mock_response = MagicMock()
         mock_text = MagicMock()
         mock_text.type = "text"
@@ -269,7 +269,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
 
     def test_response_no_usage_no_stop_reason(self):
         """Test parsing a response with no usage metadata and no stop reason."""
-        # Create a mock Claude response without usage and stop reason
+        # Create a mock Anthropic response without usage and stop reason
         mock_response = MagicMock()
         mock_text = MagicMock()
         mock_text.type = "text"

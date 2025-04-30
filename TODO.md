@@ -57,8 +57,8 @@ To make this a real tool, I need to:
 
 ## done
 
-- [x] create an ollama implementation similar to gemini and claude
-- [x] create an openai implementation similar to gemini and claude
+- [x] create an ollama implementation similar to gemini and anthropic
+- [x] create an openai implementation similar to gemini and anthropic
 - [x] common interface
 - [x] make rel paths relative to work dir
 - [x] stdio mapping

@@ -9,7 +9,7 @@ The primary goal is to create a seamless experience where developers can interac
 - Provides a set of tools for AI models to interact with the file system (read/write files, list directories)
 - Executes CLI commands with interactive capabilities (allowing real-time input/output)
 - Searches for text within files using glob patterns
-- Supports multiple AI backends including Claude, Gemini, OpenAI, and locally-hosted models via Ollama
+- Supports multiple AI backends including Anthropic, Gemini, OpenAI, and locally-hosted models via Ollama
 - Offers both interactive and non-interactive command-line interfaces
 - Provides internal commands for session control (e.g., `exit`, `quit`, `history`) # <-- Added history
 
@@ -17,7 +17,7 @@ The primary goal is to create a seamless experience where developers can interac
 
 ### Root Files
 - `main.py` - Application entry point. Parses arguments, initializes core components (UI, AI provider, tools, etc.), and delegates execution to `app.application.Application`.
-- `claude.py` - Core logic for interacting with Claude AI models
+- `anthropic.py` - Core logic for interacting with Anthropic AI models
 - `gemini.py` - Core logic for interacting with Google's Gemini AI models
 - `openai_client.py` - Core logic for interacting with OpenAI models
 - `ollama_client.py` - Core logic for interacting with locally hosted models via Ollama
@@ -34,7 +34,7 @@ The primary goal is to create a seamless experience where developers can interac
 
 ### Documentation
 - `README.md` - Main project documentation
-- `README-claude.md` - Claude-specific documentation
+- `README-anthropic.md` - Anthropic-specific documentation
 - `README-openai.md` - OpenAI-specific documentation
 - `README-ollama.md` - Ollama-specific documentation
 - `TODO.md` - Upcoming tasks and features
@@ -64,7 +64,7 @@ Contains configuration files:
 
 ## Integration
 StreetRace works with multiple AI providers:
-- Anthropic's Claude (via `ANTHROPIC_API_KEY`)
+- Anthropic's Anthropic (via `ANTHROPIC_API_KEY`)
 - Google's Gemini (via `GEMINI_API_KEY`)
 - OpenAI models (via `OPENAI_API_KEY`)
 - Open-source models via Ollama (local or remote)

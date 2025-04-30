@@ -4,12 +4,12 @@ StreetRace🚗💨 is an agentic AI coding partner that enables engineers to lev
 
 **Project Description:**
 
-StreetRace🚗💨 defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic uses a common LLMAPI interface implemented by provider-specific classes (Claude, Gemini, OpenAI, Ollama) to handle interactions with different AI models. This architecture makes it easy to switch between providers while maintaining consistent functionality.
+StreetRace🚗💨 defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic uses a common LLMAPI interface implemented by provider-specific classes (Anthropic, Gemini, OpenAI, Ollama) to handle interactions with different AI models. This architecture makes it easy to switch between providers while maintaining consistent functionality.
 
 **Key Components:**
 
 * `ai_interface.py`: Defines the abstract base LLMAPI class that all provider implementations must follow.
-* `claude_provider.py`: Implements the LLMAPI interface for Anthropic's Claude models.
+* `claude_provider.py`: Implements the LLMAPI interface for Anthropic's Anthropic models.
 * `gemini_provider.py`: Implements the LLMAPI interface for Google's Gemini models.
 * `openai_provider.py`: Implements the LLMAPI interface for OpenAI models.
 * `ollama_provider.py`: Implements the LLMAPI interface for locally hosted models via Ollama.
@@ -50,18 +50,18 @@ Run the application using `python src/streetrace/main.py` (or `python -m streetr
 StreetRace🚗💨 supports the following command line arguments:
 
 ```
-python src/streetrace/main.py [--engine {claude|gemini|ollama|openai}] [--model MODEL_NAME] [--prompt PROMPT] [--path PATH]
+python src/streetrace/main.py [--provider {anthropic|gemini|ollama|openai}] [--model MODEL_NAME] [--prompt PROMPT] [--path PATH]
 ```
 
 Options:
-- `--engine` - Choose AI engine (claude, gemini, ollama, or openai)
-- `--model` - Specific model name to use (e.g., claude-3-opus-20240229, gemini-1.5-flash, llama3:8b, or gpt-4o)
+- `--provider` - Choose AI provider (anthropic, gemini, ollama, or openai)
+- `--model` - Specific model name to use (e.g., anthropic-3-opus-20240229, gemini-1.5-flash, llama3:8b, or gpt-4o)
 - `--prompt` - Prompt to send to the AI model (skips interactive mode if provided)
 - `--path` - Specify which path to use as the working directory for all file operations
 - `--debug` - Enable debug logging.
 
-If no engine is specified, StreetRace🚗💨 will automatically select an AI model based on the available API keys in the following order:
-1. Claude (if ANTHROPIC_API_KEY is set)
+If no provider is specified, StreetRace🚗💨 will automatically select an AI model based on the available API keys in the following order:
+1. Anthropic (if ANTHROPIC_API_KEY is set)
 2. Gemini (if GEMINI_API_KEY is set)
 3. OpenAI (if OPENAI_API_KEY is set)
 4. Ollama (if OLLAMA_API_URL is set or Ollama is installed locally)
@@ -157,7 +157,7 @@ conversation_history = generate_with_tool(
     "Create a simple hello world script",
     tools=tools,
     call_tool=call_tool_function,
-    provider_name="claude",  # optional - will auto-detect if not specified
+    provider_name="anthropic",  # optional - will auto-detect if not specified
     system_message=system_message
 )
 ```
@@ -174,7 +174,7 @@ StreetRace🚗💨 uses a common interface for all AI providers:
    - `generate_with_tool()` - Core method for generating content with tools
 
 2. **Provider Implementations**:
-   - `ClaudeProvider` - Anthropic's Claude implementation
+   - `AnthropicProvider` - Anthropic's Anthropic implementation
    - `GeminiProvider` - Google's Gemini implementation
    - `OpenAIProvider` - OpenAI implementation
    - `OllamaProvider` - Ollama implementation for local models
@@ -188,7 +188,7 @@ This architecture makes it easy to add new AI providers or switch between them w
 ## Environment Setup
 
 To use these tools, you need to set one of the following environment variables:
-- `ANTHROPIC_API_KEY` for Claude AI model
+- `ANTHROPIC_API_KEY` for Anthropic AI model
 - `GEMINI_API_KEY` for Gemini AI model
 - `OPENAI_API_KEY` for OpenAI model
 - `OLLAMA_API_URL` (optional) for local Ollama models
@@ -213,19 +213,19 @@ StreetRace🚗💨 supports integration with OpenAI's models, such as GPT-4 and 
 
 - **Default Model**: By default, StreetRace🚗💨 uses the `gpt-4-turbo-2024-04-09` model. You can specify a different model using the `--model` argument.
   ```
-  python src/streetrace/main.py --engine openai --model gpt-4o-2024-05-13
+  python src/streetrace/main.py --provider openai --model gpt-4o-2024-05-13
   ```
 
 #### Usage Examples
 
 Using OpenAI with the default model:
 ```
-python src/streetrace/main.py --engine openai
+python src/streetrace/main.py --provider openai
 ```
 
 Explicitly selecting OpenAI with a specific model:
 ```
-python src/streetrace/main.py --engine openai --model gpt-3.5-turbo
+python src/streetrace/main.py --provider openai --model gpt-3.5-turbo
 ```
 
 For more details, see [README-openai.md](README-openai.md).
@@ -255,25 +255,25 @@ StreetRace🚗💨 supports integration with [Ollama](https://ollama.ai/), allow
 
 - **Default Model**: By default, StreetRace🚗💨 uses the `llama3:8b` model. You can specify a different model using the `--model` argument.
   ```
-  python src/streetrace/main.py --engine ollama --model mistral:7b
+  python src/streetrace/main.py --provider ollama --model mistral:7b
   ```
 
 #### Usage Examples
 
 Using default Ollama model (automatic detection if Ollama is installed):
 ```
-python src/streetrace/main.py --engine ollama
+python src/streetrace/main.py --provider ollama
 ```
 
 Explicitly selecting Ollama with a specific model:
 ```
-python src/streetrace/main.py --engine ollama --model codellama:13b
+python src/streetrace/main.py --provider ollama --model codellama:13b
 ```
 
 Setting a different Ollama API URL and running with a specific prompt:
 ```
 export OLLAMA_API_URL="http://192.168.1.100:11434"
-python src/streetrace/main.py --engine ollama --model llama3:70b --prompt "Create a simple HTTP server in Python"
+python src/streetrace/main.py --provider ollama --model llama3:70b --prompt "Create a simple HTTP server in Python"
 ```
 
 For more details, see [README-ollama.md](README-ollama.md).

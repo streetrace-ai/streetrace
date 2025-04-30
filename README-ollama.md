@@ -25,13 +25,13 @@ There are several ways to start Str33tRace with Ollama:
 
 ```bash
 # Use Ollama explicitly
-python main.py --engine ollama
+python main.py --provider ollama
 
 # Use a specific Ollama model
-python main.py --engine ollama --model llama3:70b
+python main.py --provider ollama --model llama3:70b
 
 # Use Ollama with a specific API endpoint
-OLLAMA_API_URL=http://myollama:11434 python main.py --engine ollama
+OLLAMA_API_URL=http://myollama:11434 python main.py --provider ollama
 ```
 
 ## Supported Models
@@ -48,7 +48,7 @@ Note that tool calling support may vary by model. Models with native tool/functi
 
 ## Limitations
 
-- Local models may not perform as well as cloud-based models like Claude or Gemini
+- Local models may not perform as well as cloud-based models like Anthropic or Gemini
 - Some models may have limited context windows compared to commercial models
 - Token counting is estimated rather than precise
 - Tool/function calling is implemented following the OpenAI format, which some models may support with varying degrees of effectiveness

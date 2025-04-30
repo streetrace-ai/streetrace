@@ -28,7 +28,7 @@ _CLAUD_ROLES = {
     Role.CONTEXT: "user",
     Role.USER: "user",
     Role.MODEL: "assistant",
-    Role.TOOL: "user",  # Tool results are sent in a user message in Claude
+    Role.TOOL: "user",  # Tool results are sent in a user message in Anthropic
 }
 
 

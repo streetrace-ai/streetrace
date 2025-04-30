@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from streetrace.llm.claude.impl import Claude
+from streetrace.llm.anthropic.impl import Anthropic
 from streetrace.llm.gemini.impl import Gemini
 from streetrace.llm.llmapi import LLMAPI
 from streetrace.llm.llmapi_factory import get_ai_provider
@@ -19,16 +19,16 @@ class TestAIProvider(unittest.TestCase):
 
     def test_provider_implementations(self) -> None:
         """Verify that all provider implementations inherit from LLMAPI."""
-        assert issubclass(Claude, LLMAPI)
+        assert issubclass(Anthropic, LLMAPI)
         assert issubclass(Gemini, LLMAPI)
         assert issubclass(OpenAI, LLMAPI)
         assert issubclass(Ollama, LLMAPI)
 
     @patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}, clear=True)
     def test_get_provider_claude(self) -> None:
-        """Test getting Claude provider when ANTHROPIC_API_KEY is set."""
+        """Test getting Anthropic provider when ANTHROPIC_API_KEY is set."""
         provider = get_ai_provider()
-        assert isinstance(provider, Claude)
+        assert isinstance(provider, Anthropic)
 
     @patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}, clear=True)
     def test_get_provider_gemini(self) -> None:
@@ -45,8 +45,8 @@ class TestAIProvider(unittest.TestCase):
     def test_get_provider_explicit(self) -> None:
         """Test explicitly requesting a specific provider."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}, clear=True):
-            provider = get_ai_provider("claude")
-            assert isinstance(provider, Claude)
+            provider = get_ai_provider("anthropic")
+            assert isinstance(provider, Anthropic)
 
         with patch.dict(os.environ, {"GEMINI_API_KEY": "test_key"}, clear=True):
             provider = get_ai_provider("gemini")
@@ -68,7 +68,7 @@ class TestAIProvider(unittest.TestCase):
         """Test requesting a provider without required API key."""
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError):
-                get_ai_provider("claude")
+                get_ai_provider("anthropic")
 
             with pytest.raises(ValueError):
                 get_ai_provider("gemini")

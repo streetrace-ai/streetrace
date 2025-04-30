@@ -1,7 +1,7 @@
 """AI Provider Interface Module.
 
 This module defines the abstract base class LLMAPI that serves as a common interface
-for different AI model providers (Claude, Gemini, OpenAI, Ollama). It standardizes
+for different AI model providers (Anthropic, Gemini, OpenAI, Ollama). It standardizes
 initialization, API calls, and tool management across all providers.
 """
 

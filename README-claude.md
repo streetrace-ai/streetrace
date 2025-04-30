@@ -1,10 +1,10 @@
-# Claude AI Assistant
+# Anthropic AI Assistant
 
-This script (`claude.py`) allows you to interact with Anthropic's Claude 3 Sonnet AI model in a terminal interface with tool-calling capabilities for code assistance.
+This script (`anthropic.py`) allows you to interact with Anthropic's Anthropic 3 Sonnet AI model in a terminal interface with tool-calling capabilities for code assistance.
 
 ## Features
 
-- Interactive terminal-based interface to Claude 3 Sonnet
+- Interactive terminal-based interface to Anthropic 3 Sonnet
 - Tool-calling capabilities for file system operations:
   - List directory contents
   - Read file contents
@@ -39,7 +39,7 @@ export ANTHROPIC_API_KEY="your-api-key"
 You can import the script and use the `generate_with_tool` function in your Python code:
 
 ```python
-from claude import generate_with_tool
+from anthropic import generate_with_tool
 
 # Start a new conversation
 conversation_history = generate_with_tool("List all Python files in the current directory")
@@ -74,8 +74,8 @@ Corresponding functions must be added to the `tools_dict` dictionary.
 
 ## System Prompt
 
-The system prompt instructs Claude to act as an experienced software engineer working on a project with you. You can modify the `SYSTEM` variable to change these instructions.
+The system prompt instructs Anthropic to act as an experienced software engineer working on a project with you. You can modify the `SYSTEM` variable to change these instructions.
 
 ## Model Configuration
 
-The script uses Claude 3 Sonnet (version 20240229). You can change this by modifying the `model` parameter in the `client.messages.create()` call.
+The script uses Anthropic 3 Sonnet (version 20240229). You can change this by modifying the `model` parameter in the `client.messages.create()` call.
