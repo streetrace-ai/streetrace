@@ -28,7 +28,7 @@ unusedcode:
 	poetry run vulture src tests
 
 test:
-	poetry run pytest
+	poetry run pytest tests -vv --no-header
 
 coverage:
 	poetry run coverage run --source=./src/streetrace -m pytest tests
