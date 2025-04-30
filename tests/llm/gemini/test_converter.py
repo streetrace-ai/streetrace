@@ -39,7 +39,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
     def mock_create_history_messages(self, role, items):
         """Mock implementation of create_history_messages."""
         # For system role, return empty iterator
-        if role == Role.SYSTEM or role == Role.CONTEXT:
+        if role in [Role.SYSTEM, Role.CONTEXT]:
             return []
 
         # For user and model roles, return a mock message
@@ -129,7 +129,8 @@ class TestGeminiHistoryConverter(unittest.TestCase):
                     mock_parts.append(
                         MagicMock(
                             function_call=MagicMock(
-                                name=item.name, args=item.arguments,
+                                name=item.name,
+                                args=item.arguments,
                             ),
                         ),
                     )
@@ -150,7 +151,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
             [
                 ContentPartText(text="I need to search for something"),
                 ContentPartToolCall(
-                    id="search-1",
+                    tool_id="search-1",
                     name="search_files",
                     arguments={"pattern": "*.py", "search_string": "def test"},
                 ),
@@ -162,7 +163,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
             Role.TOOL,
             [
                 ContentPartToolResult(
-                    id="search-1-result",
+                    tool_id="search-1-result",
                     name="search_files",
                     content=ToolCallResult.ok(
                         output=ToolOutput(
@@ -277,7 +278,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
                 Role.USER,
                 [
                     ContentPartToolCall(
-                        id="tool-123",
+                        tool_id="tool-123",
                         name="search_files",
                         arguments={"pattern": "*.py", "search_string": "test"},
                     ),
@@ -308,7 +309,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
                 Role.TOOL,
                 [
                     ContentPartToolResult(
-                        id="result-123",
+                        tool_id="result-123",
                         name="search_files",
                         content=ToolCallResult.ok(
                             output=ToolOutput(type="text", content="Found 10 matches"),
@@ -347,7 +348,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
                 [
                     ContentPartText(text="I need to search for something"),
                     ContentPartToolCall(
-                        id="tool-123",
+                        tool_id="tool-123",
                         name="search_files",
                         arguments={"pattern": "*.py", "search_string": "test"},
                     ),
@@ -396,7 +397,7 @@ class TestGeminiHistoryConverter(unittest.TestCase):
             "pattern": "*.py",
             "search_string": "test",
         }
-        assert response_parts[0].id == "func-123"
+        assert response_parts[0].tool_id == "func-123"
 
     def test_response_parsing_with_multiple_candidates(self):
         """Test parsing a response with multiple candidates."""

@@ -49,7 +49,7 @@ class AnthropicHistoryConverter(HistoryConverter[MessageParam, AnthropicMessage]
                 elif isinstance(item, ContentPartToolCall):
                     history_item_parts.append(
                         ToolUseBlockParam(
-                            id=item.id or "tool-call",
+                            id=item.tool_id or "tool-call",
                             name=item.name,
                             input=item.arguments,
                             type="tool_use",
@@ -59,7 +59,7 @@ class AnthropicHistoryConverter(HistoryConverter[MessageParam, AnthropicMessage]
                     history_item_parts.append(
                         ToolResultBlockParam(
                             type="tool_result",
-                            tool_use_id=item.id or "tool-call",
+                            tool_use_id=item.tool_id or "tool-call",
                             content=item.content.output.model_dump_json(
                                 exclude_none=True,
                             ),
@@ -81,7 +81,7 @@ class AnthropicHistoryConverter(HistoryConverter[MessageParam, AnthropicMessage]
                 yield ContentPartText(text=part.text)
             elif part.type == "tool_use":
                 yield ContentPartToolCall(
-                    id=part.id,
+                    tool_id=part.id,
                     name=part.name,
                     arguments=part.input or {},
                 )

@@ -44,7 +44,7 @@ class TestSearchFiles(unittest.TestCase):
         assert len(matches) == 2
         # Note: File paths in results are relative to work_dir
         matched_paths = {m["filepath"] for m in matches}
-        self.assertSetEqual(matched_paths, {self.file1_rel_path, self.file2_rel_path})
+        assert matched_paths == {self.file1_rel_path, self.file2_rel_path}
 
         # Check details of one match
         match1 = next(m for m in matches if m["filepath"] == self.file1_rel_path)

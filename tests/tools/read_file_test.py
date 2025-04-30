@@ -92,19 +92,16 @@ class TestReadFile(unittest.TestCase):
         """Test that directory traversal attempts are blocked."""
         # Attempt to access a file outside work_dir using relative path (parent directory traversal)
         parent_dir = self.temp_dir.parent
+        # Create a path that attempts to go up and out of the allowed directory
+        traversal_path = self.subdir / ".." / ".." / parent_dir.name / "some_file.txt"
         with pytest.raises(ValueError) as context:
-            # Create a path that attempts to go up and out of the allowed directory
-            traversal_path = (
-                self.subdir / ".." / ".." / parent_dir.name / "some_file.txt"
-            )
             read_file(str(traversal_path), self.temp_dir)
 
         assert "Security error" in str(context.value)
 
         # Attempt to access a file outside work_dir using absolute path
+        outside_path = parent_dir / "some_file.txt"
         with pytest.raises(ValueError) as context:
-            # Directly try to access a path outside the temp directory
-            outside_path = parent_dir / "some_file.txt"
             read_file(str(outside_path), self.temp_dir)
 
         assert "Security error" in str(context.value)

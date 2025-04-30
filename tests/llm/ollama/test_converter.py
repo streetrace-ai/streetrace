@@ -7,6 +7,8 @@ between Streetrace history and Ollama-specific formats.
 import unittest
 from unittest.mock import MagicMock
 
+import pytest
+
 from streetrace.llm.ollama.converter import _ROLES, OllamaHistoryConverter
 from streetrace.llm.wrapper import (
     ContentPartFinishReason,
@@ -96,7 +98,7 @@ class TestOllamaHistoryConverter(unittest.TestCase):
             [
                 ContentPartText(text="I need to search for something"),
                 ContentPartToolCall(
-                    id="search-1",
+                    tool_id="search-1",
                     name="search_files",
                     arguments={"pattern": "*.py", "search_string": "def test"},
                 ),
@@ -108,7 +110,7 @@ class TestOllamaHistoryConverter(unittest.TestCase):
             Role.TOOL,
             [
                 ContentPartToolResult(
-                    id="search-1-result",
+                    tool_id="search-1-result",
                     name="search_files",
                     content=ToolCallResult.ok(
                         output=ToolOutput(
@@ -238,10 +240,13 @@ class TestOllamaHistoryConverter(unittest.TestCase):
         invalid_role = "INVALID_ROLE"
 
         # Verify that a ValueError is raised when attempting to convert
-        with self.assertRaises(ValueError):
+        with pytest.raises(
+            ValueError,
+            match="Unsupported role for Ollama: INVALID_ROLE",
+        ):
             list(
                 self.converter.create_history_messages(
-                    invalid_role,  # type: ignore
+                    invalid_role,
                     [ContentPartText(text="Test content")],
                 ),
             )

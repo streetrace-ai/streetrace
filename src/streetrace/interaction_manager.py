@@ -351,7 +351,7 @@ class InteractionManager:
                 )
                 tool_result: ToolCallResult = self.tools.call_tool(tool_call)
                 tool_result_part = ContentPartToolResult(
-                    id=tool_call.id,
+                    tool_id=tool_call.tool_id,
                     name=tool_call.name,
                     content=tool_result,
                 )
@@ -592,9 +592,7 @@ class InteractionManager:
                             logger.error("Empty response retry limit exceeded.")
                             conv.final_reason = "No result"
                             conv.state = InteractionState.FAILED
-                except (  # noqa: PERF203 try-except is required for robust error handling in the state machine
-                    KeyboardInterrupt
-                ):
+                except KeyboardInterrupt:
                     logger.warning(
                         "KeyboardInterrupt detected (outside inner try/except).",
                     )

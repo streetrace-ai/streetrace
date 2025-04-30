@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Unit tests for the --prompt parameter in main.py."""
 
 import sys
@@ -28,24 +27,14 @@ class TestPromptParameter(unittest.TestCase):
     @patch("streetrace.main.get_ai_provider")  # Patch the factory function
     @patch("pathlib.Path.is_dir")  # Mock path checks
     @patch("pathlib.Path.cwd")  # Mock getcwd
-    @patch("streetrace.main.ConsoleUI")  # Mock UI
-    @patch("streetrace.main.CommandExecutor")  # Mock Executor
-    @patch("streetrace.main.PromptProcessor")  # Mock Processor
-    @patch("streetrace.main.InteractionManager")  # Mock Interaction Manager
-    @patch("streetrace.main.ToolCall")  # Mock ToolCall
     @patch("builtins.input")  # Mock input
     @patch("argparse.ArgumentParser.parse_args")  # Mock arg parsing
     @patch("streetrace.main.Application")  # Mock Application class
-    def test_non_interactive_mode(
+    def test_non_interactive_mode(  # noqa: PLR0913
         self,
-        MockApplication,
+        mock_application,
         mock_parse_args,
         mock_input,
-        MockToolCall,  # Add mocks to args
-        MockInteractionManager,
-        MockPromptProcessor,
-        MockCommandExecutor,
-        MockConsoleUI,
         mock_getcwd,
         mock_isdir,
         mock_get_ai_provider,
@@ -66,13 +55,13 @@ class TestPromptParameter(unittest.TestCase):
         mock_get_ai_provider.return_value = MagicMock()  # Return a dummy provider
 
         # Mock the Application instance and its run method
-        mock_app_instance = MockApplication.return_value
+        mock_app_instance = mock_application.return_value
 
         # Call the main function
         main.main()
 
         # Assert Application was initialized (basic check)
-        MockApplication.assert_called_once()
+        mock_application.assert_called_once()
 
         # Assert the run method was called correctly for non-interactive
         mock_app_instance.run.assert_called_once()
@@ -84,29 +73,17 @@ class TestPromptParameter(unittest.TestCase):
         # Assert that input() was never called (non-interactive mode)
         mock_input.assert_not_called()
         # Assert UI display for non-interactive start (optional)
-        # mock_ui_instance.display_info.assert_any_call("Running with provided prompt...")
+        # mock_ui_instance.display_info.assert_any_call("Running with provided prompt...") # noqa: ERA001
 
     @patch("streetrace.main.get_ai_provider")  # Patch the factory function
     @patch("pathlib.Path.cwd")  # Mock getcwd
     @patch("pathlib.Path.is_dir")  # Mock getcwd
-    @patch("streetrace.main.ConsoleUI")  # Mock UI
-    @patch("streetrace.main.CommandExecutor")  # Mock Executor
-    @patch("streetrace.main.PromptProcessor")  # Mock Processor
-    @patch("streetrace.main.InteractionManager")  # Mock Interaction Manager
-    @patch("streetrace.main.ToolCall")  # Mock ToolCall
-    @patch("builtins.input")  # Mock input
     @patch("argparse.ArgumentParser.parse_args")  # Mock arg parsing
     @patch("streetrace.main.Application")  # Mock Application class
     def test_interactive_mode(
         self,
-        MockApplication,
+        mock_application,
         mock_parse_args,
-        mock_input,
-        MockToolCall,
-        MockInteractionManager,
-        MockPromptProcessor,
-        MockCommandExecutor,
-        MockConsoleUI,
         mock_is_dir,
         mock_cwd,
         mock_get_ai_provider,
@@ -126,13 +103,13 @@ class TestPromptParameter(unittest.TestCase):
         mock_get_ai_provider.return_value = MagicMock()  # Return a dummy provider
 
         # Mock the Application instance and its run method
-        mock_app_instance = MockApplication.return_value
+        mock_app_instance = mock_application.return_value
 
         # Call the main function
         main.main()
 
         # Assert Application was initialized (basic check)
-        MockApplication.assert_called_once()
+        mock_application.assert_called_once()
 
         # Assert the run method was called correctly for interactive mode
         mock_app_instance.run.assert_called_once()
@@ -141,7 +118,7 @@ class TestPromptParameter(unittest.TestCase):
 
         # Note: We don't assert input() here as the Application's run loop is mocked
         # Assert UI display for interactive start (optional)
-        # mock_ui_instance.display_info.assert_any_call("Entering interactive mode...")
+        # mock_ui_instance.display_info.assert_any_call("Entering interactive mode...") # noqa: ERA001
 
 
 if __name__ == "__main__":

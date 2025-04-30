@@ -27,7 +27,17 @@ class Gemini(LLMAPI):
     """Implementation of the LLMAPI interface for Google's Gemini models."""
 
     _counter = 0
-    _adapter = GeminiHistoryConverter()
+    _adapter: GeminiHistoryConverter
+
+    def __init__(self, adapter: GeminiHistoryConverter | None = None) -> None:
+        """Initialize the Gemini implementation.
+
+        Args:
+            adapter (GeminiHistoryConverter, optional): Adapter for converting history. Defaults to None.
+
+        """
+        super().__init__()
+        self._adapter = adapter or GeminiHistoryConverter()
 
     @override
     def initialize_client(self) -> genai.Client:

@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import anthropic
 import pytest
 
+from streetrace.llm.anthropic.converter import AnthropicHistoryConverter
 from streetrace.llm.anthropic.impl import Anthropic
 from streetrace.llm.llmapi import RetriableError
 from streetrace.llm.wrapper import (
@@ -36,12 +37,11 @@ class TestAnthropicImpl(unittest.TestCase):
         # Make a proper RateLimitError
         self.mock_anthropic.RateLimitError = Exception
 
-        # Create the Anthropic instance with mocked dependencies
-        self.anthropic = Anthropic()
-
         # Mock the adapter
-        self.mock_adapter = MagicMock()
-        self.anthropic._adapter = self.mock_adapter
+        self.mock_adapter = MagicMock(spec=AnthropicHistoryConverter)
+
+        # Create the Anthropic instance with mocked dependencies
+        self.anthropic = Anthropic(self.mock_adapter)
 
         # Mock environment variable
         self.env_patcher = patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test-api-key"})

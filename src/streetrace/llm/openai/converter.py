@@ -54,7 +54,7 @@ class OpenAIHistoryConverter(
                 message["tool_calls"].append(
                     chat.ChatCompletionMessageToolCallParam(
                         type="function",
-                        id=item.id,
+                        id=item.tool_id,
                         function={
                             "name": item.name,
                             "arguments": json.dumps(item.arguments),
@@ -66,7 +66,7 @@ class OpenAIHistoryConverter(
                 tool_results.append(
                     chat.ChatCompletionToolMessageParam(
                         role="tool",
-                        tool_call_id=item.id,
+                        tool_call_id=item.tool_id,
                         content=item.model_dump_json(exclude_none=True),
                     ),
                 )
@@ -91,7 +91,7 @@ class OpenAIHistoryConverter(
         if choice.message.tool_calls:
             for call in choice.message.tool_calls:
                 yield ContentPartToolCall(
-                    id=call.id,
+                    tool_id=call.id,
                     name=call.function.name,
                     arguments=json.loads(call.function.arguments),
                 )

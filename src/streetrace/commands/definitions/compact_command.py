@@ -27,7 +27,7 @@ class CompactCommand(Command):
             app_instance: The main Application instance.
 
         Returns:
-            The boolean result from app_instance._compact_history(), typically True
+            The boolean result from app_instance.compact_history(), typically True
             to signal the application should continue, unless an unrecoverable
             error occurred within the compaction logic itself (though currently
             it always returns True).
@@ -37,14 +37,14 @@ class CompactCommand(Command):
         logger.info("Executing compact command.")
         # Ensure the method exists before calling
         if not (
-            hasattr(app_instance, "_compact_history")
-            and callable(app_instance._compact_history)
+            hasattr(app_instance, "compact_history")
+            and callable(app_instance.compact_history)
         ):
-            logger.error("Application instance is missing the _compact_history method.")
+            logger.error("Application instance is missing the compact_history method.")
             # Decide on behavior: maybe return False to signal an issue?
             # For now, let's stick to the previous behavior of continuing, but log error.
             # If we expected execute() to potentially stop the app, we might return False here.
             return True  # Or potentially False if this is critical
 
         # Call the method and return its result
-        return app_instance._compact_history()
+        return app_instance.compact_history()

@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, call
 
 import pytest
 
-# Assuming Application is importable and contains the _compact_history method
+# Assuming Application is importable and contains the compact_history method
 from streetrace.application import Application
 from streetrace.commands.definitions.compact_command import CompactCommand
 from streetrace.llm.wrapper import ContentPartText, History, Role
@@ -13,12 +13,12 @@ class TestCompactCommand:
     """Tests for the CompactCommand class structure and basic execution."""
 
     def setup_method(self) -> None:
-        """Setup test resources before each test method."""
+        """Set up test resources before each test method."""
         self.command = CompactCommand()
-        # Use a MagicMock for Application but without mocking _compact_history itself initially
+        # Use a MagicMock for Application but without mocking compact_history itself initially
         self.mock_app = MagicMock(spec=Application)
-        # Define _compact_history on the mock spec so it's recognized
-        self.mock_app._compact_history = MagicMock(return_value=True)
+        # Define compact_history on the mock spec so it's recognized
+        self.mock_app.compact_history = MagicMock(return_value=True)
 
     def test_command_names(self) -> None:
         """Test that the command has the expected name(s)."""
@@ -31,37 +31,33 @@ class TestCompactCommand:
         assert len(self.command.description) > 0
 
     def test_execute_calls_compact_history(self) -> None:
-        """Test that execute calls the _compact_history method on the application."""
+        """Test that execute calls the compact_history method on the application."""
         # We pass the *instance* of the command, not the class
         CompactCommand().execute(self.mock_app)
-        self.mock_app._compact_history.assert_called_once()
+        self.mock_app.compact_history.assert_called_once()
 
     def test_execute_returns_continue_signal_from_compact(self) -> None:
-        """Test that execute returns the boolean signal from _compact_history."""
-        self.mock_app._compact_history.return_value = True
+        """Test that execute returns the boolean signal from compact_history."""
+        self.mock_app.compact_history.return_value = True
         result = CompactCommand().execute(self.mock_app)
         assert result is True
 
-        self.mock_app._compact_history.return_value = (
+        self.mock_app.compact_history.return_value = (
             False  # Though compact currently always returns True
         )
         result = CompactCommand().execute(self.mock_app)
         assert result is False
 
 
-# --- Tests for the _compact_history method functionality ---
+# --- Tests for the compact_history method functionality ---
 class TestCompactFunctionality:
-    """Tests the internal logic of the Application._compact_history method.
-    Mocks dependencies like UI and InteractionManager.
-    """
-
     @pytest.fixture
     def mock_app(self):
         """Create a mock application with mocked UI and InteractionManager."""
         app = MagicMock(spec=Application)
         app.ui = MagicMock()
         app.interaction_manager = MagicMock()
-        # We will call the *real* Application._compact_history method,
+        # We will call the *real* Application.compact_history method,
         # passing this mock_app instance as 'self'.
         return app
 
@@ -105,8 +101,8 @@ class TestCompactFunctionality:
 
         mock_app.interaction_manager.process_prompt.side_effect = mock_process_prompt
 
-        # Execute the actual _compact_history method on the mock_app instance
-        result = Application._compact_history(mock_app)
+        # Execute the actual compact_history method on the mock_app instance
+        result = Application.compact_history(mock_app)
 
         # Assertions
         assert result is True  # Should signal to continue
@@ -134,7 +130,7 @@ class TestCompactFunctionality:
         mock_app.conversation_history = None
 
         # Execute
-        result = Application._compact_history(mock_app)
+        result = Application.compact_history(mock_app)
 
         # Assertions
         assert result is True
@@ -153,7 +149,7 @@ class TestCompactFunctionality:
         )
 
         # Execute
-        result = Application._compact_history(mock_app)
+        result = Application.compact_history(mock_app)
 
         # Assertions
         assert result is True
@@ -180,7 +176,7 @@ class TestCompactFunctionality:
         )
 
         # Execute
-        result = Application._compact_history(mock_app)
+        result = Application.compact_history(mock_app)
 
         # Assertions
         assert result is True  # Still returns True to continue loop
@@ -215,7 +211,7 @@ class TestCompactFunctionality:
 
         mock_app.interaction_manager.process_prompt.side_effect = mock_process_prompt
 
-        Application._compact_history(mock_app)
+        Application.compact_history(mock_app)
 
         final_history = mock_app.conversation_history
         assert final_history.system_message == "System Info"
@@ -236,7 +232,7 @@ class TestCompactFunctionality:
         mock_app.interaction_manager.process_prompt.side_effect = mock_process_prompt
 
         # Perform compaction
-        Application._compact_history(mock_app)
+        Application.compact_history(mock_app)
 
         # Verify compaction happened
         assert len(mock_app.conversation_history.conversation) == 1

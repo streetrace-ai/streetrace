@@ -18,7 +18,7 @@ class ContentPartText(BaseModel):
 
 
 class ContentPartToolCall(BaseModel):
-    id: str | None = None
+    tool_id: str | None = None
     name: str = Field(..., min_length=1)
     arguments: dict[str, Any] | None = None
 
@@ -102,7 +102,7 @@ class ToolCallResult(BaseModel):
 
 
 class ContentPartToolResult(BaseModel):
-    id: str | None = None
+    tool_id: str | None = None
     name: str = Field(..., min_length=1)
     content: ToolCallResult
 

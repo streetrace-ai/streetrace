@@ -94,7 +94,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
             [
                 ContentPartText(text="I need to search for something"),
                 ContentPartToolCall(
-                    id="search-1",
+                    tool_id="search-1",
                     name="search_files",
                     arguments={"pattern": "*.py", "search_string": "def test"},
                 ),
@@ -106,7 +106,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
             Role.TOOL,
             [
                 ContentPartToolResult(
-                    id="search-1",
+                    tool_id="search-1",
                     name="search_files",
                     content=ToolCallResult.ok(
                         output=ToolOutput(
@@ -206,7 +206,7 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
         assert response_parts[0].name == "search_files"
         assert response_parts[0].arguments["pattern"] == "*.py"
         assert response_parts[0].arguments["search_string"] == "test"
-        assert response_parts[0].id == "tool-123"
+        assert response_parts[0].tool_id == "tool-123"
         assert isinstance(response_parts[1], ContentPartUsage)
         assert isinstance(response_parts[2], ContentPartFinishReason)
 

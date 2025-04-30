@@ -79,7 +79,7 @@ class TestSecurityPath(unittest.TestCase):
         # Try to access an absolute path outside root
         with pytest.raises(ValueError) as context:
             # Use /tmp or another guaranteed absolute path outside the test temp dir
-            read_directory_structure("/tmp", self.work_dir)
+            read_directory_structure("/tmp", self.work_dir)  # noqa: S108
 
         assert "Security error" in str(context.value)
         assert "outside the allowed working directory" in str(context.value)

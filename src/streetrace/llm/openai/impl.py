@@ -25,7 +25,17 @@ ProviderHistory = list[chat.ChatCompletionMessageParam]
 class OpenAI(LLMAPI):
     """Implementation of the LLMAPI interface for OpenAI models."""
 
-    _adapter = OpenAIHistoryConverter()
+    _adapter: OpenAIHistoryConverter = None
+
+    def __init__(self, adapter: OpenAIHistoryConverter | None = None) -> None:
+        """Initialize the OpenAI implementation.
+
+        Args:
+            adapter (OpenAIHistoryConverter, optional): Adapter for converting history. Defaults to None.
+
+        """
+        super().__init__()
+        self._adapter = adapter or OpenAIHistoryConverter()
 
     @override
     def initialize_client(self) -> openai.OpenAI:

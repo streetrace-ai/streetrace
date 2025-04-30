@@ -24,7 +24,17 @@ ProviderHistory = list[dict[str, Any]]
 class Ollama(LLMAPI):
     """Implementation of the LLMAPI interface for Ollama models."""
 
-    _adapter = OllamaHistoryConverter()
+    _adapter: OllamaHistoryConverter
+
+    def __init__(self, adapter: OllamaHistoryConverter | None = None) -> None:
+        """Initialize the Ollama implementation.
+
+        Args:
+            adapter (OllamaHistoryConverter, optional): Adapter for converting history. Defaults to None.
+
+        """
+        super().__init__()
+        self._adapter = adapter or OllamaHistoryConverter()
 
     @override
     def initialize_client(self) -> ollama.Client:

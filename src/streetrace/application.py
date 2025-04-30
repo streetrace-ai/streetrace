@@ -175,12 +175,12 @@ class Application:
                     logger.error(
                         "Conversation history is missing in interactive mode. Attempting to reset.",
                     )
-                    # Try to reset using _clear_history (which now uses build_context)
-                    if self._clear_history():  # Reset the history
+                    # Try to reset using clear_history (which now uses build_context)
+                    if self.clear_history():  # Reset the history
                         self.ui.display_warning("History has been reset.")
                     else:
                         # If reset fails (e.g., build_context fails), we might need to exit
-                        # Note: _clear_history currently always returns True, but keeping check for robustness
+                        # Note: clear_history currently always returns True, but keeping check for robustness
                         self.ui.display_error(
                             "Critical error: History missing and could not be reset.",
                         )
@@ -350,7 +350,7 @@ class Application:
         self.ui.display_info("--- End History ---")
         return True  # Signal to continue the application loop
 
-    def _compact_history(self) -> bool:
+    def compact_history(self) -> bool:
         """Compacts the current conversation history by generating a summary.
 
         This method:
@@ -427,7 +427,7 @@ Return ONLY the summary without explaining what you're doing."""
 
         return True  # Signal to continue the application loop
 
-    def _clear_history(self) -> bool:
+    def clear_history(self) -> bool:
         """Clear the current conversation history, resetting it to the initial state.
 
         This method rebuilds the initial context using the prompt processor and

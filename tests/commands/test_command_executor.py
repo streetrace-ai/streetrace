@@ -3,6 +3,8 @@ import unittest
 from typing import TYPE_CHECKING, Any
 from unittest.mock import patch
 
+import pytest
+
 # Use absolute import from the 'src' root
 from streetrace.commands.base_command import Command
 from streetrace.commands.command_executor import CommandExecutor
@@ -15,7 +17,7 @@ _TEST_CMD_DESC = "A simple test command."
 if TYPE_CHECKING:
     # Mock Application class for type hinting
     class Application:
-        def _clear_history(self) -> bool:
+        def clear_history(self) -> bool:
             pass  # pragma: no cover
 
 else:
@@ -24,13 +26,23 @@ else:
         pass
 
 
+_FAKE_EXCEPTION_MESSAGE = "Simulated exception"
+
+
+class DummyCommandError(Exception):
+    """Custom exception for DummyCommand errors."""
+
+    def __init__(self):
+        super().__init__(_FAKE_EXCEPTION_MESSAGE)
+
+
 class DummyCommand(Command):
     def __init__(
         self,
         name: str = _TEST_CMD_NAME,
         description: str = _TEST_CMD_DESC,
-        execute_returns: Any = True,
-        raise_exception: bool = False,
+        execute_returns: int | Any = 0,  # noqa: ANN401 matching Popen.returncode
+        raise_exception: bool = False,  # noqa: FBT001, FBT002
     ) -> None:
         super().__init__()
         self._name = name
@@ -46,9 +58,9 @@ class DummyCommand(Command):
     def description(self) -> str:
         return self._description
 
-    def execute(self, app_instance: Application) -> bool:
+    def execute(self, _: Application) -> bool:
         if self._raise_exception:
-            raise Exception("Simulated exception")
+            raise DummyCommandError
         return self._execute_returns
 
 
@@ -68,39 +80,41 @@ class TestCommandExecutor(unittest.TestCase):
     def test_register_command_success(self) -> None:
         """Test successful registration of a command."""
         self.executor.register(DummyCommand())
-        assert _TEST_CMD_NAME in self.executor._commands
-        assert self.executor._commands[_TEST_CMD_NAME].description == _TEST_CMD_DESC
+        assert _TEST_CMD_NAME in self.executor.get_commands()
+        assert (
+            self.executor.get_command_descriptions()[_TEST_CMD_NAME] == _TEST_CMD_DESC
+        )
 
     def test_register_command_case_insensitivity(self) -> None:
         """Test that command names are stored lowercased."""
-        with self.assertRaises(ValueError, msg="Command name"):
+        with pytest.raises(ValueError, match="Command name"):
             self.executor.register(DummyCommand(name=_TEST_CMD_NAME.upper()))
 
     def test_register_command_strips_whitespace(self) -> None:
         """Test that leading/trailing whitespace is stripped from command names."""
-        with self.assertRaises(ValueError, msg="Command name"):
+        with pytest.raises(ValueError, match="Command name"):
             self.executor.register(DummyCommand(name=f"  {_TEST_CMD_NAME}  "))
 
     def test_register_command_redefinition_warning(self) -> None:
         """Test that redefining a command logs a warning."""
         """Test successful registration of a command."""
         self.executor.register(DummyCommand())
-        with self.assertRaises(ValueError, msg="Attempt to redefine command"):
+        with pytest.raises(ValueError, match="Attempt to redefine command"):
             self.executor.register(DummyCommand())
 
     def test_register_command_empty_name_raises_error(self) -> None:
         """Test that registering an empty command name raises ValueError."""
-        with self.assertRaises(ValueError, msg="cannot be empty or whitespace"):
+        with pytest.raises(ValueError, match="cannot be empty or whitespace"):
             self.executor.register(DummyCommand(name=""))
 
     def test_register_command_whitespace_name_raises_error(self) -> None:
         """Test that registering an empty command name raises ValueError."""
-        with self.assertRaises(ValueError, msg="cannot be empty or whitespace"):
+        with pytest.raises(ValueError, match="cannot be empty or whitespace"):
             self.executor.register(DummyCommand(name="   "))
 
     def test_register_command_non_callable_action_raises_error(self) -> None:
         """Test that registering a non-callable action raises TypeError."""
-        with self.assertRaises(TypeError, msg="is not an instance of Command"):
+        with pytest.raises(TypeError, match="is not an instance of Command"):
             self.executor.register("")
 
     def test_get_commands(self) -> None:
@@ -129,7 +143,8 @@ class TestCommandExecutor(unittest.TestCase):
         """Test executing a command (no args) that signals continue."""
         self.executor.register(DummyCommand(execute_returns=True))
         executed, should_continue = self.executor.execute(
-            f"/{_TEST_CMD_NAME}", self.fake_app,
+            f"/{_TEST_CMD_NAME}",
+            self.fake_app,
         )
         assert executed
         assert should_continue
@@ -138,7 +153,8 @@ class TestCommandExecutor(unittest.TestCase):
         """Test executing a command (no args) that signals exit."""
         self.executor.register(DummyCommand(execute_returns=False))
         executed, should_continue = self.executor.execute(
-            f"/{_TEST_CMD_NAME}", self.fake_app,
+            f"/{_TEST_CMD_NAME}",
+            self.fake_app,
         )
         assert executed
         assert not should_continue
@@ -147,7 +163,8 @@ class TestCommandExecutor(unittest.TestCase):
         """Test executing a command (no args) that signals exit."""
         self.executor.register(DummyCommand(execute_returns=False))
         executed, should_continue = self.executor.execute(
-            f"/{_TEST_CMD_NAME}1", self.fake_app,
+            f"/{_TEST_CMD_NAME}1",
+            self.fake_app,
         )
         assert not executed
         assert should_continue
@@ -156,7 +173,8 @@ class TestCommandExecutor(unittest.TestCase):
         """Test that execution matches commands case-insensitively."""
         self.executor.register(DummyCommand(execute_returns=True))
         executed, should_continue = self.executor.execute(
-            f"/{_TEST_CMD_NAME.upper()}", self.fake_app,
+            f"/{_TEST_CMD_NAME.upper()}",
+            self.fake_app,
         )
         assert executed
         assert should_continue
@@ -165,7 +183,8 @@ class TestCommandExecutor(unittest.TestCase):
         """Test that execution handles input with leading/trailing whitespace."""
         self.executor.register(DummyCommand(execute_returns=True))
         executed, should_continue = self.executor.execute(
-            f"/{_TEST_CMD_NAME}  ", self.fake_app,
+            f"/{_TEST_CMD_NAME}  ",
+            self.fake_app,
         )
         assert executed
         assert should_continue
@@ -175,19 +194,19 @@ class TestCommandExecutor(unittest.TestCase):
         """Test execution when the command's action raises an exception."""
         self.executor.register(DummyCommand(raise_exception=True))
         executed, should_continue = self.executor.execute(
-            f"/{_TEST_CMD_NAME}", self.fake_app,
+            f"/{_TEST_CMD_NAME}",
+            self.fake_app,
         )
         assert executed
         assert should_continue
-        assert (
-            False
-        ), "Not implemented yet, should allow rendering the error to the user"
+        pytest.fail("Not implemented yet, should allow rendering the error to the user")
 
     def test_execute_command_action_returns_non_boolean(self) -> None:
         """Test execution when the action returns something other than a boolean."""
         self.executor.register(DummyCommand(execute_returns="not a boolean"))
-        with self.assertRaises(
-            TypeError, msg="Command execute method should return a boolean",
+        with pytest.raises(
+            TypeError,
+            match="Command execute method should return a boolean",
         ):
             self.executor.execute(f"/{_TEST_CMD_NAME}", self.fake_app)
 

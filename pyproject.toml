@@ -29,13 +29,20 @@ select = ["ALL"]
 ignore = ["E501", "D203", "D213"]  # Example: ignore line-too-long if black already formats
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*test*.py" = [
+"tests/**/*.py" = [
     "S101", # asserts allowed in tests.
     "D100", # module-level docstrings for test files are not required.
     "D101", # class-level docstrings for test files are not required.
     "D102", # test code should be documented in-line as opposed to docstrings.
-    "INP001", # don't require __init__.py in tests folders.
-    "ANN201", # don't require return types annotations in tests.
+    "D104", # allow skipping docstring in test packages.
+    "D107", # allow skipping docstring in __init__(self) in test packages.
+    "INP001", # don't require __init__.py in tests.
+    "ANN001", # allow parameters without type annotations in tests.
+    "ANN201", # allow missing return types annotations in tests.
+    "ANN202", # allow missing return types annotations in tests.
+    "ANN204", # allow missing return types annotations in tests.
+    "PLR2004", # allow magic values in tests.
+    "PT011", # allow broad assert raise checks in tests.
 ]
 
 [tool.mypy]

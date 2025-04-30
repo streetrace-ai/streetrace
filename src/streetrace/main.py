@@ -32,7 +32,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     filename="generation.log",
-    filemode="w", # overwrite log file on each run
+    filemode="w",  # overwrite log file on each run
 )
 
 # Console handler for user-facing logs

@@ -61,7 +61,7 @@ class GeminiHistoryConverter(HistoryConverter[types.Content, types.Content]):
         for part in candidate.content.parts:
             if part.function_call:
                 yield ContentPartToolCall(
-                    id=part.function_call.id or "tool-call",
+                    tool_id=part.function_call.id or "tool-call",
                     name=part.function_call.name,
                     arguments=part.function_call.args or {},
                 )

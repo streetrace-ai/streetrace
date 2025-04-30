@@ -67,7 +67,7 @@ class TestApplication(unittest.TestCase):
         )
 
     def test_clear_history_resets_history_using_build_context(self) -> None:
-        """Test that _clear_history resets the conversation history using build_context."""
+        """Test that clear_history resets the conversation history using build_context."""
         # Add some messages to the history
         self.app.conversation_history.add_message(
             role=Role.USER,
@@ -79,7 +79,7 @@ class TestApplication(unittest.TestCase):
         )
         assert len(self.app.conversation_history.conversation) == 2
 
-        # Configure mock build_context again for the call inside _clear_history
+        # Configure mock build_context again for the call inside clear_history
         # Use slightly different values to ensure the *new* context is used
         new_system = "New System Message After Clear"
         new_context = "New Project Context After Clear"
@@ -89,7 +89,7 @@ class TestApplication(unittest.TestCase):
         self.mock_prompt_processor.build_context.return_value = new_mock_context_obj
 
         # Call the method
-        result = self.app._clear_history()
+        result = self.app.clear_history()
 
         # Assert the result is True (continue)
         assert result
@@ -112,7 +112,7 @@ class TestApplication(unittest.TestCase):
         )
 
     def test_clear_history_handles_build_context_exception(self) -> None:
-        """Test _clear_history handles exceptions during build_context."""
+        """Test clear_history handles exceptions during build_context."""
         # Add some messages to the history (they should remain untouched)
         original_history = self.app.conversation_history
         original_history.add_message(
@@ -126,7 +126,7 @@ class TestApplication(unittest.TestCase):
 
         # Call the method
         with patch("logging.Logger.error") as mock_log_error:
-            result = self.app._clear_history()
+            result = self.app.clear_history()
 
             # Assert the result is True (continue even on error)
             assert result

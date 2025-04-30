@@ -7,6 +7,9 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from streetrace.llm.gemini.converter import GeminiHistoryConverter
 from streetrace.llm.gemini.impl import Gemini
 from streetrace.llm.wrapper import (
     ContentPartText,
@@ -29,12 +32,11 @@ class TestGeminiImpl(unittest.TestCase):
         self.mock_client = MagicMock()
         self.mock_genai.Client.return_value = self.mock_client
 
-        # Create the Gemini instance with mocked dependencies
-        self.gemini = Gemini()
-
         # Mock the adapter
-        self.mock_adapter = MagicMock()
-        self.gemini._adapter = self.mock_adapter
+        self.mock_adapter = MagicMock(spec=GeminiHistoryConverter)
+
+        # Create the Gemini instance with mocked dependencies
+        self.gemini = Gemini(self.mock_adapter)
 
         # Mock environment variable
         self.env_patcher = patch.dict(os.environ, {"GEMINI_API_KEY": "test-api-key"})
@@ -57,10 +59,14 @@ class TestGeminiImpl(unittest.TestCase):
     def test_initialize_client_missing_api_key(self):
         """Test client initialization fails without API key."""
         # Remove the API key from environment
-        with patch.dict(os.environ, {}, clear=True):
-            # Verify exception is raised
-            with self.assertRaises(ValueError):
-                self.gemini.initialize_client()
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            pytest.raises(
+                ValueError,
+                match="GEMINI_API_KEY environment variable not set.",
+            ),
+        ):
+            self.gemini.initialize_client()
 
     def test_transform_history(self):
         """Test transformation of history to Gemini format."""
@@ -135,13 +141,10 @@ class TestGeminiImpl(unittest.TestCase):
         ]
 
         # Test that the method doesn't raise exceptions
-        try:
-            result = original_transform(tools)
-            # Just verify it returns a list with one item
-            assert isinstance(result, list)
-            assert len(result) == 1
-        except Exception as e:
-            self.fail(f"transform_tools raised an unexpected exception: {e}")
+        result = original_transform(tools)
+        # Just verify it returns a list with one item
+        assert isinstance(result, list)
+        assert len(result) == 1
 
     def test_pretty_print(self):
         """Test the pretty print formatting of content."""

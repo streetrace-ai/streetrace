@@ -3,10 +3,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Removed unused imports:
-#   manage_conversation_history,
-#   transform_tools
-# Import the OpenAI class
 from streetrace.llm.openai.impl import OpenAI  # Import the class
 
 

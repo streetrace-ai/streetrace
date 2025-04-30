@@ -35,15 +35,15 @@ class ClearCommand(Command):
         logger.info("Executing clear command.")
         # Ensure the method exists before calling
         if not (
-            hasattr(app_instance, "_clear_history")
-            and callable(app_instance._clear_history)
+            hasattr(app_instance, "clear_history")
+            and callable(app_instance.clear_history)
         ):
-            logger.error("Application instance is missing the _clear_history method.")
+            logger.error("Application instance is missing the clear_history method.")
             # Continue execution, but log the error.
             return False  # Or potentially False if this is critical
 
         # Call the method and return its result
-        # Assuming _clear_history also returns a boolean indicating continuation.
-        should_continue = app_instance._clear_history()
+        # Assuming clear_history also returns a boolean indicating continuation.
+        should_continue = app_instance.clear_history()
         logger.info("Conversation history cleared.")
         return should_continue

@@ -28,7 +28,7 @@ from streetrace.ui.console_ui import ConsoleUI
 
 
 # Helper function to create RetriableError with wait_time logic
-def create_retriable_error(max_retries=None, base_wait_time=1):
+def _create_retriable_error(max_retries=None, base_wait_time=1):
     error = RetriableError("Simulated retriable error", max_retries=max_retries)
     # Simple exponential backoff for testing
     error.wait_time = lambda attempt: base_wait_time * (2 ** (attempt - 1))
@@ -142,7 +142,7 @@ class TestInteractionManager(unittest.TestCase):
         # Arrange
         max_retries = 2
         wait_times = [1, 2]  # 1 * (2**(1-1)), 1 * (2**(2-1))
-        retriable_error = create_retriable_error(
+        retriable_error = _create_retriable_error(
             max_retries=max_retries,
             base_wait_time=1,
         )
@@ -188,7 +188,7 @@ class TestInteractionManager(unittest.TestCase):
         # Arrange
         max_retries = 2
         wait_times = [1, 2]
-        retriable_error = create_retriable_error(
+        retriable_error = _create_retriable_error(
             max_retries=max_retries,
             base_wait_time=1,
         )
@@ -227,13 +227,13 @@ class TestInteractionManager(unittest.TestCase):
         """Test RetriableError uses _DEFAULT_MAX_RETRIES when max_retries is None."""
         # Arrange
         wait_times = [1, 2, 4]  # Assuming base_wait_time=1
-        retriable_error = create_retriable_error(
+        retriable_error = _create_retriable_error(
             max_retries=None,
             base_wait_time=1,
         )  # No max_retries specified
         num_attempts = _DEFAULT_MAX_RETRIES + 1
 
-        # Simulate: Error * (_DEFAULT_MAX_RETRIES + 1)
+        # Simulate: Error * (_DEFAULT_MAX_RETRIES + 1) # noqa: ERA001
         self.mock_provider.generate.side_effect = [retriable_error] * num_attempts
 
         # Act
@@ -273,12 +273,12 @@ class TestInteractionManager(unittest.TestCase):
             tool_result_content  # Mock the tool execution
         )
         tool_call = ContentPartToolCall(
-            id="tool1",
+            tool_id="tool1",
             name="get_weather",
             arguments={"location": "London"},
         )
         tool_result_part = ContentPartToolResult(
-            id="tool1",
+            tool_id="tool1",
             name="get_weather",
             content=tool_result_content,
         )
@@ -322,7 +322,7 @@ class TestInteractionManager(unittest.TestCase):
             tool_result_content  # Mock the tool execution
         )
         tool_call = ContentPartToolCall(
-            id="tool1",
+            tool_id="tool1",
             name="get_weather",
             arguments={"location": "London"},
         )
@@ -363,12 +363,12 @@ class TestInteractionManager(unittest.TestCase):
         )
         self.mock_tools.call_tool.return_value = tool_result_content
         tool_call = ContentPartToolCall(
-            id="tool1",
+            tool_id="tool1",
             name="get_weather",
             arguments={"location": "InvalidCity"},
         )
         tool_result_part = ContentPartToolResult(
-            id="tool1",
+            tool_id="tool1",
             name="get_weather",
             content=tool_result_content,
         )
@@ -405,14 +405,14 @@ class TestInteractionManager(unittest.TestCase):
         """Test that a tool call triggers another generate cycle."""
         # Arrange
         tool_call = ContentPartToolCall(
-            id="tool1",
+            tool_id="tool1",
             name="get_weather",
             arguments={"location": "London"},
         )
         tool_output = ToolOutput(type="text", content="Sunny")
         tool_result_content = ToolCallResult(success=True, output=tool_output)
         tool_result_part = ContentPartToolResult(
-            id="tool1",
+            tool_id="tool1",
             name="get_weather",
             content=tool_result_content,
         )
@@ -644,7 +644,7 @@ class TestInteractionManager(unittest.TestCase):
         # Arrange
         the_error = KeyboardInterrupt()
         tool_call = ContentPartToolCall(
-            id="tool1",
+            tool_id="tool1",
             name="long_running_tool",
             arguments={},
         )
@@ -701,7 +701,7 @@ class TestInteractionManager(unittest.TestCase):
         # Arrange
         error_message = "Fatal tool error!"
         the_error = ValueError(error_message)
-        tool_call = ContentPartToolCall(id="tool1", name="bad_tool", arguments={})
+        tool_call = ContentPartToolCall(tool_id="tool1", name="bad_tool", arguments={})
         # Simulate: Generate returns tool call -> tool call raises error
         self.mock_provider.generate.return_value = iter(
             [

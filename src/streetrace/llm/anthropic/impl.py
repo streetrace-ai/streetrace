@@ -17,14 +17,26 @@ from streetrace.llm.wrapper import ContentPart, History, Message
 ProviderHistory = list[anthropic.types.MessageParam]
 
 # Constants
-MAX_TOKENS = 200000  # Anthropic 3 Sonnet has a context window of approximately 200K tokens
+MAX_TOKENS = (
+    200000  # Anthropic 3 Sonnet has a context window of approximately 200K tokens
+)
 MODEL_NAME = "claude-3-7-sonnet-20250219"
 
 
 class Anthropic(LLMAPI):
     """Implementation of the LLMAPI interface for Anthropic's Anthropic models."""
 
-    _adapter = AnthropicHistoryConverter()
+    _adapter: AnthropicHistoryConverter = None
+
+    def __init__(self, adapter: AnthropicHistoryConverter | None = None) -> None:
+        """Initialize the Anthropic implementation.
+
+        Args:
+            adapter (AnthropicHistoryConverter, optional): Adapter for converting history. Defaults to None.
+
+        """
+        super().__init__()
+        self._adapter = adapter or AnthropicHistoryConverter()
 
     @override
     def initialize_client(self) -> anthropic.Anthropic:

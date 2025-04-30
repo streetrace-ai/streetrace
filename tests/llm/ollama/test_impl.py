@@ -7,6 +7,9 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+from streetrace.llm.ollama.converter import OllamaHistoryConverter
 from streetrace.llm.ollama.impl import MAX_TOKENS, MODEL_NAME, Ollama
 from streetrace.llm.wrapper import (
     ContentPartText,
@@ -29,16 +32,16 @@ class TestOllamaImpl(unittest.TestCase):
         self.mock_client = MagicMock()
         self.mock_ollama.Client.return_value = self.mock_client
 
-        # Create the Ollama instance with mocked dependencies
-        self.ollama = Ollama()
-
         # Mock the adapter
-        self.mock_adapter = MagicMock()
-        self.ollama._adapter = self.mock_adapter
+        self.mock_adapter = MagicMock(spec=OllamaHistoryConverter)
+
+        # Create the Ollama instance with mocked dependencies
+        self.ollama = Ollama(self.mock_adapter)
 
         # Set default environment variables
         self.env_patcher = patch.dict(
-            os.environ, {"OLLAMA_API_URL": "http://localhost:11434"},
+            os.environ,
+            {"OLLAMA_API_URL": "http://localhost:11434"},
         )
         self.env_patcher.start()
 
@@ -189,7 +192,8 @@ class TestOllamaImpl(unittest.TestCase):
 
         # Call method
         result = self.ollama.manage_conversation_history(
-            messages, max_tokens=MAX_TOKENS,
+            messages,
+            max_tokens=MAX_TOKENS,
         )
 
         # Verify no pruning occurred and result is True
@@ -207,16 +211,18 @@ class TestOllamaImpl(unittest.TestCase):
         long_content = "x" * (MAX_TOKENS * 4)  # Ensure it exceeds the token limit
 
         # Add to messages
-        for i in range(10):
-            messages.append({"role": "user", "content": f"{long_content} {i}"})
+        messages.extend(
+            [{"role": "user", "content": f"{long_content} {i}"} for i in range(10)],
+        )
 
         # Keep track of original message count
         original_count = len(messages)
 
         # Call method with logging patched to avoid actual logging
         with patch("streetrace.llm.ollama.impl.logging"):
-            result = self.ollama.manage_conversation_history(
-                messages, max_tokens=MAX_TOKENS,
+            self.ollama.manage_conversation_history(
+                messages,
+                max_tokens=MAX_TOKENS,
             )
 
         # Verify that pruning occurred
@@ -236,7 +242,8 @@ class TestOllamaImpl(unittest.TestCase):
 
             # Call method
             result = self.ollama.manage_conversation_history(
-                mock_messages, max_tokens=MAX_TOKENS,
+                mock_messages,
+                max_tokens=MAX_TOKENS,
             )
 
             # Verify that an exception was logged and method returned False
@@ -423,7 +430,7 @@ class TestOllamaImpl(unittest.TestCase):
 
         # Call generate method and expect an exception
         with patch("streetrace.llm.ollama.impl.logging") as mock_logging:
-            with self.assertRaises(Exception):
+            with pytest.raises(Exception, match="Persistent failure"):
                 list(
                     self.ollama.generate(
                         client=self.mock_client,
@@ -434,11 +441,11 @@ class TestOllamaImpl(unittest.TestCase):
                     ),
                 )
 
-                # Verify chat was called max_retries times (3)
-                assert self.mock_client.chat.call_count == 3
+            # Verify chat was called max_retries times (3)
+            assert self.mock_client.chat.call_count == 3
 
-                # Verify an exception was logged
-                mock_logging.exception.assert_called_once()
+            # Verify an exception was logged
+            mock_logging.exception.assert_called_once()
 
 
 if __name__ == "__main__":

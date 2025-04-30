@@ -57,7 +57,7 @@ class PromptProcessor:
         context.system_message = self._read_system_message()
         context.project_context = self._read_project_context()
         if raw_prompt:
-            context.mentioned_files = self._parse_and_load_mentions(
+            context.mentioned_files = self.parse_and_load_mentions(
                 raw_prompt,
                 working_dir,
             )
@@ -138,7 +138,7 @@ class PromptProcessor:
         )
         return combined_context
 
-    def _parse_and_load_mentions(
+    def parse_and_load_mentions(
         self,
         prompt: str,
         working_dir: str,

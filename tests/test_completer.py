@@ -1,4 +1,3 @@
-import os
 import unittest
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -10,14 +9,6 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import to_plain_text
 
 from streetrace.completer import CommandCompleter, PathCompleter, PromptCompleter
-
-# Store original os functions
-original_os_path_abspath = os.path.abspath
-original_os_path_join = os.path.join
-original_os_path_normpath = os.path.normpath
-original_os_path_relpath = os.path.relpath
-original_os_path_isdir = os.path.isdir
-original_os_listdir = os.listdir
 
 
 # Helper function to simplify getting completion texts
