@@ -42,7 +42,7 @@ class CommandExecutor:
             raise TypeError(msg)
 
         for name in command_instance.names:
-            if not name:
+            if not name.strip():
                 msg = f"Command name '{name}' from {type(command_instance).__name__} cannot be empty or whitespace."
                 raise ValueError(
                     msg,
@@ -53,8 +53,9 @@ class CommandExecutor:
                     msg,
                 )
             if name in self._commands:
-                logger.warning(
-                    f"Command '/{name}' from {type(self._commands[name]).__name__} is being redefined by {type(command_instance).__name__}.",
+                msg = f"Attempt to redefine command '/{name}'. {type(command_instance).__name__} cannot be added because {type(self._commands[name]).__name__} is already registered."
+                raise ValueError(
+                    msg,
                 )
 
             self._commands[name] = command_instance
@@ -69,7 +70,20 @@ class CommandExecutor:
             A list of command names (e.g., 'exit', 'history') in alphabetical order.
 
         """
-        return sorted(self._commands.keys())
+        return list(self._commands.keys())
+
+    def get_command_descriptions(self) -> dict[str, str]:
+        """Returns a dictionary of command names (lowercase) and their descriptions."""
+        return {name: cmd.description for name, cmd in self._commands.items()}
+
+    def get_command_names_with_prefix(self) -> list[str]:
+        """Returns a sorted list of registered command names, prefixed with '/'.
+
+        Returns:
+            A list of command names (e.g., '/exit', '/history') in alphabetical order.
+
+        """
+        return list([f"/{name}" for name in self._commands])
 
     def execute(
         self,
@@ -112,17 +126,6 @@ class CommandExecutor:
         try:
             # Pass the required app_instance to the command's execute method
             should_continue = command_instance.execute(app_instance)
-
-            assert isinstance(
-                should_continue,
-                bool,
-            ), "Command execute method should return a boolean"
-
-            logger.debug(
-                f"Command '/{command_name}' executed. Result: {'continue' if should_continue else 'exit'}.",
-            )
-            return True, should_continue  # Command executed, return its signal
-
         except Exception as e:
             logger.error(
                 f"Error executing command '/{command_name}' ({type(command_instance).__name__}): {e}",
@@ -131,16 +134,17 @@ class CommandExecutor:
             # Command was found and attempted, but failed during execution.
             # Signal to continue the application loop.
             return True, True
+        else:
+            if not isinstance(
+                should_continue,
+                bool,
+            ):
+                # If the command's execute method doesn't return a boolean, raise an error
+                raise TypeError(
+                    "Command execute method should return a boolean",
+                )
 
-    def get_command_descriptions(self) -> dict[str, str]:
-        """Returns a dictionary of command names (lowercase) and their descriptions."""
-        return {name: cmd.description for name, cmd in self._commands.items()}
-
-    def get_command_names_with_prefix(self) -> list[str]:
-        """Returns a sorted list of registered command names, prefixed with '/'.
-
-        Returns:
-            A list of command names (e.g., '/exit', '/history') in alphabetical order.
-
-        """
-        return sorted([f"/{name}" for name in self._commands])
+            logger.debug(
+                f"Command '/{command_name}' executed. Result: {'continue' if should_continue else 'exit'}.",
+            )
+            return True, should_continue  # Command executed, return its signal

@@ -3,6 +3,7 @@
 
 import sys
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 # Import main, which should now be able to import other modules
@@ -25,9 +26,8 @@ class TestPromptParameter(unittest.TestCase):
     """Test cases for the --prompt parameter in main.py."""
 
     @patch("streetrace.main.get_ai_provider")  # Patch the factory function
-    @patch("streetrace.main.os.path.isdir")  # Mock path checks
-    @patch("streetrace.main.os.chdir")  # Mock chdir
-    @patch("streetrace.main.os.getcwd")  # Mock getcwd
+    @patch("pathlib.Path.is_dir")  # Mock path checks
+    @patch("pathlib.Path.cwd")  # Mock getcwd
     @patch("streetrace.main.ConsoleUI")  # Mock UI
     @patch("streetrace.main.CommandExecutor")  # Mock Executor
     @patch("streetrace.main.PromptProcessor")  # Mock Processor
@@ -47,7 +47,6 @@ class TestPromptParameter(unittest.TestCase):
         MockCommandExecutor,
         MockConsoleUI,
         mock_getcwd,
-        mock_chdir,
         mock_isdir,
         mock_get_ai_provider,
     ) -> None:
@@ -63,7 +62,7 @@ class TestPromptParameter(unittest.TestCase):
         mock_parse_args.return_value = mock_args
 
         mock_isdir.return_value = True  # Assume path is valid
-        mock_getcwd.return_value = "/fake/cwd"
+        mock_getcwd.return_value = Path("/fake/cwd")
         mock_get_ai_provider.return_value = MagicMock()  # Return a dummy provider
 
         # Mock the Application instance and its run method
@@ -88,9 +87,8 @@ class TestPromptParameter(unittest.TestCase):
         # mock_ui_instance.display_info.assert_any_call("Running with provided prompt...")
 
     @patch("streetrace.main.get_ai_provider")  # Patch the factory function
-    @patch("streetrace.main.os.path.isdir")  # Mock path checks
-    @patch("streetrace.main.os.chdir")  # Mock chdir
-    @patch("streetrace.main.os.getcwd")  # Mock getcwd
+    @patch("pathlib.Path.cwd")  # Mock getcwd
+    @patch("pathlib.Path.is_dir")  # Mock getcwd
     @patch("streetrace.main.ConsoleUI")  # Mock UI
     @patch("streetrace.main.CommandExecutor")  # Mock Executor
     @patch("streetrace.main.PromptProcessor")  # Mock Processor
@@ -109,9 +107,8 @@ class TestPromptParameter(unittest.TestCase):
         MockPromptProcessor,
         MockCommandExecutor,
         MockConsoleUI,
-        mock_getcwd,
-        mock_chdir,
-        mock_isdir,
+        mock_is_dir,
+        mock_cwd,
         mock_get_ai_provider,
     ) -> None:
         """Test that the script runs in interactive mode without --prompt parameter."""
@@ -124,8 +121,8 @@ class TestPromptParameter(unittest.TestCase):
         mock_args.model = None
         mock_parse_args.return_value = mock_args
 
-        mock_isdir.return_value = True
-        mock_getcwd.return_value = "/fake/cwd"
+        mock_is_dir.return_value = True
+        mock_cwd.return_value = Path("/fake/cwd")
         mock_get_ai_provider.return_value = MagicMock()  # Return a dummy provider
 
         # Mock the Application instance and its run method

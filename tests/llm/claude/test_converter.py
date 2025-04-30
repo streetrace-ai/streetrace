@@ -41,7 +41,8 @@ class TestAnthropicHistoryConverter(unittest.TestCase):
 
         # Add a model response
         history.add_message(
-            Role.MODEL, [ContentPartText(text="I'm doing well, thank you for asking!")],
+            Role.MODEL,
+            [ContentPartText(text="I'm doing well, thank you for asking!")],
         )
 
         # Convert to provider history

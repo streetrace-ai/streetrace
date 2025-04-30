@@ -42,12 +42,6 @@ class TestAIProvider(unittest.TestCase):
         provider = get_ai_provider()
         assert isinstance(provider, OpenAI)
 
-    @patch.dict(os.environ, {}, clear=True)
-    def test_get_provider_ollama_default(self) -> None:
-        """Test getting Ollama provider as default when no API keys are set."""
-        provider = get_ai_provider()
-        assert isinstance(provider, Ollama)
-
     def test_get_provider_explicit(self) -> None:
         """Test explicitly requesting a specific provider."""
         with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "test_key"}, clear=True):

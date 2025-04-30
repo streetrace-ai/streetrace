@@ -189,10 +189,12 @@ class Ollama(LLMAPI):
                 )
 
                 if isinstance(response, ollama.ChatResponse):
-                    return self._adapter.get_response_parts(response)
+                    yield from self._adapter.get_response_parts(response)
                 else:
                     for message in response:
                         yield from self._adapter.get_response_parts(message)
+
+                break  # Exit loop if successful
 
             except Exception as e:
                 retry_count += 1

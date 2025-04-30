@@ -65,7 +65,7 @@ class TestClaudeImpl(unittest.TestCase):
         """Test client initialization fails without API key."""
         # Remove the API key from environment
         with patch.dict(os.environ, {}, clear=True), pytest.raises(ValueError):
-                self.claude.initialize_client()
+            self.claude.initialize_client()
 
     def test_transform_history(self):
         """Test transformation of history to Claude format."""
@@ -199,7 +199,8 @@ class TestClaudeImpl(unittest.TestCase):
 
             # Call method with a small token limit
             result = self.claude.manage_conversation_history(
-                messages, max_tokens=100000,
+                messages,
+                max_tokens=100000,
             )
 
             # Verify pruning occurred and result is True

@@ -1,5 +1,7 @@
 # app/interaction_manager.py
-"""Manage stateful interaction with LLM APIs and tool execution.
+"""ReAct Agent implementation.
+
+See https://arxiv.org/abs/2210.03629.
 
 This module contains the InteractionManager class and auxiliary data classes to manage the stateful,
 reliable interaction with LLM APIs and tool execution in a conversational state machine.

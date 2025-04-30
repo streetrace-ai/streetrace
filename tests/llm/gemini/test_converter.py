@@ -63,7 +63,8 @@ class TestGeminiHistoryConverter(unittest.TestCase):
 
         # Add a model response
         history.add_message(
-            Role.MODEL, [ContentPartText(text="I'm doing well, thank you for asking!")],
+            Role.MODEL,
+            [ContentPartText(text="I'm doing well, thank you for asking!")],
         )
 
         # Set up the mock to return specific messages for each role
@@ -127,7 +128,9 @@ class TestGeminiHistoryConverter(unittest.TestCase):
                 elif isinstance(item, ContentPartToolCall):
                     mock_parts.append(
                         MagicMock(
-                            function_call=MagicMock(name=item.name, args=item.arguments),
+                            function_call=MagicMock(
+                                name=item.name, args=item.arguments,
+                            ),
                         ),
                     )
                 elif isinstance(item, ContentPartToolResult):
@@ -232,7 +235,8 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         # Test with SYSTEM role - should produce no messages
         system_result = list(
             self.converter.create_history_messages(
-                Role.SYSTEM, [ContentPartText(text="You are a helpful assistant")],
+                Role.SYSTEM,
+                [ContentPartText(text="You are a helpful assistant")],
             ),
         )
         assert len(system_result) == 0
@@ -240,7 +244,8 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         # Test with CONTEXT role - should convert to USER role
         context_result = list(
             self.converter.create_history_messages(
-                Role.CONTEXT, [ContentPartText(text="Some context information")],
+                Role.CONTEXT,
+                [ContentPartText(text="Some context information")],
             ),
         )
         assert len(context_result) == 1
@@ -250,7 +255,8 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         # Test with USER role and text
         user_result = list(
             self.converter.create_history_messages(
-                Role.USER, [ContentPartText(text="Hello, how are you?")],
+                Role.USER,
+                [ContentPartText(text="Hello, how are you?")],
             ),
         )
         assert len(user_result) == 1

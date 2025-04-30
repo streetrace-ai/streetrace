@@ -59,7 +59,10 @@ def create_tool_use_message(role: str, name: str, input_args: dict) -> MessagePa
 
 
 def create_tool_result_message(
-    role: str, tool_use_id: str, result_content: str, is_error: bool = False,
+    role: str,
+    tool_use_id: str,
+    result_content: str,
+    is_error: bool = False,
 ) -> MessageParam:
     """Create a Claude message with a tool result.
 
@@ -86,7 +89,10 @@ def create_tool_result_message(
 
 
 def create_mixed_message(
-    role: str, text: str, tool_name: str, input_args: dict,
+    role: str,
+    text: str,
+    tool_name: str,
+    input_args: dict,
 ) -> MessageParam:
     """Create a Claude message with both text and tool use.
 
