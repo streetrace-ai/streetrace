@@ -14,6 +14,7 @@ TARGET_LOGGER_NAME = "streetrace.commands.command_executor"
 _TEST_CMD_NAME = "testcmd"
 _TEST_CMD_DESC = "A simple test command."
 
+
 # Mock Application class for type hinting
 class Application:
     def clear_history(self) -> bool:

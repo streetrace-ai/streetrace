@@ -178,7 +178,9 @@ def main() -> None:
 
     # Initialize and Run Application
     app = Application(
-        app_config=ApplicationConfig(working_dir=abs_working_dir, non_interactive_prompt=args.prompt),
+        app_config=ApplicationConfig(
+            working_dir=abs_working_dir, non_interactive_prompt=args.prompt,
+        ),
         ui=ui,
         cmd_executor=cmd_executor,
         prompt_processor=prompt_processor,

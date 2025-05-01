@@ -1,5 +1,4 @@
 # tests/test_application.py
-import argparse
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch

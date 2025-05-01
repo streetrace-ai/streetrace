@@ -31,11 +31,13 @@ _MAX_MENTION_CONTENT_LENGTH = 20000
 _MAX_CONTEXT_PREVIEW_LENGTH = 200
 """Maximum length for context preview."""
 
+
 class ApplicationConfig(BaseModel):
     """Configuration for the Application class."""
 
     working_dir: Path
     non_interactive_prompt: str | None = None
+
 
 class Application:
     """Orchestrates the StreetRace application flow.
