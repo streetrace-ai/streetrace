@@ -20,7 +20,6 @@ from streetrace.commands.definitions import (
 # Completer imports
 from streetrace.completer import CommandCompleter, PathCompleter, PromptCompleter
 from streetrace.interaction_manager import InteractionManager
-from streetrace.llm.llmapi_factory import get_ai_provider
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 from streetrace.tools.tools import ToolCall
@@ -147,39 +146,22 @@ def main() -> None:
 
     # Determine Model and Provider
     model_name = args.model.strip().lower() if args.model else None
-    provider_name = args.provider.strip().lower() if args.provider else None
-
-    # Initialize AI Provider
-    try:
-        provider = get_ai_provider(provider_name)
-        ui.display_info(
-            f"Using provider: {type(provider).__name__.replace('Provider', '')}",
-        )
-        if model_name:
-            ui.display_info(f"Using model: {model_name}")
-        else:
-            ui.display_info("Using default model for the provider.")
-    except Exception as e:
-        msg = f"Could not initialize AI provider: {e}"
-        ui.display_error(msg)
-        logger.exception(msg)
-        sys.exit(1)
 
     # Tool Calling Setup
     tools = ToolCall(TOOLS, TOOL_IMPL, abs_working_dir)
 
     # Initialize Interaction Manager
     interaction_manager = InteractionManager(
-        provider=provider,
-        model_name=model_name,
-        tools=tools,
         ui=ui,
     )
 
     # Initialize and Run Application
     app = Application(
         app_config=ApplicationConfig(
-            working_dir=abs_working_dir, non_interactive_prompt=args.prompt,
+            working_dir=abs_working_dir,
+            non_interactive_prompt=args.prompt,
+            initial_model=model_name,
+            tools=tools,
         ),
         ui=ui,
         cmd_executor=cmd_executor,

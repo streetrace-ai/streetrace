@@ -22,6 +22,7 @@ from streetrace.llm.wrapper import (
     Role,
 )
 from streetrace.prompt_processor import PromptContext, PromptProcessor
+from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,8 @@ class ApplicationConfig(BaseModel):
 
     working_dir: Path
     non_interactive_prompt: str | None = None
+    initial_model: str | None = None
+    tools: ToolCall
 
 
 class Application:
@@ -140,7 +143,9 @@ class Application:
             )
 
             # Process with InteractionManager
-            self.interaction_manager.process_prompt(single_prompt_history)
+            self.interaction_manager.process_prompt(
+                self.config.initial_model, single_prompt_history, self.config.tools,
+            )
             logger.info("Non-interactive mode finished.")
 
     def _run_interactive(self) -> None:
@@ -172,7 +177,7 @@ class Application:
         while True:
             try:
                 user_input = self.ui.prompt()
-                if user_input == "/__reprompt":
+                if user_input.strip() == "/__reprompt":
                     continue
 
                 command_executed, should_continue = self.cmd_executor.execute(
@@ -229,7 +234,11 @@ class Application:
                     )
 
                 # Process with InteractionManager using the persistent history
-                self.interaction_manager.process_prompt(self.conversation_history)
+                self.interaction_manager.process_prompt(
+                    self.config.initial_model,
+                    self.conversation_history,
+                    self.config.tools,
+                )
 
             except EOFError:
                 self.ui.display_info("\nExiting.")

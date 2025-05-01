@@ -4,6 +4,7 @@ from dataclasses import field
 from enum import Enum
 from typing import Any, Optional, TypeVar
 
+from litellm import Message
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -190,19 +191,12 @@ class Role(Enum):
     TOOL = "tool"
 
 
-class Message(BaseModel):
-    """Model for a message in a conversation."""
-
-    role: Role
-    content: list[ContentPart]
-
-
 class History(BaseModel):
     """Model for the conversation history."""
 
     system_message: str | None = None
     context: str | None = None
-    conversation: list[Message] = field(default_factory=list)
+    messages: list[Message] = field(default_factory=list)
 
     def add_message(self, role: Role, content: list[ContentPart]) -> Message | None:
         """Add a message to the conversation history.

@@ -68,35 +68,32 @@ community tools and other libraries. This is a long term goal, but I think it's 
 
 import logging
 import time
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
-from streetrace.llm.llmapi import LLMAPI, RetriableError
+from litellm import Message, Usage, completion
+
 from streetrace.llm.wrapper import (
-    ContentPart,
-    ContentPartFinishReason,
-    ContentPartText,
-    ContentPartToolCall,
-    ContentPartToolResult,
-    ContentPartUsage,
     History,
-    Message,
     Role,
     ToolCallResult,
 )
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
 
+if TYPE_CHECKING:
+    from litellm import ModelResponse
+
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MAX_RETRIES = 3
 _EMPTY_RESPONSE_MAX_RETRIES = 3  # Specific retry limit for empty responses
 _EMPTY_RESPONSE_WAIT_SEC = 10  # Wait time for empty response retry
+_EXPONENTIAL_BACKOFF_RETRY_STRATEGY = "exponential_backoff_retry"
 
 
-class InteractionState(Enum):
+class _InteractionState(Enum):
     """Define states of the interaction manager's state machine loop.
 
     Helps control conversational and tool execution flow.
@@ -108,7 +105,6 @@ class InteractionState(Enum):
     EXECUTING_TOOLS = auto()
     PROCESSING_TOOL_RESULTS = auto()
     UPDATING_HISTORY = auto()
-    HANDLING_API_RETRY = auto()
     HANDLING_EMPTY_RETRY = auto()
     FINISHED = auto()
     FAILED = auto()
@@ -116,46 +112,42 @@ class InteractionState(Enum):
 
 
 @dataclass
-class TurnData:
+class _TurnData:
     """Store transient data for a single turn within the interaction loop.
 
     Tracks all received/generated content and tool info for that turn.
     """
 
-    assistant_text_parts: list[str] = field(default_factory=list)  # Text chunks
-    buffered_tool_calls: list[ContentPartToolCall] = field(
-        default_factory=list,
-    )  # Tools from LLM
-    turn_finish_reason: str | None = None
-    prompt_tokens: int = 0
-    response_tokens: int = 0
-    generation_exception: Exception | None = None  # Generation phase error
-
-    executed_tool_calls: list[ContentPartToolCall] = field(
-        default_factory=list,
-    )  # Actually executed tools
-    executed_tool_results: list[ContentPartToolResult] = field(
+    assistant_messages: list[Message] = field(default_factory=list)  # Messages from LLM
+    tool_results: list[Message] = field(
         default_factory=list,
     )  # Their results
+    turn_finish_reason: str | None = None
+    usage: Usage | None = None  # Token usage from LLM
+    generation_exception: Exception | None = None  # Generation phase error
 
     def has_buffered_tools(self) -> bool:
         """Check if there are unprocessed (buffered) tool calls."""
-        return bool(self.buffered_tool_calls)
+        return any(bool(m.tool_calls) for m in self.assistant_messages)
 
     def has_executed_tools(self) -> bool:
         """Check if any tools were executed in this turn."""
-        return bool(self.executed_tool_results)
+        return bool(self.tool_results)
 
     def has_text_content(self) -> bool:
         """Check if any assistant text was collected from the LLM for this turn."""
-        return bool(self.assistant_text_parts)
+        return any(bool(m.content) for m in self.assistant_messages)
 
     def has_any_content(self) -> bool:
         """Check if the turn produced any assistant text or buffered tool calls.
 
         Executed tool calls may be cleared on error and should not be checked alone for this.
         """
-        return self.has_text_content() or self.has_buffered_tools()
+        return (
+            self.has_text_content()
+            or self.has_buffered_tools()
+            or self.turn_finish_reason
+        )
 
     def reset(self) -> None:
         """Reset the main turn content for a new turn or retry, leaving exceptions for inspection."""
@@ -170,33 +162,48 @@ class TurnData:
 
 
 @dataclass
-class ConversationData:
+class _ConversationData:
     """Track summary state and counters for a full conversation loop execution.
 
-    The TurnData is held as .turn and reset in each STARTING_TURN phase.
+    The _TurnData is held as .turn and reset in each STARTING_TURN phase.
     """
 
-    state: InteractionState = InteractionState.STARTING_TURN
-    turn: TurnData = field(default_factory=TurnData)
-    total_input_tokens: int = 0
-    total_output_tokens: int = 0
+    state: _InteractionState = _InteractionState.STARTING_TURN
+    turn: _TurnData = field(default_factory=_TurnData)
+    usage: list[Usage] = field(default_factory=list)  # List of usage objects
     total_requests: int = 0  # Incremented before each LLM API call attempt
     final_reason: str | None = None
     api_retry_count: int = 0
     empty_response_retry_count: int = 0
 
+    def add_usage(self, usage: Usage | None) -> None:
+        """Add a usage object to the conversation's token usage."""
+        if usage:
+            usage.append(usage)
+
+    @property
+    def total_input_tokens(self) -> int:
+        """Total input tokens for the conversation."""
+        return sum(u.prompt_tokens for u in self.usage if u.prompt_tokens is not None)
+
+    @property
+    def total_output_tokens(self) -> int:
+        """Total output tokens for the conversation."""
+        return sum(
+            u.response_tokens for u in self.usage if u.response_tokens is not None
+        )
+
 
 @dataclass
-class GenerationOutcome:
+class _GenerationOutcome:
     """Result (success/failure and error status) for _call_llm_api method."""
 
     success: bool = False
-    is_retriable: bool = False
     error: Exception | None = None
 
 
 @dataclass
-class ToolExecutionOutcome:
+class _ToolExecutionOutcome:
     """Result (success/failure and error info) for _execute_tools method."""
 
     success: bool = True
@@ -238,9 +245,6 @@ class InteractionManager:
 
     def __init__(
         self,
-        provider: LLMAPI,
-        model_name: str | None,
-        tools: ToolCall,
         ui: ConsoleUI,
         sleeper: Callable[[int | float], None] = time.sleep,
     ) -> None:
@@ -254,15 +258,8 @@ class InteractionManager:
             sleeper: Function used for sleeping between retries (overridable for tests)
 
         """
-        self.provider = provider
-        self.model_name = model_name
-        self.tools = tools
         self.ui = ui
         self.sleeper = sleeper
-        logger.info(
-            "InteractionManager initialized for provider: %s",
-            type(provider).__name__,
-        )
 
     def _raise_mismatch_error(self, msg: str) -> NoReturn:
         """Raise a runtime error for mismatched tool calls and results."""
@@ -276,101 +273,94 @@ class InteractionManager:
 
     def _call_llm_api(
         self,
-        client: Any,  # noqa: ANN401 Provider-specific client types vary, must use Any
-        system_message: str,
-        provider_history: list[Any],
-        provider_tools: list[Any],
-        turn: TurnData,
-    ) -> GenerationOutcome:
-        """Call the LLM API, process the stream, and update TurnData.
+        model: str,
+        history: History,
+        tools: ToolCall,
+        conv: _ConversationData,
+    ) -> _GenerationOutcome:
+        """Call the LLM API, process the stream, and update _TurnData.
 
         Args:
-            client: The initialized LLM client.
-            system_message: The system message to be included in the prompt.
-            provider_history: The history formatted for the specific provider.
-            provider_tools: The tools formatted for the specific provider.
-            turn: The TurnData object to populate. Reset before calling.
+            model: The model name.
+            history: The conversation history.
+            tools: The tools.
+            conv: The state of this conversation session. Reset conv.turn before calling.
 
         Returns:
-            GenerationOutcome indicating success, retriable error, or fatal error.
+            _GenerationOutcome indicating success or error.
 
         """
         try:
             logger.debug("Calling LLM API...")
-            stream: Iterable[ContentPart] = self.provider.generate(
-                client,
-                self.model_name,
-                system_message,
-                provider_history,
-                provider_tools,
+            model_response: ModelResponse = completion(
+                model=model,
+                messages=[m.to_dict() for m in history.messages],
+                stream=False,
+                tools=tools.tools,
+                system_message=history.system_message,
+                num_retries=2,
+                retry_strategy=_EXPONENTIAL_BACKOFF_RETRY_STRATEGY,
             )
-            for chunk in stream:
-                match chunk:
-                    case ContentPartText():
-                        self.ui.display_ai_response_chunk(chunk.text)
-                        turn.assistant_text_parts.append(chunk.text)
-                    case ContentPartToolCall():
-                        turn.buffered_tool_calls.append(chunk)
-                    case ContentPartFinishReason():
-                        turn.turn_finish_reason = chunk.finish_reason
-                        logger.debug("Received finish reason: %s", chunk.finish_reason)
-                    case ContentPartUsage():
-                        turn.prompt_tokens += chunk.prompt_tokens
-                        turn.response_tokens += chunk.response_tokens
-                    case _:
-                        logger.warning("Unhandled content part type: %s", type(chunk))
+
+            message: Message = model_response.choices[0].message
+
+            if message.content:
+                self.ui.display_ai_response_chunk(message.content)
+
+            if hasattr(model_response, "usage"):
+                conv.add_usage(model_response.usage)
+
+            if hasattr(model_response.choices[0], "finish_reason"):
+                conv.turn.turn_finish_reason = model_response.choices[0].finish_reason
+                logger.debug("Received finish reason: %s", conv.turn.turn_finish_reason)
+
+            conv.turn.assistant_messages.append(message)
+
             logger.debug("LLM API call finished.")
-            return GenerationOutcome(success=True)
-        except RetriableError as retry_err:
-            logger.warning(
-                "Retriable error during generation: %s",
-                retry_err,
-                exc_info=False,
-            )
-            turn.generation_exception = retry_err
-            return GenerationOutcome(success=False, is_retriable=True, error=retry_err)
+            return _GenerationOutcome(success=True)
         except Exception as e:
             logger.exception("Non-retriable error during generation")
-            turn.generation_exception = e
-            return GenerationOutcome(success=False, is_retriable=False, error=e)
+            conv.turn.generation_exception = e
+            return _GenerationOutcome(success=False, error=e)
 
-    def _execute_tools(self, turn: TurnData) -> ToolExecutionOutcome:
+    def _execute_tools(self, turn: _TurnData) -> _ToolExecutionOutcome:
         """Execute all tool calls currently buffered. Updates execution lists/results."""
         logger.debug("Executing %d tool calls...", len(turn.buffered_tool_calls))
         turn.executed_tool_calls = []
         turn.executed_tool_results = []
         if not turn.buffered_tool_calls:
-            return ToolExecutionOutcome(success=True)
+            return _ToolExecutionOutcome(success=True)
         try:
             for tool_call in turn.buffered_tool_calls:
                 self.ui.display_tool_call(tool_call)
                 logger.info(
                     "Tool call: %s with args: %s",
-                    tool_call.name,
-                    tool_call.arguments,
+                    tool_call.function.name,
+                    tool_call.function.arguments,
                 )
                 tool_result: ToolCallResult = self.tools.call_tool(tool_call)
-                tool_result_part = ContentPartToolResult(
-                    tool_id=tool_call.tool_id,
-                    name=tool_call.name,
-                    content=tool_result,
-                )
                 if tool_result.success:
-                    self.ui.display_tool_result(tool_result_part)
+                    self.ui.display_tool_result(tool_result)
                     logger.info(
                         "Tool '%s' result: %s",
                         tool_call.name,
                         tool_result.output.content,
                     )
                 else:
-                    self.ui.display_tool_error(tool_result_part)
+                    self.ui.display_tool_error(tool_result)
                     logger.error(
                         "Tool '%s' error: %s",
                         tool_call.name,
                         tool_result.output.content,
                     )
+                tool_result_message = Message(
+                    role=Role.TOOL.value,
+                    tool_call_id=tool_call.id,
+                    name=tool_call.function.name,
+                    content=tool_result.model_dump_json(exclude_none=True),
+                )
                 turn.executed_tool_calls.append(tool_call)
-                turn.executed_tool_results.append(tool_result_part)
+                turn.executed_tool_results.append(tool_result_message)
 
             # Check tool calls and results match
             if len(turn.executed_tool_calls) != len(turn.executed_tool_results):
@@ -379,54 +369,35 @@ class InteractionManager:
                 )
 
             logger.debug("Tool execution finished.")
-            return ToolExecutionOutcome(success=True)
+            return _ToolExecutionOutcome(success=True)
         except Exception as e:
-            logger.exception("Error during tool execution phase")
+            logger.exception("Error during tool execution")
             turn.executed_tool_calls = []
             turn.executed_tool_results = []
-            return ToolExecutionOutcome(success=False, error=e)
+            return _ToolExecutionOutcome(success=False, error=e)
 
     def _update_histories(
         self,
         history: History,
-        provider_history: list[Any],
-        turn: TurnData,
-    ) -> list[Message]:
-        """Update the user-facing and provider-facing chat histories after each turn.
+        turn: _TurnData,
+    ) -> None:
+        """Update chat history after each turn.
 
         Appends generated text/tool-calls, tool results as messages, and
         synchronizes with provider's internal format.
 
-        Returns:
-            List of messages added to logical history in this turn.
-
         """
-        new_messages: list[Message] = []
-        assistant_content: list[ContentPart] = []
-        if turn.has_text_content():
-            assistant_content.append(
-                ContentPartText(text="".join(turn.assistant_text_parts)),
-            )
-        assistant_content.extend(turn.executed_tool_calls)
-        if assistant_content:
-            model_message = history.add_message(Role.MODEL, assistant_content)
-            if model_message:
-                new_messages.append(model_message)
-        if turn.has_executed_tools():
-            tool_message = history.add_message(Role.TOOL, turn.executed_tool_results)
-            if tool_message:
-                new_messages.append(tool_message)
-        if new_messages:
-            self.provider.append_history(provider_history, new_messages)
-            logger.debug("Appended %d messages to histories.", len(new_messages))
-        return new_messages
+        history.messages.extend(turn.assistant_messages)
+        history.messages.extend(turn.executed_tool_results)
 
     # The process_prompt method is deliberately complex as it implements a complete
     # state machine with multiple pathways. Refactoring attempts have been made but didn't
     # show better readability.
     def process_prompt(  # noqa: C901, PLR0912, PLR0915 See note above
         self,
+        model: str,
         history: History,
+        tools: ToolCall,
     ) -> ThinkingResult:
         """Run a chat prompt through the full state machine loop.
 
@@ -434,45 +405,39 @@ class InteractionManager:
         both visible user and provider history.
         Returns a ThinkingResult giving the final status.
         """
-        client = self.provider.initialize_client()
-        provider_history = self.provider.transform_history(history)
-        provider_tools = self.provider.transform_tools(self.tools.tools)
-        conv = ConversationData()
+        conv = _ConversationData()
         with self.ui.status("Working...") as status:
             while conv.state not in (
-                InteractionState.FINISHED,
-                InteractionState.FAILED,
-                InteractionState.INTERRUPTED,
+                _InteractionState.FINISHED,
+                _InteractionState.FAILED,
+                _InteractionState.INTERRUPTED,
             ):
                 try:
                     logger.debug("Current state: %s", conv.state.name)
-                    if conv.state == InteractionState.STARTING_TURN:
+                    if conv.state == _InteractionState.STARTING_TURN:
                         conv.turn.reset()
-                        conv.state = InteractionState.GENERATING
-                    elif conv.state == InteractionState.GENERATING:
+                        conv.state = _InteractionState.GENERATING
+                    elif conv.state == _InteractionState.GENERATING:
                         conv.total_requests += 1
                         logger.info(
                             "Starting request %d with %d history items.",
                             conv.total_requests,
-                            len(provider_history),
+                            len(history.messages),
                         )
                         logger.debug(
-                            "Provider history for generation:\\n%s",
-                            provider_history,
+                            "Provider history for generation:",
+                            extra=history.messages,
                         )
                         logger.debug("System Message: %s", history.system_message)
                         status.update(
                             f"Working, io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
                         )
                         outcome = self._call_llm_api(
-                            client,
-                            history.system_message,
-                            provider_history,
-                            provider_tools,
+                            model,
+                            history,
+                            tools,
                             conv.turn,
                         )
-                        conv.total_input_tokens += conv.turn.prompt_tokens
-                        conv.total_output_tokens += conv.turn.response_tokens
                         if conv.total_input_tokens > 0 or conv.total_output_tokens > 0:
                             status.update(
                                 f"Working, io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
@@ -482,91 +447,58 @@ class InteractionManager:
                                 f"Working, total requests: {conv.total_requests}...",
                             )
                         if outcome.success:
-                            conv.state = InteractionState.PROCESSING_GENERATION_RESULT
+                            conv.state = _InteractionState.PROCESSING_GENERATION_RESULT
                             conv.api_retry_count = 0
-                        elif outcome.is_retriable:
-                            conv.state = InteractionState.HANDLING_API_RETRY
                         else:
                             conv.final_reason = (
                                 str(outcome.error) or type(outcome.error).__name__
                             )
                             conv.state = (
-                                InteractionState.INTERRUPTED
+                                _InteractionState.INTERRUPTED
                                 if isinstance(outcome.error, KeyboardInterrupt)
-                                else InteractionState.FAILED
+                                else _InteractionState.FAILED
                             )
-                    elif conv.state == InteractionState.PROCESSING_GENERATION_RESULT:
+                    elif conv.state == _InteractionState.PROCESSING_GENERATION_RESULT:
                         if conv.turn.has_buffered_tools():
-                            conv.state = InteractionState.EXECUTING_TOOLS
-                        elif (
-                            conv.turn.has_any_content() or conv.turn.turn_finish_reason
-                        ):
-                            conv.state = InteractionState.UPDATING_HISTORY
+                            conv.state = _InteractionState.EXECUTING_TOOLS
+                        elif conv.turn.has_any_content():
+                            conv.state = _InteractionState.UPDATING_HISTORY
                             conv.empty_response_retry_count = 0
                         else:
-                            conv.state = InteractionState.HANDLING_EMPTY_RETRY
-                    elif conv.state == InteractionState.EXECUTING_TOOLS:
+                            conv.state = _InteractionState.HANDLING_EMPTY_RETRY
+                    elif conv.state == _InteractionState.EXECUTING_TOOLS:
                         outcome = self._execute_tools(conv.turn)
                         if outcome.success:
-                            conv.state = InteractionState.PROCESSING_TOOL_RESULTS
+                            conv.state = _InteractionState.PROCESSING_TOOL_RESULTS
                         else:
                             conv.final_reason = (
                                 str(outcome.error) or type(outcome.error).__name__
                             )
                             conv.state = (
-                                InteractionState.INTERRUPTED
+                                _InteractionState.INTERRUPTED
                                 if isinstance(outcome.error, KeyboardInterrupt)
-                                else InteractionState.FAILED
+                                else _InteractionState.FAILED
                             )
-                    elif conv.state == InteractionState.PROCESSING_TOOL_RESULTS:
-                        conv.state = InteractionState.UPDATING_HISTORY
-                    elif conv.state == InteractionState.UPDATING_HISTORY:
-                        _ = self._update_histories(history, provider_history, conv.turn)
+                    elif conv.state == _InteractionState.PROCESSING_TOOL_RESULTS:
+                        conv.state = _InteractionState.UPDATING_HISTORY
+                    elif conv.state == _InteractionState.UPDATING_HISTORY:
+                        self._update_histories(history, conv.turn)
                         if conv.turn.has_executed_tools():
-                            conv.state = InteractionState.STARTING_TURN
+                            conv.state = _InteractionState.STARTING_TURN
                         elif conv.turn.turn_finish_reason:
                             conv.final_reason = conv.turn.turn_finish_reason
-                            conv.state = InteractionState.FINISHED
+                            conv.state = _InteractionState.FINISHED
                         elif conv.turn.has_text_content():
                             logger.info(
                                 "Continuing generation as no finish reason was received.",
                             )
-                            conv.state = InteractionState.STARTING_TURN
+                            conv.state = _InteractionState.STARTING_TURN
                         else:
                             logger.warning(
                                 "History update completed but turn yielded no content and no finish reason.",
                             )
-                            conv.state = InteractionState.HANDLING_EMPTY_RETRY
-                    elif conv.state == InteractionState.HANDLING_API_RETRY:
-                        error = conv.turn.generation_exception
-                        if not isinstance(error, RetriableError):
-                            self._raise_type_error(
-                                "Expected RetriableError for API retry",
-                            )
-                        self.ui.display_warning(error)
-                        max_retries = error.max_retries or _DEFAULT_MAX_RETRIES
-                        if conv.api_retry_count < max_retries:
-                            conv.api_retry_count += 1
-                            wait_time = error.wait_time(conv.api_retry_count)
-                            logger.info(
-                                "Retrying API call in %d seconds... (Attempt %d/%d)",
-                                wait_time,
-                                conv.api_retry_count + 1,
-                                max_retries,
-                            )
-                            self.ui.display_info(
-                                f"Retrying API call in {wait_time} seconds...",
-                            )
-                            status.update(
-                                f"Retrying ({conv.api_retry_count}/{max_retries}), io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
-                            )
-                            self.sleeper(wait_time)
-                            conv.state = InteractionState.GENERATING
-                        else:
-                            logger.error("API retry limit exceeded.")
-                            conv.final_reason = "Retry attempts exceeded"
-                            conv.state = InteractionState.FAILED
-                    elif conv.state == InteractionState.HANDLING_EMPTY_RETRY:
+                            conv.state = _InteractionState.HANDLING_EMPTY_RETRY
+                    elif conv.state == _InteractionState.HANDLING_EMPTY_RETRY:
                         logger.debug("Handling potentially empty response.")
                         if (
                             conv.empty_response_retry_count
@@ -587,26 +519,26 @@ class InteractionManager:
                                 f"Empty response retry ({conv.empty_response_retry_count}/{_EMPTY_RESPONSE_MAX_RETRIES}), io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
                             )
                             self.sleeper(wait_time)
-                            conv.state = InteractionState.GENERATING
+                            conv.state = _InteractionState.GENERATING
                         else:
                             logger.error("Empty response retry limit exceeded.")
                             conv.final_reason = "No result"
-                            conv.state = InteractionState.FAILED
+                            conv.state = _InteractionState.FAILED
                 except KeyboardInterrupt:
                     logger.warning(
                         "KeyboardInterrupt detected (outside inner try/except).",
                     )
                     conv.final_reason = "User interrupted"
-                    conv.state = InteractionState.INTERRUPTED
+                    conv.state = _InteractionState.INTERRUPTED
                 except Exception as e:
                     logger.exception("Unexpected error in state machine")
                     conv.final_reason = f"Internal error: {e}"
-                    conv.state = InteractionState.FAILED
-        if conv.state == InteractionState.FINISHED:
+                    conv.state = _InteractionState.FAILED
+        if conv.state == _InteractionState.FINISHED:
             self.ui.display_info(f"Finished: {conv.final_reason or 'Empty reason'}")
-        if conv.state == InteractionState.INTERRUPTED:
+        if conv.state == _InteractionState.INTERRUPTED:
             self.ui.display_info(f"Interrupted: {conv.final_reason or 'Empty reason'}")
-        if conv.state == InteractionState.FAILED:
+        if conv.state == _InteractionState.FAILED:
             self.ui.display_error(f"Failed: {conv.final_reason or 'Empty reason'}")
         return ThinkingResult(
             finish_reason=conv.final_reason,

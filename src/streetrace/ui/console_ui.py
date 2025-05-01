@@ -1,5 +1,6 @@
 """Console UI."""
 
+from litellm import ChatCompletionMessageToolCall
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer  # Base class
 from prompt_toolkit.patch_stdout import patch_stdout
@@ -9,7 +10,9 @@ from rich.panel import Panel
 from rich.status import Status
 from rich.syntax import Syntax
 
-from streetrace.llm.wrapper import ContentPartToolCall, ContentPartToolResult
+from streetrace.llm.wrapper import (
+    ToolCallResult,
+)
 from streetrace.ui.colors import Styles
 
 _PROMPT = "You:"
@@ -203,12 +206,12 @@ class ConsoleUI:
             self.console.print()
             self.cursor_is_in_line = False
 
-    def display_tool_call(self, tool_call: ContentPartToolCall) -> None:
+    def display_tool_call(self, tool_call: ChatCompletionMessageToolCall) -> None:
         """Display information about a tool being called."""
         # Shorten long arguments for display clarity
         display_args = {}
-        if isinstance(tool_call.arguments, dict):
-            for k, v in tool_call.arguments.items():
+        if isinstance(tool_call.function.arguments, dict):
+            for k, v in tool_call.function.arguments.items():
                 # Convert value to string, handle potential errors
                 try:
                     v_str = str(v)
@@ -220,7 +223,9 @@ class ConsoleUI:
                 else:
                     display_args[k] = v_str  # Keep short args as is
         else:
-            display_args = {"args": str(tool_call.arguments)}  # Handle non-dict args
+            display_args = {
+                "args": str(tool_call.function.arguments),
+            }  # Handle non-dict args
 
         # Format arguments nicely
         try:
@@ -228,7 +233,7 @@ class ConsoleUI:
         except (TypeError, ValueError, KeyError):
             args_str = "[Error formatting args]"
 
-        message = f"{tool_call.name}({args_str})"
+        message = f"{tool_call.function.name}({args_str})"
 
         # Use Python syntax highlighting for the call representation
         syntax = Syntax(
@@ -241,9 +246,9 @@ class ConsoleUI:
         self.console.print(Panel(syntax, title="Tool Call"))
         self.cursor_is_in_line = False
 
-    def display_tool_result(self, result: ContentPartToolResult) -> None:
+    def display_tool_result(self, result: ToolCallResult) -> None:
         """Display the result of a tool execution."""
-        content = result.content.display_output or result.content.output
+        content = result.display_output or result.output
         title = f"Tool Result ({result.name})"
 
         self.new_line()
@@ -272,9 +277,9 @@ class ConsoleUI:
 
         self.cursor_is_in_line = False
 
-    def display_tool_error(self, result: ContentPartToolResult) -> None:
+    def display_tool_error(self, result: ToolCallResult) -> None:
         """Display an error from a tool execution."""
-        output = result.content.display_output or result.content.output
+        output = result.display_output or result.output
         error_message = output.content if output else "[No error message]"
         title = f"Tool Error ({result.name})"
 
