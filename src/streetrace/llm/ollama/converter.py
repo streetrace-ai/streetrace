@@ -1,3 +1,5 @@
+"""Transforms history messages between Ollama and common history."""
+
 from collections.abc import Iterator
 from typing import override
 
@@ -24,6 +26,8 @@ _ROLES = {
 
 
 class OllamaHistoryConverter(HistoryConverter[OllamaMessage, ChatResponse]):
+    """A history converter for Ollama chat history."""
+
     @override
     def create_history_messages(
         self,

@@ -218,8 +218,8 @@ class TestOllamaImpl(unittest.TestCase):
         # Keep track of original message count
         original_count = len(messages)
 
-        # Call method with logging patched to avoid actual logging
-        with patch("streetrace.llm.ollama.impl.logging"):
+        # Call method with logger patched to avoid actual logging
+        with patch("streetrace.llm.ollama.impl.logger"):
             self.ollama.manage_conversation_history(
                 messages,
                 max_tokens=MAX_TOKENS,
@@ -234,7 +234,7 @@ class TestOllamaImpl(unittest.TestCase):
     def test_manage_conversation_history_error_handling(self):
         """Test error handling in conversation history management."""
         # Create a situation that will cause an exception
-        with patch("streetrace.llm.ollama.impl.logging") as mock_logging:
+        with patch("streetrace.llm.ollama.impl.logger") as mock_logging:
             # Use a mocked list that raises an exception when accessed
             mock_messages = MagicMock()
             mock_messages.__len__.return_value = 5
@@ -402,7 +402,7 @@ class TestOllamaImpl(unittest.TestCase):
         ]
 
         # Call generate method with patched logging
-        with patch("streetrace.llm.ollama.impl.logging") as mock_logging:
+        with patch("streetrace.llm.ollama.impl.logger") as mock_logging:
             list(
                 self.ollama.generate(
                     client=self.mock_client,
@@ -429,7 +429,7 @@ class TestOllamaImpl(unittest.TestCase):
         self.mock_client.chat.side_effect = Exception("Persistent failure")
 
         # Call generate method and expect an exception
-        with patch("streetrace.llm.ollama.impl.logging") as mock_logging:
+        with patch("streetrace.llm.ollama.impl.logger") as mock_logging:
             with pytest.raises(Exception, match="Persistent failure"):
                 list(
                     self.ollama.generate(

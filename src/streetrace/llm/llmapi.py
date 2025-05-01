@@ -7,12 +7,13 @@ initialization, API calls, and tool management across all providers.
 
 import abc
 from collections.abc import Iterator
-from typing import Any
+from typing import Any, TypeVar
 
 from streetrace.llm.wrapper import ContentPart, History, Message
 
 ProviderHistory = list[dict[str, Any]]
 ProviderTools = list[dict[str, Any]]
+ClientType = TypeVar("ClientType")  # Type for provider-specific client
 
 
 class LLMAPI(abc.ABC):
@@ -24,11 +25,11 @@ class LLMAPI(abc.ABC):
     """
 
     @abc.abstractmethod
-    def initialize_client(self) -> Any:
+    def initialize_client(self) -> ClientType:
         """Initialize and return the AI provider client.
 
         Returns:
-            Any: The initialized client object
+            ClientType: The initialized client object
 
         Raises:
             ValueError: If required API keys or configuration is missing
@@ -52,7 +53,7 @@ class LLMAPI(abc.ABC):
         self,
         provider_history: ProviderHistory,
         turn: list[Message],
-    ):
+    ) -> None:
         """Add turn items into provider's conversation history.
 
         Args:
@@ -105,7 +106,7 @@ class LLMAPI(abc.ABC):
     @abc.abstractmethod
     def generate(
         self,
-        client: Any,
+        client: ClientType,
         model_name: str | None,
         system_message: str,
         messages: ProviderHistory,
@@ -123,8 +124,7 @@ class LLMAPI(abc.ABC):
             tools: The tools to use
 
         Returns:
-            Iterator[Any]: Provider response stream
-            or Any: The final response object
+            Iterator[ContentPart]: Provider response stream
 
         """
 
@@ -138,6 +138,7 @@ class RetriableError(Exception):
     Attributes:
         max_retries (int): The maximum number of retry attempts allowed.
         message (str): The error message.
+        wait_seconds (int): The number of seconds to wait between retries.
 
     """
 
@@ -152,6 +153,7 @@ class RetriableError(Exception):
         Args:
             message (str): The error message.
             max_retries (int): The maximum number of retry attempts allowed. Defaults to 3.
+            wait_seconds (int): The number of seconds to wait between retries. Defaults to 30.
 
         """
         self.max_retries = max_retries
@@ -159,11 +161,11 @@ class RetriableError(Exception):
         self.wait_seconds = wait_seconds
         super().__init__(self.message)
 
-    def wait_time(self, retry_count: int) -> int:
+    def wait_time(self, _retry_count: int) -> int:
         """Calculate the wait time before the next retry attempt.
 
         Args:
-            retry_count (int): The current retry attempt count.
+            _retry_count (int): The current retry attempt count (unused).
 
         Returns:
             int: The time to wait in seconds before the next retry attempt.

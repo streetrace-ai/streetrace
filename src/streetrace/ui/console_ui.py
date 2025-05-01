@@ -13,6 +13,7 @@ from streetrace.llm.wrapper import ContentPartToolCall, ContentPartToolResult
 from streetrace.ui.colors import Styles
 
 _PROMPT = "You:"
+_MAX_LONG_LINE_LENGTH = 100  # Maximum length for a single line of output
 
 
 class ConsoleUI:
@@ -214,7 +215,7 @@ class ConsoleUI:
                 except (TypeError, ValueError):
                     v_str = "[Error converting arg to string]"
 
-                if len(v_str) > 100:
+                if len(v_str) > _MAX_LONG_LINE_LENGTH:
                     display_args[k] = v_str[:90] + f"... ({len(v_str)} chars)"
                 else:
                     display_args[k] = v_str  # Keep short args as is

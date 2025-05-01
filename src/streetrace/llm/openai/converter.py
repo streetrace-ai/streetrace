@@ -1,3 +1,5 @@
+"""Transforms history messages between OpenAI and common history."""
+
 import json
 from collections.abc import Iterator
 from typing import override
@@ -27,6 +29,8 @@ _ROLES = {
 class OpenAIHistoryConverter(
     HistoryConverter[chat.ChatCompletionMessageParam, chat.ChatCompletion],
 ):
+    """A history converter for OpenAI chat history."""
+
     @override
     def create_history_messages(
         self,

@@ -1,4 +1,9 @@
-# src/streetrace/commands/base_command.py
+"""Define the base class for all application commands.
+
+This module provides the abstract base class that all command implementations must inherit from,
+ensuring a consistent interface for command execution and description.
+"""
+
 import logging
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
@@ -19,6 +24,7 @@ class Command(ABC):
     @abstractmethod
     def names(self) -> list[str]:
         """A list of names (without the leading '/') that can invoke this command.
+
         These names will be used case-insensitively.
         The first name in the list is considered the primary name.
         """
@@ -30,7 +36,7 @@ class Command(ABC):
 
     @abstractmethod
     def execute(self, app_instance: "Application") -> bool:
-        """Executes the command's action.
+        """Execute the command's action.
 
         Args:
             app_instance: The main Application instance.

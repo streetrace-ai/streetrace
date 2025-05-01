@@ -15,8 +15,17 @@ from streetrace.llm.ollama.converter import OllamaHistoryConverter
 from streetrace.llm.wrapper import ContentPart, History, Message
 
 # Constants
-MAX_TOKENS = 32768  # Default context window for most Ollama models
-MODEL_NAME = "llama3.1:8b"  # Default model
+MAX_TOKENS = 32768
+"Default context window for most Ollama models."
+MODEL_NAME = "llama3.1:8b"
+"Default model."
+MIN_MESSAGES_FOR_PRUNING = 3
+"Minimum number of messages before pruning."
+MAX_PRESERVE_COUNT = 5
+"Maximum number of messages to preserve during pruning."
+
+# Module-level logger
+logger = logging.getLogger(__name__)
 
 ProviderHistory = list[dict[str, Any]]
 
@@ -126,6 +135,8 @@ class Ollama(LLMAPI):
             bool: True if successful, False if pruning failed
 
         """
+        result = False
+
         try:
             # Simplified token count estimation - would need actual token counting in production
             estimated_tokens = sum(len(str(msg)) for msg in messages) // 4
@@ -134,33 +145,40 @@ class Ollama(LLMAPI):
             if estimated_tokens <= max_tokens:
                 return True
 
-            logging.info(
-                f"Estimated token count {estimated_tokens} exceeds limit {max_tokens}, pruning...",
+            logger.info(
+                "Estimated token count %s exceeds limit %s, pruning...",
+                estimated_tokens,
+                max_tokens,
             )
 
             # Keep first item (usually system message) and last N exchanges
-            if len(messages) > 3:
+            if len(messages) > MIN_MESSAGES_FOR_PRUNING:
                 # Keep important context - first message and recent exchanges
-                preserve_count = min(5, len(messages) // 2)
+                preserve_count = min(MAX_PRESERVE_COUNT, len(messages) // 2)
                 messages[:] = [messages[0]] + messages[-preserve_count:]
 
                 # Recheck token count
                 estimated_tokens = sum(len(str(msg)) for msg in messages) // 4
-                logging.info(
-                    f"After pruning: {estimated_tokens} tokens with {len(messages)} items",
+                logger.info(
+                    "After pruning: %s tokens with %s items",
+                    estimated_tokens,
+                    len(messages),
                 )
 
-                return estimated_tokens <= max_tokens
+                result = estimated_tokens <= max_tokens
+            else:
+                # If conversation is small but still exceeding, we have a problem
+                logger.warning(
+                    "Cannot reduce token count sufficiently: %s",
+                    estimated_tokens,
+                )
+                result = False
 
-            # If conversation is small but still exceeding, we have a problem
-            logging.warning(
-                f"Cannot reduce token count sufficiently: {estimated_tokens}",
-            )
-            return False
+        except Exception:
+            logger.exception("Error managing tokens")
+            result = False
 
-        except Exception as e:
-            logging.exception(f"Error managing tokens: {e}")
-            return False
+        return result
 
     @override
     def generate(
@@ -211,8 +229,8 @@ class Ollama(LLMAPI):
 
                 if retry_count >= max_retries:
                     error_msg = f"Failed after {max_retries} retries: {e}"
-                    logging.exception(error_msg)
+                    logger.exception(error_msg)
                     raise
-
-                error_msg = f"API error encountered. Retrying... (Attempt {retry_count}/{max_retries}): {e}"
-                logging.warning(error_msg)
+                else:
+                    error_msg = f"API error encountered. Retrying... (Attempt {retry_count}/{max_retries}): {e}"
+                    logger.warning(error_msg)

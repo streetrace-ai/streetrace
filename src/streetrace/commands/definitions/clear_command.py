@@ -1,4 +1,9 @@
-# src/streetrace/commands/definitions/clear_command.py
+"""Implement the clear command for resetting conversation history.
+
+This module defines the ClearCommand class which allows users to clear
+the current conversation history in the interactive mode.
+"""
+
 import logging
 
 from streetrace.application import Application
@@ -21,7 +26,7 @@ class ClearCommand(Command):
         return "Clear conversation history and start over from the initial system message and context."
 
     def execute(self, app_instance: Application) -> bool:
-        """Executes the history clearing action on the application instance.
+        """Execute the history clearing action on the application instance.
 
         Args:
             app_instance: The main Application instance.

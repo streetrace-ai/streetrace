@@ -15,12 +15,16 @@ from streetrace.llm.gemini.converter import GeminiHistoryConverter
 from streetrace.llm.llmapi import LLMAPI
 from streetrace.llm.wrapper import ContentPart, History, Message
 
+# Set up module-level logger
+logger = logging.getLogger(__name__)
+
 ProviderHistory = list[types.Content]
 
 # Constants
 MAX_TOKENS = 2**20
 MODEL_NAME = "gemini-2.5-pro-preview-03-25"
 MAX_MALFORMED_RETRIES = 3  # Maximum number of retries for malformed function calls
+MIN_MESSAGES_FOR_PRUNING = 3  # Minimum threshold for pruning conversation history
 
 
 class Gemini(LLMAPI):
@@ -193,8 +197,12 @@ class Gemini(LLMAPI):
             bool: True if successful, False if pruning failed
 
         """
+        result = False
         try:
-            logging.debug(f"Transformed manage_conversation_history: {messages}")
+            logger.debug(
+                "Transformed manage_conversation_history",
+                extra={"messages": messages},
+            )
             client = self.initialize_client()
             token_count = client.models.count_tokens(
                 model=MODEL_NAME,
@@ -205,12 +213,16 @@ class Gemini(LLMAPI):
             if token_count.total_tokens <= max_tokens:
                 return True
 
-            logging.info(
-                f"Token count {token_count.total_tokens} exceeds limit {max_tokens}, pruning...",
+            logger.info(
+                "Token count exceeds limit, pruning...",
+                extra={
+                    "token_count": token_count.total_tokens,
+                    "max_tokens": max_tokens,
+                },
             )
 
-            # Keep first item (usually system message) and last N exchanges
-            if len(messages) > 3:
+            # Try to prune the conversation
+            if len(messages) > MIN_MESSAGES_FOR_PRUNING:
                 # Keep important context - first message and recent exchanges
                 preserve_count = min(5, len(messages) // 2)
                 messages[:] = [messages[0]] + messages[-preserve_count:]
@@ -220,21 +232,26 @@ class Gemini(LLMAPI):
                     model=MODEL_NAME,
                     contents=messages,
                 )
-                logging.info(
-                    f"After pruning: {token_count.total_tokens} tokens with {len(messages)} items",
+                logger.info(
+                    "After pruning",
+                    extra={
+                        "token_count": token_count.total_tokens,
+                        "message_count": len(messages),
+                    },
                 )
 
-                return token_count.total_tokens <= max_tokens
+                result = token_count.total_tokens <= max_tokens
 
-            # If conversation is small but still exceeding, we have a problem
-            logging.warning(
-                f"Cannot reduce token count sufficiently: {token_count.total_tokens}",
-            )
-            return False
-
+            if not result:
+                # If pruning wasn't possible or wasn't enough
+                logger.warning(
+                    "Cannot reduce token count sufficiently",
+                    extra={"token_count": token_count.total_tokens},
+                )
         except Exception as e:
-            logging.exception("Error managing tokens", exc_info=e)
-            return False
+            logger.exception("Error managing tokens", exc_info=e)
+
+        return result
 
     @override
     def generate(
@@ -278,6 +295,6 @@ class Gemini(LLMAPI):
             contents=messages,
             config=generation_config,
         )
-        logging.debug("Raw Gemini response: %s", response)
+        logger.debug("Raw Gemini response", extra={"response": response})
 
         return self._adapter.get_response_parts(response)

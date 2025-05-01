@@ -14,6 +14,9 @@ from streetrace.llm.anthropic.converter import AnthropicHistoryConverter
 from streetrace.llm.llmapi import LLMAPI, RetriableError
 from streetrace.llm.wrapper import ContentPart, History, Message
 
+# Module-level logger
+logger = logging.getLogger(__name__)
+
 ProviderHistory = list[anthropic.types.MessageParam]
 
 # Constants
@@ -21,6 +24,7 @@ MAX_TOKENS = (
     200000  # Anthropic 3 Sonnet has a context window of approximately 200K tokens
 )
 MODEL_NAME = "claude-3-7-sonnet-20250219"
+MIN_MESSAGES_FOR_PRUNING = 3  # Minimum number of messages before pruning is attempted
 
 
 class Anthropic(LLMAPI):
@@ -140,6 +144,7 @@ class Anthropic(LLMAPI):
             bool: True if successful, False if pruning failed
 
         """
+        success = False
         try:
             # Simplified token count estimation - would need actual token counting in production
             # This is a placeholder for an actual token counting function
@@ -149,33 +154,36 @@ class Anthropic(LLMAPI):
             if estimated_tokens <= max_tokens:
                 return True
 
-            logging.info(
-                f"Estimated token count {estimated_tokens} exceeds limit {max_tokens}, pruning...",
+            logger.info(
+                "Estimated token count %s exceeds limit %s, pruning...",
+                estimated_tokens,
+                max_tokens,
             )
 
             # Keep first item (usually system message) and last N exchanges
-            if len(messages) > 3:
+            if len(messages) > MIN_MESSAGES_FOR_PRUNING:
                 # Keep important context - first message and recent exchanges
                 preserve_count = min(5, len(messages) // 2)
                 messages[:] = [messages[0]] + messages[-preserve_count:]
 
                 # Recheck token count
                 estimated_tokens = sum(len(str(msg)) for msg in messages) // 4
-                logging.info(
-                    f"After pruning: {estimated_tokens} tokens with {len(messages)} items",
+                logger.info(
+                    "After pruning: %s tokens with %s items",
+                    estimated_tokens,
+                    len(messages),
                 )
 
-                return estimated_tokens <= max_tokens
-
-            # If conversation is small but still exceeding, we have a problem
-            logging.warning(
-                f"Cannot reduce token count sufficiently: {estimated_tokens}",
-            )
-            return False
-
-        except Exception as e:
-            logging.exception(f"Error managing tokens: {e}")
-            return False
+                success = estimated_tokens <= max_tokens
+            else:
+                # If conversation is small but still exceeding, we have a problem
+                logger.warning(
+                    "Cannot reduce token count sufficiently: %s",
+                    estimated_tokens,
+                )
+        except Exception:
+            logger.exception("Error managing tokens")
+        return success
 
     @override
     def generate(
@@ -209,12 +217,11 @@ class Anthropic(LLMAPI):
                     max_tokens=20000,
                     system=system_message,
                     messages=messages,
-                    # stream=True,
                     tools=tools,
                     extra_headers={"x-should-retry": "false"},
                 )
 
-                logging.debug("Raw Anthropic response: %s", response)
+                logger.debug("Raw Anthropic response: %s", response)
 
                 return self._adapter.get_response_parts(response)
 

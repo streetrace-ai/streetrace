@@ -1,3 +1,5 @@
+"""Transforms history messages between Gemini and common history."""
+
 from collections.abc import Iterator
 from typing import override
 
@@ -16,6 +18,8 @@ from streetrace.llm.wrapper import (
 
 
 class GeminiHistoryConverter(HistoryConverter[types.Content, types.Content]):
+    """A history converter for Gemini chat history."""
+
     @override
     def create_history_messages(
         self,

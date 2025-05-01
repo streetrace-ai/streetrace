@@ -1,3 +1,5 @@
+"""Transforms history messages between Anthropic and common history."""
+
 from collections.abc import Iterator
 from typing import override
 
@@ -33,6 +35,8 @@ _CLAUD_ROLES = {
 
 
 class AnthropicHistoryConverter(HistoryConverter[MessageParam, AnthropicMessage]):
+    """A history converter for Anthropic chat history."""
+
     @override
     def create_history_messages(
         self,

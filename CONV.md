@@ -508,3 +508,57 @@ What are the most important things we have discussed so far?
 ```
 As a user, I want all my conversations stored in a local Markdown file so I can continue a past conversation with a model, or open it in a Markdown viewer. I also want to be able to edit the markdown and then continue the conversation with the edited version of the chat history.
 ```
+
+# Huge tool outputs
+
+E.g.
+
+Step 1:
+
+```
+Run `poetry run ruff check src tests` and analyze the results: list all files that have issues with a list of errors and line numbers for each file. The result should look like this:
+
+
+src/streetrace/FILE1:
+   ERRCODE, line_number_of_first_occurance, line_number_of_next_occurance, ...: Description
+
+src/streetrace/FILE2:
+   ERRCODE, line_number_of_first_occurance: Description
+   ERRCODE, line_number_of_first_occurance: Description
+
+
+Save the result in ./tmp/lint.txt
+```
+
+Step 2:
+
+```
+/clear
+```
+
+Step 3:
+
+```
+See lint issues in @tmp/lint.txt and fix them. Run `make test` to make sure all tests are passing.
+```
+
+Thoughts:
+
+* Can I have the model to manage the conv history keeping only what's needed?
+* Can I run CLI right from the prompt to append the result to user messages?
+* Can I pipe CLI results into model with additional instructions? If the pipe is not saved in history, then it gives me a way
+  to quickly add CLI result summaries to history. E.g.:
+
+  ```
+  /cli: poetry run ruff check src tests | model "analyze the results: list all files that have issues with a list of errors and line numbers for each file. The result should look like this:
+
+
+  src/streetrace/FILE1:
+    ERRCODE, line_number_of_first_occurance, line_number_of_next_occurance, ...: Description
+
+  src/streetrace/FILE2:
+    ERRCODE, line_number_of_first_occurance: Description
+    ERRCODE, line_number_of_first_occurance: Description"
+  ```
+
+  Adds the summarization result to history.

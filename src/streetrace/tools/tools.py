@@ -1,3 +1,9 @@
+"""Provide tools for AI models to interact with the file system and execute commands.
+
+This module contains tools that allow AI models to perform operations such as
+reading and writing files, executing commands, and more.
+"""
+
 import json
 import logging
 from collections.abc import Callable
@@ -35,7 +41,7 @@ class ToolCall:
         self.abs_work_dir = abs_work_dir
 
     def call_tool(self, tool_call: ContentPartToolCall) -> ToolCallResult:
-        """Executes the appropriate tool function based on the tool name and arguments.
+        """Execute the appropriate tool function based on the tool name and arguments.
 
         Args:
             tool_call: Object containing the tool name and arguments to execute
@@ -69,14 +75,16 @@ class ToolCall:
                     return ToolCallResult.ok(tool_result, result_view)
                 except TypeError as json_err:
                     logger.warning(
-                        f"Tool '{tool_call.name}' result is not fully JSON serializable: {json_err}. Returning string representation within result.",
+                        "Tool '%s' result is not fully JSON serializable: %s. Returning string representation within result.",
+                        tool_call.name,
+                        json_err,
                     )
                     return ToolCallResult.ok(str(tool_result), result_view)
 
             except Exception as e:
                 # Handle tool execution errors
                 error_msg = f"Error executing tool '{tool_call.name}': {e!s}"
-                logger.exception(e)
+                logger.exception("Error executing tool")
                 return ToolCallResult.error(error_msg)
         else:
             # Handle tool not found errors

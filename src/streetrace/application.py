@@ -1,8 +1,15 @@
-# app/application.py
+"""Orchestrate the StreetRace application flow and manage component interactions.
+
+This module contains the Application class which serves as the central
+coordinator for the StreetRace application, handling the interaction between
+components and managing the application lifecycle.
+"""
+
 import json  # Added for pretty printing
 import logging
 import sys
 from argparse import Namespace
+from pathlib import Path
 
 from streetrace.commands.command_executor import CommandExecutor
 from streetrace.interaction_manager import InteractionManager
@@ -17,6 +24,11 @@ from streetrace.prompt_processor import PromptContext, PromptProcessor
 from streetrace.ui.console_ui import ConsoleUI
 
 logger = logging.getLogger(__name__)
+
+_MAX_MENTION_CONTENT_LENGTH = 20000
+"""Maximum length for file content to prevent excessive tokens."""
+_MAX_CONTEXT_PREVIEW_LENGTH = 200
+"""Maximum length for context preview."""
 
 
 class Application:
@@ -41,7 +53,7 @@ class Application:
         cmd_executor: CommandExecutor,
         prompt_processor: PromptProcessor,
         interaction_manager: InteractionManager,
-        working_dir: str,
+        working_dir: Path,
     ) -> None:
         """Initialize the Application with necessary components and configuration.
 
@@ -253,11 +265,8 @@ class Application:
             context_message = (
                 f"Content of mentioned file '@{filepath}':\n---\n{content}\n---"
             )
-            max_mention_content_length = (
-                20000  # Maximum length for file content to prevent excessive tokens
-            )
-            if len(content) > max_mention_content_length:
-                context_message = f"Content of mentioned file '@{filepath}' (truncated):\n---\n{content[:max_mention_content_length]}\n...\n---"
+            if len(content) > _MAX_MENTION_CONTENT_LENGTH:
+                context_message = f"Content of mentioned file '@{filepath}' (truncated):\n---\n{content[:_MAX_MENTION_CONTENT_LENGTH]}\n...\n---"
                 logger.warning(
                     "Truncated content for mentioned file @%s due to size.",
                     filepath,
@@ -269,7 +278,7 @@ class Application:
             )
             logger.debug("Added context from @%s to history.", filepath)
 
-    def _display_history(self) -> bool:
+    def display_history(self) -> None:
         """Display the current conversation history using the UI.
 
         This method is called when the user requests to see the conversation
@@ -283,7 +292,7 @@ class Application:
         """
         if not self.conversation_history:
             self.ui.display_warning("No history available yet.")
-            return True  # Nothing to display, but continue running
+            return
 
         self.ui.display_info("\n--- Conversation History ---")
 
@@ -295,10 +304,9 @@ class Application:
         if self.conversation_history.context:
             # Show a preview of context due to potential large size
             context_str = str(self.conversation_history.context)
-            max_len = 200
             display_context = (
-                context_str[:max_len] + "..."
-                if len(context_str) > max_len
+                context_str[:_MAX_CONTEXT_PREVIEW_LENGTH] + "..."
+                if len(context_str) > _MAX_CONTEXT_PREVIEW_LENGTH
                 else context_str
             )
             self.ui.display_context_message(display_context)
@@ -348,7 +356,6 @@ class Application:
                     self.ui.display_info(f"{role_str}: {content_str.strip()}")
 
         self.ui.display_info("--- End History ---")
-        return True  # Signal to continue the application loop
 
     def compact_history(self) -> bool:
         """Compacts the current conversation history by generating a summary.
@@ -403,10 +410,7 @@ Return ONLY the summary without explaining what you're doing."""
         self.interaction_manager.process_prompt(summary_request_history)
 
         # Get the summary message from the response
-        if (
-            len(summary_request_history.conversation) >= 2
-            and summary_request_history.conversation[-1].role == Role.MODEL
-        ):
+        if summary_request_history.conversation[-1].role == Role.MODEL:
             # Create a new history with just the summary
             new_history = History(system_message=system_message, context=context)
 

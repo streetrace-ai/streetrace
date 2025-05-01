@@ -11,7 +11,7 @@ from streetrace.commands.command_executor import CommandExecutor
 
 # Import specific command classes
 from streetrace.commands.definitions import (
-    ClearCommand,  # Added ClearCommand
+    ClearCommand,
     CompactCommand,
     ExitCommand,
     HistoryCommand,

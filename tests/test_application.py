@@ -1,6 +1,7 @@
 # tests/test_application.py
 import argparse
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from streetrace.application import Application
@@ -31,7 +32,7 @@ class TestApplication(unittest.TestCase):
         self.mock_cmd_executor = MagicMock(spec=CommandExecutor)
         self.mock_prompt_processor = MagicMock(spec=PromptProcessor)
         self.mock_interaction_manager = MagicMock(spec=InteractionManager)
-        self.working_dir = "/fake/dir"
+        self.working_dir = Path("/fake/dir")
 
         # Define the context that build_context will return
         self.initial_system = "Initial System Message"

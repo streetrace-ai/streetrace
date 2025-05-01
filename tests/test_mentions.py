@@ -65,14 +65,14 @@ class TestMentions(unittest.TestCase):
         prompt = "Please check @file1.txt for details."
         result = self.prompt_processor.parse_and_load_mentions(prompt, self.test_dir)
         assert len(result) == 1
-        assert result[0] == ("file1.txt", "Content of file1")
+        assert result[0] == (Path("file1.txt"), "Content of file1")
 
     def test_one_valid_mention_subdir(self) -> None:
         mention_path = Path("subdir") / "file2.py"
         prompt = f"Look at @{mention_path} implementation."
         result = self.prompt_processor.parse_and_load_mentions(prompt, self.test_dir)
         assert len(result) == 1
-        assert result[0] == (str(mention_path), "Content of file2")
+        assert result[0] == (mention_path, "Content of file2")
 
     def test_multiple_valid_mentions(self) -> None:
         mention_path_subdir = Path("subdir") / "file2.py"
@@ -89,7 +89,7 @@ class TestMentions(unittest.TestCase):
         prompt = "Check @file1.txt and also @file1.txt again."
         result = self.prompt_processor.parse_and_load_mentions(prompt, self.test_dir)
         assert len(result) == 1
-        assert result[0] == ("file1.txt", "Content of file1")
+        assert result[0] == (Path("file1.txt"), "Content of file1")
 
     def test_mention_non_existent_file(self) -> None:
         prompt = "What about @nonexistent.txt?"
@@ -117,7 +117,7 @@ class TestMentions(unittest.TestCase):
         assert len(result) == len(expected)
         # Check if error was displayed for nonexistent.md
         self.mock_ui.display_error.assert_called_with(
-            f"Mentioned path @nonexistent.md ('{(self.test_dir / 'nonexistent.md').resolve()}') not found or is not a file. Skipping.",
+            "Mentioned path @nonexistent.md not found or is not a file. Skipping.",
         )
 
     def test_mention_outside_working_dir_relative(self) -> None:
@@ -148,33 +148,33 @@ class TestMentions(unittest.TestCase):
         result = self.prompt_processor.parse_and_load_mentions(prompt, self.test_dir)
         assert len(result) == 1
         # The returned path should be exactly what was mentioned if valid
-        assert result[0] == ("./file1.txt", "Content of file1")
+        assert result[0] == (Path("./file1.txt"), "Content of file1")
 
     def test_mention_with_spaces_around(self) -> None:
         prompt = "Check  @file1.txt  now."
         result = self.prompt_processor.parse_and_load_mentions(prompt, self.test_dir)
         assert len(result) == 1
-        assert result[0] == ("file1.txt", "Content of file1")
+        assert result[0] == (Path("file1.txt"), "Content of file1")
 
     def test_mention_at_end_of_prompt(self) -> None:
         prompt = "The file is @other.md"
         result = self.prompt_processor.parse_and_load_mentions(prompt, self.test_dir)
         assert len(result) == 1
-        assert result[0] == ("other.md", "Markdown content")
+        assert result[0] == (Path("other.md"), "Markdown content")
 
     def test_mention_special_chars_in_path(self) -> None:
         prompt = f"Look at @{self.special_filename}"
         result = self.prompt_processor.parse_and_load_mentions(prompt, self.test_dir)
         assert len(result) == 1
-        assert result[0] == (self.special_filename, "Special chars file")
+        assert result[0] == (Path(self.special_filename), "Special chars file")
 
     def test_mention_with_trailing_punctuation(self) -> None:
         prompt = "Check @file1.txt, then @subdir/file2.py."
         result = self.prompt_processor.parse_and_load_mentions(prompt, self.test_dir)
         assert len(result) == 2
         expected = [
-            ("file1.txt", "Content of file1"),
-            (str(Path("subdir") / "file2.py"), "Content of file2"),
+            (Path("file1.txt"), "Content of file1"),
+            (Path("subdir") / "file2.py", "Content of file2"),
         ]
         assert len(result) == len(expected)
 

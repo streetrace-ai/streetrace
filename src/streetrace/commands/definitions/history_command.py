@@ -1,4 +1,9 @@
-# src/streetrace/commands/definitions/history_command.py
+"""Implement the history command for displaying conversation history.
+
+This module defines the HistoryCommand class which allows users to view
+the current conversation history in the interactive mode.
+"""
+
 import logging
 
 from streetrace.application import Application
@@ -21,7 +26,7 @@ class HistoryCommand(Command):
         return "Display the conversation history."
 
     def execute(self, app_instance: Application) -> bool:
-        """Executes the history display action on the application instance.
+        """Execute the history display action on the application instance.
 
         Args:
             app_instance: The main Application instance.
@@ -32,9 +37,5 @@ class HistoryCommand(Command):
 
         """
         logger.info("Executing history command.")
-        assert hasattr(app_instance, "_display_history")
-        assert callable(
-            app_instance._display_history,
-        )
-        app_instance._display_history()
-        return True  # Signal continue after displaying history
+        app_instance.display_history()
+        return True

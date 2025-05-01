@@ -18,8 +18,12 @@ from streetrace.llm.wrapper import ContentPart, History, Message
 # Constants
 MAX_TOKENS = 128000  # GPT-4 Turbo has a context window of 128K tokens
 MODEL_NAME = "gpt-4-turbo-2024-04-09"  # Default model
+MIN_CONVERSATION_LENGTH = 3  # Minimum number of messages before pruning
 
 ProviderHistory = list[chat.ChatCompletionMessageParam]
+
+# Module-level logger
+logger = logging.getLogger(__name__)
 
 
 class OpenAI(LLMAPI):
@@ -135,6 +139,7 @@ class OpenAI(LLMAPI):
             bool: True if successful, False if pruning failed
 
         """
+        result = True
         try:
             # Simplified token count estimation - would need actual token counting in production
             # This is a placeholder for an actual token counting function
@@ -144,12 +149,14 @@ class OpenAI(LLMAPI):
             if estimated_tokens <= max_tokens:
                 return True
 
-            logging.info(
-                f"Estimated token count {estimated_tokens} exceeds limit {max_tokens}, pruning...",
+            logger.info(
+                "Estimated token count %s exceeds limit %s, pruning...",
+                estimated_tokens,
+                max_tokens,
             )
 
             # Keep first item (usually system message) and last N exchanges
-            if len(conversation_history) > 3:
+            if len(conversation_history) > MIN_CONVERSATION_LENGTH:
                 # Keep important context - first message and recent exchanges
                 preserve_count = min(5, len(conversation_history) // 2)
                 conversation_history[:] = [
@@ -160,21 +167,34 @@ class OpenAI(LLMAPI):
                 estimated_tokens = (
                     sum(len(str(msg)) for msg in conversation_history) // 4
                 )
-                logging.info(
-                    f"After pruning: {estimated_tokens} tokens with {len(conversation_history)} items",
+                logger.info(
+                    "After pruning: %s tokens with %s items",
+                    estimated_tokens,
+                    len(conversation_history),
                 )
 
-                return estimated_tokens <= max_tokens
+                if estimated_tokens <= max_tokens:
+                    result = True
+                else:
+                    # If still exceeding after pruning
+                    logger.warning(
+                        "Still exceeding token limit after pruning: %s",
+                        estimated_tokens,
+                    )
+                    result = False
+            else:
+                # If conversation is small but still exceeding, we have a problem
+                logger.warning(
+                    "Cannot reduce token count sufficiently: %s",
+                    estimated_tokens,
+                )
+                result = False
 
-            # If conversation is small but still exceeding, we have a problem
-            logging.warning(
-                f"Cannot reduce token count sufficiently: {estimated_tokens}",
-            )
-            return False
+        except Exception:
+            logger.exception("Error managing tokens")
+            result = False
 
-        except Exception as e:
-            logging.exception(f"Error managing tokens: {e}")
-            return False
+        return result
 
     @override
     def generate(
@@ -204,7 +224,7 @@ class OpenAI(LLMAPI):
         # Between streaming and markdown, I choose markdown.
         model_name = model_name or MODEL_NAME
 
-        logging.debug(f"Sending request: {messages}")
+        logger.debug("Sending request: %s", messages)
         # Create the message with OpenAI
         response: chat.ChatCompletion = client.chat.completions.create(
             model=model_name,
@@ -213,9 +233,13 @@ class OpenAI(LLMAPI):
             stream=False,
             tool_choice="auto",
         )
-        logging.debug(f"Response received: {response}")
+        logger.debug("Response received: %s", response)
 
-        assert isinstance(response, chat.ChatCompletion)
-        assert hasattr(response, "choices")
+        if not isinstance(response, chat.ChatCompletion) or not hasattr(
+            response,
+            "choices",
+        ):
+            msg = f"Invalid response from OpenAI API: {response}"
+            raise ValueError(msg)
 
         return self._adapter.get_response_parts(response)

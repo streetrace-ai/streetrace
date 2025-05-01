@@ -1,4 +1,9 @@
-# src/streetrace/commands/command_executor.py
+"""Manage and execute commands derived from the Command base class.
+
+This module provides the CommandExecutor class which handles registration,
+lookup, and execution of commands in the application.
+"""
+
 import logging
 from typing import TYPE_CHECKING
 
@@ -13,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class CommandExecutor:
-    """Manages and executes commands derived from the Command base class.
+    """Manage and execute commands derived from the Command base class.
 
     Handles registration of Command objects and executes them based on user input,
     passing the Application instance to the command's execute method.
@@ -21,13 +26,13 @@ class CommandExecutor:
     """
 
     def __init__(self) -> None:
-        """Initializes the CommandExecutor with an empty command registry."""
+        """Initialize the CommandExecutor with an empty command registry."""
         # Stores command names (lowercase) mapped to their Command instances
         self._commands: dict[str, Command] = {}
         logger.info("CommandExecutor initialized.")
 
     def register(self, command_instance: Command) -> None:
-        """Registers a Command instance.
+        """Register a Command instance.
 
         Args:
             command_instance: An instance of a class derived from Command.
@@ -44,53 +49,52 @@ class CommandExecutor:
         for name in command_instance.names:
             if not name.strip():
                 msg = f"Command name '{name}' from {type(command_instance).__name__} cannot be empty or whitespace."
-                raise ValueError(
-                    msg,
-                )
+                raise ValueError(msg)
+
             if name != name.rstrip().lower():
                 msg = f"Command name '{name}' from {type(command_instance).__name__} cannot contain leading or trailing whitespace or uppercase characters."
-                raise ValueError(
-                    msg,
-                )
+                raise ValueError(msg)
+
             if name in self._commands:
                 msg = f"Attempt to redefine command '/{name}'. {type(command_instance).__name__} cannot be added because {type(self._commands[name]).__name__} is already registered."
-                raise ValueError(
-                    msg,
-                )
+                raise ValueError(msg)
 
             self._commands[name] = command_instance
             logger.debug(
-                f"Command '/{name}' ({type(command_instance).__name__}) registered: {command_instance.description}",
+                "Command '/%s' (%s) registered: %s",
+                name,
+                type(command_instance).__name__,
+                command_instance.description,
             )
 
     def get_commands(self) -> list[str]:
-        """Returns a sorted list of registered command names (lowercase).
+        """Return a sorted list of registered command names (lowercase).
 
         Returns:
-            A list of command names (e.g., 'exit', 'history') in alphabetical order.
+            A list of command names (e.g., 'exit', 'history') in registration order.
 
         """
         return list(self._commands.keys())
 
     def get_command_descriptions(self) -> dict[str, str]:
-        """Returns a dictionary of command names (lowercase) and their descriptions."""
+        """Return a dictionary of command names (lowercase) and their descriptions."""
         return {name: cmd.description for name, cmd in self._commands.items()}
 
     def get_command_names_with_prefix(self) -> list[str]:
-        """Returns a sorted list of registered command names, prefixed with '/'.
+        """Return a sorted list of registered command names, prefixed with '/'.
 
         Returns:
-            A list of command names (e.g., '/exit', '/history') in alphabetical order.
+            A list of command names (e.g., '/exit', '/history') in registration order.
 
         """
-        return list([f"/{name}" for name in self._commands])
+        return [f"/{name}" for name in self._commands]
 
     def execute(
         self,
         user_input: str,
         app_instance: "Application",
     ) -> tuple[bool, bool]:
-        """Attempts to execute a command based on the user input.
+        """Attempt to execute a command based on the user input.
 
         Args:
             user_input: The raw input string from the user (e.g., "/exit").
@@ -116,35 +120,37 @@ class CommandExecutor:
 
         if command_name not in self._commands:
             # Input started with '/' but didn't match any registered command
-            logger.debug(f"Input '{user_input}' is not a valid command name.")
+            logger.debug(
+                "Input '%s' is not a valid command name.",
+                user_input,
+            )
             # Conventionally, unrecognized commands don't stop the app.
             # We return False because *this specific input* wasn't a known command.
             return False, True
 
         command_instance = self._commands[command_name]
-        logger.info(f"Executing command: '/{command_name}'")
+        logger.info("Executing command: '/%s'", command_name)
         try:
             # Pass the required app_instance to the command's execute method
             should_continue = command_instance.execute(app_instance)
-        except Exception as e:
-            logger.error(
-                f"Error executing command '/{command_name}' ({type(command_instance).__name__}): {e}",
-                exc_info=True,
+        except Exception:
+            logger.exception(
+                "Error executing command '/%s' (%s)",
+                command_name,
+                type(command_instance).__name__,
             )
             # Command was found and attempted, but failed during execution.
             # Signal to continue the application loop.
             return True, True
         else:
-            if not isinstance(
-                should_continue,
-                bool,
-            ):
+            if not isinstance(should_continue, bool):
                 # If the command's execute method doesn't return a boolean, raise an error
-                raise TypeError(
-                    "Command execute method should return a boolean",
-                )
+                msg = "Command execute method should return a boolean"
+                raise TypeError(msg)
 
             logger.debug(
-                f"Command '/{command_name}' executed. Result: {'continue' if should_continue else 'exit'}.",
+                "Command '/%s' executed. Result: %s.",
+                command_name,
+                "continue" if should_continue else "exit",
             )
             return True, should_continue  # Command executed, return its signal

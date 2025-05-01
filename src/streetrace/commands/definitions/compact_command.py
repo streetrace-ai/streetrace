@@ -1,4 +1,9 @@
-# src/streetrace/commands/definitions/compact_command.py
+"""Implement the compact command for summarizing conversation history.
+
+This module defines the CompactCommand class which allows users to compact
+the current conversation history to reduce token usage while maintaining context.
+"""
+
 import logging
 
 from streetrace.application import Application
@@ -21,7 +26,7 @@ class CompactCommand(Command):
         return "Summarize conversation history to reduce token count while maintaining context."
 
     def execute(self, app_instance: Application) -> bool:
-        """Executes the history compaction action on the application instance.
+        """Execute the history compaction action on the application instance.
 
         Args:
             app_instance: The main Application instance.

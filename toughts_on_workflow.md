@@ -129,3 +129,61 @@ Creates interfaces.
 You (after reviewing code):
 
 Looks good, let's now create tests to describe base scenarios following TDD principles, and align on code structure and data model.
+
+# Static analysis
+
+## Code complexity issues
+
+* C901, Function is too complex (11 > 10)
+* PLR0912, line 272: Too many branches (21 > 12)
+
+LLM tries to export individual lines into separate functions, which looks suboptimal. Can we lead to a better solution?
+
+# Scripting
+
+Allow simple scripts inline, find/create a DSL to run things like
+
+```
+for x in @src/streetrace/llm: model "
+asdfasdf @{x}
+"
+```
+
+or
+
+```
+/cli poetry run ruff... | model "
+{_}
+summarize
+"
+```
+
+or
+
+```
+/cli poetry run ruff... | model.json "
+summarize the output grouping results by file name and listing all issues in each file, like this:
+file
+   issue, lines 1-2, 3-4: description
+   issue, lines 1-2, 3-4: description
+provide output as json array, like this:
+
+[
+    {
+        "file": "path",
+        "issues": {
+            "code": {
+                "description": "...",
+                "lines": ["1-2", "3", ...]
+            }
+        }
+    }
+]
+
+include only the json array in the output.
+" | map(x) | model "
+act {x}
+" | join | model "summarize" // only this output gets saved in the history of this conversation
+```
+
+Get inspiration from the existing LLM shells.

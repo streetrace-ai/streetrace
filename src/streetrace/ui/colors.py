@@ -1,18 +1,10 @@
+"""Define color constants and styles for the StreetRace user interface.
+
+This module contains ANSI color codes for terminal output and styles for
+prompt_toolkit and rich library components used throughout the application.
+"""
+
 from prompt_toolkit.styles import Style
-
-
-# ANSI color codes for terminal output
-class AnsiColors:
-    USER = "\x1b[1;32;40m"
-    MODEL = "\x1b[1;37;40m"
-    MODELERROR = "\x1b[1;37;41m"
-    TOOL = "\x1b[1;34;40m"
-    TOOLERROR = "\x1b[1;34;41m"
-    DEBUG = "\x1b[0;35;40m"
-    INFO = "\x1b[0;35;40m"
-    RESET = "\x1b[0m"
-    WARNING = "\x1b[1;33;40m"
-
 
 _USER_INPUT = "#f4bf75"
 _MODEL_RESPONSE = "#f5f5f5"
@@ -24,6 +16,13 @@ _CODE_THEME = "monokai"
 
 
 class Styles:
+    """Style definitions for UI components in StreetRace.
+
+    Contains style configurations for prompt_toolkit and rich library components,
+    including prompts, model responses, tool calls, history display, and various
+    message types (info, warning, error).
+    """
+
     PT = Style.from_dict(
         {
             "": "",
