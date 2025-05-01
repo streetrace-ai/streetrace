@@ -1,6 +1,6 @@
 # tests/commands/test_command_executor.py
 import unittest
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -14,16 +14,10 @@ TARGET_LOGGER_NAME = "streetrace.commands.command_executor"
 _TEST_CMD_NAME = "testcmd"
 _TEST_CMD_DESC = "A simple test command."
 
-if TYPE_CHECKING:
-    # Mock Application class for type hinting
-    class Application:
-        def clear_history(self) -> bool:
-            pass  # pragma: no cover
-
-else:
-    # Minimal runtime stand-in if needed, or rely on duck typing/mocks
-    class Application:
-        pass
+# Mock Application class for type hinting
+class Application:
+    def clear_history(self) -> bool:
+        pass  # pragma: no cover
 
 
 _FAKE_EXCEPTION_MESSAGE = "Simulated exception"

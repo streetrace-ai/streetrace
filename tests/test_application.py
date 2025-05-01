@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from streetrace.application import Application
+from streetrace.application import Application, ApplicationConfig
 from streetrace.commands.command_executor import CommandExecutor
 from streetrace.interaction_manager import InteractionManager
 from streetrace.llm.wrapper import (
@@ -21,13 +21,6 @@ class TestApplication(unittest.TestCase):
 
     def setUp(self) -> None:
         """Set up test fixtures for Application tests."""
-        self.mock_args = argparse.Namespace(
-            prompt=None,
-            debug=False,
-            provider=None,
-            model=None,
-            path=None,
-        )
         self.mock_ui = MagicMock(spec=ConsoleUI)
         self.mock_cmd_executor = MagicMock(spec=CommandExecutor)
         self.mock_prompt_processor = MagicMock(spec=PromptProcessor)
@@ -51,12 +44,11 @@ class TestApplication(unittest.TestCase):
 
         # Initialize Application - it will call build_context during init
         self.app = Application(
-            args=self.mock_args,
+            app_config=ApplicationConfig(working_dir=self.working_dir),
             ui=self.mock_ui,
             cmd_executor=self.mock_cmd_executor,
             prompt_processor=self.mock_prompt_processor,
             interaction_manager=self.mock_interaction_manager,
-            working_dir=self.working_dir,
         )
 
         # Reset mock call count after init to isolate test calls

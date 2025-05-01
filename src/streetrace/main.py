@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 # Core application components
-from streetrace.application import Application
+from streetrace.application import Application, ApplicationConfig
 from streetrace.commands.command_executor import CommandExecutor
 
 # Import specific command classes
@@ -178,12 +178,11 @@ def main() -> None:
 
     # Initialize and Run Application
     app = Application(
-        args=args,
+        app_config=ApplicationConfig(working_dir=abs_working_dir, non_interactive_prompt=args.prompt),
         ui=ui,
         cmd_executor=cmd_executor,
         prompt_processor=prompt_processor,
         interaction_manager=interaction_manager,
-        working_dir=abs_working_dir,
     )
 
     # Start Application Execution

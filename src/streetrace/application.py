@@ -5,11 +5,12 @@ coordinator for the StreetRace application, handling the interaction between
 components and managing the application lifecycle.
 """
 
-import json  # Added for pretty printing
+import json
 import logging
 import sys
-from argparse import Namespace
 from pathlib import Path
+
+from pydantic import BaseModel
 
 from streetrace.commands.command_executor import CommandExecutor
 from streetrace.interaction_manager import InteractionManager
@@ -30,6 +31,11 @@ _MAX_MENTION_CONTENT_LENGTH = 20000
 _MAX_CONTEXT_PREVIEW_LENGTH = 200
 """Maximum length for context preview."""
 
+class ApplicationConfig(BaseModel):
+    """Configuration for the Application class."""
+
+    working_dir: Path
+    non_interactive_prompt: str | None = None
 
 class Application:
     """Orchestrates the StreetRace application flow.
@@ -48,30 +54,27 @@ class Application:
 
     def __init__(
         self,
-        args: Namespace,
+        app_config: ApplicationConfig,
         ui: ConsoleUI,
         cmd_executor: CommandExecutor,
         prompt_processor: PromptProcessor,
         interaction_manager: InteractionManager,
-        working_dir: Path,
     ) -> None:
         """Initialize the Application with necessary components and configuration.
 
         Args:
-            args: Parsed command-line arguments that control application behavior.
+            app_config: App configuration parameters.
             ui: ConsoleUI instance for handling user interaction and displaying output.
             cmd_executor: CommandExecutor instance for processing internal commands.
             prompt_processor: PromptProcessor instance for building context and processing prompts.
             interaction_manager: InteractionManager instance for handling AI model interactions.
-            working_dir: The absolute path to the effective working directory for file operations.
 
         """
-        self.args = args
+        self.config = app_config
         self.ui = ui
         self.cmd_executor = cmd_executor
         self.prompt_processor = prompt_processor
         self.interaction_manager = interaction_manager
-        self.working_dir = working_dir
         self.conversation_history: History | None = None  # Current history
         logger.info("Application initialized.")
 
@@ -81,7 +84,7 @@ class Application:
         Determines whether to run in interactive or non-interactive mode based on
         whether a prompt was provided via command-line arguments.
         """
-        if self.args.prompt:
+        if self.config.non_interactive_prompt:
             self._run_non_interactive()
         else:
             self._run_interactive()
@@ -93,7 +96,7 @@ class Application:
         First checks if the prompt is an internal command, and if not, processes
         it through the AI model and displays the response.
         """
-        prompt_input = self.args.prompt
+        prompt_input = self.config.non_interactive_prompt
         self.ui.display_user_prompt(prompt_input)
 
         # Check for internal commands first (e.g., if someone runs with --prompt history)
@@ -111,7 +114,7 @@ class Application:
             # Build context and history for this single prompt
             prompt_context = self.prompt_processor.build_context(
                 prompt_input,
-                self.working_dir,
+                self.config.working_dir,
             )
             single_prompt_history = History(
                 system_message=prompt_context.system_message,
@@ -154,7 +157,7 @@ class Application:
         # Get initial context directly using build_context
         initial_prompt_context: PromptContext = self.prompt_processor.build_context(
             "",
-            self.working_dir,
+            self.config.working_dir,
         )
 
         # Initialize history for the session using the initial context
@@ -204,7 +207,7 @@ class Application:
                     # Build context again mainly for mentions specific to this input
                     prompt_specific_context = self.prompt_processor.build_context(
                         user_input,
-                        self.working_dir,
+                        self.config.working_dir,
                     )
 
                     # Add mentioned files to history (if any)
@@ -451,7 +454,7 @@ Return ONLY the summary without explaining what you're doing."""
             # Rebuild the initial context
             initial_prompt_context: PromptContext = self.prompt_processor.build_context(
                 "",
-                self.working_dir,
+                self.config.working_dir,
             )
 
             # Create a new History object with the fresh initial state
