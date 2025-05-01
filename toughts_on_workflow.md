@@ -187,3 +187,9 @@ act {x}
 ```
 
 Get inspiration from the existing LLM shells.
+
+
+# Context window management
+
+Give LLM a tool to manage its context window. I.e., if the context grows, use these tools to manage the
+conversation length: ...

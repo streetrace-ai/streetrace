@@ -562,3 +562,36 @@ Thoughts:
   ```
 
   Adds the summarization result to history.
+
+
+===
+
+# Refactoring
+
+```
+Take a look at @src/streetrace/llm/llmapi.py. It has four implementations in src/streetrace/llm subfolders for anthropic, ollama, gemini, and openai. There are several issues with this interface:
+
+1. It has a separate `initialize_client` function which returns a provider's type that is later used only in LLMAPI's own `generate` function. LLMAPI should encapsulate provider's implementation and hide it from callers, so the initialization should not return an instance of provider's implementation, instead it should be stored internally.
+
+2. `generate` accepts `messages: ProviderHistory`, and instead it should accept `history: History` and LLMAPI implementations should convert it to the history format they need. It can optionally accept `messages: ProviderHistory` to avoid pointless conversions when used in @src/streetrace/interaction_manager.py state machine, and when it's not provided, it should require History.
+
+3. I think it will be better if `manage_conversation_history` will also accept `history: History` instead of provider history, and convert it internally.
+
+4. `generate`'s `system_message` and `tools` should be optional and skipped if not provided.
+
+Please implement the refactoring and update related tests. When running tests, please run each test file separately to ensure we don't overload the context window.
+```
+
+The result is shitty code. It's alright in general, but it misses important files, some decisions
+are arguable (in a bad way), etc. Need to try something like:
+
+1. Smart RAG discovering what needs to be changed and feeding it to the model
+2. Iterative thinking process to find different solutions, compare them, and find the right one
+3. Implement
+4. Review
+5. Test
+
+What's missing:
+
+1. Smart RAG.
+2. Workflows allowing arbitrary iterations.
