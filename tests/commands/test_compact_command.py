@@ -5,7 +5,7 @@ import pytest
 # Assuming Application is importable and contains the compact_history method
 from streetrace.application import Application
 from streetrace.commands.definitions.compact_command import CompactCommand
-from streetrace.llm.wrapper import ContentPartText, History, Role
+from streetrace.history import History, Role
 
 
 # --- Tests for CompactCommand structure and execution call ---
@@ -193,9 +193,7 @@ class TestCompactFunctionality:
 
         # Verify the history was NOT replaced
         assert mock_app.conversation_history is sample_history
-        assert (
-            mock_app.conversation_history.messages == original_history_conversation
-        )
+        assert mock_app.conversation_history.messages == original_history_conversation
 
     def test_compact_preserves_system_and_context(
         self,
@@ -245,10 +243,7 @@ class TestCompactFunctionality:
 
         # Verify compaction happened
         assert len(mock_app.conversation_history.messages) == 1
-        assert (
-            mock_app.conversation_history.messages[0].content
-            == summary_text
-        )
+        assert mock_app.conversation_history.messages[0].content == summary_text
 
         # Add a new message after compaction
         new_user_message = "What's the next step?"
@@ -258,13 +253,8 @@ class TestCompactFunctionality:
 
         # Verify the new message is appended correctly
         assert len(mock_app.conversation_history.messages) == 2
-        assert (
-            mock_app.conversation_history.messages[0].role == Role.MODEL
-        )  # Summary
+        assert mock_app.conversation_history.messages[0].role == Role.MODEL  # Summary
         assert (
             mock_app.conversation_history.messages[1].role == Role.USER
         )  # New message
-        assert (
-            mock_app.conversation_history.messages[1].content
-            == new_user_message
-        )
+        assert mock_app.conversation_history.messages[1].content == new_user_message

@@ -193,3 +193,8 @@ Get inspiration from the existing LLM shells.
 
 Give LLM a tool to manage its context window. I.e., if the context grows, use these tools to manage the
 conversation length: ...
+
+# Tests
+
+All tests should follow Arrange - Act - Assert pattern
+Don't mock modules globally

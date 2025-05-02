@@ -71,17 +71,28 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 import litellm
+from rich.status import Status
+from tenacity import (
+    TryAgain,
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_incrementing,
+)
 
-from streetrace.llm.wrapper import (
+from streetrace.history import (
     History,
     Role,
-    ToolCallResult,
 )
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
+
+if TYPE_CHECKING:
+
+    from streetrace.tools.tool_call_result import ToolCallResult
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +211,7 @@ class _ConversationData:
 
 @dataclass
 class _GenerationOutcome:
-    """Result (success/failure and error status) for _call_llm_api method."""
+    """Result (success/failure and error status) for _call_llm method."""
 
     success: bool = False
     error: Exception | None = None
@@ -275,12 +286,43 @@ class InteractionManager:
         logger.error(msg)
         raise TypeError(msg)
 
-    def _call_llm_api(
+    @retry(stop=stop_after_attempt(7), wait=wait_incrementing(start=30, increment=30, max=10*60), reraise=True)
+    def _call_llm_with_retry(
         self,
         model: str,
         history: History,
         tools: ToolCall,
         conv: _ConversationData,
+        status: Status,
+    ) -> litellm.ModelResponse:
+        logger.debug("Calling LLM API...")
+        try:
+            return litellm.completion(
+                model=model,
+                messages=[m.to_dict() for m in history.get_all_messages()],
+                stream=False,
+                tools=tools.tools,
+                num_retries=0,
+            )
+        except litellm.exceptions.RateLimitError as rate_limit_err:
+            self.ui.display_warning(rate_limit_err)
+            logger.info(
+                "Retrying API call... (Attempt %d)",
+                conv.api_retry_count + 1,
+            )
+            status.update(
+                f"Retrying ({conv.api_retry_count}), io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
+            )
+            raise TryAgain from rate_limit_err
+
+
+    def _call_llm(
+        self,
+        model: str,
+        history: History,
+        tools: ToolCall,
+        conv: _ConversationData,
+        status: Status,
     ) -> _GenerationOutcome:
         """Call the LLM API, process the stream, and update _TurnData.
 
@@ -289,23 +331,20 @@ class InteractionManager:
             history: The conversation history.
             tools: The tools.
             conv: The state of this conversation session. Reset conv.turn before calling.
+            status: UI status object to update the user on progress.
 
         Returns:
             _GenerationOutcome indicating success or error.
 
         """
+        outcome: _GenerationOutcome
         try:
-            logger.debug("Calling LLM API...")
-            model_response: litellm.ModelResponse = litellm.completion(
-                model=model,
-                messages=[m.to_dict() for m in history.messages],
-                stream=False,
-                tools=tools.tools,
-                system_message=history.system_message,
-                num_retries=2,
-                retry_strategy=_EXPONENTIAL_BACKOFF_RETRY_STRATEGY,
-            )
-
+            model_response = self._call_llm_with_retry(model, history, tools, conv, status)
+        except Exception as e:
+            logger.exception("Non-retriable error during generation")
+            conv.turn.generation_exception = e
+            outcome = _GenerationOutcome(success=False, error=e)
+        else:
             message: litellm.Message = model_response.choices[0].message
 
             if message.content:
@@ -321,11 +360,9 @@ class InteractionManager:
             conv.turn.assistant_messages.append(message)
 
             logger.debug("LLM API call finished.")
-            return _GenerationOutcome(success=True)
-        except Exception as e:
-            logger.exception("Non-retriable error during generation")
-            conv.turn.generation_exception = e
-            return _GenerationOutcome(success=False, error=e)
+            outcome = _GenerationOutcome(success=True)
+
+        return outcome
 
     def _execute_tools(self, turn: _TurnData, tools: ToolCall) -> _ToolExecutionOutcome:
         """Execute all tool calls currently buffered. Updates execution lists/results."""
@@ -343,14 +380,14 @@ class InteractionManager:
                 )
                 tool_result: ToolCallResult = tools.call_tool(tool_call)
                 if tool_result.success:
-                    self.ui.display_tool_result(tool_result)
+                    self.ui.display_tool_result(tool_call.function.name, tool_result)
                     logger.info(
                         "Tool '%s' result: %s",
                         tool_call.function.name,
                         tool_result.output.content,
                     )
                 else:
-                    self.ui.display_tool_error(tool_result)
+                    self.ui.display_tool_error(tool_call.function.name, tool_result)
                     logger.error(
                         "Tool '%s' error: %s",
                         tool_call.function.name,
@@ -434,12 +471,7 @@ class InteractionManager:
                         status.update(
                             f"Working, io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
                         )
-                        outcome = self._call_llm_api(
-                            model,
-                            history,
-                            tools,
-                            conv,
-                        )
+                        outcome = self._call_llm(model, history, tools, conv, status)
                         if conv.total_input_tokens > 0 or conv.total_output_tokens > 0:
                             status.update(
                                 f"Working, io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",

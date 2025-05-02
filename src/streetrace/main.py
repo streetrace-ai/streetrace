@@ -5,6 +5,8 @@ import logging
 import sys
 from pathlib import Path
 
+import litellm
+
 # Core application components
 from streetrace.application import Application, ApplicationConfig
 from streetrace.commands.command_executor import CommandExecutor
@@ -25,6 +27,8 @@ from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
 
+litellm.suppress_debug_info = True
+
 # --- Logging Configuration ---
 # Basic config for file logging
 logging.basicConfig(
@@ -40,16 +44,19 @@ console_handler.setLevel(logging.INFO)
 console_formatter = logging.Formatter("%(levelname)s: %(message)s")
 console_handler.setFormatter(console_formatter)
 
+
 def configure_3p_loggers() -> None:
     """Configure the litellm logger to use the same handlers as the root logger."""
-    import litellm  # noqa: F401 init loggers
     for name in logging.root.manager.loggerDict:
         if name.startswith("streetrace"):
             continue  # Skip our own loggers
         # Disable console output for a specific third-party logger
-        third_party_logger = logging.getLogger(name)  # Replace with the actual logger name
-        third_party_logger.propagate = False  # Prevent logs from bubbling up to root logger
-        third_party_logger.handlers.clear()   # Remove any existing handlers
+        third_party_logger = logging.getLogger(
+            name,
+        )  # Replace with the actual logger name
+        third_party_logger.handlers.clear()  # Remove any existing handlers
+
+
 configure_3p_loggers()
 
 # Root logger setup

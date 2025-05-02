@@ -1,24 +1,11 @@
 """Unit tests for the --prompt parameter in main.py."""
 
-import sys
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 # Import main, which should now be able to import other modules
 from streetrace import main
-
-# We also need to mock the modules that main imports if they aren't available
-# or if we don't want their side effects during testing main's argument parsing.
-# Mock components to isolate main's logic
-sys.modules["streetrace.prompt_processor"] = MagicMock()
-sys.modules["streetrace.application"] = MagicMock()
-sys.modules["streetrace.commands.command_executor"] = MagicMock()
-sys.modules["streetrace.llm.llmapi_factory"] = MagicMock()
-sys.modules["streetrace.messages"] = MagicMock()
-sys.modules["streetrace.tools.tools"] = MagicMock()
-sys.modules["streetrace.ui.console_ui"] = MagicMock()
-sys.modules["streetrace.interaction_manager"] = MagicMock()
 
 
 class TestPromptParameter(unittest.TestCase):

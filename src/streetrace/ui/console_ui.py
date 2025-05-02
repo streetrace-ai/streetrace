@@ -10,9 +10,7 @@ from rich.panel import Panel
 from rich.status import Status
 from rich.syntax import Syntax
 
-from streetrace.llm.wrapper import (
-    ToolCallResult,
-)
+from streetrace.tools.tool_call_result import ToolCallResult
 from streetrace.ui.colors import Styles
 
 _PROMPT = "You:"
@@ -206,7 +204,10 @@ class ConsoleUI:
             self.console.print()
             self.cursor_is_in_line = False
 
-    def display_tool_call(self, tool_call: litellm.ChatCompletionMessageToolCall) -> None:
+    def display_tool_call(
+        self,
+        tool_call: litellm.ChatCompletionMessageToolCall,
+    ) -> None:
         """Display information about a tool being called."""
         # Shorten long arguments for display clarity
         display_args = {}
@@ -246,10 +247,10 @@ class ConsoleUI:
         self.console.print(Panel(syntax, title="Tool Call"))
         self.cursor_is_in_line = False
 
-    def display_tool_result(self, result: ToolCallResult) -> None:
+    def display_tool_result(self, tool_name: str, result: ToolCallResult) -> None:
         """Display the result of a tool execution."""
         content = result.display_output or result.output
-        title = f"Tool Result ({result.name})"
+        title = f"Tool Result ({tool_name})"
 
         self.new_line()
         if content:
@@ -277,11 +278,11 @@ class ConsoleUI:
 
         self.cursor_is_in_line = False
 
-    def display_tool_error(self, result: ToolCallResult) -> None:
+    def display_tool_error(self, tool_name: str, result: ToolCallResult) -> None:
         """Display an error from a tool execution."""
         output = result.display_output or result.output
         error_message = output.content if output else "[No error message]"
-        title = f"Tool Error ({result.name})"
+        title = f"Tool Error ({tool_name})"
 
         self.new_line()
         self.console.print(Panel(error_message, title=title, style=Styles.RICH_ERROR))

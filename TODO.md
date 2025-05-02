@@ -21,6 +21,9 @@ To make this a real tool, I need to:
 
 ## other
 
+- [ ] Anthropic errors out. Context is not added. Format is also not correct.
+- [ ] Context is not added, and unit tests don't fail.
+- [ ] Unit tests should make sure that one message has only one content item.
 - [x] for streamed responses, collect all text into one message
 - [ ] fix unit tests, lint, etc
 - [ ] Prompt history

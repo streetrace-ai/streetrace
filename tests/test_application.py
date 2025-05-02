@@ -5,12 +5,10 @@ from unittest.mock import MagicMock, patch
 
 from streetrace.application import Application, ApplicationConfig
 from streetrace.commands.command_executor import CommandExecutor
-from streetrace.interaction_manager import InteractionManager
-from streetrace.llm.wrapper import (
-    ContentPartText,
+from streetrace.history import (
     History,
-    Role,
 )
+from streetrace.interaction_manager import InteractionManager
 from streetrace.prompt_processor import PromptContext, PromptProcessor
 from streetrace.ui.console_ui import ConsoleUI
 

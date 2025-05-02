@@ -4,21 +4,19 @@ from unittest.mock import MagicMock, call, patch
 
 import litellm
 
+# Assuming these imports work based on project structure
+from streetrace.history import (
+    History,
+    Role,
+)
 from streetrace.interaction_manager import (
     _EMPTY_RESPONSE_MAX_RETRIES,
     InteractionManager,
     ThinkingResult,
 )
 
-# Assuming these imports work based on project structure
-from streetrace.llm.wrapper import (
-    History,
-    Role,
-    ToolCallResult,
-    ToolOutput,
-)
-
 # Removed ToolDescription from this import
+from streetrace.tools.tool_call_result import ToolCallResult, ToolOutput
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
 
@@ -66,8 +64,10 @@ class FakeMessageBuilder:
                 "arguments": args,
             },
         }
-        self.tool_calls[tool_call_id] = litellm.ChatCompletionMessageToolCall.model_validate(
-            tool_call,
+        self.tool_calls[tool_call_id] = (
+            litellm.ChatCompletionMessageToolCall.model_validate(
+                tool_call,
+            )
         )
         if self.message["choices"][0]["message"].get("tool_calls") is None:
             self.message["choices"][0]["message"]["tool_calls"] = []
@@ -75,7 +75,9 @@ class FakeMessageBuilder:
         return self
 
     def with_usage(
-        self, prompt_tokens: int, response_tokens: int,
+        self,
+        prompt_tokens: int,
+        response_tokens: int,
     ) -> "FakeMessageBuilder":
         """Set the usage for the message."""
         self.message["usage"] = {
@@ -95,6 +97,7 @@ class FakeMessageBuilder:
     def response_message(self) -> litellm.Message:
         """Convert the message to a litellm litellm.Message."""
         return litellm.ModelResponse.model_validate(self.message)
+
 
 @patch("litellm.completion")
 class TestInteractionManager(unittest.TestCase):
@@ -126,132 +129,59 @@ class TestInteractionManager(unittest.TestCase):
             litellm.Message(role=Role.USER.value, content="User Prompt"),
         )
 
-    def fake_completion_result(self) -> litellm.ModelResponse:
-        """Create a fake completion result for testing."""
-        return litellm.ModelResponse.model_validate(
-            {
-                "id": "chatcmpl-565d891b-a42e-4c39-8d14-82a1f5208885",
-                "created": 1734366691,
-                "model": "claude-3-sonnet-20240229",
-                "object": "chat.completion",
-                "system_fingerprint": None,
-                "choices": [
-                    {
-                        "finish_reason": "stop",
-                        "index": 0,
-                        "message": {
-                            "content": "Hello! As an AI language model, I don't have feelings, but I'm operating properly and ready to assist you with any questions or tasks you may have. How can I help you today?",
-                            "role": "assistant",
-                            "tool_calls": None,
-                            "function_call": None,
-                        },
-                    },
-                ],
-                "usage": {
-                    "completion_tokens": 43,
-                    "prompt_tokens": 13,
-                    "total_tokens": 56,
-                    "completion_tokens_details": None,
-                    "prompt_tokens_details": {
-                        "audio_tokens": None,
-                        "cached_tokens": 0,
-                    },
-                    "cache_creation_input_tokens": 0,
-                    "cache_read_input_tokens": 0,
-                },
-            },
-        )
-
-    def fake_completion_result_with_tool_call(self, tool_calls) -> litellm.ModelResponse:
-        """Create a fake completion result for testing."""
-        return litellm.ModelResponse.model_validate(
-            {
-                "id": "chatcmpl-565d891b-a42e-4c39-8d14-82a1f5208885",
-                "created": 1734366691,
-                "model": "claude-3-sonnet-20240229",
-                "object": "chat.completion",
-                "system_fingerprint": None,
-                "choices": [
-                    {
-                        "finish_reason": "tool_use",
-                        "index": 0,
-                        "message": {
-                            "content": "Hello! As an AI language model, I don't have feelings, but I'm operating properly and ready to assist you with any questions or tasks you may have. How can I help you today?",
-                            "role": "assistant",
-                            "tool_calls": tool_calls,
-                            "function_call": None,
-                        },
-                    },
-                ],
-                "usage": {
-                    "completion_tokens": 43,
-                    "prompt_tokens": 13,
-                    "total_tokens": 56,
-                    "completion_tokens_details": None,
-                    "prompt_tokens_details": {
-                        "audio_tokens": None,
-                        "cached_tokens": 0,
-                    },
-                    "cache_creation_input_tokens": 0,
-                    "cache_read_input_tokens": 0,
-                },
-            },
-        )
-
-    def fake_completion_result_tool_result(self) -> litellm.ModelResponse:
-        """Create a fake completion result for testing."""
-        return litellm.ModelResponse.model_validate(
-            {
-                "id": "chatcmpl-565d891b-a42e-4c39-8d14-82a1f5208885",
-                "created": 1734366691,
-                "model": "claude-3-sonnet-20240229",
-                "object": "chat.completion",
-                "system_fingerprint": None,
-                "choices": [
-                    {
-                        "finish_reason": "stop",
-                        "index": 0,
-                        "message": {
-                            "content": "Sunny",
-                            "role": "assistant",
-                            "tool_calls": None,
-                            "function_call": None,
-                        },
-                    },
-                ],
-                "usage": {
-                    "completion_tokens": 10,
-                    "prompt_tokens": 15,
-                    "total_tokens": 25,
-                    "completion_tokens_details": None,
-                    "prompt_tokens_details": {
-                        "audio_tokens": None,
-                        "cached_tokens": 0,
-                    },
-                    "cache_creation_input_tokens": 0,
-                    "cache_read_input_tokens": 0,
-                },
-            },
-        )
-
     def test_system_message_is_processed(self, mock_completion) -> None:
         """Test that a successful run returns a ThinkingResult with correct stats."""
         # Arrange
-        # Act
-        _ = self.manager.process_prompt(_FAKE_MODEL, self.history, self.mock_tools)
-
-        mock_completion.assert_called_once_with(
-            model=_FAKE_MODEL,
-            messages=[m.to_dict() for m in self.history.messages],
-            stream=False,
-            tools=self.mock_tools.tools,
-            system_message=self.history.system_message,
-            num_retries=2,
-            retry_strategy="exponential_backoff_retry",
+        _system_message = "System Prompt"
+        _user_message = "User Prompt"
+        history = History(system_message=_system_message)
+        # Add initial user message to the history's conversation list
+        history.messages.append(
+            litellm.Message(role=Role.USER, content=_user_message),
         )
 
+        # Act
+        _ = self.manager.process_prompt(_FAKE_MODEL, history, self.mock_tools)
+
+        mock_completion.assert_called_once()
+
+        args, kwargs = mock_completion.call_args
+
+        assert len(kwargs["messages"]) == 2
+        assert "messages" in kwargs
+        assert kwargs["messages"][0]["role"] == Role.SYSTEM
+        assert kwargs["messages"][0]["content"] == _system_message
+        assert kwargs["messages"][1]["role"] == Role.USER
+        assert kwargs["messages"][1]["content"] == _user_message
+
+    def test_context_message_is_processed(self, mock_completion) -> None:
+        """Test that a successful run returns a ThinkingResult with correct stats."""
+        # Arrange
+        _context_message = "Context Prompt"
+        _user_message = "User Prompt"
+        history = History(context=_context_message)
+        # Add initial user message to the history's conversation list
+        history.messages.append(
+            litellm.Message(role=Role.USER, content=_user_message),
+        )
+
+        # Act
+        _ = self.manager.process_prompt(_FAKE_MODEL, history, self.mock_tools)
+
+        mock_completion.assert_called_once()
+
+        args, kwargs = mock_completion.call_args
+
+        assert len(kwargs["messages"]) == 2
+        assert "messages" in kwargs
+        assert kwargs["messages"][0]["role"] == Role.CONTEXT
+        assert kwargs["messages"][0]["content"] == _context_message
+        assert kwargs["messages"][1]["role"] == Role.USER
+        assert kwargs["messages"][1]["content"] == _user_message
+
     def test_successful_completion_returns_thinking_result(
-        self, mock_completion,
+        self,
+        mock_completion,
     ) -> None:
         """Test that a successful run returns a ThinkingResult with correct stats."""
         # Arrange
@@ -309,12 +239,15 @@ class TestInteractionManager(unittest.TestCase):
         self.mock_ui.display_tool_call.assert_called_once_with(
             next(iter(tool_call_builder.tool_calls.values())),
         )
-        self.mock_ui.display_tool_result.assert_called_once_with(tool_result_content)
+        self.mock_ui.display_tool_result.assert_called_once_with("get_weather", tool_result_content)
         self.mock_ui.display_tool_error.assert_not_called()
         assert result.input_tokens == 13 + 15
         assert result.output_tokens == 43 + 10
 
-    def test_tool_call_with_finish_reason_continues_the_loop(self, mock_completion) -> None:
+    def test_tool_call_with_finish_reason_continues_the_loop(
+        self,
+        mock_completion,
+    ) -> None:
         """Test that a successful tool call displays the result correctly.
 
         This test is identical to test_tool_call_displays_success with the difference
@@ -332,7 +265,9 @@ class TestInteractionManager(unittest.TestCase):
 
         tool_call_builder = (
             FakeMessageBuilder("assistant", "Hello!")
-            .with_finish_reason("stop") # Finish reason = "stop", while there are tool calls
+            .with_finish_reason(
+                "stop",
+            )  # Finish reason = "stop", while there are tool calls
             .with_usage(13, 43)
             .with_tool_call("get_weather", {"location": "London"})
         )
@@ -388,7 +323,7 @@ class TestInteractionManager(unittest.TestCase):
         self.mock_ui.display_tool_call.assert_called_once_with(
             next(iter(tool_call_builder.tool_calls.values())),
         )
-        self.mock_ui.display_tool_error.assert_called_once_with(tool_result_content)
+        self.mock_ui.display_tool_error.assert_called_once_with("get_weather", tool_result_content)
         self.mock_ui.display_tool_result.assert_not_called()
         assert result.input_tokens == 10 + 12  # Sum of tokens from both calls
         assert result.output_tokens == 15 + 6  # Sum of tokens from both calls
@@ -435,13 +370,15 @@ class TestInteractionManager(unittest.TestCase):
         assert turn3_message.content == "Done."
         assert turn3_message.role == "assistant"
 
-    def test_no_output_or_finish_reason_retries_default_times(self, mock_completion) -> None:
+    def test_no_output_or_finish_reason_retries_default_times(
+        self,
+        mock_completion,
+    ) -> None:
         """Test empty response with no reason retries _EMPTY_RESPONSE_MAX_RETRIES times."""
         # Arrange
         num_attempts = _EMPTY_RESPONSE_MAX_RETRIES + 1
         mock_completion.side_effect = [
-            FakeMessageBuilder("assistant", "")
-            .response_message(),
+            FakeMessageBuilder("assistant", "").response_message(),
         ] * num_attempts
 
         # Act
@@ -478,8 +415,7 @@ class TestInteractionManager(unittest.TestCase):
             .response_message(),
         ]
         side_effects.extend(
-            [FakeMessageBuilder("assistant", "")
-            .response_message()] * num_attempts,
+            [FakeMessageBuilder("assistant", "").response_message()] * num_attempts,
         )  # Add empty iterators for subsequent calls
         mock_completion.side_effect = side_effects
 
@@ -575,7 +511,10 @@ class TestInteractionManager(unittest.TestCase):
             "Interrupted: User interrupted",
         )
 
-    def test_non_retriable_error_in_generate_stops_thinking(self, mock_completion) -> None:
+    def test_non_retriable_error_in_generate_stops_thinking(
+        self,
+        mock_completion,
+    ) -> None:
         """Test that a non-RetriableError during generate stops the loop."""
         # Arrange
         error_message = "Fatal generation error!"
@@ -594,7 +533,10 @@ class TestInteractionManager(unittest.TestCase):
         self.mock_sleeper.assert_not_called()
         self.mock_ui.display_error.assert_called_once_with(f"Failed: {error_message}")
 
-    def test_non_retriable_error_in_tool_call_stops_thinking(self, mock_completion) -> None:
+    def test_non_retriable_error_in_tool_call_stops_thinking(
+        self,
+        mock_completion,
+    ) -> None:
         """Test that a non-RetriableError during tool call stops the loop."""
         # Arrange
         error_message = "Fatal tool error!"
@@ -629,7 +571,10 @@ class TestInteractionManager(unittest.TestCase):
         # History should not be updated because the turn (tool call + result) failed mid-way
         self.mock_ui.display_error.assert_called_once_with(f"Failed: {error_message}")
 
-    def test_error_after_successful_turn_preserves_history(self, mock_completion) -> None:
+    def test_error_after_successful_turn_preserves_history(
+        self,
+        mock_completion,
+    ) -> None:
         """Test history is preserved from successful turns before a failure."""
         # Arrange
         error_message = "Failed on second turn"
@@ -637,8 +582,7 @@ class TestInteractionManager(unittest.TestCase):
 
         # Simulate: Success (no finish reason) -> Error
         mock_completion.side_effect = [
-            FakeMessageBuilder("assistant", "First turn success.")
-            .with_usage(10, 5)
+            FakeMessageBuilder("assistant", "First turn success.").with_usage(10, 5)
             # NO finish reason - forces loop continuation
             .response_message(),
             the_error,

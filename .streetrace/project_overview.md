@@ -7,6 +7,7 @@ The primary goal is to create a seamless experience where developers can interac
 
 ## Core Functionality
 - Provides a set of tools for AI models to interact with the file system (read/write files, list directories)
+- Uses litellm to standardize interactions with multiple AI providers
 - Executes CLI commands with interactive capabilities (allowing real-time input/output)
 - Searches for text within files using glob patterns
 - Supports multiple AI backends including Anthropic, Gemini, OpenAI, and locally-hosted models via Ollama
@@ -14,23 +15,15 @@ The primary goal is to create a seamless experience where developers can interac
 
 ## Project Structure
 
-This is a python app with the source code in `src/streetrace/`, tests in `tests/` directory, and docs in `docs/` directory.
-
-The app is published in pypi and is can be used as a CLI to interact with LLMs using tools.
-
-StreetRace🚗💨 supports Gemini, Anthropic, and OpenAI, and Ollama as backends which are implemented in `src/streetrace/llm/`.
-All LLM APIs implement LLMAPI interface defined in `llmapi.py` and have corresponding converters that implement
-HistoryConverter interface defined in `history_converter.py`.
-
-StreetRace🚗💨 has a console UI implemented in `src/streetrace/ui/`.
-
-The UI supports commands implemented in `src/streetrace/commands/`.
-
-StreetRace🚗💨 supports command line arguments described in `main.py`.
-
-`examples/` Contains example scripts demonstrating programmatic usage.
-
-`.streetrace` directory contains StreetRace🚗💨 context and configuration files and rules that need to be followed by LLMs at all times, including this file. These files are not part of the core application structure.
+Core components include:
+* src/streetrace/application.py: Main application orchestration
+* src/streetrace/interaction_manager.py: Implements the ReAct agent pattern for tool usage with AI models and implements litellm integration and tool execution
+* src/streetrace/history.py: Manages conversation context
+* src/streetrace/tools/: Implements file operations and CLI tools
+* src/streetrace/ui/: Console UI implementation
+* src/streetrace/commands/: User commands processing
+* .streetrace directory contains StreetRace🚗💨 context and configuration files and rules that need to be followed by LLMs at all times, including this file. These files are not part of the core application structure.
+* main.py is the entry point which parses command-line arguments and initializes core components
 
 ## Integration
 

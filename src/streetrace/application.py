@@ -5,23 +5,19 @@ coordinator for the StreetRace application, handling the interaction between
 components and managing the application lifecycle.
 """
 
-import json
 import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from streetrace.commands.command_executor import CommandExecutor
-from streetrace.interaction_manager import InteractionManager
-from streetrace.llm.wrapper import (
-    ContentPartText,
-    ContentPartToolCall,
-    ContentPartToolResult,
+from streetrace.history import (
     History,
     Role,
-    ToolCallResult,
 )
+from streetrace.interaction_manager import InteractionManager
 from streetrace.prompt_processor import PromptContext, PromptProcessor
+from streetrace.tools.tool_call_result import ToolCallResult
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
 
@@ -288,7 +284,8 @@ class Application:
                 )
             # Add mention context as USER role for simplicity in display/processing for now
             history.add_context_message(
-                context_title, context_message,
+                context_title,
+                context_message,
             )
             logger.debug("Added context from @%s to history.", filepath)
 
@@ -340,7 +337,7 @@ class Application:
                         self.ui.display_tool_call(tool_call)
                 if msg.role == Role.TOOL and msg.content:
                     tool_result = ToolCallResult.model_validate_json(msg.content)
-                    self.ui.display_tool_result(tool_result)
+                    self.ui.display_tool_result(msg.name, tool_result)
 
         self.ui.display_info("--- End History ---")
 
@@ -394,10 +391,10 @@ Return ONLY the summary without explaining what you're doing."""
 
         # We use the existing interaction manager to process this request
         self.interaction_manager.process_prompt(
-                    self.config.initial_model,
-                    summary_request_history,
-                    self.config.tools,
-                    )
+            self.config.initial_model,
+            summary_request_history,
+            self.config.tools,
+        )
 
         # Get the summary message from the response
         if summary_request_history.messages[-1].role == "assistant":
