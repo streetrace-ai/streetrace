@@ -30,6 +30,8 @@ from streetrace.ui.console_ui import ConsoleUI
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    filename="streetrace.log",
+    filemode="w",
 )
 
 # Console handler for user-facing logs
@@ -42,6 +44,8 @@ def configure_3p_loggers() -> None:
     """Configure the litellm logger to use the same handlers as the root logger."""
     import litellm  # noqa: F401 init loggers
     for name in logging.root.manager.loggerDict:
+        if name.startswith("streetrace"):
+            continue  # Skip our own loggers
         # Disable console output for a specific third-party logger
         third_party_logger = logging.getLogger(name)  # Replace with the actual logger name
         third_party_logger.propagate = False  # Prevent logs from bubbling up to root logger
@@ -52,13 +56,11 @@ configure_3p_loggers()
 root_logger = logging.getLogger()
 # Set root logger level to DEBUG initially to capture everything
 root_logger.setLevel(logging.DEBUG)
-root_logger.addHandler(logging.FileHandler(
-    filename="generation.log",
-    mode="w",
-))
 # --- End Logging Configuration ---
 
 logger = logging.getLogger(__name__)
+
+_CONTEXT_DIR = ".streetrace"
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -146,7 +148,7 @@ def main() -> None:
     available_commands = cmd_executor.get_command_names_with_prefix()
 
     # Initialize Completers
-    path_completer = PathCompleter(str(abs_working_dir))
+    path_completer = PathCompleter(abs_working_dir)
     command_completer = CommandCompleter(available_commands)
     prompt_completer = PromptCompleter([path_completer, command_completer])
 
@@ -154,7 +156,7 @@ def main() -> None:
     ui = ConsoleUI(completer=prompt_completer)
 
     # Initialize other Core Application Components
-    prompt_processor = PromptProcessor(ui=ui)
+    prompt_processor = PromptProcessor(ui=ui, config_dir=abs_working_dir / _CONTEXT_DIR)
 
     # Determine Model and Provider
     model_name = args.model.strip().lower() if args.model else None

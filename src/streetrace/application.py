@@ -19,6 +19,7 @@ from streetrace.llm.wrapper import (
     ContentPartToolResult,
     History,
     Role,
+    ToolCallResult,
 )
 from streetrace.prompt_processor import PromptContext, PromptProcessor
 from streetrace.tools.tools import ToolCall
@@ -328,45 +329,18 @@ class Application:
             self.ui.display_info("No messages in history yet.")
         else:
             for msg in self.conversation_history.messages:
-                role_str = msg.role.capitalize()
-                content_str = ""
-                if not msg.content:  # Handle potential empty content list
-                    content_str = "[Empty Message Content]"
-                else:
-                    for part in msg.content:
-                        if isinstance(part, ContentPartText):
-                            content_str += part.text + "\n"
-                        elif isinstance(part, ContentPartToolCall):
-                            # Ensure arguments are formatted as a string (e.g., JSON)
-                            args_str = (
-                                json.dumps(part.arguments)
-                                if isinstance(part.arguments, dict)
-                                else str(part.arguments)
-                            )
-                            content_str += f"Tool Call: {part.name}({args_str})\n"
-                        elif isinstance(part, ContentPartToolResult):
-                            if part.content.failure:
-                                if "return_code" in part.content.output.content:
-                                    content_str += f"Tool Result: (Error)\n\n**RETURN CODE**: {part.content.output.content.get('return_code')}\n\n**STDOUT**:\n\n{part.content.output.content.get('stdout')}\n\n**STDERR**:\n\n{part.content.output.content.get('stderr')}\n"
-                                else:
-                                    content_str += f"Tool Result: (Error) {part.content.output.content}\n"
-                            else:
-                                content_str += "Tool Result: (OK)\n"
-                        elif part is None:  # Handle potential None parts
-                            content_str += "[None Content Part]\n"
-                        else:
-                            content_str += str(part) + "\n"  # Fallback
-                content_str = content_str.strip()  # Clean up trailing whitespace
-
-                # Use appropriate UI methods based on role
-                if msg.role == Role.MODEL:
-                    # Display assistant/model messages
-                    self.ui.display_history_assistant_message(content_str)
-                elif msg.role in (Role.USER, Role.TOOL):
+                if msg.role == Role.USER and msg.content:
                     # Display user messages or tool messages
-                    self.ui.display_history_user_message(content_str)
-                else:  # Fallback for other potential roles
-                    self.ui.display_info(f"{role_str}: {content_str.strip()}")
+                    self.ui.display_history_user_message(msg.content)
+                if msg.role == Role.MODEL and msg.content:
+                    # Display assistant/model messages
+                    self.ui.display_history_assistant_message(msg.content)
+                if msg.tool_calls:
+                    for tool_call in msg.tool_calls:
+                        self.ui.display_tool_call(tool_call)
+                if msg.role == Role.TOOL and msg.content:
+                    tool_result = ToolCallResult.model_validate_json(msg.content)
+                    self.ui.display_tool_result(tool_result)
 
         self.ui.display_info("--- End History ---")
 

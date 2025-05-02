@@ -101,7 +101,7 @@ class PromptProcessor:
             context_files = [
                 f
                 for f in self.config_dir.iterdir()
-                if (self.config_dir / f).is_file() and f.name != "system.md"
+                if f.is_file() and f.name != "system.md"
             ]
         except Exception as e:
             log_msg = f"Error listing context directory '{self.config_dir}': {e}"

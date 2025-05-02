@@ -595,3 +595,11 @@ What's missing:
 
 1. Smart RAG.
 2. Workflows allowing arbitrary iterations.
+
+===
+
+# Tests
+
+Please analyze the best strategy to break up the functionality into user scenarios, and create unit tests reflecting the user scenarios.
+
+When creating tests, please make sure to create small and fast tests.
