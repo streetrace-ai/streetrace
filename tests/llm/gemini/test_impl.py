@@ -83,7 +83,7 @@ class TestGeminiImpl(unittest.TestCase):
         )
 
         # Add a message
-        history.add_message(Role.USER, [ContentPartText(text="Hello, Gemini")])
+        history.add_user_message("Hello, Gemini")
 
         # Convert to provider history
         provider_history = self.gemini.transform_history(history)

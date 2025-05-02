@@ -59,12 +59,11 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         )
 
         # Add a user message
-        history.add_message(Role.USER, [ContentPartText(text="Hello, how are you?")])
+        history.add_user_message("Hello, how are you?")
 
         # Add a model response
-        history.add_message(
-            Role.MODEL,
-            [ContentPartText(text="I'm doing well, thank you for asking!")],
+        history.add_assistant_message_test(
+            "I'm doing well, thank you for asking!",
         )
 
         # Set up the mock to return specific messages for each role
@@ -146,33 +145,25 @@ class TestGeminiHistoryConverter(unittest.TestCase):
         history = History()
 
         # Add a message with a tool call
-        history.add_message(
-            Role.USER,
-            [
-                ContentPartText(text="I need to search for something"),
-                ContentPartToolCall(
-                    tool_id="search-1",
-                    name="search_files",
-                    arguments={"pattern": "*.py", "search_string": "def test"},
-                ),
-            ],
+        history.add_assistant_message_test(
+            "I need to search for something",
+            {
+                "tool_call_id": "search-1",
+                "name": "search_files",
+                "arguments": {"pattern": "*.py", "search_string": "def test"},
+            },
         )
 
         # Add a message with a tool result
-        history.add_message(
-            Role.TOOL,
-            [
-                ContentPartToolResult(
-                    tool_id="search-1-result",
-                    name="search_files",
-                    content=ToolCallResult.ok(
+        history.add_tool_message(
+            tool_call_id="search-1",
+            name="search_files",
+            content=ToolCallResult.ok(
                         output=ToolOutput(
                             type="text",
                             content="Found 5 files matching the pattern",
                         ),
                     ),
-                ),
-            ],
         )
 
         # Convert to provider history

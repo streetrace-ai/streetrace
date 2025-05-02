@@ -57,6 +57,9 @@ class TestCompactFunctionality:
         app = MagicMock(spec=Application)
         app.ui = MagicMock()
         app.interaction_manager = MagicMock()
+        app.config = MagicMock()
+        app.config.initial_model = "fake model"
+        app.config.tools = MagicMock()
         # We will call the *real* Application.compact_history method,
         # passing this mock_app instance as 'self'.
         return app
@@ -65,17 +68,14 @@ class TestCompactFunctionality:
     def sample_history(self):
         """Create a sample conversation history."""
         history = History(system_message="System Info", context="Project Context")
-        history.add_message(
-            role=Role.USER,
-            content=[ContentPartText(text="User message 1")],
+        history.add_user_message(
+            "User message 1",
         )
-        history.add_message(
-            role=Role.MODEL,
-            content=[ContentPartText(text="Model response 1")],
+        history.add_assistant_message_test(
+            "Model response 1",
         )
-        history.add_message(
-            role=Role.USER,
-            content=[ContentPartText(text="User message 2")],
+        history.add_user_message(
+            "User message 2",
         )
         return history
 
@@ -85,18 +85,21 @@ class TestCompactFunctionality:
         summary_text = "This is the conversation summary."
 
         # Mock interaction_manager: it should add a MODEL response to the history passed to it
-        def mock_process_prompt(history_to_summarize) -> None:
+        def mock_process_prompt(
+            _model: str,
+            history_to_summarize: History,
+            _tools: any,
+        ) -> None:
             assert (
-                history_to_summarize.conversation[-1].role == Role.USER
+                history_to_summarize.messages[-1].role == "user"
             )  # check summary prompt is added
             assert (
                 "Please summarize our conversation"
-                in history_to_summarize.conversation[-1].content[0].text
+                in history_to_summarize.messages[-1].content
             )
             # Simulate LLM adding the summary
-            history_to_summarize.add_message(
-                role=Role.MODEL,
-                content=[ContentPartText(text=summary_text)],
+            history_to_summarize.add_assistant_message_test(
+                summary_text,
             )
 
         mock_app.interaction_manager.process_prompt.side_effect = mock_process_prompt
@@ -119,9 +122,9 @@ class TestCompactFunctionality:
         assert isinstance(final_history, History)
         assert final_history.system_message == sample_history.system_message
         assert final_history.context == sample_history.context
-        assert len(final_history.conversation) == 1  # Only the summary message remains
-        assert final_history.conversation[0].role == Role.MODEL
-        assert final_history.conversation[0].content[0].text == summary_text
+        assert len(final_history.messages) == 1  # Only the summary message remains
+        assert final_history.messages[0].role == "assistant"
+        assert final_history.messages[0].content == summary_text
         # Verify original history object is not the same object anymore
         assert final_history is not sample_history
 
@@ -145,7 +148,7 @@ class TestCompactFunctionality:
         mock_app.conversation_history = History(
             system_message="Sys",
             context="Ctx",
-            conversation=[],  # Empty conversation list
+            messages=[],  # Empty conversation list
         )
 
         # Execute
@@ -159,15 +162,15 @@ class TestCompactFunctionality:
         mock_app.ui.display_info.assert_not_called()  # No "Compacting..." message
         mock_app.interaction_manager.process_prompt.assert_not_called()
         # Ensure history object itself wasn't replaced
-        assert mock_app.conversation_history.conversation == []
+        assert mock_app.conversation_history.messages == []
 
     def test_compact_llm_failure(self, mock_app, sample_history) -> None:
         """Test compaction failure when the LLM doesn't return a MODEL message."""
         mock_app.conversation_history = sample_history
-        original_history_conversation = sample_history.conversation[:]  # Keep a copy
+        original_history_conversation = sample_history.messages[:]  # Keep a copy
 
         # Mock interaction_manager: Simulate it *not* adding a MODEL response
-        def mock_process_prompt_failure(history_to_summarize) -> None:
+        def mock_process_prompt_failure(_model, _history, _tools) -> None:
             # LLM simulation does nothing here
             pass
 
@@ -191,7 +194,7 @@ class TestCompactFunctionality:
         # Verify the history was NOT replaced
         assert mock_app.conversation_history is sample_history
         assert (
-            mock_app.conversation_history.conversation == original_history_conversation
+            mock_app.conversation_history.messages == original_history_conversation
         )
 
     def test_compact_preserves_system_and_context(
@@ -203,10 +206,13 @@ class TestCompactFunctionality:
         mock_app.conversation_history = sample_history
         summary_text = "Summary preserving context."
 
-        def mock_process_prompt(history_to_summarize) -> None:
-            history_to_summarize.add_message(
-                role=Role.MODEL,
-                content=[ContentPartText(text=summary_text)],
+        def mock_process_prompt(
+            _model: str,
+            history_to_summarize: History,
+            _tools: any,
+        ) -> None:
+            history_to_summarize.add_assistant_message_test(
+                summary_text,
             )
 
         mock_app.interaction_manager.process_prompt.side_effect = mock_process_prompt
@@ -223,10 +229,13 @@ class TestCompactFunctionality:
         summary_text = "Compacted history."
 
         # Mock the summarization process
-        def mock_process_prompt(history_to_summarize) -> None:
-            history_to_summarize.add_message(
-                role=Role.MODEL,
-                content=[ContentPartText(text=summary_text)],
+        def mock_process_prompt(
+            _model: str,
+            history_to_summarize: History,
+            _tools: any,
+        ) -> None:
+            history_to_summarize.add_assistant_message_test(
+                summary_text,
             )
 
         mock_app.interaction_manager.process_prompt.side_effect = mock_process_prompt
@@ -235,28 +244,27 @@ class TestCompactFunctionality:
         Application.compact_history(mock_app)
 
         # Verify compaction happened
-        assert len(mock_app.conversation_history.conversation) == 1
+        assert len(mock_app.conversation_history.messages) == 1
         assert (
-            mock_app.conversation_history.conversation[0].content[0].text
+            mock_app.conversation_history.messages[0].content
             == summary_text
         )
 
         # Add a new message after compaction
         new_user_message = "What's the next step?"
-        mock_app.conversation_history.add_message(
-            role=Role.USER,
-            content=[ContentPartText(text=new_user_message)],
+        mock_app.conversation_history.add_user_message(
+            new_user_message,
         )
 
         # Verify the new message is appended correctly
-        assert len(mock_app.conversation_history.conversation) == 2
+        assert len(mock_app.conversation_history.messages) == 2
         assert (
-            mock_app.conversation_history.conversation[0].role == Role.MODEL
+            mock_app.conversation_history.messages[0].role == Role.MODEL
         )  # Summary
         assert (
-            mock_app.conversation_history.conversation[1].role == Role.USER
+            mock_app.conversation_history.messages[1].role == Role.USER
         )  # New message
         assert (
-            mock_app.conversation_history.conversation[1].content[0].text
+            mock_app.conversation_history.messages[1].content
             == new_user_message
         )

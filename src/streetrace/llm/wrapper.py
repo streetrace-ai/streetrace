@@ -4,7 +4,7 @@ from dataclasses import field
 from enum import Enum
 from typing import Any, Optional, TypeVar
 
-from litellm import Message
+import litellm
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -181,13 +181,15 @@ ContentPart = (
 )
 
 
-class Role(Enum):
+class Role(str, Enum):
     """Roles in a conversation between user, model and tools."""
+    def _generate_next_value_(name, start, count, last_values):
+        return name
 
     SYSTEM = "system"
     USER = "user"
-    CONTEXT = "context"
-    MODEL = "model"
+    CONTEXT = "user"
+    MODEL = "assistant"
     TOOL = "tool"
 
 
@@ -196,9 +198,9 @@ class History(BaseModel):
 
     system_message: str | None = None
     context: str | None = None
-    messages: list[Message] = field(default_factory=list)
+    messages: list[litellm.Message] = field(default_factory=list)
 
-    def add_message(self, role: Role, content: list[ContentPart]) -> Message | None:
+    def add_message(self, role: Role, content: list[ContentPart]) -> litellm.Message | None:
         """Add a message to the conversation history.
 
         Args:
@@ -206,7 +208,7 @@ class History(BaseModel):
             content: The content parts of the message
 
         Returns:
-            The created Message object or None if content was empty
+            The created litellm.Message object or None if content was empty
 
         Raises:
             TypeError: If role is not a valid Role enum
@@ -217,6 +219,78 @@ class History(BaseModel):
             raise TypeError(msg)
         if not content:
             return None
-        message = Message(role=role, content=content)
+        message = litellm.Message(role=role, content=content)
         self.conversation.append(message)
         return message
+
+    def add_assistant_message(self, message: litellm.Message) -> None:
+        """Add an assistant message to the conversation history.
+
+        Args:
+            content: The content of the assistant message
+
+        """
+        self.messages.append(message)
+
+    def add_assistant_message_test(self, content: str, tool_call: dict[str, any] = None) -> None:
+        """Add an assistant message to the conversation history.
+
+        Args:
+            content: The content of the assistant message
+
+        """
+        tool_calls_part = []
+        if tool_call:
+            tool_calls_part = [
+                litellm.ChatCompletionMessageToolCall(
+                    id=tool_call["tool_call_id"],
+                    type="function",
+                    function={
+                        "name": tool_call["tool_name"],
+                        "arguments": tool_call["arguments"],
+                    }
+                )
+            ]
+        self.messages.append(
+            litellm.Message(role="assistant",
+                    content=content,
+                    tool_calls=tool_calls_part,
+            )
+        )
+
+    def add_user_message(self, content: str) -> None:
+        """Add user message to the conversation history.
+
+        Args:
+            content: The content of the user message
+
+        """
+        self.messages.append(
+            litellm.Message(role="user", content=content),
+        )
+
+    def add_context_message(self, title: str, content: str) -> None:
+        """Add user message to the conversation history.
+
+        Args:
+            content: The content of the user message
+
+        """
+        self.messages.append(
+            litellm.Message(role="user", content=f"---\n# {title}\n\n{content}\n\n---"),
+        )
+
+    def add_tool_message(self, tool_call_id: str, tool_name: str, tool_result: ToolCallResult) -> None:
+        """Add user message to the conversation history.
+
+        Args:
+            content: The content of the user message
+
+        """
+        self.messages.append(
+            litellm.Message(role="tool",
+                    tool_call_id=tool_call_id,
+                    name=tool_name,
+                    content=tool_result.model_dump_json(exclude_none=True),
+                    ),
+        )

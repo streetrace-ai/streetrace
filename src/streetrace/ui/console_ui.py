@@ -1,6 +1,6 @@
 """Console UI."""
 
-from litellm import ChatCompletionMessageToolCall
+import litellm
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer  # Base class
 from prompt_toolkit.patch_stdout import patch_stdout
@@ -206,7 +206,7 @@ class ConsoleUI:
             self.console.print()
             self.cursor_is_in_line = False
 
-    def display_tool_call(self, tool_call: ChatCompletionMessageToolCall) -> None:
+    def display_tool_call(self, tool_call: litellm.ChatCompletionMessageToolCall) -> None:
         """Display information about a tool being called."""
         # Shorten long arguments for display clarity
         display_args = {}

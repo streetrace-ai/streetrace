@@ -24,20 +24,18 @@ sys.modules["streetrace.interaction_manager"] = MagicMock()
 class TestPromptParameter(unittest.TestCase):
     """Test cases for the --prompt parameter in main.py."""
 
-    @patch("streetrace.main.get_ai_provider")  # Patch the factory function
     @patch("pathlib.Path.is_dir")  # Mock path checks
     @patch("pathlib.Path.cwd")  # Mock getcwd
     @patch("builtins.input")  # Mock input
     @patch("argparse.ArgumentParser.parse_args")  # Mock arg parsing
     @patch("streetrace.main.Application")  # Mock Application class
-    def test_non_interactive_mode(  # noqa: PLR0913
+    def test_non_interactive_mode(
         self,
         mock_application,
         mock_parse_args,
         mock_input,
         mock_getcwd,
         mock_isdir,
-        mock_get_ai_provider,
     ) -> None:
         """Test that the script runs in non-interactive mode with --prompt parameter."""
         # Set up mocks
@@ -52,7 +50,6 @@ class TestPromptParameter(unittest.TestCase):
 
         mock_isdir.return_value = True  # Assume path is valid
         mock_getcwd.return_value = Path("/fake/cwd")
-        mock_get_ai_provider.return_value = MagicMock()  # Return a dummy provider
 
         # Mock the Application instance and its run method
         mock_app_instance = mock_application.return_value
@@ -75,7 +72,6 @@ class TestPromptParameter(unittest.TestCase):
         # Assert UI display for non-interactive start (optional)
         # mock_ui_instance.display_info.assert_any_call("Running with provided prompt...") # noqa: ERA001
 
-    @patch("streetrace.main.get_ai_provider")  # Patch the factory function
     @patch("pathlib.Path.cwd")  # Mock getcwd
     @patch("pathlib.Path.is_dir")  # Mock getcwd
     @patch("argparse.ArgumentParser.parse_args")  # Mock arg parsing
@@ -86,10 +82,9 @@ class TestPromptParameter(unittest.TestCase):
         mock_parse_args,
         mock_is_dir,
         mock_cwd,
-        mock_get_ai_provider,
     ) -> None:
         """Test that the script runs in interactive mode without --prompt parameter."""
-        # Set up mocks
+        # Arrange
         mock_args = MagicMock()
         mock_args.prompt = None  # No prompt provided
         mock_args.path = None
@@ -100,12 +95,11 @@ class TestPromptParameter(unittest.TestCase):
 
         mock_is_dir.return_value = True
         mock_cwd.return_value = Path("/fake/cwd")
-        mock_get_ai_provider.return_value = MagicMock()  # Return a dummy provider
 
         # Mock the Application instance and its run method
         mock_app_instance = mock_application.return_value
 
-        # Call the main function
+        # Act
         main.main()
 
         # Assert Application was initialized (basic check)

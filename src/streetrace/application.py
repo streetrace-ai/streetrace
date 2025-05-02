@@ -8,9 +8,8 @@ components and managing the application lifecycle.
 import json
 import logging
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-
-from pydantic import BaseModel
 
 from streetrace.commands.command_executor import CommandExecutor
 from streetrace.interaction_manager import InteractionManager
@@ -33,13 +32,14 @@ _MAX_CONTEXT_PREVIEW_LENGTH = 200
 """Maximum length for context preview."""
 
 
-class ApplicationConfig(BaseModel):
+@dataclass
+class ApplicationConfig:
     """Configuration for the Application class."""
 
     working_dir: Path
     non_interactive_prompt: str | None = None
     initial_model: str | None = None
-    tools: ToolCall
+    tools: ToolCall | None = None
 
 
 class Application:
@@ -133,9 +133,8 @@ class Application:
             )
 
             # Add the user prompt itself
-            single_prompt_history.add_message(
-                role=Role.USER,
-                content=[ContentPartText(text=prompt_input)],
+            single_prompt_history.add_user_message(
+                prompt_input,
             )
             logger.debug(
                 "User prompt added to single-use history",
@@ -144,7 +143,9 @@ class Application:
 
             # Process with InteractionManager
             self.interaction_manager.process_prompt(
-                self.config.initial_model, single_prompt_history, self.config.tools,
+                self.config.initial_model,
+                single_prompt_history,
+                self.config.tools,
             )
             logger.info("Non-interactive mode finished.")
 
@@ -224,9 +225,8 @@ class Application:
                     )
 
                     # Add the user prompt itself
-                    self.conversation_history.add_message(
-                        role=Role.USER,
-                        content=[ContentPartText(text=user_input)],
+                    self.conversation_history.add_user_message(
+                        user_input,
                     )
                     logger.debug(
                         "User prompt added to interactive history",
@@ -276,19 +276,18 @@ class Application:
 
         # UI indication is handled within prompt_processor now
         for filepath, content in mentioned_files:
-            context_message = (
-                f"Content of mentioned file '@{filepath}':\n---\n{content}\n---"
-            )
+            context_title = filepath
+            context_message = content
             if len(content) > _MAX_MENTION_CONTENT_LENGTH:
-                context_message = f"Content of mentioned file '@{filepath}' (truncated):\n---\n{content[:_MAX_MENTION_CONTENT_LENGTH]}\n...\n---"
+                context_title = f"{filepath} (truncated)"
+                context_message = content[:_MAX_MENTION_CONTENT_LENGTH]
                 logger.warning(
                     "Truncated content for mentioned file @%s due to size.",
                     filepath,
                 )
             # Add mention context as USER role for simplicity in display/processing for now
-            history.add_message(
-                role=Role.CONTEXT,
-                content=[ContentPartText(text=context_message)],
+            history.add_context_message(
+                context_title, context_message,
             )
             logger.debug("Added context from @%s to history.", filepath)
 
@@ -325,11 +324,11 @@ class Application:
             )
             self.ui.display_context_message(display_context)
 
-        if not self.conversation_history.conversation:
+        if not self.conversation_history.messages:
             self.ui.display_info("No messages in history yet.")
         else:
-            for msg in self.conversation_history.conversation:
-                role_str = msg.role.name.capitalize()
+            for msg in self.conversation_history.messages:
+                role_str = msg.role.capitalize()
                 content_str = ""
                 if not msg.content:  # Handle potential empty content list
                     content_str = "[Empty Message Content]"
@@ -385,7 +384,7 @@ class Application:
             compacting history.
 
         """
-        if not self.conversation_history or not self.conversation_history.conversation:
+        if not self.conversation_history or not self.conversation_history.messages:
             self.ui.display_warning("No history available to compact.")
             return True  # Nothing to compact, but continue running
 
@@ -399,7 +398,7 @@ class Application:
         summary_request_history = History(
             system_message=system_message,
             context=context,
-            conversation=self.conversation_history.conversation[:],
+            messages=self.conversation_history.messages[:],
         )
 
         # Add a message requesting summarization
@@ -412,26 +411,28 @@ Your summary should:
 
 Return ONLY the summary without explaining what you're doing."""
 
-        summary_request_history.add_message(
-            role=Role.USER,
-            content=[ContentPartText(text=summary_prompt)],
+        summary_request_history.add_user_message(
+            summary_prompt,
         )
 
         # Process with the interaction manager to get the summary
         logger.info("Requesting conversation summary from LLM")
 
         # We use the existing interaction manager to process this request
-        self.interaction_manager.process_prompt(summary_request_history)
+        self.interaction_manager.process_prompt(
+                    self.config.initial_model,
+                    summary_request_history,
+                    self.config.tools,
+                    )
 
         # Get the summary message from the response
-        if summary_request_history.conversation[-1].role == Role.MODEL:
+        if summary_request_history.messages[-1].role == "assistant":
             # Create a new history with just the summary
             new_history = History(system_message=system_message, context=context)
 
             # Add the summary message to the new history
-            new_history.add_message(
-                role=Role.MODEL,
-                content=summary_request_history.conversation[-1].content,
+            new_history.add_assistant_message(
+                summary_request_history.messages[-1],
             )
 
             # Replace the current history with the summary

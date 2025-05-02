@@ -61,15 +61,13 @@ class TestApplication(unittest.TestCase):
     def test_clear_history_resets_history_using_build_context(self) -> None:
         """Test that clear_history resets the conversation history using build_context."""
         # Add some messages to the history
-        self.app.conversation_history.add_message(
-            role=Role.USER,
-            content=[ContentPartText(text="Hello there")],
+        self.app.conversation_history.add_user_message(
+            "Hello there",
         )
-        self.app.conversation_history.add_message(
-            role=Role.MODEL,
-            content=[ContentPartText(text="General Kenobi")],
+        self.app.conversation_history.add_assistant_message_test(
+            "General Kenobi",
         )
-        assert len(self.app.conversation_history.conversation) == 2
+        assert len(self.app.conversation_history.messages) == 2
 
         # Configure mock build_context again for the call inside clear_history
         # Use slightly different values to ensure the *new* context is used
@@ -96,7 +94,7 @@ class TestApplication(unittest.TestCase):
         assert self.app.conversation_history is not None
         assert self.app.conversation_history.system_message == new_system
         assert self.app.conversation_history.context == new_context
-        assert len(self.app.conversation_history.conversation) == 0  # No messages
+        assert len(self.app.conversation_history.messages) == 0  # No messages
 
         # Assert UI and logging messages
         self.mock_ui.display_info.assert_called_with(
@@ -107,9 +105,8 @@ class TestApplication(unittest.TestCase):
         """Test clear_history handles exceptions during build_context."""
         # Add some messages to the history (they should remain untouched)
         original_history = self.app.conversation_history
-        original_history.add_message(
-            role=Role.USER,
-            content=[ContentPartText(text="Test")],
+        original_history.add_user_message(
+            "Test",
         )
 
         # Configure build_context to raise an exception
@@ -131,7 +128,7 @@ class TestApplication(unittest.TestCase):
 
             # Assert history was NOT changed
             assert self.app.conversation_history is original_history
-            assert len(self.app.conversation_history.conversation) == 1
+            assert len(self.app.conversation_history.messages) == 1
 
             # Assert UI error message and log message
             self.mock_ui.display_error.assert_called_with(

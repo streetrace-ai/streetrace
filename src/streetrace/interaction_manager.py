@@ -71,9 +71,9 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, NoReturn
+from typing import NoReturn
 
-from litellm import Message, Usage, completion
+import litellm
 
 from streetrace.llm.wrapper import (
     History,
@@ -82,9 +82,6 @@ from streetrace.llm.wrapper import (
 )
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
-
-if TYPE_CHECKING:
-    from litellm import ModelResponse
 
 logger = logging.getLogger(__name__)
 
@@ -118,17 +115,27 @@ class _TurnData:
     Tracks all received/generated content and tool info for that turn.
     """
 
-    assistant_messages: list[Message] = field(default_factory=list)  # Messages from LLM
-    tool_results: list[Message] = field(
+    assistant_messages: list[litellm.Message] = field(
+        default_factory=list,
+    )  # Messages from LLM
+    tool_results: list[litellm.Message] = field(
         default_factory=list,
     )  # Their results
     turn_finish_reason: str | None = None
-    usage: Usage | None = None  # Token usage from LLM
+    usage: litellm.Usage | None = None  # Token usage from LLM
     generation_exception: Exception | None = None  # Generation phase error
 
-    def has_buffered_tools(self) -> bool:
+    def has_buffered_tool_calls(self) -> bool:
         """Check if there are unprocessed (buffered) tool calls."""
-        return any(bool(m.tool_calls) for m in self.assistant_messages)
+        return bool(self.buffered_tool_calls())
+
+    def buffered_tool_calls(self) -> list[litellm.ChatCompletionMessageToolCall]:
+        """Check if there are unprocessed (buffered) tool calls."""
+        tool_calls = []
+        for message in self.assistant_messages:
+            if hasattr(message, "tool_calls") and message.tool_calls:
+                tool_calls.extend(message.tool_calls.copy())
+        return tool_calls
 
     def has_executed_tools(self) -> bool:
         """Check if any tools were executed in this turn."""
@@ -145,19 +152,16 @@ class _TurnData:
         """
         return (
             self.has_text_content()
-            or self.has_buffered_tools()
+            or self.has_buffered_tool_calls()
             or self.turn_finish_reason
         )
 
     def reset(self) -> None:
         """Reset the main turn content for a new turn or retry, leaving exceptions for inspection."""
-        self.assistant_text_parts = []
-        self.buffered_tool_calls = []
+        self.assistant_messages = []
+        self.tool_results = []
         self.turn_finish_reason = None
-        self.prompt_tokens = 0
-        self.response_tokens = 0
-        self.executed_tool_calls = []
-        self.executed_tool_results = []
+        self.usage = None
         # Keep .generation_exception for debug/retry logic.
 
 
@@ -170,16 +174,16 @@ class _ConversationData:
 
     state: _InteractionState = _InteractionState.STARTING_TURN
     turn: _TurnData = field(default_factory=_TurnData)
-    usage: list[Usage] = field(default_factory=list)  # List of usage objects
+    usage: list[litellm.Usage] = field(default_factory=list)  # List of usage objects
     total_requests: int = 0  # Incremented before each LLM API call attempt
     final_reason: str | None = None
     api_retry_count: int = 0
     empty_response_retry_count: int = 0
 
-    def add_usage(self, usage: Usage | None) -> None:
+    def add_usage(self, usage: litellm.Usage | None) -> None:
         """Add a usage object to the conversation's token usage."""
         if usage:
-            usage.append(usage)
+            self.usage.append(usage)
 
     @property
     def total_input_tokens(self) -> int:
@@ -190,7 +194,7 @@ class _ConversationData:
     def total_output_tokens(self) -> int:
         """Total output tokens for the conversation."""
         return sum(
-            u.response_tokens for u in self.usage if u.response_tokens is not None
+            u.completion_tokens for u in self.usage if u.completion_tokens is not None
         )
 
 
@@ -292,7 +296,7 @@ class InteractionManager:
         """
         try:
             logger.debug("Calling LLM API...")
-            model_response: ModelResponse = completion(
+            model_response: litellm.ModelResponse = litellm.completion(
                 model=model,
                 messages=[m.to_dict() for m in history.messages],
                 stream=False,
@@ -302,7 +306,7 @@ class InteractionManager:
                 retry_strategy=_EXPONENTIAL_BACKOFF_RETRY_STRATEGY,
             )
 
-            message: Message = model_response.choices[0].message
+            message: litellm.Message = model_response.choices[0].message
 
             if message.content:
                 self.ui.display_ai_response_chunk(message.content)
@@ -323,47 +327,45 @@ class InteractionManager:
             conv.turn.generation_exception = e
             return _GenerationOutcome(success=False, error=e)
 
-    def _execute_tools(self, turn: _TurnData) -> _ToolExecutionOutcome:
+    def _execute_tools(self, turn: _TurnData, tools: ToolCall) -> _ToolExecutionOutcome:
         """Execute all tool calls currently buffered. Updates execution lists/results."""
-        logger.debug("Executing %d tool calls...", len(turn.buffered_tool_calls))
-        turn.executed_tool_calls = []
-        turn.executed_tool_results = []
-        if not turn.buffered_tool_calls:
+        logger.debug("Executing %d tool calls...", len(turn.buffered_tool_calls()))
+        turn.tool_results = []
+        if not turn.has_buffered_tool_calls():
             return _ToolExecutionOutcome(success=True)
         try:
-            for tool_call in turn.buffered_tool_calls:
+            for tool_call in turn.buffered_tool_calls():
                 self.ui.display_tool_call(tool_call)
                 logger.info(
                     "Tool call: %s with args: %s",
                     tool_call.function.name,
                     tool_call.function.arguments,
                 )
-                tool_result: ToolCallResult = self.tools.call_tool(tool_call)
+                tool_result: ToolCallResult = tools.call_tool(tool_call)
                 if tool_result.success:
                     self.ui.display_tool_result(tool_result)
                     logger.info(
                         "Tool '%s' result: %s",
-                        tool_call.name,
+                        tool_call.function.name,
                         tool_result.output.content,
                     )
                 else:
                     self.ui.display_tool_error(tool_result)
                     logger.error(
                         "Tool '%s' error: %s",
-                        tool_call.name,
+                        tool_call.function.name,
                         tool_result.output.content,
                     )
-                tool_result_message = Message(
+                tool_result_message = litellm.Message(
                     role=Role.TOOL.value,
                     tool_call_id=tool_call.id,
                     name=tool_call.function.name,
                     content=tool_result.model_dump_json(exclude_none=True),
                 )
-                turn.executed_tool_calls.append(tool_call)
-                turn.executed_tool_results.append(tool_result_message)
+                turn.tool_results.append(tool_result_message)
 
             # Check tool calls and results match
-            if len(turn.executed_tool_calls) != len(turn.executed_tool_results):
+            if len(turn.buffered_tool_calls()) != len(turn.tool_results):
                 self._raise_mismatch_error(
                     "Mismatched tool calls and results after execution",
                 )
@@ -372,8 +374,8 @@ class InteractionManager:
             return _ToolExecutionOutcome(success=True)
         except Exception as e:
             logger.exception("Error during tool execution")
-            turn.executed_tool_calls = []
-            turn.executed_tool_results = []
+            turn.assistant_messages = []
+            turn.tool_results = []
             return _ToolExecutionOutcome(success=False, error=e)
 
     def _update_histories(
@@ -388,7 +390,7 @@ class InteractionManager:
 
         """
         history.messages.extend(turn.assistant_messages)
-        history.messages.extend(turn.executed_tool_results)
+        history.messages.extend(turn.tool_results)
 
     # The process_prompt method is deliberately complex as it implements a complete
     # state machine with multiple pathways. Refactoring attempts have been made but didn't
@@ -426,7 +428,7 @@ class InteractionManager:
                         )
                         logger.debug(
                             "Provider history for generation:",
-                            extra=history.messages,
+                            extra={"history": [m.to_dict() for m in history.messages]},
                         )
                         logger.debug("System Message: %s", history.system_message)
                         status.update(
@@ -436,7 +438,7 @@ class InteractionManager:
                             model,
                             history,
                             tools,
-                            conv.turn,
+                            conv,
                         )
                         if conv.total_input_tokens > 0 or conv.total_output_tokens > 0:
                             status.update(
@@ -459,7 +461,7 @@ class InteractionManager:
                                 else _InteractionState.FAILED
                             )
                     elif conv.state == _InteractionState.PROCESSING_GENERATION_RESULT:
-                        if conv.turn.has_buffered_tools():
+                        if conv.turn.has_buffered_tool_calls():
                             conv.state = _InteractionState.EXECUTING_TOOLS
                         elif conv.turn.has_any_content():
                             conv.state = _InteractionState.UPDATING_HISTORY
@@ -467,7 +469,7 @@ class InteractionManager:
                         else:
                             conv.state = _InteractionState.HANDLING_EMPTY_RETRY
                     elif conv.state == _InteractionState.EXECUTING_TOOLS:
-                        outcome = self._execute_tools(conv.turn)
+                        outcome = self._execute_tools(conv.turn, tools)
                         if outcome.success:
                             conv.state = _InteractionState.PROCESSING_TOOL_RESULTS
                         else:

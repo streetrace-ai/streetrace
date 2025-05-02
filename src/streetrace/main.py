@@ -30,8 +30,6 @@ from streetrace.ui.console_ui import ConsoleUI
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    filename="generation.log",
-    filemode="w",  # overwrite log file on each run
 )
 
 # Console handler for user-facing logs
@@ -40,10 +38,24 @@ console_handler.setLevel(logging.INFO)
 console_formatter = logging.Formatter("%(levelname)s: %(message)s")
 console_handler.setFormatter(console_formatter)
 
+def configure_3p_loggers() -> None:
+    """Configure the litellm logger to use the same handlers as the root logger."""
+    import litellm  # noqa: F401 init loggers
+    for name in logging.root.manager.loggerDict:
+        # Disable console output for a specific third-party logger
+        third_party_logger = logging.getLogger(name)  # Replace with the actual logger name
+        third_party_logger.propagate = False  # Prevent logs from bubbling up to root logger
+        third_party_logger.handlers.clear()   # Remove any existing handlers
+configure_3p_loggers()
+
 # Root logger setup
 root_logger = logging.getLogger()
 # Set root logger level to DEBUG initially to capture everything
 root_logger.setLevel(logging.DEBUG)
+root_logger.addHandler(logging.FileHandler(
+    filename="generation.log",
+    mode="w",
+))
 # --- End Logging Configuration ---
 
 logger = logging.getLogger(__name__)

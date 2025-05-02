@@ -82,7 +82,7 @@ class TestAnthropicImpl(unittest.TestCase):
         )
 
         # Add a message
-        history.add_message(Role.USER, [ContentPartText(text="Hello, Anthropic")])
+        history.add_user_message("Hello, Claude!")
 
         # Convert to provider history
         provider_history = self.anthropic.transform_history(history)

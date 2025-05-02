@@ -95,7 +95,7 @@ class TestOllamaImpl(unittest.TestCase):
         )
 
         # Add a message
-        history.add_message(Role.USER, [ContentPartText(text="Hello")])
+        history.add_user_message("Hello")
 
         # Convert to provider history
         provider_history = self.ollama.transform_history(history)
