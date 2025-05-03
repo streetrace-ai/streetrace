@@ -21,6 +21,8 @@ To make this a real tool, I need to:
 
 ## other
 
+- [ ] When the model runs python interpreter as a tool, Ctrl+C hands the app
+- [ ] When the model runs python interpreter as a tool, the user cannot see what they are typing
 - [ ] Anthropic errors out. Context is not added. Format is also not correct.
 - [ ] Context is not added, and unit tests don't fail.
 - [ ] Unit tests should make sure that one message has only one content item.

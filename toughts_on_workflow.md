@@ -198,3 +198,7 @@ conversation length: ...
 
 All tests should follow Arrange - Act - Assert pattern
 Don't mock modules globally
+
+# Human-in-the-loop
+
+Ask human to accept / reject with comment every changed file (or significantly changed file). The workflow becomes more manual, but more engaging. Like - let's try this, here is why - no, I don't like it, think about this - ah, right, how about this?

@@ -603,3 +603,22 @@ What's missing:
 Please analyze the best strategy to break up the functionality into user scenarios, and create unit tests reflecting the user scenarios.
 
 When creating tests, please make sure to create small and fast tests.
+
+===
+
+# Refactoring
+
+Take a look at @src/streetrace/application.py and files under src/streetrace/commands/. The user can type in commands and they get executed using command definitions. Right now all commands execute a predefined command in application.py. We need to move the command execution logic to the commands themselves.
+
+Currently the commands use several properties of Application state, such as conversation_history, ui, interaction_manager, config, prompt_processor. In order to move the code into the commands implementation, we need to pass the necessary object instances directly to the commands that need them.
+
+This is challenging because the CommandCompleter depends on the available_commands, PromptCompleter depends on the CommandCompleter, ConsoleUI dependson the PromptCompleter, and everything else depends on the UI.
+
+I see several options to solve this:
+
+a. We can initialize CommandCompleter with command names, and move the actual command instances creation until after everything else is initialized and right before the Application initialization.
+b. We can decouple ConsoleUI from everything else via an event bus, and send all data to it using events/messages. As a result we will initialize the event bus, then PromptProcessor, InteractionManager, then create the Commands and give them instances of everything we need, and then initialize the Application as the last bit.
+
+In all cases, we need to introduce some kind of history management that is separate from the Application and injected into all classes as a dependency.
+
+What are the other options to achieve the goal?
