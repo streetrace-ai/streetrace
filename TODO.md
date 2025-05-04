@@ -21,6 +21,7 @@ To make this a real tool, I need to:
 
 ## other
 
+- [ ] add cli timeout to avoid hanging commands, report timeout to the model.
 - [ ] When the model runs python interpreter as a tool, Ctrl+C hands the app
 - [ ] When the model runs python interpreter as a tool, the user cannot see what they are typing
 - [ ] Anthropic errors out. Context is not added. Format is also not correct.

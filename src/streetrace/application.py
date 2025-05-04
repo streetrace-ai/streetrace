@@ -9,24 +9,21 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from streetrace.commands.command_executor import CommandExecutor
-from streetrace.history import (
-    History,
-    Role,
-)
+from streetrace.history import History  # Keep for non-interactive temporary history
 from streetrace.interaction_manager import InteractionManager
-from streetrace.prompt_processor import PromptContext, PromptProcessor
-from streetrace.tools.tool_call_result import ToolCallResult
+from streetrace.prompt_processor import PromptProcessor
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
 
-logger = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    # Avoid circular import, only needed for type hinting
+    from streetrace.history_manager import HistoryManager
 
-_MAX_MENTION_CONTENT_LENGTH = 20000
-"""Maximum length for file content to prevent excessive tokens."""
-_MAX_CONTEXT_PREVIEW_LENGTH = 200
-"""Maximum length for context preview."""
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -40,27 +37,16 @@ class ApplicationConfig:
 
 
 class Application:
-    """Orchestrates the StreetRace application flow.
+    """Orchestrates the StreetRace application flow."""
 
-    This class serves as the central coordinator for the application, managing the
-    interaction between components and handling the application lifecycle. It supports
-    both interactive chat mode and non-interactive single prompt execution.
-
-    The Application class initializes and coordinates key components including:
-    - User interface handling (ConsoleUI)
-    - Command execution (CommandExecutor)
-    - Prompt processing and context building (PromptProcessor)
-    - AI model interaction (InteractionManager)
-    - Conversation history management
-    """
-
-    def __init__(
+    def __init__(  # noqa: PLR0913 - Many dependencies needed for orchestration
         self,
         app_config: ApplicationConfig,
         ui: ConsoleUI,
         cmd_executor: CommandExecutor,
         prompt_processor: PromptProcessor,
         interaction_manager: InteractionManager,
+        history_manager: "HistoryManager",
     ) -> None:
         """Initialize the Application with necessary components and configuration.
 
@@ -70,6 +56,7 @@ class Application:
             cmd_executor: CommandExecutor instance for processing internal commands.
             prompt_processor: PromptProcessor instance for building context and processing prompts.
             interaction_manager: InteractionManager instance for handling AI model interactions.
+            history_manager: HistoryManager instance for managing conversation history.
 
         """
         self.config = app_config
@@ -77,43 +64,39 @@ class Application:
         self.cmd_executor = cmd_executor
         self.prompt_processor = prompt_processor
         self.interaction_manager = interaction_manager
-        self.conversation_history: History | None = None  # Current history
+        self.history_manager = history_manager
         logger.info("Application initialized.")
 
     def run(self) -> None:
-        """Start the application execution based on provided arguments.
-
-        Determines whether to run in interactive or non-interactive mode based on
-        whether a prompt was provided via command-line arguments.
-        """
+        """Start the application execution based on provided arguments."""
         if self.config.non_interactive_prompt:
             self._run_non_interactive()
         else:
             self._run_interactive()
 
     def _run_non_interactive(self) -> None:
-        """Handle non-interactive mode (single prompt execution).
-
-        Processes a single prompt provided via command-line arguments and exits.
-        First checks if the prompt is an internal command, and if not, processes
-        it through the AI model and displays the response.
-        """
+        """Handle non-interactive mode (single prompt execution)."""
         prompt_input = self.config.non_interactive_prompt
+        # According to coding guide, core components should be fail-fast.
+        # Raise if non_interactive_prompt is unexpectedly None.
+        if prompt_input is None:
+            error_msg = "Non-interactive mode requires a prompt, but none was provided."
+            logger.error(error_msg)
+            # Use ValueError for invalid configuration/state
+            raise ValueError(error_msg)
+
         self.ui.display_user_prompt(prompt_input)
 
-        # Check for internal commands first (e.g., if someone runs with --prompt history)
-        command_executed, _ = self.cmd_executor.execute(prompt_input, self)  # Pass self
+        command_executed, _ = self.cmd_executor.execute(prompt_input, self)
 
         if command_executed:
             logger.info(
                 "Non-interactive prompt was command: '%s'. Exiting.",
                 prompt_input,
             )
-            # Non-interactive commands always exit, regardless of return value
             sys.exit(0)
         else:
             logger.info("Processing non-interactive prompt.")
-            # Build context and history for this single prompt
             prompt_context = self.prompt_processor.build_context(
                 prompt_input,
                 self.config.working_dir,
@@ -122,23 +105,15 @@ class Application:
                 system_message=prompt_context.system_message,
                 context=prompt_context.project_context,
             )
-
-            # Add mentioned files to history (if any)
-            self._add_mentions_to_history(
+            self._add_mentions_to_temporary_history(
                 prompt_context.mentioned_files,
                 single_prompt_history,
             )
-
-            # Add the user prompt itself
-            single_prompt_history.add_user_message(
-                prompt_input,
-            )
+            single_prompt_history.add_user_message(prompt_input)
             logger.debug(
                 "User prompt added to single-use history",
                 extra={"prompt_input": prompt_input},
             )
-
-            # Process with InteractionManager
             self.interaction_manager.process_prompt(
                 self.config.initial_model,
                 single_prompt_history,
@@ -146,31 +121,58 @@ class Application:
             )
             logger.info("Non-interactive mode finished.")
 
+    def _process_interactive_input(self, user_input: str) -> None:
+        """Process a single user input during interactive mode."""
+        # Get current history from the manager
+        current_history = self.history_manager.get_history()
+
+        # Ensure history exists before proceeding
+        if not current_history:
+            logger.error(
+                "Conversation history is missing. Attempting to reset.",
+            )
+            self.history_manager.clear_history()
+            # Check if reset was successful
+            current_history = self.history_manager.get_history()
+            if not current_history:
+                self.ui.display_error(
+                    "Critical error: History missing and could not be reset.",
+                )
+                # Assign error message to variable before raising
+                error_msg = "Exiting due to critical history reset failure."
+                raise SystemExit(error_msg)
+            return  # Return to prompt after successful reset
+
+        if user_input.strip():
+            # Build context mainly for mentions specific to this input
+            prompt_specific_context = self.prompt_processor.build_context(
+                user_input,
+                self.config.working_dir,
+            )
+
+            # Add mentioned files and the user prompt via HistoryManager
+            self.history_manager.add_mentions_to_history(
+                prompt_specific_context.mentioned_files,
+            )
+            self.history_manager.add_user_message(user_input)
+            logger.debug(
+                "User prompt added to interactive history",
+                extra={"user_input": user_input},
+            )
+
+        # Process with InteractionManager using the persistent history
+        self.interaction_manager.process_prompt(
+            self.config.initial_model,
+            current_history,
+            self.config.tools,
+        )
+
     def _run_interactive(self) -> None:
-        """Handle interactive mode (conversation loop).
-
-        Initializes and maintains an ongoing conversation with the AI assistant.
-        Continuously prompts for user input, processes commands or sends prompts
-        to the AI model, and displays responses until the user chooses to exit.
-
-        Handles keyboard interrupts and EOF signals gracefully for smooth termination.
-        """
+        """Handle interactive mode (conversation loop)."""
         self.ui.display_info(
             "Entering interactive mode. Type '/history', '/compact', '/clear', '/exit', or press Ctrl+C/Ctrl+D to quit.",
         )
-
-        # Get initial context directly using build_context
-        initial_prompt_context: PromptContext = self.prompt_processor.build_context(
-            "",
-            self.config.working_dir,
-        )
-
-        # Initialize history for the session using the initial context
-        self.conversation_history = History(
-            system_message=initial_prompt_context.system_message,
-            context=initial_prompt_context.project_context,
-        )
-        logger.info("Interactive session history initialized.")
+        self.history_manager.initialize_history()
 
         while True:
             try:
@@ -181,72 +183,26 @@ class Application:
                 command_executed, should_continue = self.cmd_executor.execute(
                     user_input,
                     self,
-                )  # Pass self
-
-                if command_executed:
-                    if should_continue:
-                        # Command handled (like history, compact, clear), continue loop for next input
-                        continue
-                    self.ui.display_info("Leaving...")
-                    break  # Exit loop
-
-                # Ensure history exists before proceeding (should always exist in interactive)
-                if not self.conversation_history:
-                    logger.error(
-                        "Conversation history is missing in interactive mode. Attempting to reset.",
-                    )
-                    # Try to reset using clear_history (which now uses build_context)
-                    if self.clear_history():  # Reset the history
-                        self.ui.display_warning("History has been reset.")
-                    else:
-                        # If reset fails (e.g., build_context fails), we might need to exit
-                        # Note: clear_history currently always returns True, but keeping check for robustness
-                        self.ui.display_error(
-                            "Critical error: History missing and could not be reset.",
-                        )
-                        break
-                    continue  # Continue to next prompt after reset
-
-                if user_input.strip():
-                    # Process the prompt within the interactive session
-                    # Build context again mainly for mentions specific to this input
-                    prompt_specific_context = self.prompt_processor.build_context(
-                        user_input,
-                        self.config.working_dir,
-                    )
-
-                    # Add mentioned files to history (if any)
-                    self._add_mentions_to_history(
-                        prompt_specific_context.mentioned_files,
-                        self.conversation_history,
-                    )
-
-                    # Add the user prompt itself
-                    self.conversation_history.add_user_message(
-                        user_input,
-                    )
-                    logger.debug(
-                        "User prompt added to interactive history",
-                        extra={"user_input": user_input},
-                    )
-
-                # Process with InteractionManager using the persistent history
-                self.interaction_manager.process_prompt(
-                    self.config.initial_model,
-                    self.conversation_history,
-                    self.config.tools,
                 )
 
-            except EOFError:
+                if command_executed:
+                    if not should_continue:
+                        self.ui.display_info("Leaving...")
+                        break  # Exit loop for exit command
+                    continue  # Continue loop for other commands (history, clear, compact)
+
+                # If not a command, process the input as a prompt
+                self._process_interactive_input(user_input)
+
+            except (EOFError, KeyboardInterrupt):
                 self.ui.display_info("\nExiting.")
-                logger.info("Exiting due to EOF.")
+                logger.info("Exiting due to user interruption (EOF/KeyboardInterrupt).")
                 break
-            except KeyboardInterrupt:
-                self.ui.display_info("\nExiting.")
-                logger.info("Exiting due to KeyboardInterrupt.")
+            except SystemExit:
+                # Use logging.exception for exceptions, no need for message arg
+                logger.exception("Exiting due to SystemExit")
                 break
             except Exception as loop_err:
-                # Use UI to display unexpected errors
                 self.ui.display_error(
                     f"\nAn unexpected error occurred in the interactive loop: {loop_err}",
                 )
@@ -254,206 +210,30 @@ class Application:
                     "Unexpected error in interactive loop.",
                     exc_info=loop_err,
                 )
-                # Continue the loop to maintain interactive session after error
+                # Continue loop after displaying error
 
-    def _add_mentions_to_history(self, mentioned_files: list, history: History) -> None:
-        """Add content from mentioned files to conversation history.
-
-        When the user references files with @ mentions in their prompt,
-        this method adds the content of those files to the conversation
-        history to provide context to the AI model.
-
-        Args:
-            mentioned_files: List of tuples containing (filepath, content) for each mentioned file.
-            history: The History object to which file contents should be added.
-
-        """
+    # Keep a private helper for non-interactive mode's temporary history
+    def _add_mentions_to_temporary_history(
+        self,
+        mentioned_files: list[tuple[str, str]],
+        history: History,
+    ) -> None:
+        """Add content from mentioned files to a temporary History object."""
         if not mentioned_files:
             return
 
-        # UI indication is handled within prompt_processor now
+        # Rename local variable to lowercase
+        max_mention_content_length = 20000
+
         for filepath, content in mentioned_files:
             context_title = filepath
             context_message = content
-            if len(content) > _MAX_MENTION_CONTENT_LENGTH:
+            if len(content) > max_mention_content_length:
                 context_title = f"{filepath} (truncated)"
-                context_message = content[:_MAX_MENTION_CONTENT_LENGTH]
+                context_message = content[:max_mention_content_length]
                 logger.warning(
                     "Truncated content for mentioned file @%s due to size.",
                     filepath,
                 )
-            # Add mention context as USER role for simplicity in display/processing for now
-            history.add_context_message(
-                context_title,
-                context_message,
-            )
-            logger.debug("Added context from @%s to history.", filepath)
-
-    def display_history(self) -> None:
-        """Display the current conversation history using the UI.
-
-        This method is called when the user requests to see the conversation
-        history via the 'history' command. It formats and displays different
-        types of message content including text, tool calls, and tool results.
-
-        Returns:
-            True, indicating the application should continue running after
-            displaying history.
-
-        """
-        if not self.conversation_history:
-            self.ui.display_warning("No history available yet.")
-            return
-
-        self.ui.display_info("\n--- Conversation History ---")
-
-        # Display system message if present
-        if self.conversation_history.system_message:
-            self.ui.display_system_message(self.conversation_history.system_message)
-
-        # Display context if present
-        if self.conversation_history.context:
-            # Show a preview of context due to potential large size
-            context_str = str(self.conversation_history.context)
-            display_context = (
-                context_str[:_MAX_CONTEXT_PREVIEW_LENGTH] + "..."
-                if len(context_str) > _MAX_CONTEXT_PREVIEW_LENGTH
-                else context_str
-            )
-            self.ui.display_context_message(display_context)
-
-        if not self.conversation_history.messages:
-            self.ui.display_info("No messages in history yet.")
-        else:
-            for msg in self.conversation_history.messages:
-                if msg.role == Role.USER and msg.content:
-                    # Display user messages or tool messages
-                    self.ui.display_history_user_message(msg.content)
-                if msg.role == Role.MODEL and msg.content:
-                    # Display assistant/model messages
-                    self.ui.display_history_assistant_message(msg.content)
-                if msg.tool_calls:
-                    for tool_call in msg.tool_calls:
-                        self.ui.display_tool_call(tool_call)
-                if msg.role == Role.TOOL and msg.content:
-                    tool_result = ToolCallResult.model_validate_json(msg.content)
-                    self.ui.display_tool_result(msg.name, tool_result)
-
-        self.ui.display_info("--- End History ---")
-
-    def compact_history(self) -> bool:
-        """Compacts the current conversation history by generating a summary.
-
-        This method:
-        1. Checks if there's a conversation history to compact
-        2. Prepares a prompt that instructs the LLM to create a summary
-        3. Uses the interaction manager to generate a summarized version
-        4. Replaces the current history with the summarized version
-
-        Returns:
-            True, indicating the application should continue running after
-            compacting history.
-
-        """
-        if not self.conversation_history or not self.conversation_history.messages:
-            self.ui.display_warning("No history available to compact.")
-            return True  # Nothing to compact, but continue running
-
-        self.ui.display_info("Compacting conversation history...")
-
-        # Create a copy of the system message and context from the current history
-        system_message = self.conversation_history.system_message
-        context = self.conversation_history.context
-
-        # Create a new temporary history for the summarization request
-        summary_request_history = History(
-            system_message=system_message,
-            context=context,
-            messages=self.conversation_history.messages[:],
-        )
-
-        # Add a message requesting summarization
-        summary_prompt = """Please summarize our conversation so far, maintaining the key points and decisions.
-Your summary should:
-1. Preserve all important information, file paths, and code changes
-2. Include any important decisions or conclusions we've reached
-3. Keep any critical context needed for continuing the conversation
-4. Format the summary as a concise narrative
-
-Return ONLY the summary without explaining what you're doing."""
-
-        summary_request_history.add_user_message(
-            summary_prompt,
-        )
-
-        # Process with the interaction manager to get the summary
-        logger.info("Requesting conversation summary from LLM")
-
-        # We use the existing interaction manager to process this request
-        self.interaction_manager.process_prompt(
-            self.config.initial_model,
-            summary_request_history,
-            self.config.tools,
-        )
-
-        # Get the summary message from the response
-        if summary_request_history.messages[-1].role == "assistant":
-            # Create a new history with just the summary
-            new_history = History(system_message=system_message, context=context)
-
-            # Add the summary message to the new history
-            new_history.add_assistant_message(
-                summary_request_history.messages[-1],
-            )
-
-            # Replace the current history with the summary
-            self.conversation_history = new_history
-
-            self.ui.display_info("History compacted successfully.")
-        else:
-            self.ui.display_error(
-                "Failed to generate summary. History remains unchanged.",
-            )
-
-        return True  # Signal to continue the application loop
-
-    def clear_history(self) -> bool:
-        """Clear the current conversation history, resetting it to the initial state.
-
-        This method rebuilds the initial context using the prompt processor and
-        replaces the current `conversation_history` with a new History object
-        containing only the initial system message and project context.
-
-        Returns:
-            True, indicating the application should continue running after
-            clearing history.
-
-        """
-        logger.info(
-            "Attempting to clear conversation history by rebuilding initial context.",
-        )
-
-        try:
-            # Rebuild the initial context
-            initial_prompt_context: PromptContext = self.prompt_processor.build_context(
-                "",
-                self.config.working_dir,
-            )
-
-            # Create a new History object with the fresh initial state
-            self.conversation_history = History(
-                system_message=initial_prompt_context.system_message,
-                context=initial_prompt_context.project_context,
-            )
-
-            logger.info("Conversation history cleared successfully.")
-            self.ui.display_info("Conversation history has been cleared.")
-
-        except Exception as e:
-            logger.exception("Failed to rebuild context while clearing history")
-            self.ui.display_error(
-                f"Could not clear history due to an error rebuilding context: {e}",
-            )
-            # Even if clearing fails, we should probably continue the loop
-
-        return True  # Signal to continue the application loop
+            history.add_context_message(context_title, context_message)
+            logger.debug("Added context from @%s to temporary history.", filepath)

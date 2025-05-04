@@ -202,3 +202,8 @@ Don't mock modules globally
 # Human-in-the-loop
 
 Ask human to accept / reject with comment every changed file (or significantly changed file). The workflow becomes more manual, but more engaging. Like - let's try this, here is why - no, I don't like it, think about this - ah, right, how about this?
+
+
+What am I doing:
+
+I've just added litellm. The issue is that gemini is either extremely slow or not working. We can workaround via https://docs.litellm.ai/docs/providers/custom_llm_server.

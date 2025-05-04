@@ -6,8 +6,13 @@ the current conversation history in the interactive mode.
 
 import logging
 
-from streetrace.application import Application
+# Import Application for type hint only, avoid circular dependency if possible
+from typing import TYPE_CHECKING
+
 from streetrace.commands.base_command import Command
+
+if TYPE_CHECKING:
+    from streetrace.application import Application  # Use for type hinting
 
 logger = logging.getLogger(__name__)
 
@@ -25,30 +30,41 @@ class ClearCommand(Command):
         """Command description."""
         return "Clear conversation history and start over from the initial system message and context."
 
-    def execute(self, app_instance: Application) -> bool:
-        """Execute the history clearing action on the application instance.
+    def execute(self, app_instance: "Application") -> bool:
+        """Execute the history clearing action using the HistoryManager.
 
         Args:
             app_instance: The main Application instance.
 
         Returns:
-            True to signal the application should continue, unless an
-            unrecoverable error occurred within the clearing logic itself.
-            Logs an error if the app_instance doesn't have the required method.
+            Always True to signal the application should continue.
+            The clearing action itself happens in the HistoryManager.
 
         """
         logger.info("Executing clear command.")
-        # Ensure the method exists before calling
-        if not (
-            hasattr(app_instance, "clear_history")
-            and callable(app_instance.clear_history)
-        ):
-            logger.error("Application instance is missing the clear_history method.")
-            # Continue execution, but log the error.
-            return False  # Or potentially False if this is critical
+        # Access HistoryManager through the Application instance
+        if not hasattr(app_instance, "history_manager"):
+            logger.error("Application instance is missing the history_manager.")
+            app_instance.ui.display_error("Internal error: History manager not found.")
+            return True  # Still continue, but report error
 
-        # Call the method and return its result
-        # Assuming clear_history also returns a boolean indicating continuation.
-        should_continue = app_instance.clear_history()
-        logger.info("Conversation history cleared.")
-        return should_continue
+        history_manager = app_instance.history_manager
+
+        # Ensure the method exists on the history manager
+        if not (
+            hasattr(history_manager, "clear_history")
+            and callable(history_manager.clear_history)
+        ):
+            logger.error(
+                "HistoryManager instance is missing the clear_history method.",
+            )
+            app_instance.ui.display_error(
+                "Internal error: History clear function not found.",
+            )
+            return True  # Still continue, but report error
+
+        # Call the method on the history manager
+        history_manager.clear_history()
+
+        # Command itself doesn't dictate loop continuation, just performs action
+        return True

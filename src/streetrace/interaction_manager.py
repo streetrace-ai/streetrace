@@ -286,7 +286,14 @@ class InteractionManager:
         logger.error(msg)
         raise TypeError(msg)
 
-    @retry(stop=stop_after_attempt(7), wait=wait_incrementing(start=30, increment=30, max=10*60), reraise=True)
+    # Only retry on specific LiteLLM exceptions that indicate a potentially
+    # transient issue (like rate limiting). Do not retry on general errors.
+    @retry(
+        stop=stop_after_attempt(7),
+        wait=wait_incrementing(start=30, increment=30, max=10 * 60),
+        retry=retry_if_exception_type(litellm.exceptions.RateLimitError),
+        reraise=True,
+    )
     def _call_llm_with_retry(
         self,
         model: str,
@@ -302,19 +309,29 @@ class InteractionManager:
                 messages=[m.to_dict() for m in history.get_all_messages()],
                 stream=False,
                 tools=tools.tools,
-                num_retries=0,
+                num_retries=0,  # Let tenacity handle retries
             )
         except litellm.exceptions.RateLimitError as rate_limit_err:
-            self.ui.display_warning(rate_limit_err)
+            # Log and increment count for the specific retry handler
+            conv.api_retry_count += 1
+            self.ui.display_warning(f"Rate limit exceeded. {rate_limit_err}")
             logger.info(
-                "Retrying API call... (Attempt %d)",
-                conv.api_retry_count + 1,
+                "Retrying API call due to RateLimitError... (Attempt %d)",
+                conv.api_retry_count,
             )
             status.update(
-                f"Retrying ({conv.api_retry_count}), io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
+                f"Retrying (Rate Limit {conv.api_retry_count}), io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
             )
+            # Reraise TryAgain explicitly to signal tenacity to retry based on retry=retry_if_exception_type
             raise TryAgain from rate_limit_err
-
+        except Exception as e:
+            # For any other exception, log it and let tenacity's reraise=True handle it
+            # (i.e., it will stop retrying and raise the original exception)
+            logger.exception(
+                "LLM call failed with non-retried exception: %s",
+                type(e).__name__,
+            )
+            raise  # Reraises the original exception 'e'
 
     def _call_llm(
         self,
@@ -339,27 +356,45 @@ class InteractionManager:
         """
         outcome: _GenerationOutcome
         try:
-            model_response = self._call_llm_with_retry(model, history, tools, conv, status)
+            # Reset the retry counter before calling the retry loop
+            conv.api_retry_count = 0
+            model_response = self._call_llm_with_retry(
+                model,
+                history,
+                tools,
+                conv,
+                status,
+            )
         except Exception as e:
-            logger.exception("Non-retriable error during generation")
+            # This catches errors that tenacity decided not to retry or that exceeded retries
+            logger.exception(
+                "Non-retriable error or retry limit exceeded during generation",
+            )
             conv.turn.generation_exception = e
             outcome = _GenerationOutcome(success=False, error=e)
         else:
-            message: litellm.Message = model_response.choices[0].message
+            # Successful call (possibly after retries)
+            if hasattr(model_response, "choices") and model_response.choices:
+                message: litellm.Message = model_response.choices[0].message
 
-            if message.content:
-                self.ui.display_ai_response_chunk(message.content)
+                if message.content:
+                    self.ui.display_ai_response_chunk(message.content)
+
+                if hasattr(model_response.choices[0], "finish_reason"):
+                    conv.turn.turn_finish_reason = model_response.choices[
+                        0
+                    ].finish_reason
+                    logger.debug(
+                        "Received finish reason: %s",
+                        conv.turn.turn_finish_reason,
+                    )
+
+                conv.turn.assistant_messages.append(message)
 
             if hasattr(model_response, "usage"):
                 conv.add_usage(model_response.usage)
 
-            if hasattr(model_response.choices[0], "finish_reason"):
-                conv.turn.turn_finish_reason = model_response.choices[0].finish_reason
-                logger.debug("Received finish reason: %s", conv.turn.turn_finish_reason)
-
-            conv.turn.assistant_messages.append(message)
-
-            logger.debug("LLM API call finished.")
+            logger.debug("LLM API call finished successfully.")
             outcome = _GenerationOutcome(success=True)
 
         return outcome
@@ -482,7 +517,7 @@ class InteractionManager:
                             )
                         if outcome.success:
                             conv.state = _InteractionState.PROCESSING_GENERATION_RESULT
-                            conv.api_retry_count = 0
+                            # Reset API retry count after success
                         else:
                             conv.final_reason = (
                                 str(outcome.error) or type(outcome.error).__name__

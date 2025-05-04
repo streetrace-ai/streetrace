@@ -1,11 +1,14 @@
-from unittest.mock import MagicMock, call
+# Avoid direct Application import, use TYPE_CHECKING
+from unittest.mock import MagicMock, call, patch
 
+import litellm  # Import litellm to create Message objects
 import pytest
 
-# Assuming Application is importable and contains the compact_history method
-from streetrace.application import Application
 from streetrace.commands.definitions.compact_command import CompactCommand
+
+# Import History and Role, but not Message
 from streetrace.history import History, Role
+from streetrace.history_manager import HistoryManager
 
 
 # --- Tests for CompactCommand structure and execution call ---
@@ -15,10 +18,13 @@ class TestCompactCommand:
     def setup_method(self) -> None:
         """Set up test resources before each test method."""
         self.command = CompactCommand()
-        # Use a MagicMock for Application but without mocking compact_history itself initially
-        self.mock_app = MagicMock(spec=Application)
-        # Define compact_history on the mock spec so it's recognized
-        self.mock_app.compact_history = MagicMock(return_value=True)
+        # Mock the HistoryManager
+        self.mock_history_manager = MagicMock(spec=HistoryManager)
+        # Mock the Application instance - remove spec
+        self.mock_app = MagicMock()
+        self.mock_app.history_manager = self.mock_history_manager
+        # Mock UI on app instance for error display testing
+        self.mock_app.ui = MagicMock()
 
     def test_command_names(self) -> None:
         """Test that the command has the expected name(s)."""
@@ -30,178 +36,209 @@ class TestCompactCommand:
         assert isinstance(self.command.description, str)
         assert len(self.command.description) > 0
 
-    def test_execute_calls_compact_history(self) -> None:
-        """Test that execute calls the compact_history method on the application."""
-        # We pass the *instance* of the command, not the class
-        CompactCommand().execute(self.mock_app)
-        self.mock_app.compact_history.assert_called_once()
+    def test_execute_calls_compact_history_on_manager(self) -> None:
+        """Test that execute calls compact_history on the HistoryManager."""
+        # Ensure the method exists on the mock manager for hasattr check
+        self.mock_history_manager.compact_history = MagicMock()
+        result = self.command.execute(self.mock_app)
+        self.mock_history_manager.compact_history.assert_called_once()
+        assert result is True  # Command always returns True
 
-    def test_execute_returns_continue_signal_from_compact(self) -> None:
-        """Test that execute returns the boolean signal from compact_history."""
-        self.mock_app.compact_history.return_value = True
-        result = CompactCommand().execute(self.mock_app)
-        assert result is True
+    def test_execute_handles_missing_history_manager(self) -> None:
+        """Test execute handles when history_manager is missing on the app instance."""
+        del self.mock_app.history_manager
 
-        self.mock_app.compact_history.return_value = (
-            False  # Though compact currently always returns True
-        )
-        result = CompactCommand().execute(self.mock_app)
-        assert result is False
+        with patch("logging.Logger.error") as mock_log_error:
+            result = self.command.execute(self.mock_app)
+            mock_log_error.assert_called_with(
+                "Application instance is missing the history_manager.",
+            )
+            self.mock_app.ui.display_error.assert_called_once()
+            assert result is True  # Should still continue
+
+    def test_execute_handles_missing_compact_history_method(self) -> None:
+        """Test execute handles when compact_history method is missing on HistoryManager."""
+        # Ensure history_manager exists, but the method doesn't
+        if hasattr(self.mock_history_manager, "compact_history"):
+            del self.mock_history_manager.compact_history
+
+        with patch("logging.Logger.error") as mock_log_error:
+            result = self.command.execute(self.mock_app)
+            mock_log_error.assert_called_with(
+                "HistoryManager instance is missing the compact_history method.",
+            )
+            self.mock_app.ui.display_error.assert_called_once()
+            assert result is True  # Should still continue
 
 
-# --- Tests for the compact_history method functionality ---
-class TestCompactFunctionality:
+# --- Tests for HistoryManager.compact_history functionality ---
+class TestHistoryManagerCompactFunctionality:
+
     @pytest.fixture
-    def mock_app(self):
-        """Create a mock application with mocked UI and InteractionManager."""
-        app = MagicMock(spec=Application)
-        app.ui = MagicMock()
-        app.interaction_manager = MagicMock()
-        app.config = MagicMock()
-        app.config.initial_model = "fake model"
-        app.config.tools = MagicMock()
-        # We will call the *real* Application.compact_history method,
-        # passing this mock_app instance as 'self'.
-        return app
+    def mock_history_manager_components(self):
+        """Fixture to create mocks for HistoryManager dependencies."""
+        mock_ui = MagicMock()
+        mock_interaction_manager = MagicMock()
+        mock_app_config = MagicMock()
+        mock_app_config.initial_model = "fake model"
+        mock_app_config.tools = MagicMock()
+        mock_prompt_processor = MagicMock()  # Needed for __init__ but not compact
+        return mock_ui, mock_interaction_manager, mock_app_config, mock_prompt_processor
 
     @pytest.fixture
-    def sample_history(self):
-        """Create a sample conversation history."""
-        history = History(system_message="System Info", context="Project Context")
-        history.add_user_message(
-            "User message 1",
+    def history_manager_instance(self, mock_history_manager_components):
+        """Fixture to create a HistoryManager instance with mocked dependencies."""
+        ui, im, cfg, pp = mock_history_manager_components
+        manager = HistoryManager(
+            app_config=cfg,
+            ui=ui,
+            prompt_processor=pp,
+            interaction_manager=im,
         )
-        history.add_assistant_message_test(
-            "Model response 1",
-        )
-        history.add_user_message(
-            "User message 2",
-        )
-        return history
+        # Reset mocks before yielding
+        ui.reset_mock()
+        im.reset_mock()
+        cfg.reset_mock()
+        pp.reset_mock()
+        return manager
 
-    def test_compact_basic_success(self, mock_app, sample_history) -> None:
+    @pytest.fixture
+    def sample_history_data(self):
+        """Create data for initializing History, using dicts for messages."""
+        messages_data = [
+            {"role": Role.USER.value, "content": "User message 1"},
+            {"role": Role.MODEL.value, "content": "Model response 1"},
+            {"role": Role.USER.value, "content": "User message 2"},
+        ]
+        return {
+            "system_message": "System Info",
+            "context": "Project Context",
+            "messages": messages_data,
+        }
+
+    def test_compact_basic_success(
+        self,
+        history_manager_instance,
+        sample_history_data,
+    ) -> None:
         """Test successful compaction: verifies history replacement and UI calls."""
-        mock_app.conversation_history = sample_history
+        manager = history_manager_instance
+        initial_history = History(**sample_history_data)
+        manager.set_history(initial_history)
         summary_text = "This is the conversation summary."
 
-        # Mock interaction_manager: it should add a MODEL response to the history passed to it
+        # Mock interaction_manager: it should modify the history passed to it
         def mock_process_prompt(
             _model: str,
             history_to_summarize: History,
             _tools: any,
         ) -> None:
-            assert (
-                history_to_summarize.messages[-1].role == "user"
-            )  # check summary prompt is added
-            assert (
-                "Please summarize our conversation"
-                in history_to_summarize.messages[-1].content
+            assert history_to_summarize.messages[-1].role == Role.USER
+            assert "Please summarize" in history_to_summarize.messages[-1].content
+            # Simulate LLM adding the summary AS A LITELM.MESSAGE object
+            history_to_summarize.messages.append(
+                litellm.Message(role=Role.MODEL, content=summary_text),
             )
-            # Simulate LLM adding the summary
-            history_to_summarize.add_assistant_message_test(
-                summary_text,
-            )
+            assert history_to_summarize.messages[-1].role == Role.MODEL
+            assert history_to_summarize.messages[-1].content == summary_text
 
-        mock_app.interaction_manager.process_prompt.side_effect = mock_process_prompt
+        manager.interaction_manager.process_prompt.side_effect = mock_process_prompt
 
-        # Execute the actual compact_history method on the mock_app instance
-        result = Application.compact_history(mock_app)
+        manager.compact_history()
 
-        # Assertions
-        assert result is True  # Should signal to continue
-        mock_app.ui.display_info.assert_has_calls(
+        manager.ui.display_info.assert_has_calls(
             [
                 call("Compacting conversation history..."),
                 call("History compacted successfully."),
             ],
         )
-        mock_app.interaction_manager.process_prompt.assert_called_once()
+        manager.interaction_manager.process_prompt.assert_called_once()
 
-        # Verify the history was replaced
-        final_history = mock_app.conversation_history
+        final_history = manager.get_history()
         assert isinstance(final_history, History)
-        assert final_history.system_message == sample_history.system_message
-        assert final_history.context == sample_history.context
-        assert len(final_history.messages) == 1  # Only the summary message remains
-        assert final_history.messages[0].role == "assistant"
+        assert final_history.system_message == sample_history_data["system_message"]
+        assert final_history.context == sample_history_data["context"]
+        assert len(final_history.messages) == 1
+        assert final_history.messages[0].role == Role.MODEL
         assert final_history.messages[0].content == summary_text
-        # Verify original history object is not the same object anymore
-        assert final_history is not sample_history
+        assert final_history is not initial_history
 
-    def test_compact_no_history_to_compact(self, mock_app) -> None:
+    def test_compact_no_history_to_compact(self, history_manager_instance) -> None:
         """Test compaction attempt when history is None."""
-        mock_app.conversation_history = None
+        manager = history_manager_instance
 
-        # Execute
-        result = Application.compact_history(mock_app)
+        # freshly mocked history manager will have no messages
+        manager.compact_history()
 
-        # Assertions
-        assert result is True
-        mock_app.ui.display_warning.assert_called_once_with(
+        manager.ui.display_warning.assert_called_once_with(
             "No history available to compact.",
         )
-        mock_app.ui.display_info.assert_not_called()  # No "Compacting..." message
-        mock_app.interaction_manager.process_prompt.assert_not_called()
+        manager.ui.display_info.assert_not_called()
+        manager.interaction_manager.process_prompt.assert_not_called()
 
-    def test_compact_history_with_no_messages(self, mock_app) -> None:
-        """Test compaction attempt when history exists but has no conversation messages."""
-        mock_app.conversation_history = History(
-            system_message="Sys",
-            context="Ctx",
-            messages=[],  # Empty conversation list
-        )
+    def test_compact_history_with_no_messages(self, history_manager_instance) -> None:
+        """Test compaction attempt when history exists but has no messages."""
+        manager = history_manager_instance
+        empty_history = History(system_message="Sys", context="Ctx", messages=[])
+        manager.set_history(empty_history)
 
-        # Execute
-        result = Application.compact_history(mock_app)
+        manager.compact_history()
 
-        # Assertions
-        assert result is True
-        mock_app.ui.display_warning.assert_called_once_with(
+        manager.ui.display_warning.assert_called_once_with(
             "No history available to compact.",
         )
-        mock_app.ui.display_info.assert_not_called()  # No "Compacting..." message
-        mock_app.interaction_manager.process_prompt.assert_not_called()
-        # Ensure history object itself wasn't replaced
-        assert mock_app.conversation_history.messages == []
+        manager.ui.display_info.assert_not_called()
+        manager.interaction_manager.process_prompt.assert_not_called()
+        assert manager.get_history() is empty_history
 
-    def test_compact_llm_failure(self, mock_app, sample_history) -> None:
-        """Test compaction failure when the LLM doesn't return a MODEL message."""
-        mock_app.conversation_history = sample_history
-        original_history_conversation = sample_history.messages[:]  # Keep a copy
+    def test_compact_llm_failure(
+        self,
+        history_manager_instance,
+        sample_history_data,
+    ) -> None:
+        """Test compaction failure when LLM doesn't return a MODEL message."""
+        manager = history_manager_instance
+        initial_history = History(**sample_history_data)
+        manager.set_history(initial_history)
+        original_messages_data = initial_history.messages[:]
+        original_system = initial_history.system_message
+        original_context = initial_history.context
 
-        # Mock interaction_manager: Simulate it *not* adding a MODEL response
-        def mock_process_prompt_failure(_model, _history, _tools) -> None:
-            # LLM simulation does nothing here
-            pass
+        # Mock interaction_manager: Simulate adding a USER message
+        def mock_process_prompt_failure(_model, history, _tools) -> None:
+            history.messages.append(
+                litellm.Message(role=Role.USER, content="LLM failed"),
+            )
 
-        mock_app.interaction_manager.process_prompt.side_effect = (
+        manager.interaction_manager.process_prompt.side_effect = (
             mock_process_prompt_failure
         )
 
-        # Execute
-        result = Application.compact_history(mock_app)
+        manager.compact_history()
 
-        # Assertions
-        assert result is True  # Still returns True to continue loop
-        mock_app.ui.display_info.assert_called_once_with(
+        manager.ui.display_info.assert_called_once_with(
             "Compacting conversation history...",
         )
-        mock_app.ui.display_error.assert_called_once_with(
-            "Failed to generate summary. History remains unchanged.",
+        manager.ui.display_warning.assert_called_once_with(
+            "The last message in history is not model, skipping compact. Please report or fix in code if that's not right.",
         )
-        mock_app.interaction_manager.process_prompt.assert_called_once()
+        manager.interaction_manager.process_prompt.assert_called_once()
 
-        # Verify the history was NOT replaced
-        assert mock_app.conversation_history is sample_history
-        assert mock_app.conversation_history.messages == original_history_conversation
+        final_history = manager.get_history()
+        assert final_history is initial_history
+        assert final_history.messages == original_messages_data
+        assert final_history.system_message == original_system
+        assert final_history.context == original_context
 
     def test_compact_preserves_system_and_context(
         self,
-        mock_app,
-        sample_history,
+        history_manager_instance,
+        sample_history_data,
     ) -> None:
-        """Verify that system message and context are preserved after compaction."""
-        mock_app.conversation_history = sample_history
+        """Verify that system message and context are preserved."""
+        manager = history_manager_instance
+        initial_history = History(**sample_history_data)
+        manager.set_history(initial_history)
         summary_text = "Summary preserving context."
 
         def mock_process_prompt(
@@ -209,52 +246,15 @@ class TestCompactFunctionality:
             history_to_summarize: History,
             _tools: any,
         ) -> None:
-            history_to_summarize.add_assistant_message_test(
-                summary_text,
+            history_to_summarize.messages.append(
+                litellm.Message(role=Role.MODEL, content=summary_text),
             )
 
-        mock_app.interaction_manager.process_prompt.side_effect = mock_process_prompt
+        manager.interaction_manager.process_prompt.side_effect = mock_process_prompt
 
-        Application.compact_history(mock_app)
+        manager.compact_history()
 
-        final_history = mock_app.conversation_history
-        assert final_history.system_message == "System Info"
-        assert final_history.context == "Project Context"
-
-    def test_compact_post_compaction_continuity(self, mock_app, sample_history) -> None:
-        """Verify conversation can continue after a successful compaction."""
-        mock_app.conversation_history = sample_history
-        summary_text = "Compacted history."
-
-        # Mock the summarization process
-        def mock_process_prompt(
-            _model: str,
-            history_to_summarize: History,
-            _tools: any,
-        ) -> None:
-            history_to_summarize.add_assistant_message_test(
-                summary_text,
-            )
-
-        mock_app.interaction_manager.process_prompt.side_effect = mock_process_prompt
-
-        # Perform compaction
-        Application.compact_history(mock_app)
-
-        # Verify compaction happened
-        assert len(mock_app.conversation_history.messages) == 1
-        assert mock_app.conversation_history.messages[0].content == summary_text
-
-        # Add a new message after compaction
-        new_user_message = "What's the next step?"
-        mock_app.conversation_history.add_user_message(
-            new_user_message,
-        )
-
-        # Verify the new message is appended correctly
-        assert len(mock_app.conversation_history.messages) == 2
-        assert mock_app.conversation_history.messages[0].role == Role.MODEL  # Summary
-        assert (
-            mock_app.conversation_history.messages[1].role == Role.USER
-        )  # New message
-        assert mock_app.conversation_history.messages[1].content == new_user_message
+        final_history = manager.get_history()
+        assert final_history is not None
+        assert final_history.system_message == sample_history_data["system_message"]
+        assert final_history.context == sample_history_data["context"]

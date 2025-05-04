@@ -604,6 +604,16 @@ Please analyze the best strategy to break up the functionality into user scenari
 
 When creating tests, please make sure to create small and fast tests.
 
+---
+
+Run `git status` to see what's in progress right now. There are several tests failing, specifically in @tests/test_application.py, @tests/test_history_ manager.py, and @tests/test_interaction_manager.py. Please fix failing tests.
+
+Remember, when running any python code, run with `poetry`, for example `poetry run pytest tests/test_application.py --timeout=5`.
+When running pytest, always run a specific file or test, for example `poetry run pytest tests/test_history_manager.py --timeout=5`.
+When running pytest, always set a timeout, for example `poetry run pytest tests/test_interaction_manager.py --timeout=5`.
+
+All tests should pass in under 1 second, consider all tests that take longer failing and fix them.
+
 ===
 
 # Refactoring

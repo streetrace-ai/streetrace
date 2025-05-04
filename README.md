@@ -1,6 +1,14 @@
 # StreetRace🚗💨
 
-StreetRace🚗💨 is an agentic AI coding partner that enables engineers to leverage AI from the command line to create software.
+StreetRace🚗💨 is your agentic AI peer that enables engineers to leverage AI from the command line to automate their workflows.
+
+# How is StreetRace🚗💨 different?
+
+* From Cursor: StreetRace🚗💨 is a CLI that allows full customization of the workflow. It can be a coder, an SRE, or your workflow orchestrator.
+* From Replit and Lovable: StreetRace🚗💨 is a universal and fully customizable agent. It's not limited to hosting platforms and uses only the knowledge you provide and workflows you configure.
+* From n8n: StreetRace🚗💨 is an agent, not a workflow suite.
+* From ChatGPT: StreetRace🚗💨 can use any of 200+ models, or a combination of, and it can run in a container.
+* From Claude Code, OpenAI Codex, Amazon Q, etc: StreetRace🚗💨 is designed to let you build a suite of your agents integrated with any other agents via a2a and MCP.
 
 **Project Description:**
 

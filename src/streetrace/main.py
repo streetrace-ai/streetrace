@@ -21,6 +21,9 @@ from streetrace.commands.definitions import (
 
 # Completer imports
 from streetrace.completer import CommandCompleter, PathCompleter, PromptCompleter
+
+# Import HistoryManager
+from streetrace.history_manager import HistoryManager
 from streetrace.interaction_manager import InteractionManager
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
@@ -176,18 +179,30 @@ def main() -> None:
         ui=ui,
     )
 
+    # Create ApplicationConfig (needed for HistoryManager)
+    app_config = ApplicationConfig(
+        working_dir=abs_working_dir,
+        non_interactive_prompt=args.prompt,
+        initial_model=model_name,
+        tools=tools,
+    )
+
+    # Initialize HistoryManager
+    history_manager = HistoryManager(
+        app_config=app_config,
+        ui=ui,
+        prompt_processor=prompt_processor,
+        interaction_manager=interaction_manager,  # Pass InteractionManager
+    )
+
     # Initialize and Run Application
     app = Application(
-        app_config=ApplicationConfig(
-            working_dir=abs_working_dir,
-            non_interactive_prompt=args.prompt,
-            initial_model=model_name,
-            tools=tools,
-        ),
+        app_config=app_config,  # Use the created app_config
         ui=ui,
         cmd_executor=cmd_executor,
         prompt_processor=prompt_processor,
         interaction_manager=interaction_manager,
+        history_manager=history_manager,  # Pass the history manager
     )
 
     # Start Application Execution

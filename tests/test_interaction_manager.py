@@ -239,7 +239,10 @@ class TestInteractionManager(unittest.TestCase):
         self.mock_ui.display_tool_call.assert_called_once_with(
             next(iter(tool_call_builder.tool_calls.values())),
         )
-        self.mock_ui.display_tool_result.assert_called_once_with("get_weather", tool_result_content)
+        self.mock_ui.display_tool_result.assert_called_once_with(
+            "get_weather",
+            tool_result_content,
+        )
         self.mock_ui.display_tool_error.assert_not_called()
         assert result.input_tokens == 13 + 15
         assert result.output_tokens == 43 + 10
@@ -323,7 +326,10 @@ class TestInteractionManager(unittest.TestCase):
         self.mock_ui.display_tool_call.assert_called_once_with(
             next(iter(tool_call_builder.tool_calls.values())),
         )
-        self.mock_ui.display_tool_error.assert_called_once_with("get_weather", tool_result_content)
+        self.mock_ui.display_tool_error.assert_called_once_with(
+            "get_weather",
+            tool_result_content,
+        )
         self.mock_ui.display_tool_result.assert_not_called()
         assert result.input_tokens == 10 + 12  # Sum of tokens from both calls
         assert result.output_tokens == 15 + 6  # Sum of tokens from both calls
