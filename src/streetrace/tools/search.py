@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import TypedDict
 
 from streetrace.tools.path_utils import normalize_and_validate_path
+from streetrace.tools.tool_call_result import ToolOutput
 
 
 class SearchResult(TypedDict):
@@ -37,7 +38,7 @@ def search_files(
         ValueError: If the pattern resolves to paths outside the work_dir.
 
     """
-    matches = []
+    matches: list[SearchResult] = []
 
     work_dir = work_dir.resolve()
 
@@ -65,4 +66,7 @@ def search_files(
             # Just skip it and continue with other files
             pass
 
-    return matches, f"{len(matches)} matches found"
+    display_output = "\n".join([f"* {m.get("filepath")}" for m in matches])
+    if not display_output:
+        display_output = "0 matches found"
+    return matches, ToolOutput(type="markdown", content=display_output)

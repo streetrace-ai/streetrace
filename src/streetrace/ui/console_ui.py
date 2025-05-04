@@ -1,5 +1,7 @@
 """Console UI."""
 
+import json  # Added for JSON output
+
 import litellm
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer  # Base class
@@ -10,7 +12,7 @@ from rich.panel import Panel
 from rich.status import Status
 from rich.syntax import Syntax
 
-from streetrace.tools.tool_call_result import ToolCallResult
+from streetrace.tools.tool_call_result import ToolCallResult, ToolOutput
 from streetrace.ui.colors import Styles
 
 _PROMPT = "You:"
@@ -247,45 +249,100 @@ class ConsoleUI:
         self.console.print(Panel(syntax, title="Tool Call"))
         self.cursor_is_in_line = False
 
+    def _render_tool_output(self, output: ToolOutput) -> None:
+        """Render the tool output based on its type."""
+        content_str = ""
+        # Ensure content is a string for most renderers
+        if isinstance(output.content, (list, dict)):
+            # Pretty print dicts/lists for JSON/Text display
+            try:
+                content_str = json.dumps(output.content, indent=2)
+            except TypeError:  # Handle non-serializable content
+                content_str = str(output.content)
+        elif isinstance(output.content, str):
+            content_str = output.content
+        else:
+            # Fallback for other types
+            content_str = str(output.content)
+
+        if output.type == "diff":
+            syntax = Syntax(
+                content_str,
+                "diff",
+                theme=Styles.RICH_TOOL_OUTPUT_CODE_THEME,
+                line_numbers=True,
+            )
+            self.console.print(syntax)
+        elif output.type == "markdown":
+            md = Markdown(
+                content_str,
+                code_theme=Styles.RICH_TOOL_OUTPUT_CODE_THEME,
+                inline_code_theme=Styles.RICH_MD_CODE,
+            )
+            self.console.print(md)
+        elif output.type == "json":
+            syntax = Syntax(
+                content_str,
+                "json",
+                theme=Styles.RICH_TOOL_OUTPUT_CODE_THEME,
+                line_numbers=False,
+                word_wrap=True,
+            )
+            self.console.print(syntax)
+        else:
+            self.console.print(content_str, style=Styles.RICH_TOOL_OUTPUT_TEXT_STYLE)
+
     def display_tool_result(self, tool_name: str, result: ToolCallResult) -> None:
-        """Display the result of a tool execution."""
-        content = result.display_output or result.output
+        """Display the result of a tool execution based on its type."""
+        output = result.get_display_output()
         title = f"Tool Result ({tool_name})"
 
         self.new_line()
-        if content:
-            if content.type == "diff":
-                syntax = Syntax(
-                    content.content,
-                    "diff",
-                    theme=Styles.RICH_TOOL,
-                    line_numbers=True,
-                )  # Use code theme for diff
-                self.console.print(syntax)
-            elif content.type == "text":
-                # Potentially render markdown if the tool output might be markdown
-                md = Markdown(
-                    content.content,
-                    code_theme=Styles.RICH_TOOL,
-                    inline_code_theme=Styles.RICH_MD_CODE,
-                )
-                self.console.print(Panel(md, title=title))
-            else:  # Default to plain text display
-                self.console.print(Panel(content.content, title=title))
+        if output and output.content is not None:
+            # Use Panel to frame the output
+            with self.console.capture() as capture:
+                self._render_tool_output(output)
+            rendered_output = capture.get()
+            # Use the text style for the panel itself
+            self.console.print(
+                Panel(rendered_output, title=title),
+                style=Styles.RICH_TOOL_OUTPUT_TEXT_STYLE,
+            )
         else:
             # Handle cases where there might be no content (e.g., silent success)
-            self.console.print(Panel("[No output]", title=title))
+            self.console.print(
+                Panel("[No output]", title=title),
+                style=Styles.RICH_TOOL_OUTPUT_TEXT_STYLE,
+            )
 
         self.cursor_is_in_line = False
 
     def display_tool_error(self, tool_name: str, result: ToolCallResult) -> None:
         """Display an error from a tool execution."""
-        output = result.display_output or result.output
-        error_message = output.content if output else "[No error message]"
+        output = result.get_display_output()
+        error_message = "[No error message]"
+
+        # Prepare error message string representation
+        if output and output.content:
+            if isinstance(output.content, (list, dict)):
+                try:
+                    error_message = json.dumps(output.content, indent=2)
+                except TypeError:
+                    error_message = str(output.content)
+            else:
+                error_message = str(output.content)
+
+        # If after processing, the error message is empty, use the placeholder
+        if not error_message:
+            error_message = "[No error message]"
+
         title = f"Tool Error ({tool_name})"
 
         self.new_line()
-        self.console.print(Panel(error_message, title=title, style=Styles.RICH_ERROR))
+        # Display error within a styled Panel
+        self.console.print(
+            Panel(error_message, title=title, border_style=Styles.RICH_ERROR),
+        )
         self.cursor_is_in_line = False
 
     def display_user_prompt(self, message: str) -> None:

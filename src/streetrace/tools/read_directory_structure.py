@@ -129,4 +129,4 @@ def read_directory_structure(
     return {
         "dirs": dirs,
         "files": files,
-    }, f"dirs: {', '.join(dirs)}\\nfiles: {', '.join(files)}'"
+    }, f"Dirs: {', '.join(dirs)}\nFiles: {', '.join(files)}'"

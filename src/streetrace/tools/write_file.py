@@ -8,6 +8,7 @@ from streetrace.tools.path_utils import (
     ensure_parent_directory_exists,
     normalize_and_validate_path,
 )
+from streetrace.tools.tool_call_result import ToolOutput
 
 
 def write_utf8_file(file_path: str, content: str, work_dir: Path) -> tuple[str, str]:
@@ -41,6 +42,7 @@ def write_utf8_file(file_path: str, content: str, work_dir: Path) -> tuple[str, 
     ensure_parent_directory_exists(abs_file_path)
 
     # Initialize diff message
+    content_type = "diff"
     diff = ""
 
     # Write the content to the file
@@ -66,8 +68,10 @@ def write_utf8_file(file_path: str, content: str, work_dir: Path) -> tuple[str, 
             )
             diff = "".join(diff_lines)
             if not diff:  # Handle case where content is identical
+                content_type = "text"
                 diff = f"File content unchanged: {rel_file_path}"
         else:
+            content_type = "text"
             diff = f"File created: {rel_file_path} ({len(written)} lines)"
 
-        return str(rel_file_path), diff
+        return str(rel_file_path), ToolOutput(type=content_type, content=diff)

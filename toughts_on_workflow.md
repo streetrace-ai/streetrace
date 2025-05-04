@@ -207,3 +207,14 @@ Ask human to accept / reject with comment every changed file (or significantly c
 What am I doing:
 
 I've just added litellm. The issue is that gemini is either extremely slow or not working. We can workaround via https://docs.litellm.ai/docs/providers/custom_llm_server.
+
+# Tools
+
+## list_directory
+
+This is dumb, really. We need to give the model a glob search with a way to search in files as well as file names.
+Results should be listed with full relative paths. E.g.:
+
+search_files:
+    - path (glob): recursive, wildcards for directories and file names
+    - pattern (regex): search in files

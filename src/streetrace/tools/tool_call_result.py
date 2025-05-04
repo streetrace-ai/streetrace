@@ -23,7 +23,7 @@ class ToolOutput(BaseModel):
 
         """
         if input_value is None:
-            return None
+            return cls(type="none", content="")
         if isinstance(input_value, cls):
             return input_value
         if isinstance(input_value, (str, list, dict)):
@@ -50,9 +50,7 @@ class ToolCallResult(BaseModel):
             ToolOutput to display to the user
 
         """
-        if self.display_output:
-            return self.display_output
-        return self.output
+        return self.display_output or self.output
 
     @classmethod
     def error(
@@ -73,7 +71,9 @@ class ToolCallResult(BaseModel):
         return cls(
             failure=True,
             output=ToolOutput.from_any(output),
-            display_output=ToolOutput.from_any(display_output),
+            display_output=(
+                ToolOutput.from_any(display_output) if display_output else None
+            ),
         )
 
     @classmethod
@@ -95,7 +95,9 @@ class ToolCallResult(BaseModel):
         return cls(
             success=True,
             output=ToolOutput.from_any(output),
-            display_output=ToolOutput.from_any(display_output),
+            display_output=(
+                ToolOutput.from_any(display_output) if display_output else None
+            ),
         )
 
     @model_validator(mode="after")

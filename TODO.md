@@ -21,48 +21,54 @@ To make this a real tool, I need to:
 
 ## other
 
-- [ ] add cli timeout to avoid hanging commands, report timeout to the model.
+- [ ] use logprobs to output model confidence
+- [ ] re-think tools
+- [ ] add mcp
+- [ ] PAIN smart history management. Don't keep files that have been re-read or re-written, summarize chains of commands.
+- [ ] count request tokens before the request is sent, and show it separately.
+- [ ] PAIN cost management - show request cost, session cost, and set limits / quotas / budgets
+- [ ] PAIN add cli timeout to avoid hanging commands, report timeout to the model.
 - [ ] When the model runs python interpreter as a tool, Ctrl+C hands the app
 - [ ] When the model runs python interpreter as a tool, the user cannot see what they are typing
-- [ ] Anthropic errors out. Context is not added. Format is also not correct.
-- [ ] Context is not added, and unit tests don't fail.
-- [ ] Unit tests should make sure that one message has only one content item.
-- [x] for streamed responses, collect all text into one message
-- [ ] fix unit tests, lint, etc
 - [ ] Prompt history
-- [x] Show token counts
-- [ ] Show total token count in this chat session in status bar
+- [ ] PAIN Show total token count in this chat session in status bar
 - [ ] maintain conversation history over restarts,
 - [ ] show files already in context over the prompt
-- [x] Prompting UI
-- [x] context size management
 - [ ] support @last conversation
 - [ ] @mentions should support folders
 - [ ] prompt templates
 - [ ] web ui that works on your repo in the background, so you can work on the go
-- [x] --type retry to retry-- Press Enter to retry
-- [ ] How to use other models on vertexai
 - [ ] If gemini responds with malformed tools or other model errors, feed it back so it can fix its own error
 - [ ] add datetime to Message
-- [x] create console print module so it uses the proper colors
-- [x] count input/output tokens consumed
 - [ ] usage stats
-- [x] _generate_with_tools needs to return finish reason
-- [ ] anthropic api 529 overloaded
-- [ ] text editor
-- [ ] Handle retryable API errors:
-        * HTTPStatusError: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'
 - [ ] google.genai.errors.ServerError: 500 INTERNAL. {'error': {'code': 500, 'message': 'An internal error has occurred. Please retry or report
 - [ ] run cli in background
-- [ ] Add turn summary to history instead of full contents. Add command to summarize work done and store it in worklog from the user scenario perspective, as in "what's new"?
-- [ ] compact history command
-- [ ] summarize task command (Summarize this conversation describing the goal and outcomes. Mention paths to all files included in this context.)
+- [ ] Add turn summary to history instead of full contents.
+- [ ] Add command to summarize work done and store it in worklog from the user scenario perspective, as in "what's new"?
 - [ ] read_file, when the file is missing, see if it's somewhere around and return "did you mean"
 - [ ] cli command validation (e.g., can configure regex in agent or streetrace config file)
 
 
 ## done
 
+- [x] Anthropic errors out. Context is not added. Format is also not correct.
+- [x] Context is not added, and unit tests don't fail.
+- [x] for streamed responses, collect all text into one message
+- [x] fix unit tests, lint, etc
+- [x] Show token counts
+- [x] Prompting UI
+- [x] context size management
+- [x] --type retry to retry-- Press Enter to retry
+- [x] How to use other models on vertexai
+- [x] create console print module so it uses the proper colors
+- [x] count input/output tokens consumed
+- [x] _generate_with_tools needs to return finish reason
+- [x] anthropic api 529 overloaded
+- [x] text editor
+- [x] Handle retryable API errors:
+        * HTTPStatusError: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'
+- [x] compact history command
+- [x] summarize task command (Summarize this conversation describing the goal and outcomes. Mention paths to all files included in this context.)
 - [x] create an ollama implementation similar to gemini and anthropic
 - [x] create an openai implementation similar to gemini and anthropic
 - [x] common interface

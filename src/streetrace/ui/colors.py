@@ -2,6 +2,7 @@
 
 This module contains ANSI color codes for terminal output and styles for
 prompt_toolkit and rich library components used throughout the application.
+
 """
 
 from prompt_toolkit.styles import Style
@@ -33,10 +34,12 @@ class Styles:
     )
     RICH_PROMPT = _USER_INPUT
     RICH_MODEL = _MODEL_RESPONSE
-    RICH_TOOL_CALL = _CODE_THEME
-    RICH_TOOL = _INFO
-    RICH_DIFF = _CODE_THEME
-    RICH_MD_CODE = _CODE_THEME
+    RICH_TOOL_CALL = _CODE_THEME  # Theme for tool call syntax
+    RICH_TOOL_OUTPUT_CODE_THEME = (
+        _CODE_THEME  # Theme for code in tool output (json, diff)
+    )
+    RICH_TOOL_OUTPUT_TEXT_STYLE = _INFO  # Style for plain text tool output
+    RICH_MD_CODE = _CODE_THEME  # Theme for markdown code blocks
 
     RICH_HISTORY_SYSTEM_INSTRUCTIONS_HEADER = _INFO
     RICH_HISTORY_SYSTEM_INSTRUCTIONS = _INFO
