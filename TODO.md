@@ -12,16 +12,13 @@ To make this a real tool, I need to:
     5. Show an example of leveraging coding agents with this, e.g. https://github.com/noahshinn/reflexion, https://github.com/alekst23/creo-cortex
     6. Show an example of implementing a full eng workflow from requirements to tests, perfect code, docs, etc.
 
-## release:
+### release:
 
 - [ ] cleanup logs
-- [x] history is not saved when err 500 in gemnini
-- [x] pypi publishing
 - [ ] update readme
-- [x] use llm gateway
 - [ ] mcp integration
 
-## other
+### todo
 
 - [ ] param to retry litellm.InternalServerError, e.g. AnthropicError - {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}
 - [ ] context (read from ./streetrace files) and file mentions are two different things and should be processed separately.
@@ -58,8 +55,11 @@ To make this a real tool, I need to:
 - [ ] cli command validation (e.g., can configure regex in agent or streetrace config file)
 
 
-## done
+### done
 
+- [x] use llm gateway
+- [x] history is not saved when err 500 in gemnini
+- [x] pypi publishing
 - [x] Anthropic errors out. Context is not added. Format is also not correct.
 - [x] Context is not added, and unit tests don't fail.
 - [x] for streamed responses, collect all text into one message
@@ -88,7 +88,7 @@ To make this a real tool, I need to:
 - [x] @mention files and folders
 
 
-## ideas
+### ideas
 
 - [ ] It would be great to allow in-code documentation to be sent as context.
 - [ ] Keep only cli

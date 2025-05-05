@@ -98,7 +98,7 @@ logger = logging.getLogger(__name__)
 
 _EMPTY_RESPONSE_MAX_RETRIES = 3  # Specific retry limit for empty responses
 _EMPTY_RESPONSE_WAIT_SEC = 10  # Wait time for empty response retry
-_EXPONENTIAL_BACKOFF_RETRY_STRATEGY = "exponential_backoff_retry"
+_MAX_RETRIES = 7
 
 
 class _InteractionState(Enum):
@@ -289,7 +289,7 @@ class InteractionManager:
     # Only retry on specific LiteLLM exceptions that indicate a potentially
     # transient issue (like rate limiting). Do not retry on general errors.
     @retry(
-        stop=stop_after_attempt(7),
+        stop=stop_after_attempt(_MAX_RETRIES),
         wait=wait_incrementing(start=30, increment=30, max=10 * 60),
         retry=retry_if_exception_type(litellm.exceptions.RateLimitError),
         reraise=True,
@@ -304,7 +304,7 @@ class InteractionManager:
     ) -> litellm.ModelResponse:
         logger.debug("Calling LLM API...")
         try:
-            return litellm.completion(
+            completion = litellm.completion(
                 model=model,
                 messages=[m.to_dict() for m in history.get_all_messages()],
                 stream=False,
@@ -314,16 +314,29 @@ class InteractionManager:
         except litellm.exceptions.RateLimitError as rate_limit_err:
             # Log and increment count for the specific retry handler
             conv.api_retry_count += 1
-            self.ui.display_warning(f"Rate limit exceeded. {rate_limit_err}")
-            logger.info(
+            self.ui.display_warning(f"Rate limit exceeded: {rate_limit_err}")
+            logger.warning(
                 "Retrying API call due to RateLimitError... (Attempt %d)",
                 conv.api_retry_count,
             )
             status.update(
-                f"Retrying (Rate Limit {conv.api_retry_count}), io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
+                f"Retrying (Rate Limit {conv.api_retry_count}/{_MAX_RETRIES}), io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
             )
-            # Reraise TryAgain explicitly to signal tenacity to retry based on retry=retry_if_exception_type
+            # Reraise TryAgain explicitly to signal tenacity to retry
             raise TryAgain from rate_limit_err
+        except litellm.exceptions.InternalServerError as server_error:
+            # Log and increment count for the specific retry handler
+            conv.api_retry_count += 1
+            self.ui.display_error(f"Server error exceeded: {server_error}")
+            logger.exception(
+                "Retrying API call due to RateLimitError... (Attempt %d)",
+                conv.api_retry_count,
+            )
+            status.update(
+                f"Retrying (Rate Limit {conv.api_retry_count}/{_MAX_RETRIES}), io tokens: {conv.total_input_tokens}/{conv.total_output_tokens}, total requests: {conv.total_requests}...",
+            )
+            # Reraise TryAgain explicitly to signal tenacity to retry
+            raise TryAgain from server_error
         except Exception as e:
             # For any other exception, log it and let tenacity's reraise=True handle it
             # (i.e., it will stop retrying and raise the original exception)
@@ -332,6 +345,9 @@ class InteractionManager:
                 type(e).__name__,
             )
             raise  # Reraises the original exception 'e'
+        else:
+            conv.api_retry_count = 0
+            return completion
 
     def _call_llm(
         self,
@@ -357,7 +373,6 @@ class InteractionManager:
         outcome: _GenerationOutcome
         try:
             # Reset the retry counter before calling the retry loop
-            conv.api_retry_count = 0
             model_response = self._call_llm_with_retry(
                 model,
                 history,
