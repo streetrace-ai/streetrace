@@ -47,7 +47,7 @@ These are functions the AI model can request to execute:
 * `fs_tool.read_file`: Reads the content of a file.
 * `fs_tool.write_file`: Writes content to a file.
 * `fs_tool.execute_cli_command`: Executes a CLI command with full interactive capabilities.
-* `search.search_files`: Searches for text in files matching a glob pattern.
+* `fs_tool.find_in_files`: Searches for text in files matching a glob pattern.
 
 ## Usage
 
@@ -86,7 +86,7 @@ This path will be used as the working directory (work_dir) for all tools that in
 - list_directory
 - read_file
 - write_file
-- search_files
+- find_in_files
 
 This feature makes it easier to work with files in another location without changing your current directory.
 

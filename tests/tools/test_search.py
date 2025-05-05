@@ -2,7 +2,7 @@ import shutil  # Import shutil for robust directory removal
 import unittest
 from pathlib import Path
 
-from streetrace.tools.search import search_files
+from streetrace.tools.find_in_files import find_in_files
 from streetrace.tools.tool_call_result import ToolOutput  # Use correct import path
 
 
@@ -35,7 +35,7 @@ class TestSearchFiles(unittest.TestCase):
         # Test when the search string is found in the files
         pattern = "*.txt"
         search_string = "test"
-        matches, msg = search_files(pattern, search_string, work_dir=self.test_dir)
+        matches, msg = find_in_files(pattern, search_string, work_dir=self.test_dir)
 
         # Check matches (should be 2 files, 1 match per file)
         assert len(matches) == 2
@@ -61,7 +61,7 @@ class TestSearchFiles(unittest.TestCase):
         # Test when the search string is not found in the files
         pattern = "*.txt"
         search_string = "nonexistent"
-        matches, msg = search_files(pattern, search_string, work_dir=self.test_dir)
+        matches, msg = find_in_files(pattern, search_string, work_dir=self.test_dir)
         assert len(matches) == 0
         # Check message (should be empty as no files had matches)
         assert isinstance(msg, ToolOutput)
@@ -71,7 +71,7 @@ class TestSearchFiles(unittest.TestCase):
         # Test with a specific glob pattern
         pattern = "file1.txt"  # Relative pattern
         search_string = "first"
-        matches, msg = search_files(pattern, search_string, work_dir=self.test_dir)
+        matches, msg = find_in_files(pattern, search_string, work_dir=self.test_dir)
         assert len(matches) == 1
         assert matches[0]["filepath"] == self.file1_rel_path
         assert matches[0]["line_number"] == 1
@@ -83,7 +83,7 @@ class TestSearchFiles(unittest.TestCase):
         # Test with an empty search string (should match every line)
         pattern = "*.txt"
         search_string = ""
-        matches, msg = search_files(pattern, search_string, work_dir=self.test_dir)
+        matches, msg = find_in_files(pattern, search_string, work_dir=self.test_dir)
         # Total lines = 3 in file1 + 3 in file2 = 6
         assert len(matches) == 6
         assert isinstance(msg, ToolOutput)

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import streetrace.tools.read_directory_structure as rds
 import streetrace.tools.read_file as rf
-import streetrace.tools.search as s
+import streetrace.tools.find_in_files as s
 import streetrace.tools.write_file as wf
 from streetrace.tools import cli
 
@@ -99,7 +99,7 @@ def execute_cli_command(
     return cli.execute_cli_command(command, work_dir)
 
 
-def search_files(
+def find_in_files(
     pattern: str,
     search_string: str,
     work_dir: Path,
@@ -119,7 +119,7 @@ def search_files(
             str: UI view of the read data (X matches found)
 
     """
-    return s.search_files(
+    return s.find_in_files(
         _clean_path(pattern),
         _clean_path(search_string),
         work_dir=work_dir,
@@ -131,7 +131,7 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "search_files",
+            "name": "find_in_files",
             "description": "Search for text occurrences in files given a glob pattern and a search string.",
             "parameters": {
                 "type": "object",
@@ -239,7 +239,7 @@ TOOLS = [
 ]
 
 TOOL_IMPL = {
-    "search_files": search_files,
+    "find_in_files": find_in_files,
     "execute_cli_command": execute_cli_command,
     "write_file": write_file,
     "read_file": read_file,

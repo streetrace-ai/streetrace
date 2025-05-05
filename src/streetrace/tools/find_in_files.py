@@ -1,4 +1,4 @@
-"""search_files tool implementation."""
+"""find_in_files tool implementation."""
 
 from pathlib import Path
 from typing import TypedDict
@@ -15,11 +15,11 @@ class SearchResult(TypedDict):
     snippet: str
 
 
-def search_files(
+def find_in_files(
     pattern: str,
     search_string: str,
     work_dir: Path,
-) -> tuple[list[SearchResult], str]:
+) -> tuple[list[SearchResult], ToolOutput]:
     """Search for text occurrences in files given a glob pattern and a search string.
 
     Args:
@@ -28,11 +28,11 @@ def search_files(
         work_dir (str): The root directory for the glob pattern.
 
     Returns:
-        tuple[SearchResult, str]:
+        tuple[SearchResult, ToolOutput]:
             SearchResult: A list of dictionaries, where each dictionary
                 represents a match. Each dictionary contains the file path, line
                 number, and a snippet of the line where the match was found.
-            str: UI view of the read data (X matches found)
+            ToolOutput: UI view of the read data (X matches found)
 
     Raises:
         ValueError: If the pattern resolves to paths outside the work_dir.

@@ -8,6 +8,7 @@ from streetrace.tools.path_utils import (
     normalize_and_validate_path,
     validate_directory_exists,
 )
+from streetrace.tools.tool_call_result import ToolOutput
 
 
 def load_gitignore_for_directory(path: Path) -> pathspec.PathSpec:
@@ -76,7 +77,7 @@ def is_ignored(path: Path, base_path: Path, spec: pathspec.PathSpec) -> bool:
 def read_directory_structure(
     path: str,
     work_dir: Path,
-) -> tuple[dict[str, list[str]], str]:
+) -> tuple[dict[str, list[str]], ToolOutput]:
     """Read directory structure at a specific level (non-recursive) honoring .gitignore rules.
 
     Args:
@@ -86,7 +87,7 @@ def read_directory_structure(
     Returns:
         tuple[dict[str, list[str]], str]:
             dict[str, list[str]]: Dictionary with 'dirs' and 'files' lists containing paths relative to work_dir
-            str: UI view representation
+            ToolOutput: UI view representation
 
     Raises:
         ValueError: If the requested path is outside the allowed root path or doesn't exist.
@@ -129,4 +130,4 @@ def read_directory_structure(
     return {
         "dirs": dirs,
         "files": files,
-    }, f"Dirs: {', '.join(dirs)}\nFiles: {', '.join(files)}'"
+    }, ToolOutput(type="markdown", content=f"**Dirs:** {', '.join(dirs)}\n\n**Files:** {', '.join(files)}'")

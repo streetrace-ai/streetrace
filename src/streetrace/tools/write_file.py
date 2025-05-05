@@ -11,7 +11,7 @@ from streetrace.tools.path_utils import (
 from streetrace.tools.tool_call_result import ToolOutput
 
 
-def write_utf8_file(file_path: str, content: str, work_dir: Path) -> tuple[str, str]:
+def write_utf8_file(file_path: str, content: str, work_dir: Path) -> tuple[str, ToolOutput]:
     """Securely write content to a file, ensuring the path is within the allowed root path.
 
     Args:
@@ -21,9 +21,9 @@ def write_utf8_file(file_path: str, content: str, work_dir: Path) -> tuple[str, 
             The file_path must be within this work_dir for security.
 
     Returns:
-        tuple[str, str]:
+        tuple[str, ToolOutput]:
             str: Path of the written file (relative to work_dir)
-            str: A diff string if the file existed before (or creation message).
+            ToolOutput: A diff string if the file existed before (or creation message).
 
     Raises:
         ValueError: If the file path is outside the allowed root path

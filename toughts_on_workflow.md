@@ -215,6 +215,12 @@ I've just added litellm. The issue is that gemini is either extremely slow or no
 This is dumb, really. We need to give the model a glob search with a way to search in files as well as file names.
 Results should be listed with full relative paths. E.g.:
 
-search_files:
+find_in_files:
     - path (glob): recursive, wildcards for directories and file names
     - pattern (regex): search in files
+
+# Contest
+
+The cornerstone of this is letting model know where and how a certain function is implemented. For example, when we say "make this do that" - how does the model know where is the "this"?
+
+The model can explore the codebase, wasting a lot of context pointlessly. Ideally, it needs a way to search for context.
