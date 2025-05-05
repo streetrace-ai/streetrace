@@ -18,14 +18,11 @@ from streetrace.commands.definitions import (
     ExitCommand,
     HistoryCommand,
 )
-
-# Completer imports
 from streetrace.completer import CommandCompleter, PathCompleter, PromptCompleter
-
-# Import HistoryManager
 from streetrace.history_manager import HistoryManager
 from streetrace.interaction_manager import InteractionManager
 from streetrace.prompt_processor import PromptProcessor
+from streetrace.system_context import SystemContext
 from streetrace.tools.fs_tool import TOOL_IMPL, TOOLS
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
@@ -165,8 +162,14 @@ def main() -> None:
     # Initialize ConsoleUI
     ui = ConsoleUI(completer=prompt_completer)
 
-    # Initialize other Core Application Components
-    prompt_processor = PromptProcessor(ui=ui, config_dir=abs_working_dir / _CONTEXT_DIR)
+    # Initialize Core Application Components
+    config_dir = abs_working_dir / _CONTEXT_DIR
+
+    # Initialize SystemContext for handling system and project context
+    system_context = SystemContext(ui=ui, config_dir=config_dir)
+
+    # Initialize PromptProcessor for handling prompts and file mentions
+    prompt_processor = PromptProcessor(ui=ui)
 
     # Determine Model and Provider
     model_name = args.model.strip().lower() if args.model else None
@@ -192,17 +195,19 @@ def main() -> None:
         app_config=app_config,
         ui=ui,
         prompt_processor=prompt_processor,
-        interaction_manager=interaction_manager,  # Pass InteractionManager
+        system_context=system_context,
+        interaction_manager=interaction_manager,
     )
 
     # Initialize and Run Application
     app = Application(
-        app_config=app_config,  # Use the created app_config
+        app_config=app_config,
         ui=ui,
         cmd_executor=cmd_executor,
         prompt_processor=prompt_processor,
+        system_context=system_context,
         interaction_manager=interaction_manager,
-        history_manager=history_manager,  # Pass the history manager
+        history_manager=history_manager,
     )
 
     # Start Application Execution

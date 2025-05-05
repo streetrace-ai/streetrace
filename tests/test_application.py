@@ -9,6 +9,7 @@ from streetrace.history import History
 from streetrace.history_manager import HistoryManager  # Import HistoryManager
 from streetrace.interaction_manager import InteractionManager
 from streetrace.prompt_processor import PromptContext, PromptProcessor
+from streetrace.system_context import SystemContext
 from streetrace.ui.console_ui import ConsoleUI
 
 
@@ -20,27 +21,37 @@ class TestApplication(unittest.TestCase):
         self.mock_ui = MagicMock(spec=ConsoleUI)
         self.mock_cmd_executor = MagicMock(spec=CommandExecutor)
         self.mock_prompt_processor = MagicMock(spec=PromptProcessor)
+        self.mock_system_context = MagicMock(spec=SystemContext)
         self.mock_interaction_manager = MagicMock(spec=InteractionManager)
         # Mock HistoryManager and its methods
         self.mock_history_manager = MagicMock(spec=HistoryManager)
+
+        self.mock_history_manager.ui = self.mock_ui
+        self.mock_history_manager.prompt_processor = self.mock_prompt_processor
+        self.mock_history_manager.system_context = self.mock_system_context
+        self.mock_history_manager.interaction_manager = self.mock_interaction_manager
+
         self.working_dir = Path("/fake/dir")
 
-        # Configure build_context mock (used for mention processing and potentially history reset)
+        # Configure build_context mock (used for mention processing)
         self.mock_prompt_context = MagicMock(spec=PromptContext)
-        self.mock_prompt_context.system_message = "SysMsg"
-        self.mock_prompt_context.project_context = "ProjCtx"
         self.mock_prompt_context.mentioned_files = []
         self.mock_prompt_processor.build_context.return_value = self.mock_prompt_context
 
-        # Initialize Application with the mocked HistoryManager
+        # Configure system_context mocks
+        self.mock_system_context.get_system_message.return_value = "SysMsg"
+        self.mock_system_context.get_project_context.return_value = "ProjCtx"
+
+        # Initialize Application with the mocked components
         self.app_config = ApplicationConfig(working_dir=self.working_dir)
         self.app = Application(
             app_config=self.app_config,
             ui=self.mock_ui,
             cmd_executor=self.mock_cmd_executor,
             prompt_processor=self.mock_prompt_processor,
+            system_context=self.mock_system_context,
             interaction_manager=self.mock_interaction_manager,
-            history_manager=self.mock_history_manager,  # Pass the mock
+            history_manager=self.mock_history_manager,
         )
 
         # Mock history object returned by history_manager.get_history()
@@ -51,11 +62,14 @@ class TestApplication(unittest.TestCase):
         self.mock_ui.reset_mock()
         self.mock_cmd_executor.reset_mock()
         self.mock_prompt_processor.reset_mock()
+        self.mock_system_context.reset_mock()
         self.mock_interaction_manager.reset_mock()
         self.mock_history_manager.reset_mock()
-        self.mock_history_manager.get_history.return_value = (
-            self.mock_history
-        )  # Re-assign after reset
+
+        # Re-assign after reset
+        self.mock_system_context.get_system_message.return_value = "SysMsg"
+        self.mock_system_context.get_project_context.return_value = "ProjCtx"
+        self.mock_history_manager.get_history.return_value = self.mock_history
 
     @patch("streetrace.application.sys.exit")
     def test_run_non_interactive_command(self, mock_sys_exit) -> None:
@@ -75,10 +89,7 @@ class TestApplication(unittest.TestCase):
         self.mock_interaction_manager.process_prompt.assert_not_called()
         mock_sys_exit.assert_called_once_with(0)
 
-    @patch(
-        "streetrace.application.History",
-    )  # Patch History class used in non-interactive
-    def test_run_non_interactive_prompt(self, mock_history) -> None:
+    def test_run_non_interactive_prompt(self) -> None:
         """Test non-interactive run with a prompt processes it."""
         prompt = "generate code"
         mentioned_files_data = [("file.py", "content")]
@@ -88,9 +99,6 @@ class TestApplication(unittest.TestCase):
         # Mock build_context for this specific prompt
         self.mock_prompt_context.mentioned_files = mentioned_files_data
         self.mock_prompt_processor.build_context.return_value = self.mock_prompt_context
-        # Mock the temporary History instance created
-        mock_temp_history_instance = MagicMock()
-        mock_history.return_value = mock_temp_history_instance
 
         self.app.run()
 
@@ -101,21 +109,11 @@ class TestApplication(unittest.TestCase):
             prompt,
             self.working_dir,
         )
-        # Check History constructor was called with context from build_context
-        mock_history.assert_called_once_with(system_message="SysMsg", context="ProjCtx")
-        # Check mentions and user message were added to the temporary history
-        # Note: _add_mentions_to_temporary_history is internal, we check its effect
-        # Check that add_context_message was called by _add_mentions_to_temporary_history
-        mock_temp_history_instance.add_context_message.assert_called_once_with(
-            "file.py",
-            "content",
-        )
-        # Check user message added
-        mock_temp_history_instance.add_user_message.assert_called_once_with(prompt)
+        self.mock_history_manager.initialize_history.assert_called_once_with()
         # Check interaction manager was called with the temporary history
         self.mock_interaction_manager.process_prompt.assert_called_once_with(
             self.app_config.initial_model,
-            mock_temp_history_instance,
+            self.mock_history_manager.get_history(),
             self.app_config.tools,
         )
 
@@ -182,52 +180,6 @@ class TestApplication(unittest.TestCase):
         )
         # Check for exit message due to EOFError
         self.mock_ui.display_info.assert_any_call("\nExiting.")
-
-    # Note: No need to patch builtins.input here
-    def test_run_interactive_handles_missing_history(self) -> None:
-        """Test interactive run attempts to clear history if it's missing."""
-        user_prompt = "some prompt"
-        # Configure UI mock for input -> EOF
-        self.mock_ui.prompt.side_effect = [user_prompt, EOFError]
-        # Simulate history_manager.get_history() returning None initially, then the mock history object
-        # 1. First check in _process_interactive_input -> None
-        # 2. Check after clear_history -> self.mock_history (success)
-        self.mock_history_manager.get_history.side_effect = [None, self.mock_history]
-        # Command executor doesn't find command
-        self.mock_cmd_executor.execute.return_value = (False, True)
-        # Mock build_context (it won't be called in this path because _process_interactive_input returns early)
-        self.mock_prompt_processor.build_context.return_value = self.mock_prompt_context
-
-        with patch("logging.Logger.error") as mock_log_error:
-            self.app.run()
-
-            # Check history was initialized *before* the loop
-            self.mock_history_manager.initialize_history.assert_called_once_with()
-            # Check prompt was called twice (once for prompt, once for EOF)
-            assert self.mock_ui.prompt.call_count == 2
-            # Check command executor called for the prompt
-            self.mock_cmd_executor.execute.assert_called_once_with(
-                user_prompt,
-                self.app,
-            )
-            # Check history was fetched twice (once failed, once succeeded after clear)
-            assert self.mock_history_manager.get_history.call_count == 2
-            # Check error was logged when history was missing
-            mock_log_error.assert_called_once_with(
-                "Conversation history is missing. Attempting to reset.",
-            )
-            # Check clear_history was called on the manager
-            self.mock_history_manager.clear_history.assert_called_once()
-            # Check build_context was NOT called because the loop returned early after reset
-            self.mock_prompt_processor.build_context.assert_not_called()
-            # Check prompt processing was NOT called because the loop returned early after reset
-            self.mock_interaction_manager.process_prompt.assert_not_called()
-            # Check exit message
-            self.mock_ui.display_info.assert_any_call("\nExiting.")
-
-    # Remove tests specifically for app.clear_history, app.compact_history, app.display_history
-    # These are now tested via the commands calling the history_manager or
-    # directly in test_history_manager.py
 
 
 if __name__ == "__main__":

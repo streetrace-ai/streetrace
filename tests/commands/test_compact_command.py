@@ -83,16 +83,24 @@ class TestHistoryManagerCompactFunctionality:
         mock_app_config.initial_model = "fake model"
         mock_app_config.tools = MagicMock()
         mock_prompt_processor = MagicMock()  # Needed for __init__ but not compact
-        return mock_ui, mock_interaction_manager, mock_app_config, mock_prompt_processor
+        mock_system_context = MagicMock()
+        return (
+            mock_ui,
+            mock_interaction_manager,
+            mock_app_config,
+            mock_prompt_processor,
+            mock_system_context,
+        )
 
     @pytest.fixture
     def history_manager_instance(self, mock_history_manager_components):
         """Fixture to create a HistoryManager instance with mocked dependencies."""
-        ui, im, cfg, pp = mock_history_manager_components
+        ui, im, cfg, pp, sc = mock_history_manager_components
         manager = HistoryManager(
             app_config=cfg,
             ui=ui,
             prompt_processor=pp,
+            system_context=sc,
             interaction_manager=im,
         )
         # Reset mocks before yielding

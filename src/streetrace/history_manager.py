@@ -10,9 +10,8 @@ if TYPE_CHECKING:
     # Avoid circular imports for type hinting
     from streetrace.application import ApplicationConfig
     from streetrace.interaction_manager import InteractionManager
-
-    # Import PromptContext here for type hinting only
-    from streetrace.prompt_processor import PromptContext, PromptProcessor
+    from streetrace.prompt_processor import PromptProcessor
+    from streetrace.system_context import SystemContext
     from streetrace.ui.console_ui import ConsoleUI
 
 
@@ -32,6 +31,7 @@ class HistoryManager:
         app_config: "ApplicationConfig",
         ui: "ConsoleUI",
         prompt_processor: "PromptProcessor",
+        system_context: "SystemContext",
         interaction_manager: "InteractionManager",
     ) -> None:
         """Initialize the HistoryManager.
@@ -39,27 +39,28 @@ class HistoryManager:
         Args:
             app_config: Application configuration.
             ui: ConsoleUI instance for displaying messages.
-            prompt_processor: PromptProcessor for building initial context.
+            prompt_processor: PromptProcessor for processing prompt and file mentions.
+            system_context: SystemContext for loading system and project context.
             interaction_manager: InteractionManager for compacting history.
 
         """
         self.app_config = app_config
         self.ui = ui
         self.prompt_processor = prompt_processor
+        self.system_context = system_context
         self.interaction_manager = interaction_manager
         self._conversation_history: History | None = None
         logger.info("HistoryManager initialized.")
 
     def initialize_history(self) -> None:
         """Initialize the conversation history."""
-        # Type hint for initial_context uses the import from TYPE_CHECKING block
-        initial_context: PromptContext = self.prompt_processor.build_context(
-            "",
-            self.app_config.working_dir,
-        )
+        # Get system and project context from SystemContext
+        system_message = self.system_context.get_system_message()
+        project_context = self.system_context.get_project_context()
+
         self._conversation_history = History(
-            system_message=initial_context.system_message,
-            context=initial_context.project_context,
+            system_message=system_message,
+            context=project_context,
         )
 
     def get_history(self) -> History | None:

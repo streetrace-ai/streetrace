@@ -10,6 +10,7 @@ from streetrace.tools.tool_call_result import ToolCallResult, ToolOutput
 MockAppConfig = MagicMock()
 MockUI = MagicMock()
 MockPromptProcessor = MagicMock()
+MockSystemContext = MagicMock()
 MockInteractionManager = MagicMock()
 
 
@@ -18,30 +19,40 @@ def history_manager_instance():
     """Provide a HistoryManager instance with fresh mocks for each test."""
     mock_ui = MagicMock()
     mock_pp = MagicMock()
+    mock_sc = MagicMock()
     mock_im = MagicMock()
     mock_cfg = MagicMock()
     mock_cfg.working_dir = "/fake/dir"
     mock_cfg.initial_model = "test-model"
     mock_cfg.tools = []
 
+    # Mock system_context for get_system_message and get_project_context
+    mock_sc.get_system_message.return_value = "Test System Message"
+    mock_sc.get_project_context.return_value = "Test Project Context"
+
     # Mock build_context on the PromptProcessor mock
     mock_initial_context = MagicMock()
-    mock_initial_context.system_message = "Test System Message"
-    mock_initial_context.project_context = "Test Project Context"
+    mock_initial_context.mentioned_files = []
     mock_pp.build_context.return_value = mock_initial_context
 
     manager = HistoryManager(
         app_config=mock_cfg,
         ui=mock_ui,
         prompt_processor=mock_pp,
+        system_context=mock_sc,
         interaction_manager=mock_im,
     )
     # Reset mocks before yielding
     mock_ui.reset_mock()
     mock_pp.reset_mock()
+    mock_sc.reset_mock()
     mock_im.reset_mock()
     mock_cfg.reset_mock()
-    mock_pp.build_context.return_value = mock_initial_context  # Re-assign after reset
+
+    # Re-assign after reset
+    mock_sc.get_system_message.return_value = "Test System Message"
+    mock_sc.get_project_context.return_value = "Test Project Context"
+    mock_pp.build_context.return_value = mock_initial_context
 
     return manager
 
@@ -54,11 +65,9 @@ def test_initialize_history_interactive(history_manager_instance: HistoryManager
     manager = history_manager_instance
     manager.initialize_history()
 
-    # Check that build_context was called
-    manager.prompt_processor.build_context.assert_called_once_with(
-        "",
-        manager.app_config.working_dir,
-    )
+    # Check that system_context methods were called
+    manager.system_context.get_system_message.assert_called_once()
+    manager.system_context.get_project_context.assert_called_once()
 
     history = manager.get_history()
     assert history is not None
@@ -217,10 +226,7 @@ def test_display_history_long_context_preview(history_manager_instance: HistoryM
     """Test that long context is truncated in display."""
     manager = history_manager_instance
     long_context_str = "a" * (_MAX_CONTEXT_PREVIEW_LENGTH + 100)
-    mock_ctx = MagicMock()
-    mock_ctx.system_message = "System"
-    mock_ctx.project_context = long_context_str
-    manager.prompt_processor.build_context.return_value = mock_ctx
+    manager.system_context.get_project_context.return_value = long_context_str
 
     manager.initialize_history()
     manager.display_history()
@@ -243,17 +249,15 @@ def test_clear_history(history_manager_instance: HistoryManager):
     # Clear
     manager.clear_history()
 
-    # Verify it re-initialized
-    manager.prompt_processor.build_context.assert_called_with(
-        "",
-        manager.app_config.working_dir,
-    )
+    # Verify it re-initialized by calling the system_context
+    manager.system_context.get_system_message.assert_called()
+    manager.system_context.get_project_context.assert_called()
     manager.ui.display_info.assert_called_once_with(
         "Conversation history has been cleared.",
     )
     history = manager.get_history()
     assert history is not None
-    assert history.system_message == "Test System Message"  # From mock build_context
+    assert history.system_message == "Test System Message"
     assert history.context == "Test Project Context"
     assert len(history.messages) == 0
 
@@ -263,9 +267,9 @@ def test_clear_history_handles_exception(history_manager_instance: HistoryManage
     manager = history_manager_instance
     manager.initialize_history()
 
-    # Make build_context raise an error
-    error_message = "Failed to build context"
-    manager.prompt_processor.build_context.side_effect = Exception(error_message)
+    # Make system_context.get_system_message raise an error
+    error_message = "Failed to get system message"
+    manager.system_context.get_system_message.side_effect = Exception(error_message)
 
     with patch("logging.Logger.exception") as mock_log_exception:
         manager.clear_history()

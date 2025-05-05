@@ -18,11 +18,9 @@ class TestMentions(unittest.TestCase):
         cls.test_dir = cls.base_temp_dir / "workdir"
         cls.subdir = cls.test_dir / "subdir"
         cls.outside_dir = cls.base_temp_dir / "outside"
-        cls.config_dir = cls.base_temp_dir / ".streetrace"
 
         cls.subdir.mkdir(parents=True, exist_ok=True)
         cls.outside_dir.mkdir(parents=True, exist_ok=True)
-        cls.config_dir.mkdir(parents=True, exist_ok=True)
 
         # Create test files
         with (cls.test_dir / "file1.txt").open("w") as f:
@@ -47,10 +45,9 @@ class TestMentions(unittest.TestCase):
         """Instantiate PromptProcessor for each test."""
         # Mock the UI to avoid console output during tests
         self.mock_ui = MagicMock(spec=ConsoleUI)
-        # Instantiate PromptProcessor with the mock UI and temp config dir
+        # Instantiate PromptProcessor with the mock UI
         self.prompt_processor = PromptProcessor(
             ui=self.mock_ui,
-            config_dir=self.config_dir,
         )
 
     # --- Test methods using prompt_processor.parse_and_load_mentions ---
@@ -177,6 +174,16 @@ class TestMentions(unittest.TestCase):
             (Path("subdir") / "file2.py", "Content of file2"),
         ]
         assert len(result) == len(expected)
+
+    def test_build_context(self) -> None:
+        """Test that build_context sets up the context object correctly."""
+        prompt = "Check @file1.txt please"
+        context = self.prompt_processor.build_context(prompt, self.test_dir)
+        assert context.raw_prompt == prompt
+        assert context.working_dir == self.test_dir
+        assert len(context.mentioned_files) == 1
+        assert context.mentioned_files[0][0] == Path("file1.txt")
+        assert context.mentioned_files[0][1] == "Content of file1"
 
 
 if __name__ == "__main__":

@@ -16,22 +16,31 @@ To make this a real tool, I need to:
 
 - [ ] cleanup logs
 - [x] history is not saved when err 500 in gemnini
-- [ ] pip publishing
+- [x] pypi publishing
 - [ ] update readme
+- [x] use llm gateway
+- [ ] mcp integration
 
 ## other
 
-- [ ] use logprobs to output model confidence
-- [ ] re-think tools
-- [ ] add mcp
+- [ ] param to retry litellm.InternalServerError, e.g. AnthropicError - {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}
+- [ ] context (read from ./streetrace files) and file mentions are two different things and should be processed separately.
+- [ ] experiment with diff outputs, it's ugly
+- [ ] add creation and modification dates to list/read files
+- [ ] add last modification date to write_file to check if it's overwriting a newer version.
+- [ ] test order of messages when user input contains mentions (does it matter if a mention is before or after the prompt?)
+- [ ] attach context mentions after the prompt, not before
+- [ ] print available backends and model names
 - [ ] PAIN smart history management. Don't keep files that have been re-read or re-written, summarize chains of commands.
-- [ ] count request tokens before the request is sent, and show it separately.
 - [ ] PAIN cost management - show request cost, session cost, and set limits / quotas / budgets
 - [ ] PAIN add cli timeout to avoid hanging commands, report timeout to the model.
+- [ ] PAIN Show total token count in this chat session in status bar
+- [ ] use logprobs to output model confidence
+- [ ] re-think tools
+- [ ] count request tokens before the request is sent, and show it separately.
 - [ ] When the model runs python interpreter as a tool, Ctrl+C hands the app
 - [ ] When the model runs python interpreter as a tool, the user cannot see what they are typing
 - [ ] Prompt history
-- [ ] PAIN Show total token count in this chat session in status bar
 - [ ] maintain conversation history over restarts,
 - [ ] show files already in context over the prompt
 - [ ] support @last conversation

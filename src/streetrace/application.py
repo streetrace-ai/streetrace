@@ -12,9 +12,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from streetrace.commands.command_executor import CommandExecutor
-from streetrace.history import History  # Keep for non-interactive temporary history
 from streetrace.interaction_manager import InteractionManager
 from streetrace.prompt_processor import PromptProcessor
+from streetrace.system_context import SystemContext
 from streetrace.tools.tools import ToolCall
 from streetrace.ui.console_ui import ConsoleUI
 
@@ -45,6 +45,7 @@ class Application:
         ui: ConsoleUI,
         cmd_executor: CommandExecutor,
         prompt_processor: PromptProcessor,
+        system_context: SystemContext,
         interaction_manager: InteractionManager,
         history_manager: "HistoryManager",
     ) -> None:
@@ -54,7 +55,8 @@ class Application:
             app_config: App configuration parameters.
             ui: ConsoleUI instance for handling user interaction and displaying output.
             cmd_executor: CommandExecutor instance for processing internal commands.
-            prompt_processor: PromptProcessor instance for building context and processing prompts.
+            prompt_processor: PromptProcessor instance for processing prompts and file mentions.
+            system_context: SystemContext instance for loading system and project context.
             interaction_manager: InteractionManager instance for handling AI model interactions.
             history_manager: HistoryManager instance for managing conversation history.
 
@@ -63,12 +65,14 @@ class Application:
         self.ui = ui
         self.cmd_executor = cmd_executor
         self.prompt_processor = prompt_processor
+        self.system_context = system_context
         self.interaction_manager = interaction_manager
         self.history_manager = history_manager
         logger.info("Application initialized.")
 
     def run(self) -> None:
         """Start the application execution based on provided arguments."""
+        self.history_manager.initialize_history()
         if self.config.non_interactive_prompt:
             self._run_non_interactive()
         else:
@@ -76,103 +80,55 @@ class Application:
 
     def _run_non_interactive(self) -> None:
         """Handle non-interactive mode (single prompt execution)."""
-        prompt_input = self.config.non_interactive_prompt
+        user_input = self.config.non_interactive_prompt
         # According to coding guide, core components should be fail-fast.
         # Raise if non_interactive_prompt is unexpectedly None.
-        if prompt_input is None:
+        if user_input is None:
             error_msg = "Non-interactive mode requires a prompt, but none was provided."
             logger.error(error_msg)
             # Use ValueError for invalid configuration/state
             raise ValueError(error_msg)
 
-        self.ui.display_user_prompt(prompt_input)
+        self.ui.display_user_prompt(user_input)
 
-        command_executed, _ = self.cmd_executor.execute(prompt_input, self)
+        command_executed, _ = self.cmd_executor.execute(user_input, self)
 
         if command_executed:
             logger.info(
                 "Non-interactive prompt was command: '%s'. Exiting.",
-                prompt_input,
+                user_input,
             )
             sys.exit(0)
         else:
             logger.info("Processing non-interactive prompt.")
+
+            # Process the prompt for file mentions
             prompt_context = self.prompt_processor.build_context(
-                prompt_input,
-                self.config.working_dir,
-            )
-            single_prompt_history = History(
-                system_message=prompt_context.system_message,
-                context=prompt_context.project_context,
-            )
-            self._add_mentions_to_temporary_history(
-                prompt_context.mentioned_files,
-                single_prompt_history,
-            )
-            single_prompt_history.add_user_message(prompt_input)
-            logger.debug(
-                "User prompt added to single-use history",
-                extra={"prompt_input": prompt_input},
-            )
-            self.interaction_manager.process_prompt(
-                self.config.initial_model,
-                single_prompt_history,
-                self.config.tools,
-            )
-            logger.info("Non-interactive mode finished.")
-
-    def _process_interactive_input(self, user_input: str) -> None:
-        """Process a single user input during interactive mode."""
-        # Get current history from the manager
-        current_history = self.history_manager.get_history()
-
-        # Ensure history exists before proceeding
-        if not current_history:
-            logger.error(
-                "Conversation history is missing. Attempting to reset.",
-            )
-            self.history_manager.clear_history()
-            # Check if reset was successful
-            current_history = self.history_manager.get_history()
-            if not current_history:
-                self.ui.display_error(
-                    "Critical error: History missing and could not be reset.",
-                )
-                # Assign error message to variable before raising
-                error_msg = "Exiting due to critical history reset failure."
-                raise SystemExit(error_msg)
-            return  # Return to prompt after successful reset
-
-        if user_input.strip():
-            # Build context mainly for mentions specific to this input
-            prompt_specific_context = self.prompt_processor.build_context(
                 user_input,
                 self.config.working_dir,
             )
 
+            self.history_manager.add_user_message(user_input)
             # Add mentioned files and the user prompt via HistoryManager
             self.history_manager.add_mentions_to_history(
-                prompt_specific_context.mentioned_files,
+                prompt_context.mentioned_files,
             )
-            self.history_manager.add_user_message(user_input)
             logger.debug(
-                "User prompt added to interactive history",
+                "User prompt added to history",
                 extra={"user_input": user_input},
             )
-
-        # Process with InteractionManager using the persistent history
-        self.interaction_manager.process_prompt(
-            self.config.initial_model,
-            current_history,
-            self.config.tools,
-        )
+            self.interaction_manager.process_prompt(
+                self.config.initial_model,
+                self.history_manager.get_history(),
+                self.config.tools,
+            )
+            logger.info("Non-interactive mode finished.")
 
     def _run_interactive(self) -> None:
         """Handle interactive mode (conversation loop)."""
         self.ui.display_info(
             "Entering interactive mode. Type '/history', '/compact', '/clear', '/exit', or press Ctrl+C/Ctrl+D to quit.",
         )
-        self.history_manager.initialize_history()
 
         while True:
             try:
@@ -192,7 +148,29 @@ class Application:
                     continue  # Continue loop for other commands (history, clear, compact)
 
                 # If not a command, process the input as a prompt
-                self._process_interactive_input(user_input)
+                if user_input.strip():
+                    # Build context mainly for mentions specific to this input
+                    prompt_specific_context = self.prompt_processor.build_context(
+                        user_input,
+                        self.config.working_dir,
+                    )
+
+                    self.history_manager.add_user_message(user_input)
+                    # Add mentioned files and the user prompt via HistoryManager
+                    self.history_manager.add_mentions_to_history(
+                        prompt_specific_context.mentioned_files,
+                    )
+                    logger.debug(
+                        "User prompt added to history",
+                        extra={"user_input": user_input},
+                    )
+
+                # Process with InteractionManager using the persistent history
+                self.interaction_manager.process_prompt(
+                    self.config.initial_model,
+                    self.history_manager.get_history(),
+                    self.config.tools,
+                )
 
             except (EOFError, KeyboardInterrupt):
                 self.ui.display_info("\nExiting.")
@@ -211,29 +189,3 @@ class Application:
                     exc_info=loop_err,
                 )
                 # Continue loop after displaying error
-
-    # Keep a private helper for non-interactive mode's temporary history
-    def _add_mentions_to_temporary_history(
-        self,
-        mentioned_files: list[tuple[str, str]],
-        history: History,
-    ) -> None:
-        """Add content from mentioned files to a temporary History object."""
-        if not mentioned_files:
-            return
-
-        # Rename local variable to lowercase
-        max_mention_content_length = 20000
-
-        for filepath, content in mentioned_files:
-            context_title = filepath
-            context_message = content
-            if len(content) > max_mention_content_length:
-                context_title = f"{filepath} (truncated)"
-                context_message = content[:max_mention_content_length]
-                logger.warning(
-                    "Truncated content for mentioned file @%s due to size.",
-                    filepath,
-                )
-            history.add_context_message(context_title, context_message)
-            logger.debug("Added context from @%s to temporary history.", filepath)
