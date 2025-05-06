@@ -432,7 +432,6 @@ class MCPClientManager:
 
     async def call_tool_on_client(
         self,
-        server_name: str,
         openai_tool_call: ChatCompletionMessageToolCall,
     ) -> CallToolResult:
         """Call a tool on a specific active MCP client.
@@ -449,6 +448,10 @@ class MCPClientManager:
             MCPClientInteractionError: If the tool call on the client fails.
 
         """
+        server_name, _ = openai_tool_call.function.name.split(
+            "::",
+            1,
+        )
         client = self.get_client(server_name)
         if not client or not client.is_active:
             msg = f"Client '{server_name}' not found or is not active."
