@@ -224,3 +224,8 @@ find_in_files:
 The cornerstone of this is letting model know where and how a certain function is implemented. For example, when we say "make this do that" - how does the model know where is the "this"?
 
 The model can explore the codebase, wasting a lot of context pointlessly. Ideally, it needs a way to search for context.
+
+
+# logprobs
+
+Experiment with using n > 1 and using logprobs / second opinion to find a better response.

@@ -175,7 +175,10 @@ class HistoryManager:
             messages=messages_as_dicts,  # Pass dicts
         )
 
-        summary_prompt = """Please summarize our conversation so far, maintaining the key points and decisions.
+        summary_prompt = """Please summarize our conversation so far, describing the
+goal of the conversation, detailed plan we developed, all the key points and decisions.
+Mark which points of the plan are already completed and mention all relevant artifacts.
+
 Your summary should:
 1. Preserve all important information, file paths, and code changes
 2. Include any important decisions or conclusions we've reached

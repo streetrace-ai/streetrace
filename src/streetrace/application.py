@@ -107,12 +107,11 @@ class Application:
                 user_input,
                 self.config.working_dir,
             )
-
-            self.history_manager.add_user_message(user_input)
             # Add mentioned files and the user prompt via HistoryManager
             self.history_manager.add_mentions_to_history(
                 prompt_context.mentioned_files,
             )
+            self.history_manager.add_user_message(user_input)
             logger.debug(
                 "User prompt added to history",
                 extra={"user_input": user_input},
@@ -155,11 +154,11 @@ class Application:
                         self.config.working_dir,
                     )
 
-                    self.history_manager.add_user_message(user_input)
                     # Add mentioned files and the user prompt via HistoryManager
                     self.history_manager.add_mentions_to_history(
                         prompt_specific_context.mentioned_files,
                     )
+                    self.history_manager.add_user_message(user_input)
                     logger.debug(
                         "User prompt added to history",
                         extra={"user_input": user_input},

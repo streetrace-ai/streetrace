@@ -39,6 +39,8 @@ General rules for this codebase:
 - Use double quotes for strings.
 - Keep newline at end of file.
 - When you change files, run black and ruff on the changed files.
+- Avoid specifying long messages outside the exception class.
+
 
 ## Environment
 
