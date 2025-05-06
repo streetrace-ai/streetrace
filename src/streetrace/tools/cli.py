@@ -6,8 +6,6 @@ import threading
 from pathlib import Path
 from typing import IO, Any, TypedDict
 
-from streetrace.tools.tool_call_result import ToolOutput
-
 
 class CliResult(TypedDict):
     """Execute CLI result."""

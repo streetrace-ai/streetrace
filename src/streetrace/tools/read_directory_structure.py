@@ -130,4 +130,7 @@ def read_directory_structure(
     return {
         "dirs": dirs,
         "files": files,
-    }, ToolOutput(type="markdown", content=f"**Dirs:** {', '.join(dirs)}\n\n**Files:** {', '.join(files)}'")
+    }, ToolOutput(
+        type="markdown",
+        content=f"**Dirs:** {', '.join(dirs)}\n\n**Files:** {', '.join(files)}'",
+    )

@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
+import streetrace.tools.find_in_files as s
 import streetrace.tools.read_directory_structure as rds
 import streetrace.tools.read_file as rf
-import streetrace.tools.find_in_files as s
 import streetrace.tools.write_file as wf
 from streetrace.tools import cli
 
@@ -126,6 +126,34 @@ def find_in_files(
     )
 
 
+def find_feature_code_pointers(
+    keywords: list[str],
+    work_dir: Path,
+) -> tuple[list[s.SearchResult], str]:
+    """Search for any of the given keywords in project files and return occurrences to identify code pointers where a certain feature can be found.
+
+    Args:
+        keywords (list[str]): Exact match keywords to search for.
+        work_dir (Path): The working directory for the glob pattern.
+
+    Returns:
+        tuple[list[s.SearchResult], str]:
+            list[s.SearchResult]: A list of dictionaries, where each dictionary
+                represents a match. Each dictionary contains the file path, line
+                number, and a snippet of the line where the match was found.
+            str: UI view of the read data (X matches found)
+
+    """
+    results = []
+    for keyword in keywords:
+        matches, _ = find_in_files("**/*.py", keyword, work_dir)
+        results.extend(matches)
+    for keyword in keywords:
+        matches, _ = find_in_files("**/*.md", keyword, work_dir)
+        results.extend(matches)
+    return results, f"{len(results)} matches found"
+
+
 # Define common tools list
 TOOLS = [
     {
@@ -146,6 +174,26 @@ TOOLS = [
                     },
                 },
                 "required": ["pattern", "search_string"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_feature_code_pointers",
+            "description": "Search for any of the given keywords in project files and return occurrences to identify code pointers where a certain feature can be found.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "keywords": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Exact match keywords to search for",
+                    },
+                },
+                "required": ["keywords"],
                 "additionalProperties": False,
             },
             "strict": True,
@@ -239,6 +287,7 @@ TOOLS = [
 ]
 
 TOOL_IMPL = {
+    "find_feature_code_pointers": find_feature_code_pointers,
     "find_in_files": find_in_files,
     "execute_cli_command": execute_cli_command,
     "write_file": write_file,

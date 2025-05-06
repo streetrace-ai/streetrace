@@ -20,7 +20,8 @@ To make this a real tool, I need to:
 
 ### todo
 
-- [ ] param to retry litellm.InternalServerError, e.g. AnthropicError - {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}
+- [ ] Integrate MCP prompts as slash-commands.
+- [x] param to retry litellm.InternalServerError, e.g. AnthropicError - {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}
 - [ ] context (read from ./streetrace files) and file mentions are two different things and should be processed separately.
 - [ ] experiment with diff outputs, it's ugly
 - [ ] add creation and modification dates to list/read files

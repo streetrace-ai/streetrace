@@ -93,6 +93,7 @@ rich = "^14.0.0"
 pathspec = "^0.12.1"
 litellm = "^1.67.5"
 tenacity = "^9.1.2"
+mcp = "^1.7.1"
 
 [tool.poetry.scripts]
 streetrace = 'streetrace.main:main'

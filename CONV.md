@@ -632,3 +632,46 @@ b. We can decouple ConsoleUI from everything else via an event bus, and send all
 In all cases, we need to introduce some kind of history management that is separate from the Application and injected into all classes as a dependency.
 
 What are the other options to achieve the goal?
+
+
+# RAG approach
+
+I want to enable LLM to be able to find where a certain feature is implemented and how it impacts the rest of the codebase.
+ Ideally, I want to index the codebase so the LLM can search the index and find relevant code locations. Assuming the user continuously uses similar vocabulary,
+ and the code is well documented, I want the model to call a tool providing relevant keywords, and find all places in code relevant to this feature.
+
+For example, I have a web-app that implements a todo list. When I say "Add category labels to todo lists", the model calls a tool:
+
+```
+find_feature(keywords=["todo item", "category", "add todo item", "update todo item", "remove todo item"])
+```
+
+The tool needs to respond with all necessary information about all source and documentation files found in the codebase relevant to the requested feature, so LLM can use this information to understand how to implement the feature.
+
+How to implement a tool like that?
+
+Just share a proposal, don't start implementing yet.
+
+Answer as an expert in the area, then act as a third-party expert in the area, assess the proposal, critique and provide feedback. Finally, merge both to share your conclusion.
+
+
+# mcp (brainstorm template)
+
+```
+Let's brainstorm how we can add MCP capabilities to the project. In general, I want StreetRace to implement an MCP client and allow the user to easily
+configure any MCP servers/providers they want to make available to Streetrace.
+Please brainstorm as a team of experts in the area, and provide a final report on the approach. Then critique as a third-party expert in the area. Prov
+ide a merged result.
+```
+
+The idea behind all these prompting patterns is to enable one or another way for thinking through the problem, instead of coming to conclusion immediately.
+Humans can also do that. We usually jump to conclusions as that's how our brain functions - it loves answering questions. But there are frameworks that help
+manage this behavior. E.g., five whys help oneself identify core reasons of something, similar to how ATAM helps one come up with a structured tradeoffs
+analysis, or TOGAF helps to create solid system architectures.
+
+Some quick examples:
+
+1. Think step by step.
+2. Answer as one expert. Then critique as another.
+3. Define a team of experts, and brainstorm this with the team.
+4. Follow an ATAM process to evaluate.

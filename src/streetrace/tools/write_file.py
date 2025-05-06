@@ -11,7 +11,9 @@ from streetrace.tools.path_utils import (
 from streetrace.tools.tool_call_result import ToolOutput
 
 
-def write_utf8_file(file_path: str, content: str, work_dir: Path) -> tuple[str, ToolOutput]:
+def write_utf8_file(
+    file_path: str, content: str, work_dir: Path,
+) -> tuple[str, ToolOutput]:
     """Securely write content to a file, ensuring the path is within the allowed root path.
 
     Args:
