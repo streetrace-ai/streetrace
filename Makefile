@@ -43,4 +43,4 @@ check: format lint typecheck security depcheck unusedcode
 publishpatch:
 	poetry version patch
 	poetry build
-	poetry run poetry publish --username __token__ --password $$POETRY_PYPI_TOKEN
+	dotenv run poetry publish --username __token__ --password $$POETRY_PYPI_TOKEN
