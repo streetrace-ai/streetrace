@@ -1,4 +1,4 @@
-# Str33tRace🚗💨 Project Overview
+# StreetRace🚗💨 Project Overview
 
 ## Project Goal
 StreetRace🚗💨 is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software. It serves as a bridge between AI language models and local file systems, allowing AI to assist with coding tasks by reading, writing, and manipulating files in a local development environment.

@@ -13,8 +13,5 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestArgs": [
         "tests"
-    ],
-    "ruff.interpreter": [
-        "/home/shav/.cache/pypoetry/virtualenvs/streetrace-OuUt1JmK-py3.12/bin/ruff"
     ]
 }

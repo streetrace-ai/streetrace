@@ -266,31 +266,29 @@ class ConsoleUI:
             content_str = str(output.content)
 
         if output.type == "diff":
-            syntax = Syntax(
+            return Syntax(
                 content_str,
                 "diff",
                 theme=Styles.RICH_TOOL_OUTPUT_CODE_THEME,
                 line_numbers=True,
             )
-            self.console.print(syntax)
-        elif output.type == "markdown":
-            md = Markdown(
+        if output.type == "markdown":
+            return Markdown(
                 content_str,
                 code_theme=Styles.RICH_TOOL_OUTPUT_CODE_THEME,
                 inline_code_theme=Styles.RICH_MD_CODE,
             )
-            self.console.print(md)
-        elif output.type == "json":
-            syntax = Syntax(
+
+        if output.type == "json":
+            return Syntax(
                 content_str,
                 "json",
                 theme=Styles.RICH_TOOL_OUTPUT_CODE_THEME,
                 line_numbers=False,
                 word_wrap=True,
             )
-            self.console.print(syntax)
-        else:
-            self.console.print(content_str, style=Styles.RICH_TOOL_OUTPUT_TEXT_STYLE)
+
+        return content_str
 
     def display_tool_result(self, tool_name: str, result: ToolCallResult) -> None:
         """Display the result of a tool execution based on its type."""
@@ -300,9 +298,7 @@ class ConsoleUI:
         self.new_line()
         if output and output.content is not None:
             # Use Panel to frame the output
-            with self.console.capture() as capture:
-                self._render_tool_output(output)
-            rendered_output = capture.get()
+            rendered_output = self._render_tool_output(output)
             # Use the text style for the panel itself
             self.console.print(
                 Panel(rendered_output, title=title),
