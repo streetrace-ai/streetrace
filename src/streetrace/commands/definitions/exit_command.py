@@ -5,9 +5,12 @@ the application in interactive mode.
 """
 
 import logging
+from typing import TYPE_CHECKING, override
 
-from streetrace.application import Application
 from streetrace.commands.base_command import Command
+
+if TYPE_CHECKING:
+    from streetrace.app import Application
 
 logger = logging.getLogger(__name__)
 
@@ -28,15 +31,16 @@ class ExitCommand(Command):
         """Command description."""
         return "Exit the interactive session."
 
-    def execute(self, _: Application) -> bool:
+    @override
+    def execute(self, _: "Application") -> None:
         """Signal the application to stop.
 
         Args:
             _: The application instance (required by the interface but unused).
 
-        Returns:
-            False to signal exit.
+        Raises:
+            SystemExit to signal exit.
 
         """
         logger.info("Leaving...")
-        return False
+        raise SystemExit

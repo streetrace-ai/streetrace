@@ -3779,6 +3779,21 @@ slack = ["slack-sdk"]
 telegram = ["requests"]
 
 [[package]]
+name = "typed-argparse"
+version = "0.3.1"
+description = "Write type-safe and elegant CLIs with a clear separation of concerns."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "typed-argparse-0.3.1.tar.gz", hash = "sha256:3aac61caa50206e080d09a00c3fe552bc4e642739beaef89f5f8c1131b5d5afe"},
+    {file = "typed_argparse-0.3.1-py3-none-any.whl", hash = "sha256:1fbbc3c6adde19aa04edafebd8a7efccab4ddd403d03ec68172cc20b237bbaa7"},
+]
+
+[package.dependencies]
+typing-extensions = "*"
+
+[[package]]
 name = "types-setuptools"
 version = "80.3.0.20250505"
 description = "Typing stubs for setuptools"
@@ -4234,4 +4249,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "75df8eaeaa02a1cbaee625b0e4da7e556acdc8a9dce0aaa6648c0792c0889447"
+content-hash = "aa2e436bf6cc965237052d627b25e49ffbdd694f5c8a17fecd1876cf893c2913"

@@ -5,12 +5,14 @@ system messages and project context from the configuration directory.
 """
 
 import logging
-from pathlib import Path
 
 from streetrace import messages
+from streetrace.args import Args
 from streetrace.ui.console_ui import ConsoleUI
 
 logger = logging.getLogger(__name__)
+
+_CONTEXT_DIR = ".streetrace"
 
 
 class SystemContext:
@@ -20,18 +22,17 @@ class SystemContext:
     from the configuration directory.
     """
 
-    def __init__(self, ui: ConsoleUI, config_dir: Path = Path(".streetrace")) -> None:
+    def __init__(self, ui: ConsoleUI, args: Args) -> None:
         """Initialize the SystemContext.
 
         Args:
             ui: The ConsoleUI instance for displaying messages/errors.
-            config_dir: The directory containing configuration files like
-                        system.md and other context files. Defaults to '.streetrace'.
+            args: App args.
 
         """
         self.ui = ui
-        self.config_dir = config_dir
-        logger.info("SystemContext initialized with config_dir: %s", config_dir)
+        self.config_dir = args.working_dir / _CONTEXT_DIR
+        logger.info("SystemContext initialized with config_dir: %s", self.config_dir)
 
     def get_system_message(self) -> str:
         """Get the system message from the config directory.

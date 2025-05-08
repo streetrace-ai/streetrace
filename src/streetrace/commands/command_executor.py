@@ -7,14 +7,22 @@ lookup, and execution of commands in the application.
 import logging
 from typing import TYPE_CHECKING
 
+from pydantic import BaseModel
+
 from .base_command import Command  # Import the base class
 
 # Use TYPE_CHECKING to avoid circular imports at runtime
 if TYPE_CHECKING:
-    from streetrace.application import Application
+    from streetrace.app import Application
 
 # Get a logger for this module
 logger = logging.getLogger(__name__)
+
+
+class CommandStatus(BaseModel):
+    """Indicates if a command was understood and executed."""
+
+    command_executed: bool
 
 
 class CommandExecutor:
@@ -93,7 +101,7 @@ class CommandExecutor:
         self,
         user_input: str,
         app_instance: "Application",
-    ) -> tuple[bool, bool]:
+    ) -> CommandStatus:
         """Attempt to execute a command based on the user input.
 
         Args:
@@ -101,13 +109,8 @@ class CommandExecutor:
             app_instance: The Application instance to pass to the command's execute method.
 
         Returns:
-            A tuple (command_executed: bool, should_continue: bool):
-            - command_executed: True if the input (stripping '/') matched a registered command
-                                and its execute method was called, False otherwise.
-            - should_continue: The boolean result from the command's execute method
-                               (False to exit, True to continue). If the command
-                               was not found, defaults to True. If an error
-                               occurred during execution, defaults to True.
+            CommandStatus indicating whether a command was executed, and if it requests
+                the app to exit.
 
         """
         # Remove leading '/' if present and make lowercase
@@ -116,7 +119,7 @@ class CommandExecutor:
             command_name = command_name[1:]
         else:
             # If input doesn't start with '/', it's not a command for this executor
-            return False, True
+            return CommandStatus(command_executed=False)
 
         if command_name not in self._commands:
             # Input started with '/' but didn't match any registered command
@@ -126,13 +129,13 @@ class CommandExecutor:
             )
             # Conventionally, unrecognized commands don't stop the app.
             # We return False because *this specific input* wasn't a known command.
-            return False, True
+            return CommandStatus(command_executed=False)
 
         command_instance = self._commands[command_name]
         logger.info("Executing command: '/%s'", command_name)
         try:
             # Pass the required app_instance to the command's execute method
-            should_continue = command_instance.execute(app_instance)
+            command_instance.execute(app_instance)
         except Exception:
             logger.exception(
                 "Error executing command '/%s' (%s)",
@@ -141,16 +144,4 @@ class CommandExecutor:
             )
             # Command was found and attempted, but failed during execution.
             # Signal to continue the application loop.
-            return True, True
-        else:
-            if not isinstance(should_continue, bool):
-                # If the command's execute method doesn't return a boolean, raise an error
-                msg = "Command execute method should return a boolean"
-                raise TypeError(msg)
-
-            logger.debug(
-                "Command '/%s' executed. Result: %s.",
-                command_name,
-                "continue" if should_continue else "exit",
-            )
-            return True, should_continue  # Command executed, return its signal
+            return CommandStatus(command_executed=True)

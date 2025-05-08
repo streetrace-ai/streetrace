@@ -20,6 +20,13 @@ To make this a real tool, I need to:
 
 ### todo
 
+- [x] integrate with adk
+- [x] refactor all app wiring logic (main, app, etc)
+- [x] retry logic for litellm interface
+- [ ] identify all features of interaction manager and confirm in adk implementation
+        - count tokens: check if tokens are stored in session
+- [ ] persistent sessions
+- [ ] maintain history
 - [ ] Integrate MCP prompts as slash-commands.
 - [x] param to retry litellm.InternalServerError, e.g. AnthropicError - {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}
 - [ ] context (read from ./streetrace files) and file mentions are two different things and should be processed separately.

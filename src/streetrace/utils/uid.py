@@ -1,0 +1,41 @@
+"""Get user's id from GitHub, Git, or OS."""
+
+import getpass
+import shutil
+import subprocess
+
+
+def get_user_identity() -> str:
+    """Get user's id from GitHub, Git, or OS."""
+    # 1. Try GitHub CLI (`gh`)
+    if shutil.which("gh"):
+        try:
+            result = subprocess.run(  # noqa: S603
+                ["gh", "api", "user", "--jq", ".login"],  # noqa: S607
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            login = result.stdout.strip()
+            if login:
+                return login
+        except subprocess.CalledProcessError:
+            pass  # gh command failed
+
+    # 2. Try git config user.name
+    if shutil.which("git"):
+        try:
+            result = subprocess.run(  # noqa: S603
+                ["git", "config", "user.name"],  # noqa: S607
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            username = result.stdout.strip()
+            if username:
+                return username
+        except subprocess.CalledProcessError:
+            pass  # git config failed
+
+    # 3. Fallback: OS user
+    return getpass.getuser()

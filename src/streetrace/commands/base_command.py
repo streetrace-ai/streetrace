@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from streetrace.application import Application
+    from streetrace.app import Application
 
 logger = logging.getLogger(__name__)
 
@@ -34,16 +34,16 @@ class Command(ABC):
     def description(self) -> str:
         """A short description of what the command does."""
 
+    # TODO(krmrn42): change Application to Args or something else.
     @abstractmethod
-    def execute(self, app_instance: "Application") -> bool:
+    def execute(self, app_instance: "Application") -> None:
         """Execute the command's action.
 
         Args:
             app_instance: The main Application instance.
                           Commands can use this to access application state or methods.
 
-        Returns:
-            bool: False if the application should exit after execution,
-                  True if the application should continue.
+        Raises:
+            SystemExit: System exit requested by the command.
 
         """
