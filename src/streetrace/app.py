@@ -18,15 +18,13 @@ from streetrace.commands.definitions import (
 )
 from streetrace.history import HistoryManager
 from streetrace.llm_interface import LlmInterface, get_llm_interface
-from streetrace.logging import get_logger
+from streetrace.log import get_logger
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui.completer import CommandCompleter, PathCompleter, PromptCompleter
 from streetrace.ui.console_ui import ConsoleUI
 from streetrace.workflow.supervisor import Supervisor
-
-APP_NAME = "StreetRace🚗💨."
 
 logger = get_logger(__name__)
 
@@ -41,19 +39,9 @@ async def run_app(args: Args) -> None:
     # Initialize CommandExecutor *before* completers that need command list
     cmd_executor = CommandExecutor()
 
-    # Instantiate and register commands
-    cmd_executor.register(ExitCommand())
-    cmd_executor.register(HistoryCommand())
-    cmd_executor.register(CompactCommand())
-    cmd_executor.register(ClearCommand())  # Register ClearCommand
-    # Add more command registrations here as needed
-
-    # Get the list of command names *with* the prefix for the completer
-    available_commands = cmd_executor.get_command_names_with_prefix()
-
     # Initialize Completers
     path_completer = PathCompleter(args.working_dir)
-    command_completer = CommandCompleter(available_commands)
+    command_completer = CommandCompleter(cmd_executor)
     prompt_completer = PromptCompleter([path_completer, command_completer])
 
     # Initialize ConsoleUI
@@ -78,19 +66,21 @@ async def run_app(args: Args) -> None:
     history_manager = HistoryManager(
         app_args=args,
         ui=ui,
-        prompt_processor=prompt_processor,
         system_context=system_context,
-        llm_interface=llm_interface,
     )
+
+    # Register commands
+    cmd_executor.register(ExitCommand())
+    cmd_executor.register(HistoryCommand(ui=ui, history_manager=history_manager))
+    cmd_executor.register(CompactCommand(ui=ui, history_manager=history_manager, llm_interface=llm_interface))
+    cmd_executor.register(ClearCommand(ui=ui, history_manager=history_manager))
 
     # Initialize and Run Application
     app = Application(
-        app_args=args,
+        args=args,
         ui=ui,
         cmd_executor=cmd_executor,
         prompt_processor=prompt_processor,
-        system_context=system_context,
-        llm_interface=llm_interface,
         history_manager=history_manager,
         workflow_supervisor=workflow_supervisor,
     )
@@ -106,7 +96,6 @@ class Application:
         ui: ConsoleUI,
         cmd_executor: CommandExecutor,
         prompt_processor: PromptProcessor,
-        llm_interface: LlmInterface,
         history_manager: HistoryManager,
         workflow_supervisor: Supervisor,
     ) -> None:
@@ -117,7 +106,6 @@ class Application:
             ui: ConsoleUI instance for handling user interaction and displaying output.
             cmd_executor: CommandExecutor instance for processing internal commands.
             prompt_processor: PromptProcessor instance for processing prompts and file mentions.
-            llm_interface: Interface to use to access LLMs.
             history_manager: HistoryManager instance for managing conversation history.
             workflow_supervisor: Supervisor to use for user<->agent interaction management.
 
@@ -126,7 +114,6 @@ class Application:
         self.ui = ui
         self.cmd_executor = cmd_executor
         self.prompt_processor = prompt_processor
-        self.llm_interface = llm_interface
         self.history_manager = history_manager
         self.workflow_supervisor = workflow_supervisor
         logger.info("Application initialized.")
@@ -140,12 +127,13 @@ class Application:
             await self._run_interactive()
 
     async def _process_input(self, user_input: str) -> None:
-        command_status = self.cmd_executor.execute(
+        command_status = await self.cmd_executor.execute_async(
             user_input,
-            self,
         )
 
         if command_status.command_executed:
+            if command_status.error:
+                self.ui.display_error(command_status.error)
             return
 
         processed_prompt = None
@@ -190,7 +178,7 @@ class Application:
 
         while True:
             try:
-                user_input = self.ui.prompt()
+                user_input = await self.ui.prompt_async()
                 await self._process_input(user_input)
             except (EOFError, KeyboardInterrupt, SystemExit):
                 self.ui.display_info("\nLeaving...")

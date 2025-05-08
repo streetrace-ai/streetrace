@@ -1,10 +1,9 @@
 """StreetRace🚗💨 CLI entry point."""
-
 import asyncio
 
 from streetrace.app import run_app
 from streetrace.args import Args, bind_and_run
-from streetrace.logging import get_logger, init_logging
+from streetrace.log import get_logger, init_logging
 
 
 def main(args: Args) -> None:

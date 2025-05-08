@@ -9,7 +9,7 @@ import typed_argparse as tap
 class Args(tap.TypedArgs):
     """App args."""
 
-    path: Path = tap.arg(help="Working directory")
+    path: Path | None = tap.arg(help="Working directory")
     model: str = tap.arg(help="Model to use, see https://docs.litellm.ai/docs/set_keys")
     prompt: str | None = tap.arg(help="Non-interactive prompt mode")
     verbose: bool = tap.arg(help="Enables verbose (DEBUG) logging")

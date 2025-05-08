@@ -8,6 +8,8 @@ from pathlib import Path
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
 from prompt_toolkit.document import Document
 
+from streetrace.commands.command_executor import CommandExecutor
+
 
 class PathCompleter(Completer):
     """A prompt_toolkit @path completer.
@@ -143,16 +145,14 @@ class CommandCompleter(Completer):
     (allowing for leading/trailing whitespace).
     """
 
-    def __init__(self, commands: list[str]) -> None:
+    def __init__(self, command_executor: CommandExecutor) -> None:
         """Initialize the CommandCompleter.
 
         Args:
-            commands: A list of available commands (e.g., ['/exit', '/history']).
+            command_executor: A command executor to get commands from.
 
         """
-        self.commands = sorted(
-            [cmd if cmd.startswith("/") else "/" + cmd for cmd in commands],
-        )
+        self.command_executor = command_executor
 
     def get_completions(
         self,
@@ -163,6 +163,9 @@ class CommandCompleter(Completer):
 
         Only completes if the command is the only content on the line (trimmed).
         """
+        commands = sorted(
+            self.command_executor.get_command_names_with_prefix(),
+        )
         text = document.text
         text_trimmed = text.strip()
 
@@ -188,7 +191,7 @@ class CommandCompleter(Completer):
                 display=cmd,
                 display_meta="command",
             )
-            for cmd in self.commands
+            for cmd in commands
             if cmd.startswith(prefix)
         ]
 

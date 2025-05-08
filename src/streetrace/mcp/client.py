@@ -1,7 +1,6 @@
 """MCP Client implementation for managing connection to a single MCP server."""
 
 import contextlib
-import logging
 from types import TracebackType
 from typing import Any  # Added List
 
@@ -18,8 +17,10 @@ from mcp.types import (
 )
 from openai.types.chat import ChatCompletionToolParam
 
+from streetrace.log import get_logger
+
 # Use module-level logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 EXPECTED_TRANSPORT_TUPLE_LENGTH = 2
 

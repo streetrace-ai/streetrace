@@ -4,21 +4,24 @@ This module defines the ClearCommand class which allows users to clear
 the current conversation history in the interactive mode.
 """
 
-import logging
-
 # Import Application for type hint only, avoid circular dependency if possible
-from typing import TYPE_CHECKING, override
+from typing import override
 
 from streetrace.commands.base_command import Command
+from streetrace.history import HistoryManager
+from streetrace.log import get_logger
+from streetrace.ui.console_ui import ConsoleUI
 
-if TYPE_CHECKING:
-    from streetrace.app import Application  # Use for type hinting
-
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ClearCommand(Command):
     """Command to clear the conversation history, resetting it to the initial state."""
+
+    def __init__(self, ui: ConsoleUI, history_manager: HistoryManager) -> None:
+        """Initialize a new instance of ClearCommand."""
+        self.ui = ui
+        self.history_manager = history_manager
 
     @property
     def names(self) -> list[str]:
@@ -31,12 +34,21 @@ class ClearCommand(Command):
         return "Clear conversation history and start over from the initial system message and context."
 
     @override
-    def execute(self, app_instance: "Application") -> None:
+    async def execute_async(self) -> None:
         """Execute the history clearing action using the HistoryManager.
 
         Args:
             app_instance: The main Application instance.
 
         """
-        logger.info("Executing clear command.")
-        app_instance.history_manager.clear_history()
+        logger.info("Attempting to clear conversation history.")
+        try:
+            # Re-initialize history as if starting an interactive session
+            self.history_manager.initialize_history()
+            logger.info("Conversation history cleared successfully.")
+            self.ui.display_info("Conversation history has been cleared.")
+        except Exception as e:
+            logger.exception("Failed to rebuild context while clearing history")
+            self.ui.display_error(
+                f"Could not clear history due to an error: {e}",
+            )

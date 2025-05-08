@@ -4,15 +4,12 @@ This module defines the ExitCommand class which allows users to exit
 the application in interactive mode.
 """
 
-import logging
-from typing import TYPE_CHECKING, override
+from typing import override
 
 from streetrace.commands.base_command import Command
+from streetrace.log import get_logger
 
-if TYPE_CHECKING:
-    from streetrace.app import Application
-
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ExitCommand(Command):
@@ -32,7 +29,7 @@ class ExitCommand(Command):
         return "Exit the interactive session."
 
     @override
-    def execute(self, _: "Application") -> None:
+    async def execute_async(self) -> None:
         """Signal the application to stop.
 
         Args:

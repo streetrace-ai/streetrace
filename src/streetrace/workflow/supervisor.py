@@ -4,12 +4,15 @@ from datetime import datetime
 
 from google.adk import Runner
 from google.adk.agents import Agent, BaseAgent
+from google.adk.events import Event
 from google.adk.sessions import InMemorySessionService, Session
 from google.genai import types  # For creating message Content/Parts
+from rich.panel import Panel
 from tzlocal import get_localzone
 
-from streetrace.app import APP_NAME
+from streetrace.app_name import APP_NAME
 from streetrace.llm_interface import LlmInterface
+from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui.console_ui import ConsoleUI
 from streetrace.utils.uid import get_user_identity
@@ -69,7 +72,7 @@ class Supervisor:
             ],
         )
 
-    async def run_async(self, payload: str) -> None:
+    async def run_async(self, payload: ProcessedPrompt | None) -> None:
         """Run the payload choosing the right workflow.
 
         run_async called to start one full turn, so it starts from
@@ -111,8 +114,18 @@ class Supervisor:
         )
         self.ui.display_info(f"Payload: {payload}")
 
+        parts = []
+        if payload:
+            if payload.prompt:
+                parts.append(types.Part(text=payload.prompt))
+            if payload.mentions:
+                parts.extend([
+                    types.Part.from_text(f"\nAttached file `{mention[0]!s}:\n\n```\n{mention[1]}\n```\n")
+                    for mention in payload.mentions
+                ])
+
         # Prepare the user's message in ADK format
-        content = types.Content(role="user", parts=[types.Part(text=payload)])
+        content = types.Content(role="user", parts=parts)
 
         final_response_text = "Agent did not produce a final response."  # Default
 
@@ -122,9 +135,7 @@ class Supervisor:
             user_id=session.user_id, session_id=session.id, new_message=content,
         ):
             # You can uncomment the line below to see *all* events during execution
-            self.ui.display_info(
-                f"  [Event] Author: {event.author}, Type: {type(event).__name__}, Final: {event.is_final_response()}, Content: {event.content}",
-            )
+            self.ui.display(Supervisor._render_event(event))
 
             # Key Concept: is_final_response() marks the concluding message for the turn.
             if event.is_final_response():
@@ -138,7 +149,7 @@ class Supervisor:
                 # Add more checks here if needed (e.g., specific error codes)
                 break  # Stop processing events once the final response is found
 
-        self.ui.display_info(f"Final response: {final_response_text}")
+        self.ui.display_info(final_response_text)
 
         return final_response_text
 
@@ -163,3 +174,36 @@ class Supervisor:
         # Check out available code executions in `google.adk.code_executor` package.
         # NOTE: to use model's built-in code executor, don't set this field, add
         # `google.adk.tools.built_in_code_execution` to tools instead.
+
+    @staticmethod
+    def _render_event(event: Event) -> Panel:
+
+        lines = [
+            f"[bold]Author:[/bold] {event.author}",
+            f"[bold]Type:[/bold] Event",  # noqa: F541
+            f"[bold]Final Response:[/bold] {event.is_final_response()}",
+        ]
+        if event.content and event.content.parts:
+            role = event.content.role or "unknown"
+            lines.append(f"[bold]{role.capitalize()}:[/bold]")
+            for part in event.content.parts:
+                if part.text:
+                    lines.append(f"↳ {part.text}")
+
+                if part.function_call:
+                    fn = part.function_call
+                    lines.append(
+                        f"[bold cyan]↳ Function Call:[/bold cyan] {fn.name}({fn.args})",
+                    )
+
+                if part.function_response:
+                    fn = part.function_response
+                    lines.append(
+                        f"[bold cyan]↳ Function Response[/bold cyan] {fn.name}:",
+                    )
+                    lines.extend([
+                        f"  ↳ [grey]{key}[/grey]: {fn.response[key]}"
+                        for key in fn.response
+                    ])
+
+        return Panel("\n".join(lines), title="Event Summary")

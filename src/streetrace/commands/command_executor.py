@@ -4,25 +4,21 @@ This module provides the CommandExecutor class which handles registration,
 lookup, and execution of commands in the application.
 """
 
-import logging
-from typing import TYPE_CHECKING
-
 from pydantic import BaseModel
+
+from streetrace.log import get_logger
 
 from .base_command import Command  # Import the base class
 
-# Use TYPE_CHECKING to avoid circular imports at runtime
-if TYPE_CHECKING:
-    from streetrace.app import Application
-
 # Get a logger for this module
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CommandStatus(BaseModel):
     """Indicates if a command was understood and executed."""
 
     command_executed: bool
+    error: str | None = None
 
 
 class CommandExecutor:
@@ -97,16 +93,14 @@ class CommandExecutor:
         """
         return [f"/{name}" for name in self._commands]
 
-    def execute(
+    async def execute_async(
         self,
         user_input: str,
-        app_instance: "Application",
     ) -> CommandStatus:
         """Attempt to execute a command based on the user input.
 
         Args:
             user_input: The raw input string from the user (e.g., "/exit").
-            app_instance: The Application instance to pass to the command's execute method.
 
         Returns:
             CommandStatus indicating whether a command was executed, and if it requests
@@ -134,14 +128,14 @@ class CommandExecutor:
         command_instance = self._commands[command_name]
         logger.info("Executing command: '/%s'", command_name)
         try:
-            # Pass the required app_instance to the command's execute method
-            command_instance.execute(app_instance)
-        except Exception:
+            await command_instance.execute_async()
+        except Exception as e:
             logger.exception(
-                "Error executing command '/%s' (%s)",
+                "Error executing command '/%s'",
                 command_name,
-                type(command_instance).__name__,
             )
             # Command was found and attempted, but failed during execution.
             # Signal to continue the application loop.
+            return CommandStatus(command_executed=True, error=f"Error executing command '/{command_name}' ({e!s})")
+        else:
             return CommandStatus(command_executed=True)

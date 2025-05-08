@@ -6,16 +6,16 @@ reading and writing files, executing commands, and more.
 
 import inspect
 import json
-import logging
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from litellm import ChatCompletionMessageToolCall
 
+from streetrace.log import get_logger
 from streetrace.tools.tool_call_result import ToolCallResult
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ToolCall:

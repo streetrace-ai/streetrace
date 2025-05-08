@@ -4,13 +4,12 @@ This module provides the SystemContext class responsible for loading and managin
 system messages and project context from the configuration directory.
 """
 
-import logging
-
 from streetrace import messages
 from streetrace.args import Args
+from streetrace.log import get_logger
 from streetrace.ui.console_ui import ConsoleUI
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _CONTEXT_DIR = ".streetrace"
 

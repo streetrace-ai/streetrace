@@ -9,7 +9,7 @@ from litellm.types.utils import ModelResponse
 from tenacity import TryAgain, retry, stop_after_attempt, wait_incrementing
 
 from streetrace.history import History
-from streetrace.logging import get_logger
+from streetrace.log import get_logger
 from streetrace.ui.console_ui import ConsoleUI
 
 _MAX_RETRIES = 7
@@ -34,10 +34,10 @@ class LlmInterface(ABC, Generic[TLlmInterface]):
 
     """
 
-    @abstractmethod
     @property
     def llm() -> TLlmInterface:
         """The internal LLM interface instance."""
+        raise NotImplementedError
 
     @abstractmethod
     async def generate_async(

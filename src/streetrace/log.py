@@ -40,7 +40,7 @@ def init_logging(args: Args) -> None:
     configure_3p_loggers(root_logger)
 
     # Configure Logging Level based on args
-    if args.debug:
+    if args.verbose:
         # Add console handler only if debug is enabled
         console_handler.setLevel(DEBUG)
         # Root logger setup

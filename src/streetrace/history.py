@@ -1,6 +1,5 @@
 """Conversation history management."""
 
-import logging
 from dataclasses import field
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -9,7 +8,7 @@ import litellm
 from pydantic import BaseModel
 
 from streetrace.args import Args
-from streetrace.llm_interface import LlmInterface
+from streetrace.log import get_logger
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_call_result import ToolCallResult
 
@@ -18,12 +17,10 @@ if TYPE_CHECKING:
     from streetrace.ui.console_ui import ConsoleUI
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _MAX_MENTION_CONTENT_LENGTH = 20000
 """Maximum length for file content to prevent excessive tokens."""
-_MAX_CONTEXT_PREVIEW_LENGTH = 200
-"""Maximum length for context preview."""
 
 
 class Role(str, Enum):
@@ -166,7 +163,6 @@ class HistoryManager:
         app_args: Args,
         ui: "ConsoleUI",
         system_context: SystemContext,
-        llm_interface: LlmInterface,
     ) -> None:
         """Initialize the HistoryManager.
 
@@ -174,13 +170,11 @@ class HistoryManager:
             app_args: Application args.
             ui: ConsoleUI instance for displaying messages.
             system_context: System and project context data access.
-            llm_interface: LLM interface (e.g., for compacting history.)
 
         """
         self.app_args = app_args
         self.ui = ui
         self.system_context = system_context
-        self.llm_interface = llm_interface
         self._conversation_history: History | None = None
         logger.info("HistoryManager initialized.")
 
@@ -242,121 +236,3 @@ class HistoryManager:
             logger.debug("User message added to history.")
         else:
             logger.error("Cannot add user message, history not initialized.")
-
-    def _display_history_header(self, history: History) -> None:
-        """Display the header part of the history (system message, context)."""
-        self.ui.display_info("\n--- Conversation History ---")
-        if history.system_message:
-            self.ui.display_system_message(history.system_message)
-        if history.context:
-            context_str = str(history.context)
-            display_context = (
-                context_str[:_MAX_CONTEXT_PREVIEW_LENGTH] + "..."
-                if len(context_str) > _MAX_CONTEXT_PREVIEW_LENGTH
-                else context_str
-            )
-            self.ui.display_context_message(display_context)
-
-    def _display_history_messages(self, history: History) -> None:
-        """Display the messages part of the history."""
-        if not history.messages:
-            self.ui.display_info("No messages in history yet.")
-        else:
-            for msg in history.messages:
-                if msg.role == Role.USER and msg.content:
-                    self.ui.display_history_user_message(msg.content)
-                elif msg.role == Role.MODEL:
-                    if msg.content:
-                        self.ui.display_history_assistant_message(msg.content)
-                    if msg.tool_calls:
-                        for tool_call in msg.tool_calls:
-                            self.ui.display_tool_call(tool_call)
-                elif msg.role == Role.TOOL and msg.content:
-                    tool_result = ToolCallResult.model_validate_json(msg.content)
-                    self.ui.display_tool_result(msg.name, tool_result)
-
-    def display_history(self) -> None:
-        """Display the current conversation history using the UI."""
-        history = self.get_history()
-        if not history:
-            self.ui.display_warning("No history available yet.")
-            return
-
-        self._display_history_header(history)
-        self._display_history_messages(history)
-        self.ui.display_info("--- End History ---")
-
-    async def compact_history(self) -> None:
-        """Compact the current conversation history by generating a summary."""
-        current_history = self.get_history()
-        if not current_history or not current_history.messages:
-            self.ui.display_warning("No history available to compact.")
-            return
-
-        self.ui.display_info("Compacting conversation history...")
-
-        system_message = current_history.system_message
-        context = current_history.context
-
-        # Create a temporary history for the summarization request
-        # Convert existing messages to dicts to avoid Pydantic validation issues
-        messages_as_dicts = [msg.model_dump() for msg in current_history.messages]
-        summary_request_history = History(
-            system_message=system_message,
-            context=context,
-            messages=messages_as_dicts,  # Pass dicts
-        )
-
-        summary_prompt = """Please summarize our conversation so far, describing the
-goal of the conversation, detailed plan we developed, all the key points and decisions.
-Mark which points of the plan are already completed and mention all relevant artifacts.
-
-Your summary should:
-1. Preserve all important information, file paths, and code changes
-2. Include any important decisions or conclusions we've reached
-3. Keep any critical context needed for continuing the conversation
-4. Format the summary as a concise narrative
-
-Return ONLY the summary without explaining what you're doing."""
-
-        summary_request_history.add_user_message(summary_prompt)
-
-        logger.info("Requesting conversation summary from LLM")
-
-        messages = await self.llm_interface.generate_async(
-            self.app_args.model,
-            summary_request_history,
-        )
-        # Get the summary message from the response
-        last_message = None
-        if hasattr(messages, "choices") and messages.choices:
-            last_message = messages.choices[0].message
-
-        if last_message:
-            # Create a new history with just the summary
-            new_history = History(system_message=system_message, context=context)
-
-            # Pass the whole Message object to add_assistant_message
-            new_history.add_assistant_message(last_message)
-            # Replace the current history
-            self.set_history(new_history)
-            self.ui.display_info("History compacted successfully.")
-        else:
-            self.ui.display_warning(
-                "The last message in history is not model, skipping compact. Please report or fix in code if that's not right.",
-            )
-            logger.error("LLM response was not in the expected format for summary.")
-
-    def clear_history(self) -> None:
-        """Clear the current conversation history, resetting it to the initial state."""
-        logger.info("Attempting to clear conversation history.")
-        try:
-            # Re-initialize history as if starting an interactive session
-            self.initialize_history()
-            logger.info("Conversation history cleared successfully.")
-            self.ui.display_info("Conversation history has been cleared.")
-        except Exception as e:
-            logger.exception("Failed to rebuild context while clearing history")
-            self.ui.display_error(
-                f"Could not clear history due to an error: {e}",
-            )

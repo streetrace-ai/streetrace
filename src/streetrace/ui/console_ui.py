@@ -1,6 +1,7 @@
 """Console UI."""
 
-import json  # Added for JSON output
+import json
+from typing import Any  # Added for JSON output
 
 import litellm
 from prompt_toolkit import PromptSession
@@ -48,7 +49,7 @@ class ConsoleUI:
         """Display a status message using rich.console.status."""
         return self.console.status(message, spinner="hamburger")
 
-    def prompt(self, prompt_str: str = _PROMPT) -> str:
+    async def prompt_async(self, prompt_str: str = _PROMPT) -> str:
         """Get input from the user via the console with autocompletion.
 
         Args:
@@ -93,7 +94,7 @@ class ConsoleUI:
         # with the prompt rendering.
         try:
             with patch_stdout():
-                user_input = self.prompt_session.prompt(
+                user_input = await self.prompt_session.prompt_async(
                     build_prompt,  # Use the function to build the prompt dynamically if needed
                     style=Styles.PT,  # Apply the custom style map
                     prompt_continuation=build_prompt_continuation,
@@ -170,6 +171,11 @@ class ConsoleUI:
         """Display a standard informational message."""
         self.new_line()
         self.console.print(message, style=Styles.RICH_INFO)
+
+    def display(self, elem: Any) -> None:  # noqa: ANN401
+        """Display a standard informational message."""
+        self.new_line()
+        self.console.print(elem)
 
     def display_warning(self, message: str) -> None:
         """Display a warning message."""

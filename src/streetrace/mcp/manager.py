@@ -1,7 +1,6 @@
 """MCP Client Manager implementation for handling multiple MCP servers."""
 
 import asyncio
-import logging
 import pathlib  # Use pathlib instead of os.path
 from types import TracebackType
 from typing import Any, ClassVar, Literal  # Added List
@@ -14,6 +13,8 @@ from mcp.types import CallToolResult
 from openai.types.chat import ChatCompletionToolParam
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
+from streetrace.log import get_logger
+
 # Import the new MCPClient
 from streetrace.mcp.client import (
     MCPClient,
@@ -22,7 +23,7 @@ from streetrace.mcp.client import (
 )
 
 # Use module-level logger
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Use pathlib.Path for default path
 DEFAULT_CONFIG_PATH: pathlib.Path = (

@@ -20,6 +20,7 @@ To make this a real tool, I need to:
 
 ### todo
 
+- [ ] imports performance
 - [x] integrate with adk
 - [x] refactor all app wiring logic (main, app, etc)
 - [x] retry logic for litellm interface

@@ -4,7 +4,6 @@ This module processes user prompts with file mentions to build
 context for AI requests.
 """
 
-import logging
 import os
 import re
 from pathlib import Path
@@ -12,9 +11,10 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from streetrace.args import Args
+from streetrace.log import get_logger
 from streetrace.ui.console_ui import ConsoleUI
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # TODO(krmrn42): Rename PromptContext -> ProcessedPrompt

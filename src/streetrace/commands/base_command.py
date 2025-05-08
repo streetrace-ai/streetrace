@@ -4,14 +4,11 @@ This module provides the abstract base class that all command implementations mu
 ensuring a consistent interface for command execution and description.
 """
 
-import logging
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from streetrace.app import Application
+from streetrace.log import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Command(ABC):
@@ -34,9 +31,8 @@ class Command(ABC):
     def description(self) -> str:
         """A short description of what the command does."""
 
-    # TODO(krmrn42): change Application to Args or something else.
     @abstractmethod
-    def execute(self, app_instance: "Application") -> None:
+    async def execute_async(self) -> None:
         """Execute the command's action.
 
         Args:
