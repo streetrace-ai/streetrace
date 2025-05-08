@@ -178,14 +178,13 @@ class Supervisor:
     @staticmethod
     def _render_event(event: Event) -> Panel:
 
+        role = "role unknown"
+        if event.content and event.content.role:
+            role = event.content.role
         lines = [
-            f"[bold]Author:[/bold] {event.author}",
-            f"[bold]Type:[/bold] Event",  # noqa: F541
-            f"[bold]Final Response:[/bold] {event.is_final_response()}",
+            f"[bold]{event.author} ({role}):[/bold] ",
         ]
         if event.content and event.content.parts:
-            role = event.content.role or "unknown"
-            lines.append(f"[bold]{role.capitalize()}:[/bold]")
             for part in event.content.parts:
                 if part.text:
                     lines.append(f"↳ {part.text}")
@@ -193,13 +192,13 @@ class Supervisor:
                 if part.function_call:
                     fn = part.function_call
                     lines.append(
-                        f"[bold cyan]↳ Function Call:[/bold cyan] {fn.name}({fn.args})",
+                        f"[bold cyan]↳ Call:[/bold cyan] {fn.name}({fn.args})",
                     )
 
                 if part.function_response:
                     fn = part.function_response
                     lines.append(
-                        f"[bold cyan]↳ Function Response[/bold cyan] {fn.name}:",
+                        f"[bold cyan]↳ {fn.name}[/bold cyan]:",
                     )
                     lines.extend([
                         f"  ↳ [grey]{key}[/grey]: {fn.response[key]}"
