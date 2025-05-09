@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 _MAX_CONTEXT_PREVIEW_LENGTH = 200
 """Maximum length for context preview."""
 
+
 class HistoryCommand(Command):
     """Command to display the conversation history."""
 
@@ -53,7 +54,6 @@ class HistoryCommand(Command):
         self._display_history_messages(history=history)
 
         self.ui.display_info("--- End History ---")
-
 
     def _display_history_header(self, history: History) -> None:
         """Display the header part of the history (system message, context)."""

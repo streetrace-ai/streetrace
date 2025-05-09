@@ -52,7 +52,8 @@ _FAKE_RESPONSE = """\
     think everyone should be able to choose their favorite cookie and not be told what to like \
     by just one kind. It’s like saying everyone should have the freedom to choose their favorite \
     cookie, even if it’s different from what most people have.""".replace(
-    " " * 4, "",
+    " " * 4,
+    "",
 )
 _RICH_INFO = "#d0d0d0"
 _RICH_TOOL_OUTPUT_TEXT_STYLE = _RICH_INFO
@@ -71,7 +72,9 @@ async def process_prompt_direct(model: str, prompt: str) -> str:
 
 async def process_prompt(_model: str, prompt: str) -> str:
     runner = Runner(
-        app_name=_APP_NAME, session_service=session_service_stateful, agent=root_agent,
+        app_name=_APP_NAME,
+        session_service=session_service_stateful,
+        agent=root_agent,
     )
     return await call_agent_async(prompt, runner, USER_ID_STATEFUL, SESSION_ID_STATEFUL)
 
@@ -166,7 +169,10 @@ from google.genai import types  # For creating message Content/Parts
 
 # see https://google.github.io/adk-docs/tutorials/agent-team/#step-1-your-first-agent-basic-weather-lookup
 async def call_agent_async(
-    query: str, runner: Runner, user_id: str, session_id: str,
+    query: str,
+    runner: Runner,
+    user_id: str,
+    session_id: str,
 ) -> str:
     """Send a query to the agent and prints the final response."""
     print(f"\n>>> User Query: {query}")
@@ -179,7 +185,9 @@ async def call_agent_async(
     # Key Concept: run_async executes the agent logic and yields Events.
     # We iterate through events to find the final answer.
     async for event in runner.run_async(
-        user_id=user_id, session_id=session_id, new_message=content,
+        user_id=user_id,
+        session_id=session_id,
+        new_message=content,
     ):
         # You can uncomment the line below to see *all* events during execution
         print(
@@ -344,7 +352,8 @@ async def main() -> None:
         for _ in range(1):
             print_diff(await get_diff())
         response = await process_prompt(
-            _FAKE_MODEL, "Explain disestablishmentarianism to a smart five year old.",
+            _FAKE_MODEL,
+            "Explain disestablishmentarianism to a smart five year old.",
         )
         print_response(response)
         await asyncio.sleep(5)

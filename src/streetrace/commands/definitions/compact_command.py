@@ -19,7 +19,12 @@ logger = get_logger(__name__)
 class CompactCommand(Command):
     """Command to compact/summarize the conversation history to reduce token usage."""
 
-    def __init__(self, ui: ConsoleUI, history_manager: HistoryManager, llm_interface: LlmInterface) -> None:
+    def __init__(
+        self,
+        ui: ConsoleUI,
+        history_manager: HistoryManager,
+        llm_interface: LlmInterface,
+    ) -> None:
         """Initialize a new instance of ClearCommand."""
         self.ui = ui
         self.history_manager = history_manager

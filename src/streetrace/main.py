@@ -1,4 +1,5 @@
 """StreetRace🚗💨 CLI entry point."""
+
 import asyncio
 
 from streetrace.app import run_app

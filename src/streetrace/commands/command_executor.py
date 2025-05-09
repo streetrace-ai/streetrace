@@ -136,6 +136,9 @@ class CommandExecutor:
             )
             # Command was found and attempted, but failed during execution.
             # Signal to continue the application loop.
-            return CommandStatus(command_executed=True, error=f"Error executing command '/{command_name}' ({e!s})")
+            return CommandStatus(
+                command_executed=True,
+                error=f"Error executing command '/{command_name}' ({e!s})",
+            )
         else:
             return CommandStatus(command_executed=True)

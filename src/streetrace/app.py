@@ -17,7 +17,7 @@ from streetrace.commands.definitions import (
     HistoryCommand,
 )
 from streetrace.history import HistoryManager
-from streetrace.llm_interface import LlmInterface, get_llm_interface
+from streetrace.llm_interface import get_llm_interface
 from streetrace.log import get_logger
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.system_context import SystemContext
@@ -59,7 +59,9 @@ async def run_app(args: Args) -> None:
 
     # Initialize Interaction Manager
     workflow_supervisor = Supervisor(
-        ui=ui, llm_interface=llm_interface, tool_provider=tool_provider,
+        ui=ui,
+        llm_interface=llm_interface,
+        tool_provider=tool_provider,
     )
 
     # Initialize HistoryManager
@@ -72,7 +74,13 @@ async def run_app(args: Args) -> None:
     # Register commands
     cmd_executor.register(ExitCommand())
     cmd_executor.register(HistoryCommand(ui=ui, history_manager=history_manager))
-    cmd_executor.register(CompactCommand(ui=ui, history_manager=history_manager, llm_interface=llm_interface))
+    cmd_executor.register(
+        CompactCommand(
+            ui=ui,
+            history_manager=history_manager,
+            llm_interface=llm_interface,
+        ),
+    )
     cmd_executor.register(ClearCommand(ui=ui, history_manager=history_manager))
 
     # Initialize and Run Application

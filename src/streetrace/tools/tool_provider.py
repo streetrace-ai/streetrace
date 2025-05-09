@@ -17,7 +17,10 @@ class ToolProvider:
     """Provides access to requested tools to agents."""
 
     @asynccontextmanager
-    async def get_tools(self, tool_refs: list[str]) -> AsyncGenerator[list[AnyTool], None]:
+    async def get_tools(
+        self,
+        tool_refs: list[str],
+    ) -> AsyncGenerator[list[AnyTool], None]:
         """Yield a full list of tool implementations as a context-managed resource."""
         tools: list[AnyTool] = []
 

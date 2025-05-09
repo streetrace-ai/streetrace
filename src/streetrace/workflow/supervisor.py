@@ -1,7 +1,7 @@
 """Runs agents and implements the core user<->agent interaction loop."""
 
 from collections.abc import AsyncGenerator
-from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from google.adk import Runner
@@ -14,6 +14,7 @@ from tzlocal import get_localzone
 
 from streetrace.app_name import APP_NAME
 from streetrace.llm_interface import LlmInterface
+from streetrace.messages import SYSTEM
 from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui.console_ui import ConsoleUI
@@ -46,7 +47,9 @@ class Supervisor:
     def get_or_create_session(self) -> Session:
         """Create the ADK agent session with empty state."""
         session = self.session_service.get_session(
-            app_name=APP_NAME, user_id=self.session_user_id, session_id=self.session_id,
+            app_name=APP_NAME,
+            user_id=self.session_user_id,
+            session_id=self.session_id,
         )
         if not session:
             session = self.session_service.create_session(
@@ -75,17 +78,13 @@ class Supervisor:
             msg = "Only default agent definition is currently supported"
             raise NotImplementedError(msg)
 
-        required_tools = ["get_weather", "get_current_time"]
+        required_tools = ["@modelcontextprotocol/server-filesystem::*"]
         async with self.tool_provider.get_tools(required_tools) as tools:
             root_agent = Agent(
-                name="weather_time_agent",
+                name="StreetRace",
                 model=self.llm_interface.llm,
-                description=(
-                    "Agent to answer questions about the time and weather in a city."
-                ),
-                instruction=(
-                    "You are a helpful agent who can answer user questions about the time and weather in a city."
-                ),
+                description=APP_NAME,
+                instruction=SYSTEM,
                 tools=tools,
             )
             yield root_agent
@@ -129,12 +128,16 @@ class Supervisor:
         parts = []
         if payload:
             if payload.prompt:
-                parts.append(types.Part(text=payload.prompt))
+                parts.append(types.Part.from_text(text=payload.prompt))
             if payload.mentions:
-                parts.extend([
-                    types.Part.from_text(f"\nAttached file `{mention[0]!s}:\n\n```\n{mention[1]}\n```\n")
-                    for mention in payload.mentions
-                ])
+                parts.extend(
+                    [
+                        types.Part.from_text(
+                            text=f"\nAttached file `{mention[0]!s}:\n\n```\n{mention[1]}\n```\n",
+                        )
+                        for mention in payload.mentions
+                    ],
+                )
 
         # Prepare the user's message in ADK format
         content = types.Content(role="user", parts=parts)
@@ -151,7 +154,9 @@ class Supervisor:
             # Key Concept: run_async executes the agent logic and yields Events.
             # We iterate through events to find the final answer.
             async for event in runner.run_async(
-                user_id=session.user_id, session_id=session.id, new_message=content,
+                user_id=session.user_id,
+                session_id=session.id,
+                new_message=content,
             ):
                 # You can uncomment the line below to see *all* events during execution
                 self.ui.display(Supervisor._render_event(event))
@@ -219,9 +224,11 @@ class Supervisor:
                     lines.append(
                         f"[bold cyan]↳ {fn.name}[/bold cyan]:",
                     )
-                    lines.extend([
-                        f"  ↳ [grey]{key}[/grey]: {fn.response[key]}"
-                        for key in fn.response
-                    ])
+                    lines.extend(
+                        [
+                            f"  ↳ [grey]{key}[/grey]: {fn.response[key]}"
+                            for key in fn.response
+                        ],
+                    )
 
         return Panel("\n".join(lines), title="Event Summary")

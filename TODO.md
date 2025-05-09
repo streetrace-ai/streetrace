@@ -24,7 +24,9 @@ To make this a real tool, I need to:
 - [x] refactor all app wiring logic (main, app, etc)
 - [x] retry logic for litellm interface
 - [x] get fake agent working with fake tools
-- [ ] get fake agent working with mcp tools
+- [x] get fake agent working with mcp tools
+    - [ ] create a config listing all available/allowed tools
+    - [ ] based on agent request, load only tools that are listed in the config
 - [ ] get fake agent working with OpenAI tools
 - [ ] get real agent working
 - [ ] identify all features of interaction manager and confirm in adk implementation
