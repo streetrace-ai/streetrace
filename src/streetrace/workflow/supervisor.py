@@ -1,5 +1,7 @@
 """Runs agents and implements the core user<->agent interaction loop."""
 
+from collections.abc import AsyncGenerator
+from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
 from datetime import datetime
 
 from google.adk import Runner
@@ -56,21 +58,37 @@ class Supervisor:
         self.session = session
         return session
 
-    def _create_agent(self) -> BaseAgent:
-        return Agent(
-            name="weather_time_agent",
-            model=self.llm_interface.llm,
-            description=(
-                "Agent to answer questions about the time and weather in a city."
-            ),
-            instruction=(
-                "You are a helpful agent who can answer user questions about the time and weather in a city."
-            ),
-            tools=[
-                self.tool_provider.get_tool("get_weather"),
-                self.tool_provider.get_tool("get_current_time"),
-            ],
-        )
+    @asynccontextmanager
+    async def _create_agent(self, agent_type: str) -> AsyncGenerator[BaseAgent, None]:
+        """Create an agent of a given type, and identify tools it needs.
+
+        Args:
+            agent_type: the agent library name to construct (only 'default' for now).
+
+        Returns:
+            tuple[BaseAgent, list[str]]:
+                - BaseAgent: Root MCP agent.
+                - list[str]: List of required tool references (e.g., server_name::tool_name).
+
+        """
+        if agent_type != "default":
+            msg = "Only default agent definition is currently supported"
+            raise NotImplementedError(msg)
+
+        required_tools = ["get_weather", "get_current_time"]
+        async with self.tool_provider.get_tools(required_tools) as tools:
+            root_agent = Agent(
+                name="weather_time_agent",
+                model=self.llm_interface.llm,
+                description=(
+                    "Agent to answer questions about the time and weather in a city."
+                ),
+                instruction=(
+                    "You are a helpful agent who can answer user questions about the time and weather in a city."
+                ),
+                tools=tools,
+            )
+            yield root_agent
 
     async def run_async(self, payload: ProcessedPrompt | None) -> None:
         """Run the payload choosing the right workflow.
@@ -106,12 +124,6 @@ class Supervisor:
             state.
         - we don't need a workflow router for now, the root agent is our router.
         """
-        session = self.get_or_create_session()
-        runner = Runner(
-            app_name=session.app_name,
-            session_service=self.session_service,
-            agent=self._create_agent(),
-        )
         self.ui.display_info(f"Payload: {payload}")
 
         parts = []
@@ -129,25 +141,32 @@ class Supervisor:
 
         final_response_text = "Agent did not produce a final response."  # Default
 
-        # Key Concept: run_async executes the agent logic and yields Events.
-        # We iterate through events to find the final answer.
-        async for event in runner.run_async(
-            user_id=session.user_id, session_id=session.id, new_message=content,
-        ):
-            # You can uncomment the line below to see *all* events during execution
-            self.ui.display(Supervisor._render_event(event))
+        session = self.get_or_create_session()
+        async with self._create_agent("default") as root_agent:
+            runner = Runner(
+                app_name=session.app_name,
+                session_service=self.session_service,
+                agent=root_agent,
+            )
+            # Key Concept: run_async executes the agent logic and yields Events.
+            # We iterate through events to find the final answer.
+            async for event in runner.run_async(
+                user_id=session.user_id, session_id=session.id, new_message=content,
+            ):
+                # You can uncomment the line below to see *all* events during execution
+                self.ui.display(Supervisor._render_event(event))
 
-            # Key Concept: is_final_response() marks the concluding message for the turn.
-            if event.is_final_response():
-                if event.content and event.content.parts:
-                    # Assuming text response in the first part
-                    final_response_text = event.content.parts[0].text
-                elif (
-                    event.actions and event.actions.escalate
-                ):  # Handle potential errors/escalations
-                    final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
-                # Add more checks here if needed (e.g., specific error codes)
-                break  # Stop processing events once the final response is found
+                # Key Concept: is_final_response() marks the concluding message for the turn.
+                if event.is_final_response():
+                    if event.content and event.content.parts:
+                        # Assuming text response in the first part
+                        final_response_text = event.content.parts[0].text
+                    elif (
+                        event.actions and event.actions.escalate
+                    ):  # Handle potential errors/escalations
+                        final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
+                    # Add more checks here if needed (e.g., specific error codes)
+                    break  # Stop processing events once the final response is found
 
         self.ui.display_info(final_response_text)
 

@@ -1,22 +1,39 @@
 """Provide tools to agents."""
 
-from collections.abc import Callable
+from collections.abc import AsyncGenerator, Callable
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
+from mcp import StdioServerParameters
 
 from streetrace.tools.fake_tools import get_current_time, get_weather
 
-AnyTool = Callable | None
+AnyTool = Callable | BaseTool | None
 
 
 class ToolProvider:
-    """Provides access to requested tools to agents.
+    """Provides access to requested tools to agents."""
 
-    Collects all available tools from all supported sources.
-    """
+    @asynccontextmanager
+    async def get_tools(self, tool_refs: list[str]) -> AsyncGenerator[list[AnyTool], None]:
+        """Yield a full list of tool implementations as a context-managed resource."""
+        tools: list[AnyTool] = []
 
-    def get_tool(self, ref: str) -> AnyTool:
-        """Return a tool implementation given its reference name."""
-        if ref == "get_weather":
-            return get_weather
-        if ref == "get_current_time":
-            return get_current_time
-        return None
+        # Add static tools
+        if "get_weather" in tool_refs:
+            tools.append(get_weather)
+        if "get_current_time" in tool_refs:
+            tools.append(get_current_time)
+
+        # Add MCP tools via context-managed server connection
+        async with MCPToolset(
+            connection_params=StdioServerParameters(
+                command="npx",
+                args=["-y", "@modelcontextprotocol/server-filesystem", str(Path.cwd())],
+            ),
+        ) as toolset:
+            mcp_tools = await toolset.load_tools()
+            tools.extend(mcp_tools)
+            yield tools  # ✅ SINGLE yield here
