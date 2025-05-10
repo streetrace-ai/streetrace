@@ -55,21 +55,22 @@ async def run_app(args: Args) -> None:
 
     llm_interface = get_llm_interface(args.model, ui)
 
-    tool_provider = ToolProvider()
-
-    # Initialize Interaction Manager
-    workflow_supervisor = Supervisor(
-        ui=ui,
-        llm_interface=llm_interface,
-        tool_provider=tool_provider,
-    )
-
+    tool_provider = ToolProvider(args.working_dir)
     # Initialize HistoryManager
     history_manager = HistoryManager(
         app_args=args,
         ui=ui,
         system_context=system_context,
     )
+
+    # Initialize Interaction Manager
+    workflow_supervisor = Supervisor(
+        ui=ui,
+        llm_interface=llm_interface,
+        tool_provider=tool_provider,
+        history_manager=history_manager,
+    )
+
 
     # Register commands
     cmd_executor.register(ExitCommand())

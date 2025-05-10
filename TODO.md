@@ -27,8 +27,10 @@ To make this a real tool, I need to:
 - [x] get fake agent working with mcp tools
     - [ ] create a config listing all available/allowed tools
     - [ ] based on agent request, load only tools that are listed in the config
-- [ ] get fake agent working with OpenAI tools
+- [x] get fake agent working with function tools
+- [ ] langchain tools
 - [ ] get real agent working
+- [ ] mcp tools with sse
 - [ ] identify all features of interaction manager and confirm in adk implementation
         - count tokens: check if tokens are stored in session
 - [ ] persistent sessions

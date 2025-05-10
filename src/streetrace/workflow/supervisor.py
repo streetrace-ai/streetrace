@@ -13,6 +13,7 @@ from rich.panel import Panel
 from tzlocal import get_localzone
 
 from streetrace.app_name import APP_NAME
+from streetrace.history import HistoryManager
 from streetrace.llm_interface import LlmInterface
 from streetrace.messages import SYSTEM
 from streetrace.prompt_processor import ProcessedPrompt
@@ -34,6 +35,7 @@ class Supervisor:
         ui: ConsoleUI,
         llm_interface: LlmInterface,
         tool_provider: ToolProvider,
+        history_manager: HistoryManager,
     ) -> None:
         """Initialize a new instance of workflow supervisor."""
         self.ui = ui
@@ -43,6 +45,7 @@ class Supervisor:
         self.session_user_id = get_user_identity()
         self.session: Session = None
         self.tool_provider = tool_provider
+        self.history_manager = history_manager
 
     def get_or_create_session(self) -> Session:
         """Create the ADK agent session with empty state."""
@@ -78,7 +81,14 @@ class Supervisor:
             msg = "Only default agent definition is currently supported"
             raise NotImplementedError(msg)
 
-        required_tools = ["@modelcontextprotocol/server-filesystem::*"]
+        required_tools = [
+            "mcp:@modelcontextprotocol/server-filesystem::read_file",
+            "mcp:@modelcontextprotocol/server-filesystem::create_directory",
+            "mcp:@modelcontextprotocol/server-filesystem::move_file",
+            "mcp:@modelcontextprotocol/server-filesystem::search_files",
+            "mcp:@modelcontextprotocol/server-filesystem::get_file_info",
+            "streetrace:fs_tool::list_directory",
+            "streetrace:fs_tool::write_file"]
         async with self.tool_provider.get_tools(required_tools) as tools:
             root_agent = Agent(
                 name="StreetRace",
@@ -175,7 +185,9 @@ class Supervisor:
 
         self.ui.display_info(final_response_text)
 
-        return final_response_text
+        # Add the agent's final message to the history
+        if final_response_text:
+            self.history_manager.get_history().add_assistant_message(final_response_text)
 
         # https://google.github.io/adk-docs/runtime/#how-it-works-a-simplified-invocation
         # how do multiple agents work? https://google.github.io/adk-docs/agents/multi-agents/
