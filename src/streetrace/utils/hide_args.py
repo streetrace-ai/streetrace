@@ -8,10 +8,11 @@ them when the function is called.
 import inspect
 from collections.abc import Callable
 from functools import wraps
-from typing import Any
+from typing import Any, TypeVar
 
+TReturn = TypeVar("TReturn")
 
-def hide_args(fn: Callable, **injected_kwargs: Any) -> Callable:
+def hide_args(fn: Callable[..., TReturn], **injected_kwargs: Any) -> Callable[..., TReturn]:
     """Get a wrapper that hides provided kwargs from the function signature.
 
     The hidden args will be substituted with the provided values when calling
@@ -29,8 +30,7 @@ def hide_args(fn: Callable, **injected_kwargs: Any) -> Callable:
 
     # Identify which injected parameters actually exist in the function signature
     hidden_params = {
-        name: value for name, value in injected_kwargs.items()
-        if name in sig.parameters
+        name: value for name, value in injected_kwargs.items() if name in sig.parameters
     }
 
     if not hidden_params:
@@ -38,13 +38,12 @@ def hide_args(fn: Callable, **injected_kwargs: Any) -> Callable:
 
     # Create a new signature that excludes the hidden ones
     new_params = [
-        param for name, param in sig.parameters.items()
-        if name not in hidden_params
+        param for name, param in sig.parameters.items() if name not in hidden_params
     ]
     new_sig = sig.replace(parameters=new_params)
 
     @wraps(fn)
-    def wrapper(*args, **kwargs) -> Callable:
+    def wrapper(*args: Any, **kwargs: Any) -> Callable[..., TReturn]:
         bound_args = new_sig.bind(*args, **kwargs)
         bound_args.apply_defaults()
         all_args = dict(bound_args.arguments)

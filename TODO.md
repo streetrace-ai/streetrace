@@ -28,6 +28,7 @@ To make this a real tool, I need to:
     - [ ] create a config listing all available/allowed tools
     - [ ] based on agent request, load only tools that are listed in the config
 - [x] get fake agent working with function tools
+- [ ] show request tokens, costs, session tokens and costs, daily/monthly etc.
 - [ ] langchain tools
 - [ ] get real agent working
 - [ ] mcp tools with sse

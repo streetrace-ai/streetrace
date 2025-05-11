@@ -1,9 +1,10 @@
 """Console UI."""
 
 import json
-from typing import Any  # Added for JSON output
+from typing import Any
 
 import litellm
+from google.adk.events import Event
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import Completer  # Base class
 from prompt_toolkit.patch_stdout import patch_stdout
@@ -15,10 +16,10 @@ from rich.syntax import Syntax
 
 from streetrace.tools.tool_call_result import ToolCallResult, ToolOutput
 from streetrace.ui.colors import Styles
+from streetrace.ui.render_protocol import render_using_registered_renderer
 
 _PROMPT = "You:"
 _MAX_LONG_LINE_LENGTH = 100  # Maximum length for a single line of output
-
 
 class ConsoleUI:
     """Handles all console input and output for the StreetRace application.
@@ -167,15 +168,14 @@ class ConsoleUI:
         self.console.print("User:", style=Styles.RICH_HISTORY_USER_HEADER)
         self.console.print(message, style=Styles.RICH_HISTORY_USER)
 
+    def display(self, obj: Any) -> None:  # noqa: ANN401
+        """Display an object using a known renderer."""
+        render_using_registered_renderer(obj, self.console)
+
     def display_info(self, message: str) -> None:
         """Display a standard informational message."""
         self.new_line()
         self.console.print(message, style=Styles.RICH_INFO)
-
-    def display(self, elem: Any) -> None:  # noqa: ANN401
-        """Display a standard informational message."""
-        self.new_line()
-        self.console.print(elem)
 
     def display_warning(self, message: str) -> None:
         """Display a warning message."""

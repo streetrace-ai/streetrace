@@ -13,7 +13,7 @@ _DIM = "#505050"
 _INFO = "#d0d0d0"
 _WARNING = "#f4bf75"
 _ERROR = "#ac4142"
-_CODE_THEME = "monokai"
+_CODE_THEME = "solarized-dark"
 
 
 class Styles:

@@ -71,7 +71,6 @@ async def run_app(args: Args) -> None:
         history_manager=history_manager,
     )
 
-
     # Register commands
     cmd_executor.register(ExitCommand())
     cmd_executor.register(HistoryCommand(ui=ui, history_manager=history_manager))

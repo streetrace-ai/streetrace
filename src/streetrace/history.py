@@ -67,14 +67,25 @@ class History(BaseModel):
             )
         return messages + self.messages
 
-    def add_assistant_message(self, message: litellm.Message) -> None:
+    def add_assistant_message(self, message: litellm.Message | str) -> None:
         """Add an assistant message to the conversation history.
 
         Args:
             message: The content of the assistant message
 
         """
-        self.messages.append(message)
+        if isinstance(message, litellm.Message):
+            self.messages.append(message)
+        elif isinstance(message, str):
+            self.messages.append(
+                litellm.Message(
+                    role="assistant",
+                    content=message,
+                ),
+            )
+        else:
+            msg = f"Unexpected message type: {type(message).__name__}"
+            raise TypeError(msg)
 
     def add_assistant_message_test(
         self,

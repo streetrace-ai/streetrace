@@ -121,8 +121,8 @@ class TestSystemContext(unittest.TestCase):
 
             def side_effect_function(
                 self: pathlib.Path,
-                *args,  # noqa: ANN002
-                **kwargs,  # noqa: ANN003
+                *args,
+                **kwargs,
             ):
                 if str(self) == str(context_file2):
                     msg = "Cannot read context2.md"

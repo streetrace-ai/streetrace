@@ -1,4 +1,5 @@
 """Provide tools to agents."""
+
 import contextlib
 import importlib
 from collections.abc import AsyncGenerator, Callable, Iterator
@@ -17,6 +18,7 @@ AnyTool = Callable | BaseTool | None
 _MCP_TOOLS_PREFIX = "mcp:"
 _STREETRACE_TOOLS_PREFIX = "streetrace:"
 _STREETRACE_TOOLS_MODULE = "streetrace.tools"
+
 
 class ToolProvider:
     """Provides access to requested tools to agents."""
@@ -58,18 +60,23 @@ class ToolProvider:
         # Use nested async context managers to handle all servers
         async with self._create_mcp_toolsets(mcp_servers) as server_toolsets:
             # Process tools from all MCP servers
-            for (toolset, requested_tools) in server_toolsets:
+            for toolset, requested_tools in server_toolsets:
                 mcp_tools = await toolset.load_tools()
                 # Add only the tools that were requested
-                tools.extend([
-                    mcp_tool for mcp_tool in mcp_tools
-                    if mcp_tool.name in requested_tools
-                ])
+                tools.extend(
+                    [
+                        mcp_tool
+                        for mcp_tool in mcp_tools
+                        if mcp_tool.name in requested_tools
+                    ],
+                )
 
             yield tools  # ✅ SINGLE yield here
 
     @asynccontextmanager
-    async def _create_mcp_toolsets(self, mcp_servers: dict[str, set[str]]) -> AsyncGenerator[list[tuple[MCPToolset, set[str]]], None]:
+    async def _create_mcp_toolsets(
+        self, mcp_servers: dict[str, set[str]],
+    ) -> AsyncGenerator[list[tuple[MCPToolset, set[str]]], None]:
         """Create and yield a dictionary of MCPToolsets for all requested servers.
 
         Args:
@@ -93,18 +100,20 @@ class ToolProvider:
 
         # Enter all context managers
         try:
-            for (toolset, _) in toolsets:
+            for toolset, _ in toolsets:
                 await toolset.__aenter__()
 
             yield toolsets
 
         # Exit all context managers
         finally:
-            for (toolset, _) in toolsets:
+            for toolset, _ in toolsets:
                 with contextlib.suppress(Exception):
                     await toolset.__aexit__(None, None, None)
 
-    def _get_streetrace_tools(self, tool_refs: list[str], work_dir: Path) -> Iterator[Callable]:
+    def _get_streetrace_tools(
+        self, tool_refs: list[str], work_dir: Path,
+    ) -> Iterator[Callable]:
         """Get StreetRace tools from tool references.
 
         Args:
@@ -115,7 +124,11 @@ class ToolProvider:
             Callable tools with work_dir argument hidden.
 
         """
-        tool_refs = [tool_ref[len(_STREETRACE_TOOLS_PREFIX):] for tool_ref in tool_refs if tool_ref.startswith(_STREETRACE_TOOLS_PREFIX)]
+        tool_refs = [
+            tool_ref[len(_STREETRACE_TOOLS_PREFIX) :]
+            for tool_ref in tool_refs
+            if tool_ref.startswith(_STREETRACE_TOOLS_PREFIX)
+        ]
 
         for tool_ref in tool_refs:
             # Convert delimiter and build full import path
@@ -144,7 +157,11 @@ class ToolProvider:
             Dictionary mapping server names to sets of tool names.
 
         """
-        tool_refs = [tool_ref[len(_MCP_TOOLS_PREFIX):] for tool_ref in tool_refs if tool_ref.startswith(_MCP_TOOLS_PREFIX)]
+        tool_refs = [
+            tool_ref[len(_MCP_TOOLS_PREFIX) :]
+            for tool_ref in tool_refs
+            if tool_ref.startswith(_MCP_TOOLS_PREFIX)
+        ]
 
         servers: dict[str, set[str]] = {}
 

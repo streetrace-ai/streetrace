@@ -78,7 +78,7 @@ class RetryingLiteLlm(LiteLlm):
     implementation to handle transient errors like rate limits and server errors.
     """
 
-    def __init__(self, model: str, ui: ConsoleUI, **kwargs) -> None:  # noqa: ANN003
+    def __init__(self, model: str, ui: ConsoleUI, **kwargs) -> None:
         """Initialize the RetryingLiteLlm with a model and UI for feedback.
 
         Args:
@@ -141,7 +141,7 @@ class RetryingLiteLlm(LiteLlm):
                 attempt += 1
                 if attempt > 1:
                     self._ui.display_info(
-                        f"Retrying LLM request (attempt {attempt}/{_MAX_RETRIES})...",
+                        f"Retrying (attempt {attempt}/{_MAX_RETRIES})...",
                     )
 
                 try:
