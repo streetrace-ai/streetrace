@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import streetrace.tools.create_directory as c
 import streetrace.tools.find_in_files as s
 import streetrace.tools.read_directory_structure as rds
 import streetrace.tools.read_file as rf
@@ -125,6 +126,28 @@ def find_in_files(
         work_dir=work_dir,
     )
 
+def create_directory(
+    path: str,
+    work_dir: Path,
+) -> tuple[list[s.SearchResult], str]:
+    """Create a directory (with all parents) in the working directory.
+
+    Args:
+        path (str): Path to create under current working directory.
+        work_dir (Path): Root path that restricts access.
+            The file_path must be within this work_dir for security.
+
+    Returns:
+        tuple[str, str]:
+            str: Operation status
+            str: Always None.
+
+    """
+    return c.create_directory(
+        _clean_path(path),
+        work_dir=work_dir,
+    )
+
 
 def find_feature_code_pointers(
     keywords: list[str],
@@ -156,6 +179,25 @@ def find_feature_code_pointers(
 
 # Define common tools list
 TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "create_directory",
+            "description": "Create a new directory or ensure a directory exists. Can create multiple nested directories in one operation. If the directory already exists, this operation will succeed silently. Perfect for setting up directory tructures for projects or ensuring required paths exist. Only works within allowed directories.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to create in the working directory.",
+                    },
+                },
+                "required": ["path"],
+                "additionalProperties": False,
+            },
+            "strict": True,
+        },
+    },
     {
         "type": "function",
         "function": {
@@ -289,6 +331,7 @@ TOOLS = [
 TOOL_IMPL = {
     "find_feature_code_pointers": find_feature_code_pointers,
     "find_in_files": find_in_files,
+    "create_directory": create_directory,
     "execute_cli_command": execute_cli_command,
     "write_file": write_file,
     "read_file": read_file,

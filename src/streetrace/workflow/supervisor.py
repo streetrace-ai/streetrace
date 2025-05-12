@@ -13,7 +13,7 @@ from tzlocal import get_localzone
 from streetrace.app_name import APP_NAME
 from streetrace.history import HistoryManager
 from streetrace.llm_interface import LlmInterface
-from streetrace.messages import SYSTEM
+from streetrace.messages import SYSTEM_MVP
 from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui.adk_event_renderer import render_event as _  # noqa: F401
@@ -80,22 +80,25 @@ class Supervisor:
             raise NotImplementedError(msg)
 
         required_tools = [
-            "mcp:@modelcontextprotocol/server-filesystem::read_file",
-            "mcp:@modelcontextprotocol/server-filesystem::read_multiple_files",
-            "mcp:@modelcontextprotocol/server-filesystem::edit_file",
-            "mcp:@modelcontextprotocol/server-filesystem::create_directory",
-            "mcp:@modelcontextprotocol/server-filesystem::move_file",
-            "mcp:@modelcontextprotocol/server-filesystem::search_files",
-            "mcp:@modelcontextprotocol/server-filesystem::get_file_info",
+            # "mcp:@modelcontextprotocol/server-filesystem::read_file",
+            # "mcp:@modelcontextprotocol/server-filesystem::read_multiple_files",
+            # "mcp:@modelcontextprotocol/server-filesystem::edit_file",
+            # "mcp:@modelcontextprotocol/server-filesystem::create_directory",
+            # "mcp:@modelcontextprotocol/server-filesystem::move_file",
+            # "mcp:@modelcontextprotocol/server-filesystem::search_files",
+            # "mcp:@modelcontextprotocol/server-filesystem::get_file_info",
             "streetrace:fs_tool::list_directory",
             "streetrace:fs_tool::write_file",
+            "streetrace:fs_tool::read_file",
+            "streetrace:fs_tool::find_in_files",
+            "streetrace:fs_tool::create_directory",
         ]
         async with self.tool_provider.get_tools(required_tools) as tools:
             root_agent = Agent(
                 name="StreetRace",
                 model=self.llm_interface.llm,
                 description=APP_NAME,
-                instruction=SYSTEM,
+                instruction=SYSTEM_MVP,
                 tools=tools,
             )
             yield root_agent
