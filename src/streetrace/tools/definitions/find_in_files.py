@@ -3,8 +3,7 @@
 from pathlib import Path
 from typing import TypedDict
 
-from streetrace.tools.path_utils import normalize_and_validate_path
-from streetrace.tools.tool_call_result import ToolOutput
+from streetrace.tools.definitions.path_utils import normalize_and_validate_path
 
 
 class SearchResult(TypedDict):
@@ -19,23 +18,23 @@ def find_in_files(
     pattern: str,
     search_string: str,
     work_dir: Path,
-) -> tuple[list[SearchResult], ToolOutput]:
-    """Search for text occurrences in files given a glob pattern and a search string.
+) -> list[dict[str, str]]:
+    """Recursively search for files and directories matching a pattern.
+
+    Searches through all subdirectories from the starting path. The search
+    is case-insensitive and matches partial names. Great for finding keywords
+    and code symbols in files.
 
     Args:
-        pattern (str): Glob pattern to match files (relative to work_dir).
+        pattern (str): Glob pattern to match files within the working directory.
         search_string (str): The string to search for.
-        work_dir (str): The root directory for the glob pattern.
+        work_dir (Path): The working directory for the glob pattern.
 
     Returns:
-        tuple[SearchResult, ToolOutput]:
-            SearchResult: A list of dictionaries, where each dictionary
-                represents a match. Each dictionary contains the file path, line
-                number, and a snippet of the line where the match was found.
-            ToolOutput: UI view of the read data (X matches found)
-
-    Raises:
-        ValueError: If the pattern resolves to paths outside the work_dir.
+        A list of dictionaries, where each dictionary represents a match:
+            - filepath: path of the found file
+            - line_number: match line number
+            - snippet: match snippet
 
     """
     matches: list[SearchResult] = []
@@ -66,7 +65,4 @@ def find_in_files(
             # Just skip it and continue with other files
             pass
 
-    display_output = "\n".join([f"* {m.get("filepath")}" for m in matches])
-    if not display_output:
-        display_output = "0 matches found"
-    return matches, ToolOutput(type="markdown", content=display_output)
+    return matches

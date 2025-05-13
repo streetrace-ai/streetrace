@@ -2,7 +2,7 @@
 
 import asyncio
 
-from streetrace.app import run_app
+from streetrace.app import create_app
 from streetrace.args import Args, bind_and_run
 from streetrace.log import get_logger, init_logging
 
@@ -11,14 +11,21 @@ def main(args: Args) -> None:
     """Configure and run the Application."""
     init_logging(args)
     logger = get_logger(__name__)
-    try:
-        asyncio.run(run_app(args))
-    except Exception as app_err:
-        msg = f"Critical error during application execution: {app_err}"
-        logger.exception(msg)
-        raise
-    finally:
-        logger.info("Application exiting.")
+
+    app = create_app(args)
+    while True:
+        try:
+            asyncio.run(app.run())
+        except KeyboardInterrupt:
+            # we treat keyboard interrupt as an interrupt to the current operation,
+            # so we keep the app running.
+            # if the current prompt is empty, then Ctrl+C will cause
+            # SystemExit from KeyboardInterrupt
+            continue
+        except Exception as app_err:
+            msg = f"Critical error during application execution: {app_err}"
+            logger.exception(msg)
+            raise
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from mcp import StdioServerParameters
 
-from streetrace.tools.fake_tools import get_current_time, get_weather
+from streetrace.tools.definitions.fake_tools import get_current_time, get_weather
 from streetrace.utils.hide_args import hide_args
 
 AnyTool = Callable | BaseTool | None
@@ -75,7 +75,8 @@ class ToolProvider:
 
     @asynccontextmanager
     async def _create_mcp_toolsets(
-        self, mcp_servers: dict[str, set[str]],
+        self,
+        mcp_servers: dict[str, set[str]],
     ) -> AsyncGenerator[list[tuple[MCPToolset, set[str]]], None]:
         """Create and yield a dictionary of MCPToolsets for all requested servers.
 
@@ -112,7 +113,9 @@ class ToolProvider:
                     await toolset.__aexit__(None, None, None)
 
     def _get_streetrace_tools(
-        self, tool_refs: list[str], work_dir: Path,
+        self,
+        tool_refs: list[str],
+        work_dir: Path,
     ) -> Iterator[Callable]:
         """Get StreetRace tools from tool references.
 

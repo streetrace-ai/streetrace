@@ -675,3 +675,153 @@ Some quick examples:
 2. Answer as one expert. Then critique as another.
 3. Define a team of experts, and brainstorm this with the team.
 4. Follow an ATAM process to evaluate.
+
+
+====
+
+Create a python app that has three running modes each of which implements the following:
+
+# 1. Downloader
+
+Downloads the latest english-language wikipedia dump (from a mirror if there is a mirror close to Seattle, WA) and saves it in the `./data` directory.
+
+# 2. Parser
+
+1. Reads the wikipedia dump from a location indicated in the '--dump' argument and unpacks it.
+3. Parses it to find all articles about people, locations, and redirects (see details below).
+4. Stores the extracted data in local csv files (e.g., persons.csv, locations.csv, redirects.csv).
+
+At this step, the parser extracts all fields as text keeping creole formatting, i.e. `[[` and `]]`, etc.
+
+## Extracting people
+
+When extracting people, make sure to extract both living and deceased people.
+
+Fields to extract:
+
+- Wikipedia page title (the page name that goes into the URL),
+- Infobox tags `full_name`, `full name`, `name`, `birth_date`, `birth_place`),
+- Infobox type (e.g. extract "royalty" from `{{Infobox royalty`),
+- Short description tag (for example extract "Spiritual leader of Tibet since 1940" from `{{Short description|Spiritual leader of Tibet since 1940}}`),
+
+Either 'Short description' or 'Infobox type', and either the `birth_date` or `birth_place` are required. For example, if 'Infobox type' and `birth_place` are extracted, the record is valid. If `birth_date` and `birth_place` of birth are extracted, but neither 'Short description' nor 'Infobox type' are extracted, log a warning providing the page title, and treat the record invalid.
+
+The easiest possible way to detect if a page is a person page is to use the required attributes.
+
+Save extracted records in `./data/people_raw.csv`.
+
+## Extracting locations
+
+We need to extract all location pages to allow mapping people's places of birth to lat and lon coordinates.
+
+Fields to extract:
+
+- Wikipedia page title (the page name that goes into the URL),
+- Coordinates (extract from the first occurance of the `coord` tag, for example `{{coord|36|22|41.1|N|101|51|57.2|E|region:CN-63|display=it}}`)
+
+Save extracted records in `./data/locations.csv`.
+
+## Extracting redirects
+
+We need to extract all redirects so we can find all possible redirects to all the location pages.
+
+Fields to extract:
+
+- Wikipedia page title (the page name that goes into the URL),
+- The redirect page (from the `#REDIRECT` tag, for example extract "Timur" from `#REDIRECT [[Timur]]`)
+
+Save extracted records in `./data/redirects.csv`.
+
+## General notes on extracting data
+
+Read, extract, and save data in a streaming pipeline. Never store lists of extracted records in memory before saving.
+
+All Wikipedia tags are case insensitive, i.e. `Infobox` is the same as `infobox` and the same as `INFOBOX`.
+
+Use python's csv module to write and read csv.
+
+# 2. Process data
+
+The goal of this step is to cleanup and validate people data.
+
+Read the redirects and locations, building a single dictionary mapping of lowercase names to coordinates. The coordinates should be parsed from Wikipedia format (`{{coord|36|22|41.1|N|101|51|57.2|E...}}` to decimal lat and lon coordinates). The dictionary will map all names (including redirects) to the coordinates.
+
+For example, if we have a location 'Shahrisabz' pointing to '39° 3′ 0″ N, 66° 50′ 0″ E', and a redirect 'Kesh' redirecting to 'Shahrisabz', the dictionary will have two records:
+
+```
+{
+  'Shahrisabz': (39.05, 66.833333),
+  'Kesh': (39.05, 66.833333),
+}
+```
+
+Then process the people dump (`./data/people_raw.csv`) in a streaming pipeline:
+
+1. Wikipedia page title (the page name that goes into the URL),
+2. Extract person's name from one of the fields, in order of priority: `full_name`, `full name`, `name`, page title. Remove HTML comments and all contens of any HTML tags, just keep plain text.
+3. Extract birth date from `birth_date`. We need the fullest possible date available in a form of json object like `{'y': 1900, 'm': 3, d: 10}` where both month and day are zero bound. For example:
+  - '{{birth date and age|1957|7|24|df=y}}' extracts as `{'y': 1957, 'm': 6, d: 23}`
+  - '1320s' extracts as `{'y': 1320}`
+  - '20 or 21 July 356 BC' extracts as `{'y': -356, 'm': 6, d: 20}`
+  - '{{circa|980}}' extracts as `{'y': 980}`
+4. Extract person's birth location by taking all links from `birth_place` and looking them up in the name to coordinates mapping we've built before. The first location that was possible to map in the order the locations appear in the `birth_place` field wins. For example, if the `birth_place` = "Perhaps [[Transoxiana]], or eastern [[Uzbekistan]]", try looking up 'Transoxiana' in the location directory, which will fail, then try 'Uzbekistan' and use the identified coordinates.
+5. Extract occupation as plain value from one of the fields, in order of priority: 'Short description' or 'Infobox type'
+
+Save the output in `./data/people.csv`.
+
+Occupation and either date or place of birth are required.
+
+Examples of resulting records:
+
+```
+wiki_link,name,birth_date,birth_place,occupation
+"Shavkat Mirziyoyev","Shavkat Mirziyoyev","{'y': 1957, 'm': 6, d: 23}","(39.96, 68.379)","President of Uzbekistan since 2016"
+"Timur","Shuja-ud-din Timur","{'y': 1320}","(39.05, 66.833333)","Turco-Mongol conqueror (1320s–1405)"
+```
+
+## General notes on processing data
+
+Read, extract, and save data in a streaming pipeline.
+
+Use python's csv module to write and read csv.
+
+# 2. Trainer
+
+Loads the `./data/people.csv` file and trains a classifier with the provided data. The classifier should predict occupation given place and date of birth. The trained model should be saved in the current directory.
+
+## Location
+
+Ensure that if the lat/lon are close, they provide a close match.
+
+## Dates
+
+Year is unimportant, and if Month+Day are close, they provide a close match.
+
+## Occupation
+
+Given that occupation is a free form text, we need to run clustering before encoding occupation.
+
+Use SentenceTransformers to create semantic vectors from all distinct occupations, run K-Means clustering estimating n_clusters = 1/10 of the number of distinct occupations, and use the cluster number as the occupation value for training. Save the clustering results (original occupation text and cluster number) in `./data/occupation_clusters.csv`.
+
+# 3. Predictor
+
+Takes place and day and month of birth, translates the place of birth to lat/lon coordinates, and uses the model to predict occupation.
+
+===
+
+In the @parser.py `_process_content` function, where we extract person data, let's first extract the full in fobox with all of its attributes (including the type), and then lookup its properties.
+
+Specifically, lets create a new function called _extract_first_infobox that will accept `content` and return a dict[str,str]. _extract_first_infobox will find the first full infobox in the article (`{{infobox ... }}`) and parse it extracting all properties and their values.
+
+I believe, to address that, we need to create a state machine that can consume full quoted and parenthesised chunks of text. If we treat the infobox syntax as {{infobox name | property=value | property=value | .. }}, then we should follow this process to parse it properly:
+
+Find a start of the infobox (`{{infobox`)
+Read text chunk until the next free `|` and consider it infobox type, stripping whitespace. The infobox type can be stored in the "_type_" key of the dict.
+If we see |, read the next full chunk until we see a free `=` and consider it a property name.
+Read the next full chunk until we see `}}` or `|`. If we see `}}` we consider infobox read successfuly. If we see `|`, we go back to reading property name.
+
+"full chunk" means a chunk of text with all the valid quotes, braces, braces, or `<` and `>` signs.
+"free `=`" or "free `|`" means `=` or `|` that does not belong to any previous text chunk.
+Keep in mind that a single quote (` or ') is a part of a word, unless it's a '' (double single quote) which denotes a double quote in wikipedia.
+
+Also create a helper function that takes text content as an input, uses _extract_first_infobox, and pretty prints the infobox, so I can test with various fancy articles.

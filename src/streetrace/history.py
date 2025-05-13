@@ -10,7 +10,6 @@ from pydantic import BaseModel
 from streetrace.args import Args
 from streetrace.log import get_logger
 from streetrace.system_context import SystemContext
-from streetrace.tools.tool_call_result import ToolCallResult
 
 if TYPE_CHECKING:
     # Avoid circular imports for type hinting
@@ -140,29 +139,6 @@ class History(BaseModel):
         """
         self.messages.append(
             litellm.Message(role="user", content=f"---\n# {title}\n\n{content}\n\n---"),
-        )
-
-    def add_tool_message(
-        self,
-        tool_call_id: str,
-        tool_name: str,
-        tool_result: ToolCallResult,
-    ) -> None:
-        """Add user message to the conversation history.
-
-        Args:
-            tool_call_id: The ID of the tool call
-            tool_name: The name of the tool
-            tool_result: The result of the tool call
-
-        """
-        self.messages.append(
-            litellm.Message(
-                role="tool",
-                tool_call_id=tool_call_id,
-                name=tool_name,
-                content=tool_result.model_dump_json(exclude_none=True),
-            ),
         )
 
 

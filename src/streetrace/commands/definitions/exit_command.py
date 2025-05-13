@@ -21,7 +21,7 @@ class ExitCommand(Command):
     @property
     def names(self) -> list[str]:
         """Command invocation names."""
-        return ["exit", "quit"]
+        return ["exit", "quit", "bye"]
 
     @property
     def description(self) -> str:

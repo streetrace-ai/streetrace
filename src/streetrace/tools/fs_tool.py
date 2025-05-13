@@ -2,31 +2,30 @@
 
 from pathlib import Path
 
-import streetrace.tools.create_directory as c
-import streetrace.tools.find_in_files as s
-import streetrace.tools.read_directory_structure as rds
-import streetrace.tools.read_file as rf
-import streetrace.tools.write_file as wf
-from streetrace.tools import cli
+import streetrace.tools.definitions.create_directory as c
+import streetrace.tools.definitions.find_in_files as s
+import streetrace.tools.definitions.read_directory_structure as rds
+import streetrace.tools.definitions.read_file as rf
+import streetrace.tools.definitions.write_file as wf
 
 
 def _clean_path(input_str: str) -> str:
-    """Clean the input by removing unwanted whitespace characters, but preserving quotes."""
+    """Clean the input paths from surrounding whitespace and quotes."""
     # Only strip whitespace, not quotes
     return input_str.strip("\"'\r\n\t ")
 
 
-def list_directory(path: str, work_dir: Path) -> tuple[dict[str, list[str]], str]:
-    """Read directory structure while honoring .gitignore rules.
+def list_directory(path: str, work_dir: Path) -> dict[str, list[str]]:
+    """List all files and directories in a specified path.
+
+    Honors .gitignore rules.
 
     Args:
-        path (str): The path to scan. Must be within the work_dir.
+        path (str): The path to scan, relative to the working directory.
         work_dir (str): The working directory.
 
     Returns:
-        tuple[dict[str, list[str]], str]:
-            dict[str, list[str]]: Dictionary with 'dirs' and 'files' lists containing paths relative to work_dir
-            str: UI view representation
+        Dictionary with 'dirs' and 'files' lists containing paths relative to working directory.
 
     Raises:
         ValueError: If the requested path is outside the allowed root path.
@@ -39,36 +38,31 @@ def read_file(
     path: str,
     work_dir: Path,
     encoding: str = "utf-8",
-) -> tuple[str | bytes, str]:
-    """Read file contents.
+) -> str:
+    """Read the contents of a file from the file system.
 
     Args:
-        path (str): The path to the file to read. Must be within the work_dir.
+        path (str): The path to the file to read, relative to the working directory.
         work_dir (str): The working directory.
-        encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
+        encoding (str): Text encoding to use.
 
     Returns:
-        tuple[str, str]:
-            str or bytes: Contents of the file as a string (in text mode) or bytes (in binary mode)
-            str: UI view of the read data (X characters read)
+        Contents of the file as a string.
 
     """
     return rf.read_file(_clean_path(path), work_dir, encoding)
 
 
-def write_file(path: str, content: str, work_dir: Path) -> tuple[str, str]:
-    """Write content to a file.
+def write_file(path: str, content: str, work_dir: Path) -> str:
+    """Create or overwrite a file with utf-8 content.
 
     Args:
-        path (str): The path to the file to write. Must be within the work_dir.
-        content (str or bytes): Content to write to the file.
+        path (str): The path to the file to write, relative to the working directory.
+        content (str): Content to write to the file.
         work_dir (str): The working directory.
-        encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
 
     Returns:
-        tuple[str, str]:
-            str: Path of the written file (relative to work_dir)
-            str: A diff string if the file existed before (or creation message).
+        Write operation status.
 
     """
     return wf.write_utf8_file(
@@ -78,46 +72,27 @@ def write_file(path: str, content: str, work_dir: Path) -> tuple[str, str]:
     )
 
 
-def execute_cli_command(
-    command: list[str] | str,
-    work_dir: Path,
-) -> tuple[cli.CliResult, str]:
-    """Execute a CLI command interactively. Does not provide shell access.
-
-    Args:
-        command (list[str] or str): The command to execute.
-        work_dir (Path): The working directory.
-
-    Returns:
-        tuple[cli.CliResult, str]:
-            cli.CliResult: A dictionary containing:
-                - stdout: The captured standard output of the command
-                - stderr: The captured standard error of the command
-                - return_code: The return code of the command
-            str: UI view representation (rocess completed (return code))
-
-    """
-    return cli.execute_cli_command(command, work_dir)
-
-
 def find_in_files(
     pattern: str,
     search_string: str,
     work_dir: Path,
-) -> tuple[list[s.SearchResult], str]:
-    """Search for text occurrences in files given a glob pattern and a search string.
+) -> list[dict[str, str]]:
+    """Recursively search for files and directories matching a pattern.
+
+    Searches through all subdirectories from the starting path. The search
+    is case-insensitive and matches partial names. Great for finding keywords
+    and code symbols in files.
 
     Args:
-        pattern (str): Glob pattern to match files (relative to work_dir).
+        pattern (str): Glob pattern to match files within the working directory.
         search_string (str): The string to search for.
         work_dir (Path): The working directory for the glob pattern.
 
     Returns:
-        tuple[list[s.SearchResult], str]:
-            list[s.SearchResult]: A list of dictionaries, where each dictionary
-                represents a match. Each dictionary contains the file path, line
-                number, and a snippet of the line where the match was found.
-            str: UI view of the read data (X matches found)
+        A list of dictionaries, where each dictionary represents a match:
+            - filepath: path of the found file
+            - line_number: match line number
+            - snippet: match snippet
 
     """
     return s.find_in_files(
@@ -126,214 +101,25 @@ def find_in_files(
         work_dir=work_dir,
     )
 
+
 def create_directory(
     path: str,
     work_dir: Path,
-) -> tuple[list[s.SearchResult], str]:
-    """Create a directory (with all parents) in the working directory.
+) -> list[dict[str, str]]:
+    """Create a new directory or ensure a directory exists.
+
+    Can create multiple nested directories. If the directory exists,
+    the operation succeeds silently.
 
     Args:
         path (str): Path to create under current working directory.
         work_dir (Path): Root path that restricts access.
-            The file_path must be within this work_dir for security.
 
     Returns:
-        tuple[str, str]:
-            str: Operation status
-            str: Always None.
+        Operation status.
 
     """
     return c.create_directory(
         _clean_path(path),
         work_dir=work_dir,
     )
-
-
-def find_feature_code_pointers(
-    keywords: list[str],
-    work_dir: Path,
-) -> tuple[list[s.SearchResult], str]:
-    """Search for any of the given keywords in project files and return occurrences to identify code pointers where a certain feature can be found.
-
-    Args:
-        keywords (list[str]): Exact match keywords to search for.
-        work_dir (Path): The working directory for the glob pattern.
-
-    Returns:
-        tuple[list[s.SearchResult], str]:
-            list[s.SearchResult]: A list of dictionaries, where each dictionary
-                represents a match. Each dictionary contains the file path, line
-                number, and a snippet of the line where the match was found.
-            str: UI view of the read data (X matches found)
-
-    """
-    results = []
-    for keyword in keywords:
-        matches, _ = find_in_files("**/*.py", keyword, work_dir)
-        results.extend(matches)
-    for keyword in keywords:
-        matches, _ = find_in_files("**/*.md", keyword, work_dir)
-        results.extend(matches)
-    return results, f"{len(results)} matches found"
-
-
-# Define common tools list
-TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "create_directory",
-            "description": "Create a new directory or ensure a directory exists. Can create multiple nested directories in one operation. If the directory already exists, this operation will succeed silently. Perfect for setting up directory tructures for projects or ensuring required paths exist. Only works within allowed directories.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Path to create in the working directory.",
-                    },
-                },
-                "required": ["path"],
-                "additionalProperties": False,
-            },
-            "strict": True,
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "find_in_files",
-            "description": "Search for text occurrences in files given a glob pattern and a search string.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "pattern": {
-                        "type": "string",
-                        "description": "Glob pattern to match files.",
-                    },
-                    "search_string": {
-                        "type": "string",
-                        "description": "The string to search for.",
-                    },
-                },
-                "required": ["pattern", "search_string"],
-                "additionalProperties": False,
-            },
-            "strict": True,
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "find_feature_code_pointers",
-            "description": "Search for any of the given keywords in project files and return occurrences to identify code pointers where a certain feature can be found.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "keywords": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Exact match keywords to search for",
-                    },
-                },
-                "required": ["keywords"],
-                "additionalProperties": False,
-            },
-            "strict": True,
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "execute_cli_command",
-            "description": "Execute a CLI command in interactive mode and returns the output, error, and return code. Does not provide shell access.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "command": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "The CLI command to execute.",
-                    },
-                },
-                "required": ["command"],
-                "additionalProperties": False,
-            },
-            "strict": True,
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "write_file",
-            "description": "Write utf-8 text to a file. Overwrites the file if it already exists.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Path to the file to write to.",
-                    },
-                    "content": {
-                        "type": "string",
-                        "description": "New content of the file.",
-                    },
-                },
-                "required": ["path", "content"],
-                "additionalProperties": False,
-            },
-            "strict": True,
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Read file contents.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Path to the file to retrieve the contents from.",
-                    },
-                    "encoding": {
-                        "type": "string",
-                        "description": 'Text encoding to use. Defaults to "utf-8".',
-                    },
-                },
-                "required": ["path", "encoding"],
-                "additionalProperties": False,
-            },
-            "strict": True,
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "list_directory",
-            "description": "List files and directories in the requested directory.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Path to the directory to retrieve the contents from.",
-                    },
-                },
-                "required": ["path"],
-                "additionalProperties": False,
-            },
-            "strict": True,
-        },
-    },
-]
-
-TOOL_IMPL = {
-    "find_feature_code_pointers": find_feature_code_pointers,
-    "find_in_files": find_in_files,
-    "create_directory": create_directory,
-    "execute_cli_command": execute_cli_command,
-    "write_file": write_file,
-    "read_file": read_file,
-    "list_directory": list_directory,
-}

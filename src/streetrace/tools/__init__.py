@@ -1,6 +1,6 @@
-"""Tools package for the Streetrace application.
+"""StreetRace🚗💨 built-in tools.
 
-This package contains implementations of various tools that can be used
-by language models to interact with the file system and perform other
-operations in the local environment.
+Most of these tools can be replaced with MCP alternatives, but they are not
+always optimal. I.e., for a coder, I don't want to show any .gitignore files
+or folders, and I want to inject the working directory into tools.
 """

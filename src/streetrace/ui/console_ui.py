@@ -1,11 +1,9 @@
 """Console UI."""
 
-import json
 from typing import Any
 
 import litellm
-from google.adk.events import Event
-from prompt_toolkit import PromptSession
+from prompt_toolkit import HTML, PromptSession
 from prompt_toolkit.completion import Completer  # Base class
 from prompt_toolkit.patch_stdout import patch_stdout
 from rich.console import Console
@@ -14,12 +12,12 @@ from rich.panel import Panel
 from rich.status import Status
 from rich.syntax import Syntax
 
-from streetrace.tools.tool_call_result import ToolCallResult, ToolOutput
 from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import render_using_registered_renderer
 
 _PROMPT = "You:"
 _MAX_LONG_LINE_LENGTH = 100  # Maximum length for a single line of output
+
 
 class ConsoleUI:
     """Handles all console input and output for the StreetRace application.
@@ -82,12 +80,16 @@ class ConsoleUI:
 
         def build_bottom_toolbar() -> list[tuple[str, str]]:
             # Help text at the bottom
-            return [
-                (
-                    "class:bottom-toolbar",
-                    " New LIne: Enter | Send: Esc,Enter | Autocomplete: Tab/@,/ | Exit: /exit,/quit ",
-                ),  # Style in Styles.PT
-            ]
+            current_model = "some model"
+            input_tokens = "123"
+            output_tokens = "456"
+            cost = "123.00"
+            return HTML(
+                f"Model <highlight>{current_model}</highlight> | "
+                f"tokens: <highlight>{input_tokens}</highlight>/<highlight>{output_tokens}</highlight>, <highlight>${cost}</highlight> | "
+                f"New Line: Enter | Send: Esc,Enter | "
+                f"Autocomplete: @ Tab / | Exit: /bye,Ctrl+C",
+            )
 
         # --- End prompt_toolkit setup ---
 
@@ -97,20 +99,19 @@ class ConsoleUI:
             with patch_stdout():
                 user_input = await self.prompt_session.prompt_async(
                     build_prompt,  # Use the function to build the prompt dynamically if needed
-                    style=Styles.PT,  # Apply the custom style map
+                    style=Styles.PT_ANSI,  # Apply the custom style map
                     prompt_continuation=build_prompt_continuation,
                     bottom_toolbar=build_bottom_toolbar,
                     # completer and complete_while_typing are set in __init__
                 )
         except EOFError:  # Handle Ctrl+D as a way to exit
             return "/exit"  # Consistent exit command
-        except KeyboardInterrupt:  # Handle Ctrl+C
+        except KeyboardInterrupt as kb_interrupt:  # Handle Ctrl+C
             if self.prompt_session.app.current_buffer.text:
-                self.new_line()
                 self.prompt_session.app.current_buffer.reset()
-                return "/__reprompt"
+                raise
 
-            return "/exit"
+            raise SystemExit from kb_interrupt
         else:
             self.cursor_is_in_line = False  # Prompt resets cursor position
             return user_input
@@ -255,100 +256,12 @@ class ConsoleUI:
         self.console.print(Panel(syntax, title="Tool Call"))
         self.cursor_is_in_line = False
 
-    def _render_tool_output(self, output: ToolOutput) -> None:
-        """Render the tool output based on its type."""
-        content_str = ""
-        # Ensure content is a string for most renderers
-        if isinstance(output.content, (list, dict)):
-            # Pretty print dicts/lists for JSON/Text display
-            try:
-                content_str = json.dumps(output.content, indent=2)
-            except TypeError:  # Handle non-serializable content
-                content_str = str(output.content)
-        elif isinstance(output.content, str):
-            content_str = output.content
-        else:
-            # Fallback for other types
-            content_str = str(output.content)
-
-        if output.type == "diff":
-            return Syntax(
-                content_str,
-                "diff",
-                theme=Styles.RICH_TOOL_OUTPUT_CODE_THEME,
-                line_numbers=True,
-            )
-        if output.type == "markdown":
-            return Markdown(
-                content_str,
-                code_theme=Styles.RICH_TOOL_OUTPUT_CODE_THEME,
-                inline_code_theme=Styles.RICH_MD_CODE,
-            )
-
-        if output.type == "json":
-            return Syntax(
-                content_str,
-                "json",
-                theme=Styles.RICH_TOOL_OUTPUT_CODE_THEME,
-                line_numbers=False,
-                word_wrap=True,
-            )
-
-        return content_str
-
-    def display_tool_result(self, tool_name: str, result: ToolCallResult) -> None:
-        """Display the result of a tool execution based on its type."""
-        output = result.get_display_output()
-        title = f"Tool Result ({tool_name})"
-
-        self.new_line()
-        if output and output.content is not None:
-            # Use Panel to frame the output
-            rendered_output = self._render_tool_output(output)
-            # Use the text style for the panel itself
-            self.console.print(
-                Panel(rendered_output, title=title),
-                style=Styles.RICH_TOOL_OUTPUT_TEXT_STYLE,
-            )
-        else:
-            # Handle cases where there might be no content (e.g., silent success)
-            self.console.print(
-                Panel("[No output]", title=title),
-                style=Styles.RICH_TOOL_OUTPUT_TEXT_STYLE,
-            )
-
-        self.cursor_is_in_line = False
-
-    def display_tool_error(self, tool_name: str, result: ToolCallResult) -> None:
-        """Display an error from a tool execution."""
-        output = result.get_display_output()
-        error_message = "[No error message]"
-
-        # Prepare error message string representation
-        if output and output.content:
-            if isinstance(output.content, (list, dict)):
-                try:
-                    error_message = json.dumps(output.content, indent=2)
-                except TypeError:
-                    error_message = str(output.content)
-            else:
-                error_message = str(output.content)
-
-        # If after processing, the error message is empty, use the placeholder
-        if not error_message:
-            error_message = "[No error message]"
-
-        title = f"Tool Error ({tool_name})"
-
-        self.new_line()
-        # Display error within a styled Panel
-        self.console.print(
-            Panel(error_message, title=title, border_style=Styles.RICH_ERROR),
-        )
-        self.cursor_is_in_line = False
-
     def display_user_prompt(self, message: str) -> None:
         """Display the user's prompt (e.g., in non-interactive mode)."""
         self.new_line()
         self.console.print(f"{_PROMPT} {message}", style=Styles.RICH_PROMPT)
         self.cursor_is_in_line = False  # Assume prompt display finishes the line
+
+    def confirm_with_user(self, message: str) -> str:
+        """Ask the user to type something and return the typed string."""
+        return self.console.input(f"[green]{message}[/green]").strip()

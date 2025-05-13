@@ -3,7 +3,7 @@
 import codecs
 from pathlib import Path
 
-from streetrace.tools.path_utils import (
+from streetrace.tools.definitions.path_utils import (
     normalize_and_validate_path,
     validate_file_exists,
 )
@@ -48,23 +48,16 @@ def read_file(
     file_path: str,
     work_dir: Path,
     encoding: str = "utf-8",
-) -> tuple[str, str]:
-    """Securely read a file's contents, ensuring the path is within the allowed root path.
+) -> str:
+    """Read the contents of a file from the file system.
 
     Args:
-        file_path (str): Path to the file to read. Can be relative to work_dir or absolute.
-        work_dir (Path): The working directory.
-        encoding (str, optional): Text encoding to use. Defaults to 'utf-8'.
+        file_path (str): The path to the file to read, relative to the working directory.
+        work_dir (str): The working directory.
+        encoding (str): Text encoding to use.
 
     Returns:
-        tuple[str, str]:
-            str or bytes: Contents of the file as a string (in text mode) or bytes (in binary mode)
-            str: UI view of the read data (X characters read)
-
-    Raises:
-        ValueError: If the file path is outside the allowed root path or doesn't exist
-        IOError: If there are issues reading the file
-        UnicodeDecodeError: If the file can't be decoded using the specified encoding in text mode
+        Contents of the file as a string.
 
     """
     # Normalize and validate the path
@@ -75,13 +68,12 @@ def read_file(
 
     # Auto-detect binary if requested and we're not in binary mode already
     if is_binary_file(abs_file_path):
-        return "<binary>", "<binary>"
+        return "<binary>"
 
     # Read and return file contents
     try:
         with codecs.open(str(abs_file_path), "r", encoding=encoding) as f:
-            data = f.read()
-            return data, f"{len(data)} characters read"
+            return f.read()
     except OSError as e:
         msg = f"Error reading file '{file_path}': {e!s}"
         raise OSError(msg) from e

@@ -24,12 +24,14 @@ class Styles:
     message types (info, warning, error).
     """
 
-    PT = Style.from_dict(
+    PT_ANSI = Style.from_dict(
         {
+            # Default input area
             "": "",
-            "prompt": _USER_INPUT,
-            "prompt-continuation": _DIM,
-            "bottom-toolbar": _DIM,
+            "prompt": "fg:ansiwhite",
+            # Bottom toolbar (reverse=True, so fg/bg are inverted)
+            "bottom-toolbar": "bg:ansiwhite fg:ansiblue",
+            "highlight": "bg:ansibrightyellow",
         },
     )
     RICH_PROMPT = _USER_INPUT

@@ -4,11 +4,10 @@ from pathlib import Path
 
 import pathspec
 
-from streetrace.tools.path_utils import (
+from streetrace.tools.definitions.path_utils import (
     normalize_and_validate_path,
     validate_directory_exists,
 )
-from streetrace.tools.tool_call_result import ToolOutput
 
 
 def load_gitignore_for_directory(path: Path) -> pathspec.PathSpec:
@@ -77,20 +76,20 @@ def is_ignored(path: Path, base_path: Path, spec: pathspec.PathSpec) -> bool:
 def read_directory_structure(
     path: str,
     work_dir: Path,
-) -> tuple[dict[str, list[str]], ToolOutput]:
-    """Read directory structure at a specific level (non-recursive) honoring .gitignore rules.
+) -> dict[str, list[str]]:
+    """List all files and directories in a specified path.
+
+    Honors .gitignore rules.
 
     Args:
-        path (str): The path to scan. Can be relative to work_dir or absolute.
+        path (str): The path to scan, relative to the working directory.
         work_dir (str): The working directory.
 
     Returns:
-        tuple[dict[str, list[str]], str]:
-            dict[str, list[str]]: Dictionary with 'dirs' and 'files' lists containing paths relative to work_dir
-            ToolOutput: UI view representation
+        Dictionary with 'dirs' and 'files' lists containing paths relative to working directory.
 
     Raises:
-        ValueError: If the requested path is outside the allowed root path or doesn't exist.
+        ValueError: If the requested path is outside the allowed root path.
 
     """
     # Normalize and validate the path
@@ -130,7 +129,4 @@ def read_directory_structure(
     return {
         "dirs": dirs,
         "files": files,
-    }, ToolOutput(
-        type="markdown",
-        content=f"**Dirs:** {', '.join(dirs)}\n\n**Files:** {', '.join(files)}'",
-    )
+    }

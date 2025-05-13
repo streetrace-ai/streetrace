@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from streetrace.tools.path_utils import (
+from streetrace.tools.definitions.path_utils import (
     ensure_parent_directory_exists,
     normalize_and_validate_path,
     validate_directory_exists,

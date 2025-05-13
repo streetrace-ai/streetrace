@@ -12,8 +12,13 @@ from typing import Any, TypeVar
 
 TReturn = TypeVar("TReturn")
 
-def hide_args(fn: Callable[..., TReturn], **injected_kwargs: Any) -> Callable[..., TReturn]:
+
+def hide_args(
+    fn: Callable[..., TReturn], **injected_kwargs: Any,
+) -> Callable[..., TReturn]:
     """Get a wrapper that hides provided kwargs from the function signature.
+
+    Attempts to remove Args from the docstring too, see impl for details.
 
     The hidden args will be substituted with the provided values when calling
     the wrapper.
@@ -36,11 +41,28 @@ def hide_args(fn: Callable[..., TReturn], **injected_kwargs: Any) -> Callable[..
     if not hidden_params:
         return fn  # No matching parameters to hide
 
-    # Create a new signature that excludes the hidden ones
+    # Create a new signature and docstring that excludes the hidden ones
     new_params = [
         param for name, param in sig.parameters.items() if name not in hidden_params
     ]
     new_sig = sig.replace(parameters=new_params)
+    new_doc = inspect.getdoc(fn) or ""
+    if new_doc:
+        doc_lines = new_doc.splitlines()
+        filtered_lines = []
+        skip_names = set(hidden_params.keys())
+
+        for line in doc_lines:
+            # Strip line for matching but preserve leading whitespace
+            lstrip = line.lstrip()
+            if any(
+                lstrip.startswith((f"{param}:", f"{param} (", f":param {param}:"))
+                for param in skip_names
+            ):
+                continue  # skip this line
+            filtered_lines.append(line)
+
+        new_doc = "\n".join(filtered_lines)
 
     @wraps(fn)
     def wrapper(*args: Any, **kwargs: Any) -> Callable[..., TReturn]:
@@ -52,7 +74,7 @@ def hide_args(fn: Callable[..., TReturn], **injected_kwargs: Any) -> Callable[..
 
     # Reflect modified signature
     wrapper.__signature__ = new_sig
-
-    # Optional: enforce the name just in case
     wrapper.__name__ = fn.__name__
+    wrapper.__doc__ = new_doc
+
     return wrapper

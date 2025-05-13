@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from streetrace.tools.path_utils import (
+from streetrace.tools.definitions.path_utils import (
     normalize_and_validate_path,
 )
 
@@ -10,18 +10,18 @@ from streetrace.tools.path_utils import (
 def create_directory(
     path: str,
     work_dir: Path,
-) -> tuple[str, str]:
-    """Create a directory (with all parents) in the working directory.
+) -> list[dict[str, str]]:
+    """Create a new directory or ensure a directory exists.
+
+    Can create multiple nested directories. If the directory exists,
+    the operation succeeds silently.
 
     Args:
         path (str): Path to create under current working directory.
         work_dir (Path): Root path that restricts access.
-            The file_path must be within this work_dir for security.
 
     Returns:
-        tuple[str, str]:
-            str: Operation status
-            str: Always None.
+        Operation status.
 
     """
     work_dir = work_dir.resolve()
@@ -37,4 +37,4 @@ def create_directory(
         msg = f"Error creating directory '{rel_path}': {e!s}"
         raise OSError(msg) from e
     else:
-        return f"Successfully created directory '{rel_path!s}'", None
+        return f"Successfully created directory '{rel_path!s}'"

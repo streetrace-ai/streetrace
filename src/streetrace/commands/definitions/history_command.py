@@ -9,7 +9,6 @@ from typing import override
 from streetrace.commands.base_command import Command
 from streetrace.history import History, HistoryManager, Role
 from streetrace.log import get_logger
-from streetrace.tools.tool_call_result import ToolCallResult
 from streetrace.ui.console_ui import ConsoleUI
 
 logger = get_logger(__name__)
@@ -83,6 +82,6 @@ class HistoryCommand(Command):
                     if msg.tool_calls:
                         for tool_call in msg.tool_calls:
                             self.ui.display_tool_call(tool_call)
-                elif msg.role == Role.TOOL and msg.content:
-                    tool_result = ToolCallResult.model_validate_json(msg.content)
-                    self.ui.display_tool_result(msg.name, tool_result)
+                else:
+                    err = f"Unexpected message type in global history: {msg}"
+                    raise TypeError(err)

@@ -20,44 +20,34 @@ To make this a real tool, I need to:
 
 ### todo
 
-- [x] integrate with adk
-- [x] refactor all app wiring logic (main, app, etc)
-- [x] retry logic for litellm interface
-- [x] get fake agent working with fake tools
-- [x] get fake agent working with mcp tools
-    - [ ] create a config listing all available/allowed tools
-    - [ ] based on agent request, load only tools that are listed in the config
-- [x] get fake agent working with function tools
-- [ ] show request tokens, costs, session tokens and costs, daily/monthly etc.
-- [ ] langchain tools
-- [ ] get real agent working
-- [ ] mcp tools with sse
 - [ ] identify all features of interaction manager and confirm in adk implementation
-        - count tokens: check if tokens are stored in session
+    - [ ] count tokens: check if tokens are stored in session
+    - [ ] fix status progress
+    - [ ] show request tokens, costs, session tokens and costs, daily/monthly etc.
+- [ ] code execution
+- [ ] break up new features into tasks (see email)
+- [ ] what's missing to use it?
 - [ ] persistent sessions
-- [ ] maintain history
+- [ ] how to manage history?
+    - [ ] maintain conversation history over restarts,
+    - [ ] don't keep old files in history
+    - [ ] show files already in context over the prompt
+    - [x] Add turn summary to session instead of full contents.
 - [ ] imports performance
-- [ ] Integrate MCP prompts as slash-commands.
-- [x] param to retry litellm.InternalServerError, e.g. AnthropicError - {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}
-- [ ] context (read from ./streetrace files) and file mentions are two different things and should be processed separately.
-- [ ] experiment with diff outputs, it's ugly
-- [ ] add creation and modification dates to list/read files
-- [ ] add last modification date to write_file to check if it's overwriting a newer version.
-- [ ] test order of messages when user input contains mentions (does it matter if a mention is before or after the prompt?)
-- [ ] attach context mentions after the prompt, not before
-- [ ] print available backends and model names
-- [ ] PAIN smart history management. Don't keep files that have been re-read or re-written, summarize chains of commands.
 - [ ] PAIN cost management - show request cost, session cost, and set limits / quotas / budgets
 - [ ] PAIN add cli timeout to avoid hanging commands, report timeout to the model.
 - [ ] PAIN Show total token count in this chat session in status bar
-- [ ] use logprobs to output model confidence
-- [ ] re-think tools
 - [ ] count request tokens before the request is sent, and show it separately.
+
+- [ ] Prompt history
+- [ ] langchain tools
+- [ ] mcp tools with sse
+- [ ] Integrate MCP prompts as slash-commands.
+- [ ] add last modification date to read/write_file to check if it's overwriting a newer version.
+- [ ] print available backends and model names
+- [ ] use logprobs to output model confidence
 - [ ] When the model runs python interpreter as a tool, Ctrl+C hands the app
 - [ ] When the model runs python interpreter as a tool, the user cannot see what they are typing
-- [ ] Prompt history
-- [ ] maintain conversation history over restarts,
-- [ ] show files already in context over the prompt
 - [ ] support @last conversation
 - [ ] @mentions should support folders
 - [ ] prompt templates
@@ -67,7 +57,6 @@ To make this a real tool, I need to:
 - [ ] usage stats
 - [ ] google.genai.errors.ServerError: 500 INTERNAL. {'error': {'code': 500, 'message': 'An internal error has occurred. Please retry or report
 - [ ] run cli in background
-- [ ] Add turn summary to history instead of full contents.
 - [ ] Add command to summarize work done and store it in worklog from the user scenario perspective, as in "what's new"?
 - [ ] read_file, when the file is missing, see if it's somewhere around and return "did you mean"
 - [ ] cli command validation (e.g., can configure regex in agent or streetrace config file)
@@ -75,6 +64,24 @@ To make this a real tool, I need to:
 
 ### done
 
+- [x] print working directory
+- [x] Ctrl+C isn't working alright
+- [x] Local tool definition is suboptimal
+- [x] Add turn summary to history instead of full contents.
+- [x] re-think tools
+- [x] test order of messages when user input contains mentions (does it matter if a mention is before or after the prompt?)
+- [x] context (read from ./streetrace files) and file mentions are two different things and should be processed separately.
+- [x] attach context mentions after the prompt, not before
+- [x] experiment with diff outputs, it's ugly
+- [x] param to retry litellm.InternalServerError, e.g. AnthropicError - {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}
+- [x] get real agent working
+- [x] integrate with adk
+- [x] refactor all app wiring logic (main, app, etc)
+- [x] retry logic for litellm interface
+- [x] get fake agent working with fake tools
+- [x] get fake agent working with mcp tools
+- [x] based on agent request, load only available tools
+- [x] get fake agent working with function tools
 - [x] use llm gateway
 - [x] history is not saved when err 500 in gemnini
 - [x] pypi publishing
