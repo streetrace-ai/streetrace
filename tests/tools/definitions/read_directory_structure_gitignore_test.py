@@ -3,7 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from streetrace.tools.read_directory_structure import read_directory_structure
+from streetrace.tools.definitions.read_directory_structure import (
+    read_directory_structure,
+)
 
 
 class TestReadDirectoryStructure(unittest.TestCase):
@@ -51,11 +53,10 @@ class TestReadDirectoryStructure(unittest.TestCase):
 
     def test_no_gitignore(self) -> None:
         """Test reading directory structure without any gitignore files."""
-        result_tuple = read_directory_structure(
+        result = read_directory_structure(
             str(self.temp_dir),
             self.temp_dir.parent,
         )
-        result = result_tuple[0]  # Access the dictionary part
 
         # Get the base name of the temp directory for constructing relative paths
         temp_dir_basename = self.temp_dir.name
@@ -78,11 +79,10 @@ class TestReadDirectoryStructure(unittest.TestCase):
         # Create root gitignore
         (self.temp_dir / ".gitignore").write_text("*.log\n")
 
-        result_tuple = read_directory_structure(
+        result = read_directory_structure(
             str(self.temp_dir),
             self.temp_dir.parent,
         )
-        result = result_tuple[0]  # Access the dictionary part
         temp_dir_basename = self.temp_dir.name
 
         # Verify structure - log files should be ignored
@@ -104,11 +104,10 @@ class TestReadDirectoryStructure(unittest.TestCase):
         # Create dir2 gitignore - ignore cache files (This won't affect root listing)
         (self.temp_dir / "dir2" / ".gitignore").write_text("*.cache\n")
 
-        result_tuple = read_directory_structure(
+        result = read_directory_structure(
             str(self.temp_dir),
             self.temp_dir.parent,
         )
-        result = result_tuple[0]  # Access the dictionary part
         temp_dir_basename = self.temp_dir.name
 
         # Verify log files are ignored at the root level
@@ -123,11 +122,10 @@ class TestReadDirectoryStructure(unittest.TestCase):
         # Create root gitignore that ignores dir2
         (self.temp_dir / ".gitignore").write_text("dir2/\n")
 
-        result_tuple = read_directory_structure(
+        result = read_directory_structure(
             str(self.temp_dir),
             self.temp_dir.parent,
         )
-        result = result_tuple[0]  # Access the dictionary part
         temp_dir_basename = self.temp_dir.name
 
         # Verify dir2 is not included
@@ -150,11 +148,10 @@ class TestReadDirectoryStructure(unittest.TestCase):
             "!dir1_file.txt\n",
         )  # Don't ignore this specific txt
 
-        result_tuple = read_directory_structure(
+        result = read_directory_structure(
             str(self.temp_dir),
             self.temp_dir.parent,
         )
-        result = result_tuple[0]  # Access the dictionary part
         temp_dir_basename = self.temp_dir.name
 
         # Verify root txt file is ignored

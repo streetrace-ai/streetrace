@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from streetrace.tools.read_directory_structure import read_directory_structure
+from streetrace.tools.definitions.read_directory_structure import read_directory_structure
 
 
 class TestReadDirectoryStructureGlob(unittest.TestCase):
@@ -42,8 +42,7 @@ class TestReadDirectoryStructureGlob(unittest.TestCase):
     def test_non_recursive_listing(self) -> None:
         """Test that the function only lists current directory level."""
         # Use the same path for both parameters to pass security check
-        result_tuple = read_directory_structure(self.temp_dir, self.temp_dir)
-        result = result_tuple[0]  # Access the dictionary part
+        result = read_directory_structure(self.temp_dir, self.temp_dir)
 
         # Should contain both files in the root and the subdir
         expected_files = [
@@ -77,8 +76,7 @@ class TestReadDirectoryStructureGlob(unittest.TestCase):
         """Test that paths are returned relative to work_dir."""
         # Set work_dir to parent of temp_dir
         parent_dir = self.temp_dir.parent
-        result_tuple = read_directory_structure(self.temp_dir, parent_dir)
-        result = result_tuple[0]  # Access the dictionary part
+        result = read_directory_structure(self.temp_dir, parent_dir)
 
         # All paths should be relative to parent_dir
         temp_dir_basename = self.temp_dir.name
@@ -92,8 +90,7 @@ class TestReadDirectoryStructureGlob(unittest.TestCase):
     def test_subdirectory_listing(self) -> None:
         """Test listing a subdirectory."""
         # Use temp_dir as work_dir, list temp_subdir
-        result_tuple = read_directory_structure(str(self.temp_subdir), self.temp_dir)
-        result = result_tuple[0]  # Access the dictionary part
+        result = read_directory_structure(str(self.temp_subdir), self.temp_dir)
 
         # Paths should be relative to temp_dir
         expected_dir_rel = str(
@@ -116,8 +113,7 @@ class TestReadDirectoryStructureGlob(unittest.TestCase):
         gitignore_path.write_text("*.log\n")
 
         # Use the same path for both parameters to pass security check
-        result_tuple = read_directory_structure(self.temp_dir, self.temp_dir)
-        result = result_tuple[0]  # Access the dictionary part
+        result = read_directory_structure(self.temp_dir, self.temp_dir)
 
         # .log files should be excluded
         for file_path in result["files"]:

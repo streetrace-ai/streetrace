@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock
 
+from streetrace.args import Args
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.ui.console_ui import ConsoleUI
 
@@ -48,6 +49,7 @@ class TestMentions(unittest.TestCase):
         # Instantiate PromptProcessor with the mock UI
         self.prompt_processor = PromptProcessor(
             ui=self.mock_ui,
+            args=Args(path=self.test_dir),
         )
 
     # --- Test methods using prompt_processor.parse_and_load_mentions ---

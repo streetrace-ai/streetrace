@@ -7,8 +7,7 @@ import pytest
 from streetrace.commands.definitions.compact_command import CompactCommand
 
 # Import History and Role, but not Message
-from streetrace.history import History, Role
-from streetrace.history_manager import HistoryManager
+from streetrace.history import History, HistoryManager, Role
 
 
 # --- Tests for CompactCommand structure and execution call ---

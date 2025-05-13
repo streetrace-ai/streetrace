@@ -24,19 +24,19 @@ To make this a real tool, I need to:
     - [ ] count tokens: check if tokens are stored in session
     - [ ] fix status progress
     - [ ] show request tokens, costs, session tokens and costs, daily/monthly etc.
+    - [ ] PAIN cost management - show request cost, session cost, and set limits / quotas / budgets
+    - [ ] PAIN Show total token count in this chat session in status bar
 - [ ] code execution
 - [ ] break up new features into tasks (see email)
-- [ ] what's missing to use it?
-- [ ] persistent sessions
+- [ ] fix tests
 - [ ] how to manage history?
     - [ ] maintain conversation history over restarts,
     - [ ] don't keep old files in history
     - [ ] show files already in context over the prompt
     - [x] Add turn summary to session instead of full contents.
+    - [ ] compact and cleanup session
 - [ ] imports performance
-- [ ] PAIN cost management - show request cost, session cost, and set limits / quotas / budgets
 - [ ] PAIN add cli timeout to avoid hanging commands, report timeout to the model.
-- [ ] PAIN Show total token count in this chat session in status bar
 - [ ] count request tokens before the request is sent, and show it separately.
 
 - [ ] Prompt history
@@ -145,3 +145,18 @@ Ideas:
    does - it can do it in a different way every time.
 2. Add a tool that runs pre-release checks.
    Solid for a project, but not applicable for street-race as a more common tool.
+
+
+### Console status
+
+The status contains the following:
+
+1. When typing -> estimated number of tokens in rprompt. (console_ui -> console_ui)
+2. During the turn -> Turn tokens in status update. (supervisor)
+3. When typing -> total tokens and cost of the current session. (console_ui -> app -> console_ui)
+
+What if I load yesterday's session? Totals will show cumulative for the loaded session.
+
+#### Bits and pieces
+
+1. We need to get the usage and costs data from litellm in llm_interface.

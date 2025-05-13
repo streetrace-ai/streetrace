@@ -2,8 +2,7 @@ import shutil  # Import shutil for robust directory removal
 import unittest
 from pathlib import Path
 
-from streetrace.tools.find_in_files import find_in_files
-from streetrace.tools.tool_call_result import ToolOutput  # Use correct import path
+from streetrace.tools.definitions.find_in_files import find_in_files
 
 
 class TestSearchFiles(unittest.TestCase):
@@ -35,7 +34,7 @@ class TestSearchFiles(unittest.TestCase):
         # Test when the search string is found in the files
         pattern = "*.txt"
         search_string = "test"
-        matches, msg = find_in_files(pattern, search_string, work_dir=self.test_dir)
+        matches = find_in_files(pattern, search_string, work_dir=self.test_dir)
 
         # Check matches (should be 2 files, 1 match per file)
         assert len(matches) == 2
@@ -43,14 +42,6 @@ class TestSearchFiles(unittest.TestCase):
         matched_paths_in_results = {m["filepath"] for m in matches}
         expected_paths = {self.file1_rel_path, self.file2_rel_path}
         assert matched_paths_in_results == expected_paths
-
-        # Check message (should be the list of files with matches)
-        # Split by newline and filter empty strings in case of trailing newline
-        assert isinstance(msg, ToolOutput)
-        found_files_in_msg = set(
-            filter(None, [line[2:] for line in msg.content.split("\n")]),
-        )
-        assert found_files_in_msg == expected_paths
 
         # Check details of one match
         match1 = next(m for m in matches if m["filepath"] == self.file1_rel_path)
@@ -61,39 +52,25 @@ class TestSearchFiles(unittest.TestCase):
         # Test when the search string is not found in the files
         pattern = "*.txt"
         search_string = "nonexistent"
-        matches, msg = find_in_files(pattern, search_string, work_dir=self.test_dir)
+        matches = find_in_files(pattern, search_string, work_dir=self.test_dir)
         assert len(matches) == 0
-        # Check message (should be empty as no files had matches)
-        assert isinstance(msg, ToolOutput)
-        assert msg.content == "0 matches found"
 
     def test_search_files_glob_pattern(self) -> None:
         # Test with a specific glob pattern
         pattern = "file1.txt"  # Relative pattern
         search_string = "first"
-        matches, msg = find_in_files(pattern, search_string, work_dir=self.test_dir)
+        matches = find_in_files(pattern, search_string, work_dir=self.test_dir)
         assert len(matches) == 1
         assert matches[0]["filepath"] == self.file1_rel_path
         assert matches[0]["line_number"] == 1
-        # Check message (should be the path of the matched file)
-        assert isinstance(msg, ToolOutput)
-        assert msg.content == "* " + self.file1_rel_path
 
     def test_search_files_empty_string(self) -> None:
         # Test with an empty search string (should match every line)
         pattern = "*.txt"
         search_string = ""
-        matches, msg = find_in_files(pattern, search_string, work_dir=self.test_dir)
+        matches = find_in_files(pattern, search_string, work_dir=self.test_dir)
         # Total lines = 3 in file1 + 3 in file2 = 6
         assert len(matches) == 6
-        assert isinstance(msg, ToolOutput)
-
-        # Check message (should list both files as they both contain lines)
-        expected_paths = {self.file1_rel_path, self.file2_rel_path}
-        found_files_in_msg = set(
-            filter(None, [line[2:] for line in msg.content.split("\n")]),
-        )
-        assert found_files_in_msg == expected_paths
 
 
 if __name__ == "__main__":

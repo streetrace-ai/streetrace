@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from streetrace.commands.definitions.clear_command import ClearCommand
-from streetrace.history_manager import HistoryManager
+from streetrace.history import HistoryManager
 
 
 class TestClearCommand(unittest.TestCase):

@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pathspec
 
-from streetrace.tools.read_directory_structure import load_gitignore_for_directory
+from streetrace.tools.definitions.read_directory_structure import (
+    load_gitignore_for_directory,
+)
 
 
 class TestLoadGitignore(unittest.TestCase):

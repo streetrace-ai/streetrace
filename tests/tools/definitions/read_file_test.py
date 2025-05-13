@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from streetrace.tools.read_file import read_file
+from streetrace.tools.definitions.read_file import read_file
 
 
 class TestReadFile(unittest.TestCase):
@@ -64,28 +64,25 @@ class TestReadFile(unittest.TestCase):
     def test_read_file_content(self) -> None:
         """Test reading file content correctly."""
         # Read from the root file
-        content, msg = read_file(str(self.root_file_path), self.temp_dir)
+        content = read_file(str(self.root_file_path), self.temp_dir)
         assert content == self.root_content
-        assert "33 characters read" in msg
 
         # Read from subdirectory file
-        content, msg = read_file(str(self.subdir_file_path), self.temp_dir)
+        content = read_file(str(self.subdir_file_path), self.temp_dir)
         assert content == self.subdir_content
-        assert "41 characters read" in msg
 
         # Read empty file
-        content, msg = read_file(str(self.empty_file_path), self.temp_dir)
+        content = read_file(str(self.empty_file_path), self.temp_dir)
         assert content == ""
-        assert msg == "0 characters read"
 
     def test_nested_file_security(self) -> None:
         """Test reading a file in a subdirectory."""
         # Using the parent directory as root, we should be able to read the nested file
-        content, _ = read_file(str(self.subdir_file_path), self.temp_dir)
+        content = read_file(str(self.subdir_file_path), self.temp_dir)
         assert content == self.subdir_content
 
         # Using the subdirectory as root, we should still be able to read that file
-        content, _ = read_file(str(self.subdir_file_path), self.subdir)
+        content = read_file(str(self.subdir_file_path), self.subdir)
         assert content == self.subdir_content
 
     def test_directory_traversal_prevention(self) -> None:
@@ -123,12 +120,12 @@ class TestReadFile(unittest.TestCase):
 
     def test_utf8_file(self) -> None:
         """Test reading a file with UTF-8 encoded text."""
-        content, _ = read_file(str(self.utf8_file_path), self.temp_dir)
+        content = read_file(str(self.utf8_file_path), self.temp_dir)
         assert content == self.utf8_content
 
     def test_special_chars_in_filename(self) -> None:
         """Test reading a file with special characters in the filename."""
-        content, _ = read_file(str(self.special_chars_path), self.temp_dir)
+        content = read_file(str(self.special_chars_path), self.temp_dir)
         assert content == self.special_chars_content
 
     def test_symlink(self) -> None:
@@ -136,7 +133,7 @@ class TestReadFile(unittest.TestCase):
         if not self.symlink_supported:
             self.skipTest("Symbolic links not supported on this platform")
 
-        content, _ = read_file(str(self.symlink_path), self.temp_dir)
+        content = read_file(str(self.symlink_path), self.temp_dir)
         assert content == self.root_content
 
     def test_path_normalization(self) -> None:
@@ -146,8 +143,8 @@ class TestReadFile(unittest.TestCase):
         dotdot_path = self.temp_dir / "subdir" / ".." / "root_file.txt"
 
         # Both should read the same file
-        content1, _ = read_file(str(dot_path), self.temp_dir)
-        content2, _ = read_file(str(dotdot_path), self.temp_dir)
+        content1 = read_file(str(dot_path), self.temp_dir)
+        content2 = read_file(str(dotdot_path), self.temp_dir)
 
         assert content1 == self.root_content
         assert content2 == self.root_content
@@ -162,7 +159,7 @@ class TestReadFile(unittest.TestCase):
 
         # Reading should return "<binary>"
         content = read_file(str(self.binary_file_path), self.temp_dir)
-        assert content == ("<binary>", "<binary>")
+        assert content == "<binary>"
 
     def test_custom_encoding(self) -> None:
         """Test reading a file with a specific encoding."""
@@ -173,7 +170,7 @@ class TestReadFile(unittest.TestCase):
             f.write(latin1_content)
 
         # Read with correct encoding
-        content, _ = read_file(str(latin1_path), self.temp_dir, encoding="latin-1")
+        content = read_file(str(latin1_path), self.temp_dir, encoding="latin-1")
         assert content == latin1_content
 
     def test_auto_detect_binary(self) -> None:
@@ -185,7 +182,7 @@ class TestReadFile(unittest.TestCase):
         # Auto-detect should identify this as binary and return "<binary>"
         # Note: read_file now returns tuple or <binary>, check the return type
         result = read_file(str(self.binary_file_path), self.temp_dir)
-        assert result == ("<binary>", "<binary>")
+        assert result == "<binary>"
 
         # Create a text file that looks like a binary file (has many special chars)
         text_with_special_chars = "'.;○□♣♠☻☺ High proportion of special chars"
@@ -193,17 +190,17 @@ class TestReadFile(unittest.TestCase):
         special_chars_path.write_text(text_with_special_chars, encoding="utf-8")
 
         # This file should not be detected as binary
-        content, _ = read_file(str(special_chars_path), self.temp_dir)
+        content = read_file(str(special_chars_path), self.temp_dir)
         assert content == text_with_special_chars
 
     def test_auto_detect_binary_with_text_file(self) -> None:
         """Test auto-detection doesn't falsely identify text files as binary."""
         # Regular text file should not be detected as binary
-        content, _ = read_file(str(self.root_file_path), self.temp_dir)
+        content = read_file(str(self.root_file_path), self.temp_dir)
         assert content == self.root_content
 
         # Empty file should not be detected as binary
-        content, _ = read_file(str(self.empty_file_path), self.temp_dir)
+        content = read_file(str(self.empty_file_path), self.temp_dir)
         assert content == ""
 
 

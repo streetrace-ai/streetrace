@@ -8,7 +8,7 @@ from prompt_toolkit.completion import Completion
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import to_plain_text
 
-from streetrace.completer import CommandCompleter, PathCompleter, PromptCompleter
+from streetrace.ui.completer import CommandCompleter, PathCompleter, PromptCompleter
 
 
 # Helper function to simplify getting completion texts

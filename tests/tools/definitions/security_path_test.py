@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from streetrace.tools.read_directory_structure import read_directory_structure
+from streetrace.tools.definitions.read_directory_structure import read_directory_structure
 
 
 class TestSecurityPath(unittest.TestCase):
@@ -32,8 +32,7 @@ class TestSecurityPath(unittest.TestCase):
     def test_valid_path(self) -> None:
         """Test accessing a valid path within the root path."""
         # This should work - allowed_dir is within work_dir
-        result_tuple = read_directory_structure(str(self.allowed_dir), self.work_dir)
-        result = result_tuple[0]  # Access the dictionary part
+        result = read_directory_structure(str(self.allowed_dir), self.work_dir)
 
         # Paths should be relative to work_dir
         expected_file_path = self.allowed_file.relative_to(self.work_dir)
@@ -44,8 +43,7 @@ class TestSecurityPath(unittest.TestCase):
     def test_same_as_work_dir(self) -> None:
         """Test accessing the root path itself."""
         # This should work - path is the same as work_dir
-        result_tuple = read_directory_structure(self.work_dir, self.work_dir)
-        result = result_tuple[0]  # Access the dictionary part
+        result = read_directory_structure(self.work_dir, self.work_dir)
 
         # Paths should be relative to work_dir
         expected_dir_path = self.allowed_dir.relative_to(self.work_dir)
