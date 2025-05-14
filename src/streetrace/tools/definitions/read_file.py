@@ -48,7 +48,7 @@ def read_file(
     file_path: str,
     work_dir: Path,
     encoding: str = "utf-8",
-) -> str:
+) -> dict[str, str]:
     """Read the contents of a file from the file system.
 
     Args:
@@ -57,7 +57,11 @@ def read_file(
         encoding (str): Text encoding to use.
 
     Returns:
-        Contents of the file as a string.
+        dict[str,str]:
+            "type": "read_file"
+            "result": "success" or "failure"
+            "error": error message if there was an error reading the file
+            "output": stdout output if the reading succeeded
 
     """
     # Normalize and validate the path
@@ -73,19 +77,27 @@ def read_file(
     # Read and return file contents
     try:
         with codecs.open(str(abs_file_path), "r", encoding=encoding) as f:
-            return f.read()
+            # contents = "".join(f"{i + 1}: {line}" for i, line in enumerate(f))
+            contents = f.read()
+            return {
+                "type": "read_file",
+                "result": "success",
+                "output": contents,
+            }
     except OSError as e:
-        msg = f"Error reading file '{file_path}': {e!s}"
-        raise OSError(msg) from e
+        return {
+            "type": "read_file",
+            "result": "failure",
+            "error": str(e),
+        }
     except UnicodeDecodeError as e:
         msg = (
-            f"Failed to decode '{file_path}' with encoding '{encoding}'. "
-            f"Try opening in binary mode or specify a different encoding. Error: {e!s}"
+            f"Failed to decode '{file_path}' with encoding '{encoding}': "
+            f"(object: {e.object}, start: {e.start}, end: {e.end}, reason: {e.reason}). "
+            f"{e!s}"
         )
-        raise UnicodeDecodeError(
-            msg,
-            e.object,
-            e.start,
-            e.end,
-            e.reason,
-        ) from e
+        return {
+            "type": "read_file",
+            "result": "failure",
+            "error": msg,
+        }

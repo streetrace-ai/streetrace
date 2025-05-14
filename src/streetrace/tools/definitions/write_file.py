@@ -10,14 +10,16 @@ from streetrace.tools.definitions.path_utils import (
 
 
 def write_utf8_file(
-    file_path: str,
+    path: str,
     content: str,
     work_dir: Path,
 ) -> str:
-    """Create or overwrite a file with utf-8 content.
+    """Create or overwrite a file with content encoded as utf-8.
+
+    Always specify two parameters when calling this function: path to the file, and content to write.
 
     Args:
-        file_path (str): The path to the file to write, relative to the working directory.
+        path (str): The path to the file to write, relative to the working directory.
         content (str): Content to write to the file.
         work_dir (str): The working directory.
 
@@ -28,7 +30,7 @@ def write_utf8_file(
     work_dir = work_dir.resolve()
 
     # Normalize and validate the path
-    abs_file_path = normalize_and_validate_path(file_path, work_dir)
+    abs_file_path = normalize_and_validate_path(path, work_dir)
     rel_file_path = abs_file_path.relative_to(work_dir)
 
     # Create directory if it doesn't exist

@@ -87,11 +87,14 @@ class Supervisor:
             # "mcp:@modelcontextprotocol/server-filesystem::move_file",
             # "mcp:@modelcontextprotocol/server-filesystem::search_files",
             # "mcp:@modelcontextprotocol/server-filesystem::get_file_info",
-            "streetrace:fs_tool::list_directory",
-            "streetrace:fs_tool::write_file",
-            "streetrace:fs_tool::read_file",
-            "streetrace:fs_tool::find_in_files",
+            # "streetrace:fs_tool::apply_unified_patch_content",
             "streetrace:fs_tool::create_directory",
+            "streetrace:fs_tool::find_in_files",
+            "streetrace:fs_tool::list_directory",
+            "streetrace:fs_tool::read_file",
+            "streetrace:fs_tool::write_file",
+            # "streetrace:git_tool::apply_git_format_patch",
+            # "streetrace:git_tool::apply_git_unified_diff",
         ]
         async with self.tool_provider.get_tools(required_tools) as tools:
             root_agent = Agent(
