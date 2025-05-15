@@ -14,7 +14,8 @@ TReturn = TypeVar("TReturn")
 
 
 def hide_args(
-    fn: Callable[..., TReturn], **injected_kwargs: Any,
+    fn: Callable[..., TReturn],
+    **injected_kwargs: Any,
 ) -> Callable[..., TReturn]:
     """Get a wrapper that hides provided kwargs from the function signature.
 

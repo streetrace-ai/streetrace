@@ -13,7 +13,9 @@ class Args(tap.TypedArgs):
     model: str = tap.arg(help="Model to use, see https://docs.litellm.ai/docs/set_keys")
     prompt: str | None = tap.arg(help="Non-interactive prompt mode")
     arbitrary_prompt: list[str] | None = tap.arg(
-        positional=True, nargs="*", help="Prompt to use",
+        positional=True,
+        nargs="*",
+        help="Prompt to use",
     )
     verbose: bool = tap.arg(help="Enables verbose (DEBUG) logging")
 

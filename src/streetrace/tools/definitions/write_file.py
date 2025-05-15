@@ -9,7 +9,8 @@ from streetrace.tools.definitions.path_utils import (
 )
 from streetrace.tools.definitions.result import OpResult, OpResultCode
 
-#TODO(krmrn42): Idea, is it possible to check the basic file syntax before or after writing? At least line breaks, escape sequences.
+# TODO(krmrn42): Idea, is it possible to check the basic file syntax before or after writing? At least line breaks, escape sequences.
+
 
 def write_utf8_file(
     path: str,

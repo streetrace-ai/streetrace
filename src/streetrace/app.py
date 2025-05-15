@@ -31,7 +31,6 @@ from streetrace.workflow.supervisor import Supervisor
 logger = get_logger(__name__)
 
 
-
 class Application:
     """Orchestrates the StreetRace application flow."""
 
@@ -50,7 +49,7 @@ class Application:
         Args:
             args: App args.
             ui: ConsoleUI instance for handling user interaction and displaying output.
-            ui_bus: UI event bus to send messages to the UI.
+            ui_bus: UI event bus to exchange messages with the UI.
             cmd_executor: CommandExecutor instance for processing internal commands.
             prompt_processor: PromptProcessor instance for processing prompts and file mentions.
             history_manager: HistoryManager instance for managing conversation history.
@@ -81,7 +80,7 @@ class Application:
 
         if command_status.command_executed:
             if command_status.error:
-                self.ui_bus.dispatch(ui_events.Error(command_status.error))
+                self.ui_bus.dispatch_ui_update(ui_events.Error(command_status.error))
             return
 
         processed_prompt = None
@@ -114,7 +113,7 @@ class Application:
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        self.ui_bus.dispatch(ui_events.UserInput(user_input))
+        self.ui_bus.dispatch_ui_update(ui_events.UserInput(user_input))
         if confirm_with_user:
             confirmation = self.ui.confirm_with_user(
                 ":stop_sign: continue? ([underline]yes[/underline]/no) ",
@@ -126,19 +125,25 @@ class Application:
 
     async def _run_interactive(self) -> None:
         """Handle interactive mode (conversation loop)."""
-        self.ui_bus.dispatch(ui_events.Info("Entering interactive mode. Type '/history', '/compact', '/clear', '/exit', or press Ctrl+C/Ctrl+D to quit."))
+        self.ui_bus.dispatch_ui_update(
+            ui_events.Info(
+                "Entering interactive mode. Type '/history', '/compact', '/clear', '/exit', or press Ctrl+C/Ctrl+D to quit.",
+            ),
+        )
 
         while True:
             try:
                 user_input = await self.ui.prompt_async()
                 await self._process_input(user_input)
             except (EOFError, SystemExit):
-                self.ui_bus.dispatch(ui_events.Info("\nLeaving..."))
+                self.ui_bus.dispatch_ui_update(ui_events.Info("\nLeaving..."))
                 raise
             except Exception as loop_err:
-                self.ui_bus.dispatch(ui_events.Error(
-                    f"\nAn unexpected error while processing input: {loop_err}",
-                ))
+                self.ui_bus.dispatch_ui_update(
+                    ui_events.Error(
+                        f"\nAn unexpected error while processing input: {loop_err}",
+                    ),
+                )
                 logger.exception(
                     "Unexpected error in interactive loop.",
                     exc_info=loop_err,
@@ -150,7 +155,7 @@ def create_app(args: Args) -> Application:
     """Run StreetRace🚗💨."""
     ui_bus = UiBus()
 
-    ui_bus.dispatch(ui_events.Info(f"Starting in {args.working_dir}"))
+    ui_bus.dispatch_ui_update(ui_events.Info(f"Starting in {args.working_dir}"))
 
     # Initialize CommandExecutor *before* completers that need command list
     cmd_executor = CommandExecutor()
@@ -161,8 +166,7 @@ def create_app(args: Args) -> Application:
     prompt_completer = PromptCompleter([path_completer, command_completer])
 
     # Initialize ConsoleUI as soon as possible, so we can start showing something
-    ui = ConsoleUI(completer=prompt_completer)
-    ui_bus.subscribe(ui.display)
+    ui = ConsoleUI(completer=prompt_completer, ui_bus=ui_bus)
 
     # Initialize SystemContext for handling system and project context
     system_context = SystemContext(ui_bus=ui_bus, args=args)
@@ -190,7 +194,9 @@ def create_app(args: Args) -> Application:
 
     # Register commands
     cmd_executor.register(ExitCommand())
-    cmd_executor.register(HistoryCommand(ui_bus=ui_bus, history_manager=history_manager))
+    cmd_executor.register(
+        HistoryCommand(ui_bus=ui_bus, history_manager=history_manager),
+    )
     cmd_executor.register(
         CompactCommand(
             ui_bus=ui_bus,

@@ -76,7 +76,7 @@ def read_file(
         if is_binary_file(abs_file_path):
             return OpResult(result=OpResultCode.SUCCESS, output="<binary>")
 
-         # Read and return file contents
+        # Read and return file contents
         with codecs.open(str(abs_file_path), "r", encoding=encoding) as f:
             contents = f.read()
             return OpResult(

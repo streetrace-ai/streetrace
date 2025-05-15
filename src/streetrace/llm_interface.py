@@ -7,6 +7,7 @@ from typing import Generic, TypeVar, override
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
+from litellm import token_counter
 from litellm.exceptions import InternalServerError, RateLimitError
 from litellm.types.utils import ModelResponse
 from tenacity import (
@@ -66,6 +67,16 @@ class LlmInterface(ABC, Generic[TLlmInterface]):
     ) -> ModelResponse:
         """Call LLM interface's async generate method based on conversation history."""
 
+    def estimate_token_count(
+        self,
+        prompt: str,
+    ) -> int:
+        """Estimate the number of tokens in the provided input.
+
+        Override to provide a proper count estimation.
+        """
+        return len(prompt.split())
+
 
 def get_llm_interface(model: str, ui_bus: UiBus) -> LlmInterface:
     """Create an LLM interface factory."""
@@ -84,7 +95,7 @@ class RetryingLiteLlm(LiteLlm):
 
         Args:
             model: The name of the LiteLlm model
-            ui_bus: UI event bus to send messages to the UI.
+            ui_bus: UI event bus to exchange messages with the UI.
             **kwargs: Additional arguments passed to the LiteLlm constructor
 
         """
@@ -141,9 +152,11 @@ class RetryingLiteLlm(LiteLlm):
             with attempt_context:
                 attempt += 1
                 if attempt > 1:
-                    self._ui_bus.dispatch(ui_events.Info(
-                        f"Retrying (attempt {attempt}/{_MAX_RETRIES})...",
-                    ))
+                    self._ui_bus.dispatch_ui_update(
+                        ui_events.Info(
+                            f"Retrying (attempt {attempt}/{_MAX_RETRIES})...",
+                        ),
+                    )
 
                 try:
                     # Call the original method for a single response
@@ -159,23 +172,27 @@ class RetryingLiteLlm(LiteLlm):
                 except RateLimitError as rate_limit_err:
                     # Log and display the rate limit error
                     logger.exception()
-                    self._ui_bus.dispatch(ui_events.Warning(
-                        f"LLM rate limit reached: {rate_limit_err}",
-                    ))
+                    self._ui_bus.dispatch_ui_update(
+                        ui_events.Warning(
+                            f"LLM rate limit reached: {rate_limit_err}",
+                        ),
+                    )
                     # Signal tenacity to retry
                     raise TryAgain from rate_limit_err
 
                 except InternalServerError as server_error:
                     # Log and display the server error
                     logger.exception("Server error encountered.")
-                    self._ui_bus.dispatch(ui_events.Error(f"LLM server error: {server_error}"))
+                    self._ui_bus.dispatch_ui_update(
+                        ui_events.Error(f"LLM server error: {server_error}"),
+                    )
                     # Signal tenacity to retry
                     raise TryAgain from server_error
 
                 except Exception as e:
                     # Log unexpected errors but don't retry
                     logger.exception("LLM call failed with non-retried exception")
-                    self._ui_bus.dispatch(ui_events.Error(f"LLM error: {e}"))
+                    self._ui_bus.dispatch_ui_update(ui_events.Error(f"LLM error: {e}"))
                     # Re-raise the exception
                     raise
 
@@ -192,17 +209,31 @@ class AdkLiteLlmInterface(LlmInterface[RetryingLiteLlm]):
 
         Args:
             model (str): Model names in format provider/model, or just model. See https://docs.litellm.ai/docs/set_keys.
-            ui_bus: UI event bus to send messages to the UI.
+            ui_bus: UI event bus to exchange messages with the UI.
 
         """
+        self.model = model
         self.llm_instance = RetryingLiteLlm(model=model, ui_bus=ui_bus)
         self.ui_bus = ui_bus
+        ui_bus.on_typing_prompt(self.estimate_token_count)
 
     @override
     @property
     def llm(self) -> RetryingLiteLlm:
         """Get the internal LLM interface reference."""
         return self.llm_instance
+
+    def estimate_token_count(
+        self,
+        prompt: str,
+    ) -> int:
+        """Estimate the number of tokens in the provided input.
+
+        Override to provide a proper count estimation.
+        """
+        messages = [{"user": "role", "content": prompt}]
+        estimated_token_count = token_counter(model=self.model, messages=messages)
+        self.ui_bus.dispatch_prompt_token_count_estimate(estimated_token_count)
 
     # RetryingLiteLlm already handles the retry logic internally, so we don't need
     # the tenacity decorator here anymore
@@ -236,5 +267,5 @@ class AdkLiteLlmInterface(LlmInterface[RetryingLiteLlm]):
             # RetryingLiteLlm should handle retryable exceptions, so this should only happen
             # for non-retryable errors after all retry attempts have been exhausted
             logger.exception("LLM call failed after retry attempts")
-            self.ui_bus.dispatch(ui_events.Error(f"LLM error: {e}"))
+            self.ui_bus.dispatch_ui_update(ui_events.Error(f"LLM error: {e}"))
             raise

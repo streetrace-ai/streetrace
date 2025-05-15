@@ -44,6 +44,6 @@ class HistoryCommand(Command):
         logger.info("Executing history command.")
         history = self.history_manager.get_history()
         if history:
-            self.ui_bus.dispatch(history)
+            self.ui_bus.dispatch_ui_update(history)
         else:
-            self.ui_bus.dispatch(ui_events.Info("No history available yet."))
+            self.ui_bus.dispatch_ui_update(ui_events.Info("No history available yet."))

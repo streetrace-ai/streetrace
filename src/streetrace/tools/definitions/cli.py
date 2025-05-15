@@ -84,11 +84,9 @@ def execute_cli_command(
         stderr_lines.append("\n")
         stderr_lines.append(str(e))
 
-    return (
-        CliResult(
-            tool_name="execute_cli_command",
-            result=OpResultCode.SUCCESS if completed_successfully else OpResultCode.FAILURE,
-            stdout="".join(stdout_lines),
-            stderr="".join(stderr_lines),
-        )
+    return CliResult(
+        tool_name="execute_cli_command",
+        result=OpResultCode.SUCCESS if completed_successfully else OpResultCode.FAILURE,
+        stdout="".join(stdout_lines),
+        stderr="".join(stderr_lines),
     )

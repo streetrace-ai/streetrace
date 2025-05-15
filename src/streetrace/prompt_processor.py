@@ -39,7 +39,7 @@ class PromptProcessor:
         """Initialize the PromptProcessor.
 
         Args:
-            ui_bus: UI event bus to send messages to the UI.
+            ui_bus: UI event bus to exchange messages with the UI.
             args: App args.
 
         """
@@ -116,7 +116,7 @@ class PromptProcessor:
 
                 if common_path != abs_working_dir:
                     log_msg = f"Mention '@{mention}' points outside the working directory '{self.args.working_dir}'. Skipping."
-                    self.ui_bus.dispatch(ui_events.Warn(log_msg))
+                    self.ui_bus.dispatch_ui_update(ui_events.Warn(log_msg))
                     logger.warning(
                         "Security Warning: Mention '@%s' resolved to '%s' which is outside the working directory '%s'. Skipping.",
                         mention,
@@ -137,20 +137,22 @@ class PromptProcessor:
                         )
                     except Exception as e:
                         log_msg = f"Error reading mentioned file @{mention}: {e}"
-                        self.ui_bus.dispatch(ui_events.Error(log_msg))
+                        self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
                         logger.exception("Error reading mentioned file '%s'", mention)
                 else:
                     log_msg = f"Mentioned path @{mention} not found or is not a file. Skipping."
-                    self.ui_bus.dispatch(ui_events.Error(log_msg))
+                    self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
                     logger.warning(log_msg)
             except Exception as e:
                 log_msg = f"Error processing mention @{mention}: {e}"
-                self.ui_bus.dispatch(ui_events.Error(log_msg))
+                self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
                 logger.exception(log_msg)
 
         if mentions_found > 0:
-            self.ui_bus.dispatch(ui_events.Info(
-                f"[Loading content from {', '.join(['@'+m for m in mentions_loaded])}]",
-            ))
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Info(
+                    f"[Loading content from {', '.join(['@'+m for m in mentions_loaded])}]",
+                ),
+            )
 
         return loaded_files

@@ -64,6 +64,8 @@ To make this a real tool, I need to:
 
 ### done
 
+- [x] event-driven ui
+- [x] estimate token count while typing the prompt
 - [x] print working directory
 - [x] Ctrl+C isn't working alright
 - [x] Local tool definition is suboptimal
@@ -149,14 +151,43 @@ Ideas:
 
 ### Console status
 
-The status contains the following:
+We need to inform the user about current processing stats and costs:
 
-1. When typing -> estimated number of tokens in rprompt. (console_ui -> console_ui)
+1. When typing a prompt in ConsoleUI.prompt_async (see @src/streetrace/ui/console_ui.py) -> we need to show the estimated number of tokens in the typed prompt in rprompt.
 2. During the turn -> Turn tokens in status update. (supervisor)
 3. When typing -> total tokens and cost of the current session. (console_ui -> app -> console_ui)
 
 What if I load yesterday's session? Totals will show cumulative for the loaded session.
 
+
+#### Show the estimated number of tokens when typing
+
+> **_DONE_**
+
+Create a class called TokenEstimator in @src/streetrace/llm_interface.py. Initialize it with an instance of AdkLiteLlmInterface and provide one method: `estimate_token_count(input: str) -> int`. Keep it a stub returning 42. In @src/streetrace/app.py `create_app`, create an instance of this class and pass its reference to the ConsoleUI.
+
+In ConsoleUI's `prompt_async`, we need to pass in a validator parameter into `prompt_session.prompt_async` call. The validator
+
 #### Bits and pieces
 
 1. We need to get the usage and costs data from litellm in llm_interface.
+
+#### Updating UI
+
+> **_DONE_**
+
+TokenEstimatingValidator depends on LlmInterrface -> obvious
+LlmInterrface depends on ConsoleUI -> this is the reverse dependency.
+ConsoleUI depends on TokenEstimatingValidator -> half-bad. Ideally we'd want all changes to the ui to happen through the ui_bus.
+
+UI is different from other components:
+
+There is the App that does something.
+There is the UI, and its sole purpose is to communicate with the user.
+
+UI will display info produced by other components (push)
+UI might *request* info from other components (pull)
+
+So there is a natural two-way dependency causing deadlocks.
+
+This is not essential though. If we have a "State", then components and the UI will update the state, and subscribe to state updates, so there is no interdependency.

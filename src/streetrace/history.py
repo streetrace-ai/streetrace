@@ -28,6 +28,7 @@ _MAX_MENTION_CONTENT_LENGTH = 20000
 _MAX_CONTEXT_PREVIEW_LENGTH = 200
 """Maximum length for context preview."""
 
+
 class Role(str, Enum):
     """Roles in a conversation between user, model and tools."""
 
@@ -147,12 +148,15 @@ class History(BaseModel):
             litellm.Message(role="user", content=f"---\n# {title}\n\n{content}\n\n---"),
         )
 
+
 @register_renderer
 def render_history(history: History, console: Console) -> None:
     """Render a full history on the UI."""
     table = Table(title="Conversation history")
 
-    table.add_column("Role", justify="right", style=Styles.RICH_HISTORY_ROLE, no_wrap=True)
+    table.add_column(
+        "Role", justify="right", style=Styles.RICH_HISTORY_ROLE, no_wrap=True,
+    )
     table.add_column("Message", style=Styles.RICH_HISTORY_MESSAGE)
 
     if history.system_message:
@@ -190,7 +194,7 @@ class HistoryManager:
 
         Args:
             app_args: Application args.
-            ui_bus: UI event bus to send messages to the UI.
+            ui_bus: UI event bus to exchange messages with the UI.
             system_context: System and project context data access.
 
         """

@@ -47,9 +47,13 @@ class ClearCommand(Command):
             # Re-initialize history as if starting an interactive session
             self.history_manager.initialize_history()
             logger.info("Conversation history cleared successfully.")
-            self.ui_bus.dispatch(ui_events.Info("Conversation history has been cleared."))
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Info("Conversation history has been cleared."),
+            )
         except Exception as e:
             logger.exception("Failed to rebuild context while clearing history")
-            self.ui_bus.dispatch(ui_events.Warn(
-                f"Could not clear history due to an error: {e}",
-            ))
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Warn(
+                    f"Could not clear history due to an error: {e}",
+                ),
+            )

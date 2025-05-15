@@ -5,13 +5,16 @@ from typing import Any
 from prompt_toolkit import HTML, PromptSession
 from prompt_toolkit.completion import Completer  # Base class
 from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit.validation import Validator
 from rich.console import Console
 from rich.status import Status
 
 from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import render_using_registered_renderer
+from streetrace.ui.ui_bus import UiBus
 
 _PROMPT = "You:"
+
 
 class ConsoleUI:
     """Handles all console input and output for the StreetRace application.
@@ -22,11 +25,12 @@ class ConsoleUI:
 
     cursor_is_in_line: bool = False
 
-    def __init__(self, completer: Completer) -> None:
+    def __init__(self, completer: Completer, ui_bus: UiBus) -> None:
         """Initialize the ConsoleUI.
 
         Args:
             completer: An instance of a prompt_toolkit Completer implementation.
+            ui_bus: UI event bus to exchange messages with the UI.
 
         """
         self.console = Console()
@@ -37,6 +41,10 @@ class ConsoleUI:
             complete_while_typing=True,  # Suggest completions proactively
             multiline=True,  # Allow multiline input with Esc+Enter
         )
+        self.ui_bus = ui_bus
+
+        ui_bus.on_ui_update_requested(self.display)
+        ui_bus.on_prompt_token_count_estimate(self._update_rprompt)
 
     def display(self, obj: Any) -> None:  # noqa: ANN401
         """Display an object using a known renderer."""
@@ -45,6 +53,12 @@ class ConsoleUI:
     def status(self, message: str) -> Status:
         """Display a status message using rich.console.status."""
         return self.console.status(message, spinner="hamburger")
+
+    def _update_rprompt(self, token_count: int | None) -> None:
+        if token_count is None:
+            self.prompt_session.rprompt = None
+        else:
+            self.prompt_session.rprompt = f"~{token_count}t"
 
     async def prompt_async(self, prompt_str: str = _PROMPT) -> str:
         """Get input from the user via the console with autocompletion.
@@ -89,6 +103,10 @@ class ConsoleUI:
                 f"Autocomplete: @ Tab / | Exit: /bye,Ctrl+C",
             )
 
+        def send_is_typing(text: str) -> None:
+            self.ui_bus.dispatch_typing_prompt(text)
+            return True
+
         # --- End prompt_toolkit setup ---
 
         # patch_stdout ensures that prints from other threads don't interfere
@@ -100,6 +118,7 @@ class ConsoleUI:
                     style=Styles.PT_ANSI,  # Apply the custom style map
                     prompt_continuation=build_prompt_continuation,
                     bottom_toolbar=build_bottom_toolbar,
+                    validator=Validator.from_callable(send_is_typing),
                     # completer and complete_while_typing are set in __init__
                 )
         except EOFError:  # Handle Ctrl+D as a way to exit
@@ -113,12 +132,14 @@ class ConsoleUI:
         else:
             self.cursor_is_in_line = False  # Prompt resets cursor position
             return user_input
+        finally:
+            self._update_rprompt(None)
 
     def confirm_with_user(self, message: str) -> str:
         """Ask the user to type something and return the typed string."""
         return self.console.input(f"[green]{message}[/green]").strip()
 
-    #TODO(krmrn42): fix tests
+    # TODO(krmrn42): fix tests
     def display_info(self, message: str) -> None:
         """Display a standard informational message."""
         self.console.print(message, style=Styles.RICH_INFO)

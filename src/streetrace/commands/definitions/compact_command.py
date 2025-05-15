@@ -52,10 +52,14 @@ class CompactCommand(Command):
         logger.info("Executing compact command.")
         current_history = self.history_manager.get_history()
         if not current_history or not current_history.messages:
-            self.ui_bus.dispatch(ui_events.Warn("No history available to compact."))
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Warn("No history available to compact."),
+            )
             return
 
-        self.ui_bus.dispatch(ui_events.Info("Compacting conversation history..."))
+        self.ui_bus.dispatch_ui_update(
+            ui_events.Info("Compacting conversation history..."),
+        )
 
         # Create a temporary history for the summarization request
         system_message = current_history.system_message
@@ -101,9 +105,13 @@ Return ONLY the summary without explaining what you're doing."""
             new_history.add_assistant_message(last_message)
             # Replace the current history
             self.history_manager.set_history(new_history)
-            self.ui_bus.dispatch(ui_events.Info("History compacted successfully."))
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Info("History compacted successfully."),
+            )
         else:
-            self.ui_bus.dispatch(ui_events.Warn(
-                "The last message in history is not model, skipping compact. Please report or fix in code if that's not right.",
-            ))
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Warn(
+                    "The last message in history is not model, skipping compact. Please report or fix in code if that's not right.",
+                ),
+            )
             logger.error("LLM response was not in the expected format for summary.")

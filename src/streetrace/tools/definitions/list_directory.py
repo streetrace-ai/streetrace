@@ -1,7 +1,7 @@
 """list_directory tool implementation."""
 
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import TypedDict
 
 import pathspec
 
@@ -18,10 +18,12 @@ class ListDirItems(TypedDict):
     dirs: list[str] | None
     files: list[str] | None
 
+
 class ListDirResult(OpResult):
     """Dir listing result to sent to LLM."""
 
     output: ListDirItems | None
+
 
 def load_gitignore_for_directory(path: Path) -> pathspec.PathSpec:
     """Load and compile .gitignore patterns for a given directory.

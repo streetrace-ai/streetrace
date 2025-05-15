@@ -1,3 +1,4 @@
+"""Tool results model to help return proper messages to LLM."""
 
 from enum import Enum
 from typing import TypedDict
@@ -9,17 +10,20 @@ class OpResultCode(str, Enum):
     SUCCESS = "success"
     FAILURE = "failure"
 
+
 class BaseResult(TypedDict):
     """Result object to send to LLM."""
 
     tool_name: str
     result: OpResultCode
 
+
 class CliResult(BaseResult):
     """CLI command result to send to LLM."""
 
     stdout: str | None
     stderr: str | None
+
 
 class OpResult(BaseResult):
     """Tool result to send to LLM."""

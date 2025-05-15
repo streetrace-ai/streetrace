@@ -1,16 +1,20 @@
+"""A tool that applies a unified diff (e.g., git diff).
+
+Having the model to patch instead of writing full files would be awesome, but you
+know how it is to force a model to follow a specific format. I wasn't able to
+get this to work reliably.
+one idea is to bake in a small model that can apply losely formatted patches,
+allowing the model some freedom of expression.
+alternatively implement structured output, but it's easier to stick to write_file
+vs. loosing quality.
+"""
+
 import subprocess
 from pathlib import Path
 
 from streetrace.tools.definitions.result import CliResult, OpResultCode
 
 
-# Having model to patch instead of writing full files would be awesome, but you
-# know how it is to force a model to follow a specific format. I wasn't able to
-# get this to work reliably.
-# one idea is to bake in a small model that can apply losely formatted patches,
-# allowing the model some freedom of expression.
-# alternatively implement structured output, but it's easier to stick to write_file
-# vs. loosing quality.
 def apply_unified_patch_content(patch_content: str, work_dir: Path) -> CliResult:
     r"""Apply a unified diff patch to local files in the working directory.
 

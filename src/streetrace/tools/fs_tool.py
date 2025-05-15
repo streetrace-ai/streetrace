@@ -19,7 +19,7 @@ def _clean_path(input_str: str) -> str:
 def apply_unified_patch_content(
     patch_content: str,
     work_dir: Path,
-) -> dict[str,str]:
+) -> dict[str, str]:
     r"""Apply a unified diff patch to local files in the working directory.
 
     Start all local paths with the current directory (./), e.g.:
@@ -76,7 +76,7 @@ def apply_unified_patch_content(
 def create_directory(
     path: str,
     work_dir: Path,
-) -> dict[str,str]:
+) -> dict[str, str]:
     """Create a new directory or ensure a directory exists.
 
     Can create multiple nested directories. If the directory exists,
@@ -104,7 +104,7 @@ def find_in_files(
     pattern: str,
     search_string: str,
     work_dir: Path,
-) -> dict[str,str|list[dict[str,str]]]:
+) -> dict[str, str | list[dict[str, str]]]:
     """Recursively search for files and directories matching a pattern.
 
     Searches through all subdirectories from the starting path. The search
@@ -188,7 +188,7 @@ def write_file(
     path: str,
     content: str,
     work_dir: Path,
-) -> dict[str,str]:
+) -> dict[str, str]:
     """Create or overwrite a file with content encoded as utf-8.
 
     Always specify two parameters when calling this function: path to the file, and content to write.

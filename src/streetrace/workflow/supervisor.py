@@ -173,7 +173,7 @@ class Supervisor:
                 session_id=session.id,
                 new_message=content,
             ):
-                self.ui_bus.dispatch(event)
+                self.ui_bus.dispatch_ui_update(event)
 
                 # Key Concept: is_final_response() marks the concluding message for the turn.
                 if event.is_final_response():

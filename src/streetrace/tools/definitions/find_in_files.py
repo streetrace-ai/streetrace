@@ -14,12 +14,15 @@ class SearchResult(TypedDict):
     line_number: int
     snippet: str
 
+
 class FindInFilesResult(OpResult):
     """Tool result to send to LLM."""
 
     output: list[SearchResult]
 
-#TODO(krmrn42): Honor .gitignore
+
+# TODO(krmrn42): Honor .gitignore
+
 
 def find_in_files(
     pattern: str,

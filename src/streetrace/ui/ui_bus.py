@@ -46,9 +46,16 @@ from typing import Any
 
 from pubsub.core import Publisher
 
-#TODO(krmrn42): Implement waiting for user input (confirm, prompt)
+from streetrace.log import get_logger
 
-_UI_UPDATE_EVENT = "UI_UPDATE_EVENT"
+logger = get_logger(__name__)
+
+# TODO(krmrn42): Implement waiting for user input (confirm, prompt)
+
+_UI_UPDATE_EVENT = "ui_update_event"
+_TYPING_PROMPT_EVENT = "typing_prompt_event"
+_PROMPT_TOKEN_COUNT_ESTIMATE_EVENT = "prompt_token_count_estimate_event"  # noqa: S105
+
 
 class UiBus:
     """UI event bus that helps exchange messages between UI and App logic."""
@@ -59,7 +66,7 @@ class UiBus:
         """Initialize a new instance of UiBus with a separate pubsub Publisher."""
         self._publisher = Publisher()
 
-    def dispatch(self, event: Any) -> None:  # noqa: ANN401
+    def dispatch_ui_update(self, event: Any) -> None:  # noqa: ANN401
         """Send a new renderable to the UI.
 
         Args:
@@ -68,12 +75,69 @@ class UiBus:
         """
         self._publisher.sendMessage(_UI_UPDATE_EVENT, obj=event)
 
+    def on_ui_update_requested(self, listener: Callable) -> None:
+        """Subscribe to UI update requests.
 
-    def subscribe(self, listener: Callable[..., None]) -> None:
-        """Subscribe to UI bus events.
+        The listener must be sync.
+
+        Typically, ConsoleUI will subscribe to all UI update requests
+        and fulfill them.
 
         Args:
             listener: A listener method to receive all UI updates.
 
         """
         self._publisher.subscribe(listener, _UI_UPDATE_EVENT)
+
+    def dispatch_typing_prompt(self, prompt: str) -> None:
+        """Inform subscribers of a prompt being typed.
+
+        ConsoleUI sends these updates when the user is typing a prompt.
+
+        Args:
+            prompt: Currently typed prompt.
+
+        """
+        self._publisher.sendMessage(_TYPING_PROMPT_EVENT, prompt=prompt)
+
+    def on_typing_prompt(self, listener: Callable) -> None:
+        """Subscribe to prompt typing events.
+
+        The listener must be sync.
+
+        LlmInterface will subscribe to prompt updates to calculate estimated
+        token count of the prompt (and issue an rprompt update request).
+
+        Args:
+            listener: A Callable[[str],...] listener to receive prompt typing events.
+
+        """
+        self._publisher.subscribe(listener, _TYPING_PROMPT_EVENT)
+
+    def dispatch_prompt_token_count_estimate(self, token_count: int) -> None:
+        """Send an estimated currently typed prompt token count update.
+
+        Typically, LlmInterface will issue update requests to show
+        estimated token count in the prompt being typed.
+
+        Args:
+            token_count: Updated prompt token count.
+
+        """
+        self._publisher.sendMessage(
+            _PROMPT_TOKEN_COUNT_ESTIMATE_EVENT, token_count=token_count,
+        )
+
+    def on_prompt_token_count_estimate(self, listener: Callable) -> None:
+        """Subscribe to prompt token count updates.
+
+        The listener must be sync.
+
+        Typically, ConsoleUI will subscribe to update requests
+        and update the prompt session rprompt.
+
+        Args:
+            listener: A Callable[[int],...] listener to receive rprompt update requests.
+
+        """
+        self._publisher.subscribe(listener, _PROMPT_TOKEN_COUNT_ESTIMATE_EVENT)

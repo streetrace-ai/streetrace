@@ -26,7 +26,7 @@ class SystemContext:
         """Initialize the SystemContext.
 
         Args:
-            ui_bus: UI event bus to send messages to the UI.
+            ui_bus: UI event bus to exchange messages with the UI.
             args: App args.
 
         """
@@ -51,7 +51,7 @@ class SystemContext:
                     f"Error reading system message file '{system_message_path}': {e}"
                 )
                 logger.exception(log_msg)
-                self.ui_bus.dispatch(ui_events.Error(log_msg))
+                self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
         else:
             logger.debug("System message file not found, using default.")
 
@@ -79,7 +79,7 @@ class SystemContext:
         except Exception as e:
             log_msg = f"Error listing context directory '{self.config_dir}': {e}"
             logger.exception(log_msg)
-            self.ui_bus.dispatch(ui_events.Error(log_msg))
+            self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
             return combined_context
 
         if not context_files:
@@ -93,9 +93,11 @@ class SystemContext:
         )
 
         if context_files:  # Only display if files were actually found
-            self.ui_bus.dispatch(ui_events.Info(
-                f"[Loading context from {len(context_files)} .streetrace/ file(s)]",
-            ))
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Info(
+                    f"[Loading context from {len(context_files)} .streetrace/ file(s)]",
+                ),
+            )
 
         for file_path in context_files:
             try:
@@ -107,7 +109,7 @@ class SystemContext:
             except Exception as e:
                 log_msg = f"Error reading context file {file_path}: {e}"
                 logger.exception(log_msg)
-                self.ui_bus.dispatch(ui_events.Error(log_msg))
+                self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
 
         combined_context = "".join(context_content_parts)
         logger.info(
