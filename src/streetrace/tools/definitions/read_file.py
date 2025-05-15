@@ -7,6 +7,7 @@ from streetrace.tools.definitions.path_utils import (
     normalize_and_validate_path,
     validate_file_exists,
 )
+from streetrace.tools.definitions.result import OpResult, OpResultCode
 
 _BINARY_THRESHOLD = 0.3
 """Threshold of non-text chars in file sample for the file to be considered binary."""
@@ -48,7 +49,7 @@ def read_file(
     file_path: str,
     work_dir: Path,
     encoding: str = "utf-8",
-) -> dict[str, str]:
+) -> OpResult:
     """Read the contents of a file from the file system.
 
     Args:
@@ -58,46 +59,45 @@ def read_file(
 
     Returns:
         dict[str,str]:
-            "type": "read_file"
+            "tool_name": "read_file"
             "result": "success" or "failure"
             "error": error message if there was an error reading the file
-            "output": stdout output if the reading succeeded
+            "output": file contents if the reading succeeded
 
     """
-    # Normalize and validate the path
-    abs_file_path = normalize_and_validate_path(file_path, work_dir)
-
-    # Check if file exists and is a file (not a directory)
-    validate_file_exists(abs_file_path)
-
-    # Auto-detect binary if requested and we're not in binary mode already
-    if is_binary_file(abs_file_path):
-        return "<binary>"
-
-    # Read and return file contents
     try:
+        # Normalize and validate the path
+        abs_file_path = normalize_and_validate_path(file_path, work_dir)
+
+        # Check if file exists and is a file (not a directory)
+        validate_file_exists(abs_file_path)
+
+        # Auto-detect binary if requested and we're not in binary mode already
+        if is_binary_file(abs_file_path):
+            return OpResult(result=OpResultCode.SUCCESS, output="<binary>")
+
+         # Read and return file contents
         with codecs.open(str(abs_file_path), "r", encoding=encoding) as f:
-            # contents = "".join(f"{i + 1}: {line}" for i, line in enumerate(f))
             contents = f.read()
-            return {
-                "type": "read_file",
-                "result": "success",
-                "output": contents,
-            }
-    except OSError as e:
-        return {
-            "type": "read_file",
-            "result": "failure",
-            "error": str(e),
-        }
+            return OpResult(
+                tool_name="read_file",
+                result=OpResultCode.SUCCESS,
+                output=contents,
+            )
+    except (ValueError, OSError) as e:
+        return OpResult(
+            tool_name="read_file",
+            result=OpResultCode.FAILURE,
+            error=str(e),
+        )
     except UnicodeDecodeError as e:
         msg = (
             f"Failed to decode '{file_path}' with encoding '{encoding}': "
             f"(object: {e.object}, start: {e.start}, end: {e.end}, reason: {e.reason}). "
             f"{e!s}"
         )
-        return {
-            "type": "read_file",
-            "result": "failure",
-            "error": msg,
-        }
+        return OpResult(
+            tool_name="read_file",
+            result=OpResultCode.FAILURE,
+            error=msg,
+        )

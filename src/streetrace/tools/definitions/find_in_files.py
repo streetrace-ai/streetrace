@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import TypedDict
 
 from streetrace.tools.definitions.path_utils import normalize_and_validate_path
+from streetrace.tools.definitions.result import OpResult, OpResultCode
 
 
 class SearchResult(TypedDict):
@@ -13,12 +14,18 @@ class SearchResult(TypedDict):
     line_number: int
     snippet: str
 
+class FindInFilesResult(OpResult):
+    """Tool result to send to LLM."""
+
+    output: list[SearchResult]
+
+#TODO(krmrn42): Honor .gitignore
 
 def find_in_files(
     pattern: str,
     search_string: str,
     work_dir: Path,
-) -> list[dict[str, str]]:
+) -> FindInFilesResult:
     """Recursively search for files and directories matching a pattern.
 
     Searches through all subdirectories from the starting path. The search
@@ -31,15 +38,21 @@ def find_in_files(
         work_dir (Path): The working directory for the glob pattern.
 
     Returns:
-        A list of dictionaries, where each dictionary represents a match:
-            - filepath: path of the found file
-            - line_number: match line number
-            - snippet: match snippet
+        dict[str,str|list[dict[str,str]]]:
+            "tool_name": "find_in_files"
+            "result": "success" or "failure"
+            "error": error message if the search couldn't be completed
+            "output" (list[dict[str,str]]): A list search results, where each
+                dictionary item represents a match:
+                - "filepath": path of the found file
+                - "line_number": match line number
+                - "snippet": match snippet
 
     """
     matches: list[SearchResult] = []
 
     work_dir = work_dir.resolve()
+    errors: list[str] = []
 
     for file_path in work_dir.glob(pattern):
         # Validate each matching file is within work_dir
@@ -60,9 +73,19 @@ def find_in_files(
                                 snippet=line.strip(),
                             ),
                         )
-        except (OSError, ValueError, UnicodeDecodeError):
+        except (OSError, ValueError, UnicodeDecodeError) as err:
+            errors.append(str(err))
             # If the file is outside work_dir, can't be read, or is binary
             # Just skip it and continue with other files
-            pass
 
-    return matches
+    if matches or len(errors) == 0:
+        return FindInFilesResult(
+            tool_name="find_in_files",
+            result=OpResultCode.SUCCESS,
+            output=matches,
+        )
+    return FindInFilesResult(
+        tool_name="find_in_files",
+        result=OpResultCode.FAILURE,
+        error="\n\n".join(errors),
+    )

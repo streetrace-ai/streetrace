@@ -2885,6 +2885,17 @@ files = [
 diagrams = ["jinja2", "railroad-diagrams"]
 
 [[package]]
+name = "pypubsub"
+version = "4.0.3"
+description = "Python Publish-Subscribe Package"
+optional = false
+python-versions = ">=3.3, <4"
+groups = ["main"]
+files = [
+    {file = "Pypubsub-4.0.3-py3-none-any.whl", hash = "sha256:7f716bae9388afe01ff82b264ba8a96a8ae78b42bb1f114f2716ca8f9e404e2a"},
+]
+
+[[package]]
 name = "pytest"
 version = "8.3.5"
 description = "pytest: simple powerful testing with Python"
@@ -4249,4 +4260,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "aa2e436bf6cc965237052d627b25e49ffbdd694f5c8a17fecd1876cf893c2913"
+content-hash = "4709a30d41d622558b7c91e07f6e9255ef4ba8857607c16dc9b6452f74b71f90"

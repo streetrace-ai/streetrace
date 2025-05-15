@@ -7,7 +7,8 @@ system messages and project context from the configuration directory.
 from streetrace import messages
 from streetrace.args import Args
 from streetrace.log import get_logger
-from streetrace.ui.console_ui import ConsoleUI
+from streetrace.ui import ui_events
+from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
 
@@ -21,15 +22,15 @@ class SystemContext:
     from the configuration directory.
     """
 
-    def __init__(self, ui: ConsoleUI, args: Args) -> None:
+    def __init__(self, ui_bus: UiBus, args: Args) -> None:
         """Initialize the SystemContext.
 
         Args:
-            ui: The ConsoleUI instance for displaying messages/errors.
+            ui_bus: UI event bus to send messages to the UI.
             args: App args.
 
         """
-        self.ui = ui
+        self.ui_bus = ui_bus
         self.config_dir = args.working_dir / _CONTEXT_DIR
         logger.info("SystemContext initialized with config_dir: %s", self.config_dir)
 
@@ -50,7 +51,7 @@ class SystemContext:
                     f"Error reading system message file '{system_message_path}': {e}"
                 )
                 logger.exception(log_msg)
-                self.ui.display_error(log_msg)
+                self.ui_bus.dispatch(ui_events.Error(log_msg))
         else:
             logger.debug("System message file not found, using default.")
 
@@ -78,7 +79,7 @@ class SystemContext:
         except Exception as e:
             log_msg = f"Error listing context directory '{self.config_dir}': {e}"
             logger.exception(log_msg)
-            self.ui.display_error(log_msg)
+            self.ui_bus.dispatch(ui_events.Error(log_msg))
             return combined_context
 
         if not context_files:
@@ -92,9 +93,9 @@ class SystemContext:
         )
 
         if context_files:  # Only display if files were actually found
-            self.ui.display_info(
+            self.ui_bus.dispatch(ui_events.Info(
                 f"[Loading context from {len(context_files)} .streetrace/ file(s)]",
-            )
+            ))
 
         for file_path in context_files:
             try:
@@ -106,7 +107,7 @@ class SystemContext:
             except Exception as e:
                 log_msg = f"Error reading context file {file_path}: {e}"
                 logger.exception(log_msg)
-                self.ui.display_error(log_msg)
+                self.ui_bus.dispatch(ui_events.Error(log_msg))
 
         combined_context = "".join(context_content_parts)
         logger.info(

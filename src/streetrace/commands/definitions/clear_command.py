@@ -10,7 +10,8 @@ from typing import override
 from streetrace.commands.base_command import Command
 from streetrace.history import HistoryManager
 from streetrace.log import get_logger
-from streetrace.ui.console_ui import ConsoleUI
+from streetrace.ui import ui_events
+from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
 
@@ -18,9 +19,9 @@ logger = get_logger(__name__)
 class ClearCommand(Command):
     """Command to clear the conversation history, resetting it to the initial state."""
 
-    def __init__(self, ui: ConsoleUI, history_manager: HistoryManager) -> None:
+    def __init__(self, ui_bus: UiBus, history_manager: HistoryManager) -> None:
         """Initialize a new instance of ClearCommand."""
-        self.ui = ui
+        self.ui_bus = ui_bus
         self.history_manager = history_manager
 
     @property
@@ -46,9 +47,9 @@ class ClearCommand(Command):
             # Re-initialize history as if starting an interactive session
             self.history_manager.initialize_history()
             logger.info("Conversation history cleared successfully.")
-            self.ui.display_info("Conversation history has been cleared.")
+            self.ui_bus.dispatch(ui_events.Info("Conversation history has been cleared."))
         except Exception as e:
             logger.exception("Failed to rebuild context while clearing history")
-            self.ui.display_error(
+            self.ui_bus.dispatch(ui_events.Warn(
                 f"Could not clear history due to an error: {e}",
-            )
+            ))

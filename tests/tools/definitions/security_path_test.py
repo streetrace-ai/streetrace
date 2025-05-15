@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from streetrace.tools.definitions.read_directory_structure import read_directory_structure
+from streetrace.tools.definitions.list_directory import list_directory
 
 
 class TestSecurityPath(unittest.TestCase):
@@ -32,7 +32,7 @@ class TestSecurityPath(unittest.TestCase):
     def test_valid_path(self) -> None:
         """Test accessing a valid path within the root path."""
         # This should work - allowed_dir is within work_dir
-        result = read_directory_structure(str(self.allowed_dir), self.work_dir)
+        result = list_directory(str(self.allowed_dir), self.work_dir)
 
         # Paths should be relative to work_dir
         expected_file_path = self.allowed_file.relative_to(self.work_dir)
@@ -43,7 +43,7 @@ class TestSecurityPath(unittest.TestCase):
     def test_same_as_work_dir(self) -> None:
         """Test accessing the root path itself."""
         # This should work - path is the same as work_dir
-        result = read_directory_structure(self.work_dir, self.work_dir)
+        result = list_directory(self.work_dir, self.work_dir)
 
         # Paths should be relative to work_dir
         expected_dir_path = self.allowed_dir.relative_to(self.work_dir)
@@ -55,7 +55,7 @@ class TestSecurityPath(unittest.TestCase):
         """Test that directory traversal is prevented."""
         # Try to access a sibling directory (outside work_dir)
         with pytest.raises(ValueError) as context:
-            read_directory_structure(str(self.sibling_dir), self.work_dir)
+            list_directory(str(self.sibling_dir), self.work_dir)
 
         # Check that the error message is helpful
         assert "Security error" in str(context.value)
@@ -67,7 +67,7 @@ class TestSecurityPath(unittest.TestCase):
         parent_path = self.work_dir / ".."
 
         with pytest.raises(ValueError) as context:
-            read_directory_structure(str(parent_path), self.work_dir)
+            list_directory(str(parent_path), self.work_dir)
 
         assert "Security error" in str(context.value)
         assert "outside the allowed working directory" in str(context.value)
@@ -77,7 +77,7 @@ class TestSecurityPath(unittest.TestCase):
         # Try to access an absolute path outside root
         with pytest.raises(ValueError) as context:
             # Use /tmp or another guaranteed absolute path outside the test temp dir
-            read_directory_structure("/tmp", self.work_dir)  # noqa: S108
+            list_directory("/tmp", self.work_dir)  # noqa: S108
 
         assert "Security error" in str(context.value)
         assert "outside the allowed working directory" in str(context.value)

@@ -1,6 +1,7 @@
-"""read_directory_structure tool implementation."""
+"""list_directory tool implementation."""
 
 from pathlib import Path
+from typing import Any, TypedDict
 
 import pathspec
 
@@ -8,7 +9,19 @@ from streetrace.tools.definitions.path_utils import (
     normalize_and_validate_path,
     validate_directory_exists,
 )
+from streetrace.tools.definitions.result import OpResult, OpResultCode
 
+
+class ListDirItems(TypedDict):
+    """Dir listing result to sent to LLM."""
+
+    dirs: list[str] | None
+    files: list[str] | None
+
+class ListDirResult(OpResult):
+    """Dir listing result to sent to LLM."""
+
+    output: ListDirItems | None
 
 def load_gitignore_for_directory(path: Path) -> pathspec.PathSpec:
     """Load and compile .gitignore patterns for a given directory.
@@ -73,10 +86,10 @@ def is_ignored(path: Path, base_path: Path, spec: pathspec.PathSpec) -> bool:
 
 
 # Custom tool: read current directory structure honoring .gitignore correctly
-def read_directory_structure(
+def list_directory(
     path: str,
     work_dir: Path,
-) -> dict[str, list[str]]:
+) -> ListDirResult:
     """List all files and directories in a specified path.
 
     Honors .gitignore rules.
@@ -86,47 +99,62 @@ def read_directory_structure(
         work_dir (str): The working directory.
 
     Returns:
-        Dictionary with 'dirs' and 'files' lists containing paths relative to working directory.
-
-    Raises:
-        ValueError: If the requested path is outside the allowed root path.
+        dict[str,str|dict[str,list[str]]]:
+            "tool_name": "list_directory"
+            "result": "success" or "failure"
+            "error": error message if the listing couldn't be completed
+            "output":
+                dict[str,list[str]]:
+                    - "dirs": list of directories in this directory
+                    - "files": list of files in this directory
 
     """
-    # Normalize and validate the path
-    abs_path = normalize_and_validate_path(path, work_dir)
+    try:
+        # Normalize and validate the path
+        abs_path = normalize_and_validate_path(path, work_dir)
 
-    # Check if directory exists
-    validate_directory_exists(abs_path)
+        # Check if directory exists
+        validate_directory_exists(abs_path)
 
-    # Get gitignore spec for the current directory
-    spec = load_gitignore_for_directory(abs_path)
+        # Get gitignore spec for the current directory
+        spec = load_gitignore_for_directory(abs_path)
 
-    # Use Path.glob to get all items in the current directory
-    items = list(abs_path.glob("*"))
+        # Use Path.glob to get all items in the current directory
+        items = list(abs_path.glob("*"))
+    except ValueError as ex:
+        return ListDirResult(
+            tool_name="list_directory",
+            result=OpResultCode.FAILURE,
+            error=str(ex),
+        )
+    else:
+        dirs: list[str] = []
+        files: list[str] = []
 
-    dirs: list[str] = []
-    files: list[str] = []
+        # Filter items and classify them as directories or files
+        for item in items:
+            # Skip if item is ignored by gitignore rules
+            if is_ignored(item, abs_path, spec):
+                continue
 
-    # Filter items and classify them as directories or files
-    for item in items:
-        # Skip if item is ignored by gitignore rules
-        if is_ignored(item, abs_path, spec):
-            continue
+            # Get path relative to work_dir
+            rel_path = item.relative_to(work_dir)
 
-        # Get path relative to work_dir
-        rel_path = item.relative_to(work_dir)
+            # Add to appropriate list
+            if item.is_dir():
+                dirs.append(str(rel_path))
+            else:
+                files.append(str(rel_path))
 
-        # Add to appropriate list
-        if item.is_dir():
-            dirs.append(str(rel_path))
-        else:
-            files.append(str(rel_path))
+        # Sort for consistent output
+        dirs.sort()
+        files.sort()
 
-    # Sort for consistent output
-    dirs.sort()
-    files.sort()
-
-    return {
-        "dirs": dirs,
-        "files": files,
-    }
+        return ListDirResult(
+            tool_name="list_directory",
+            result=OpResultCode.SUCCESS,
+            output=ListDirItems(
+                dirs=dirs,
+                files=files,
+            ),
+        )

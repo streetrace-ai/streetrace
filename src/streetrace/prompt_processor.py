@@ -12,7 +12,8 @@ from pydantic import BaseModel, Field
 
 from streetrace.args import Args
 from streetrace.log import get_logger
-from streetrace.ui.console_ui import ConsoleUI
+from streetrace.ui import ui_events
+from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
 
@@ -34,15 +35,15 @@ class PromptProcessor:
     Processes user prompts (like parsing @mentions) to build a ProcessedPrompt object.
     """
 
-    def __init__(self, ui: ConsoleUI, args: Args) -> None:
+    def __init__(self, ui_bus: UiBus, args: Args) -> None:
         """Initialize the PromptProcessor.
 
         Args:
-            ui: The ConsoleUI instance for displaying messages/errors.
+            ui_bus: UI event bus to send messages to the UI.
             args: App args.
 
         """
-        self.ui = ui
+        self.ui_bus = ui_bus
         self.args = args
 
     def build_context(self, prompt: str) -> ProcessedPrompt:
@@ -115,7 +116,7 @@ class PromptProcessor:
 
                 if common_path != abs_working_dir:
                     log_msg = f"Mention '@{mention}' points outside the working directory '{self.args.working_dir}'. Skipping."
-                    self.ui.display_warning(log_msg)
+                    self.ui_bus.dispatch(ui_events.Warn(log_msg))
                     logger.warning(
                         "Security Warning: Mention '@%s' resolved to '%s' which is outside the working directory '%s'. Skipping.",
                         mention,
@@ -136,20 +137,20 @@ class PromptProcessor:
                         )
                     except Exception as e:
                         log_msg = f"Error reading mentioned file @{mention}: {e}"
-                        self.ui.display_error(log_msg)
+                        self.ui_bus.dispatch(ui_events.Error(log_msg))
                         logger.exception("Error reading mentioned file '%s'", mention)
                 else:
                     log_msg = f"Mentioned path @{mention} not found or is not a file. Skipping."
-                    self.ui.display_error(log_msg)
+                    self.ui_bus.dispatch(ui_events.Error(log_msg))
                     logger.warning(log_msg)
             except Exception as e:
                 log_msg = f"Error processing mention @{mention}: {e}"
-                self.ui.display_error(log_msg)
+                self.ui_bus.dispatch(ui_events.Error(log_msg))
                 logger.exception(log_msg)
 
         if mentions_found > 0:
-            self.ui.display_info(
+            self.ui_bus.dispatch(ui_events.Info(
                 f"[Loading content from {', '.join(['@'+m for m in mentions_loaded])}]",
-            )
+            ))
 
         return loaded_files

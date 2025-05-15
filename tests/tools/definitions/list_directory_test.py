@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from streetrace.tools.definitions.read_directory_structure import read_directory_structure
+from streetrace.tools.definitions.list_directory import list_directory
 
 
 class TestDirectoryStructureTool(unittest.TestCase):
@@ -43,7 +43,7 @@ class TestDirectoryStructureTool(unittest.TestCase):
 
         try:
             # Call the tool with temp directory path and set work_dir to its parent
-            result = read_directory_structure(str(self.temp_dir), self.parent_dir)
+            result = list_directory(str(self.temp_dir), self.parent_dir)
 
             # Verify the structure paths are relative to parent_dir
             expected_file_path = str(Path(self.temp_dir_basename) / self.root_file_name)
@@ -68,7 +68,7 @@ class TestDirectoryStructureTool(unittest.TestCase):
         sub_dir_path = self.temp_dir / self.sub_dir_name
 
         # Call the tool with subdirectory path, using temp_dir as work_dir
-        result = read_directory_structure(str(sub_dir_path), self.temp_dir)
+        result = list_directory(str(sub_dir_path), self.temp_dir)
 
         # Verify the structure only includes the subdirectory contents, relative to temp_dir
         assert len(result["dirs"]) == 0  # No sub-sub-directories
@@ -81,7 +81,7 @@ class TestDirectoryStructureTool(unittest.TestCase):
     def test_with_explicit_work_dir(self) -> None:
         """Test that tool respects the work_dir restriction."""
         # Set work_dir explicitly to the temp directory
-        result = read_directory_structure(self.temp_dir, self.temp_dir)
+        result = list_directory(self.temp_dir, self.temp_dir)
 
         # Verify the structure - paths relative to temp_dir
         assert self.root_file_name in result["files"]
@@ -90,7 +90,7 @@ class TestDirectoryStructureTool(unittest.TestCase):
 
         # Now try to access a path outside of work_dir (parent dir)
         with pytest.raises(ValueError) as context:
-            read_directory_structure(str(self.parent_dir), self.temp_dir)
+            list_directory(str(self.parent_dir), self.temp_dir)
 
         assert "Security error" in str(context.value)
         # Updated assertion message

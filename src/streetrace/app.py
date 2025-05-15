@@ -22,8 +22,10 @@ from streetrace.log import get_logger
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
+from streetrace.ui import ui_events
 from streetrace.ui.completer import CommandCompleter, PathCompleter, PromptCompleter
 from streetrace.ui.console_ui import ConsoleUI
+from streetrace.ui.ui_bus import UiBus
 from streetrace.workflow.supervisor import Supervisor
 
 logger = get_logger(__name__)
@@ -37,6 +39,7 @@ class Application:
         self,
         args: Args,
         ui: ConsoleUI,
+        ui_bus: UiBus,
         cmd_executor: CommandExecutor,
         prompt_processor: PromptProcessor,
         history_manager: HistoryManager,
@@ -47,6 +50,7 @@ class Application:
         Args:
             args: App args.
             ui: ConsoleUI instance for handling user interaction and displaying output.
+            ui_bus: UI event bus to send messages to the UI.
             cmd_executor: CommandExecutor instance for processing internal commands.
             prompt_processor: PromptProcessor instance for processing prompts and file mentions.
             history_manager: HistoryManager instance for managing conversation history.
@@ -55,6 +59,7 @@ class Application:
         """
         self.args = args
         self.ui = ui
+        self.ui_bus = ui_bus
         self.cmd_executor = cmd_executor
         self.prompt_processor = prompt_processor
         self.history_manager = history_manager
@@ -76,7 +81,7 @@ class Application:
 
         if command_status.command_executed:
             if command_status.error:
-                self.ui.display_error(command_status.error)
+                self.ui_bus.dispatch(ui_events.Error(command_status.error))
             return
 
         processed_prompt = None
@@ -109,7 +114,7 @@ class Application:
             logger.error(error_msg)
             raise ValueError(error_msg)
 
-        self.ui.display_user_prompt(user_input)
+        self.ui_bus.dispatch(ui_events.UserInput(user_input))
         if confirm_with_user:
             confirmation = self.ui.confirm_with_user(
                 ":stop_sign: continue? ([underline]yes[/underline]/no) ",
@@ -121,21 +126,19 @@ class Application:
 
     async def _run_interactive(self) -> None:
         """Handle interactive mode (conversation loop)."""
-        self.ui.display_info(
-            "Entering interactive mode. Type '/history', '/compact', '/clear', '/exit', or press Ctrl+C/Ctrl+D to quit.",
-        )
+        self.ui_bus.dispatch(ui_events.Info("Entering interactive mode. Type '/history', '/compact', '/clear', '/exit', or press Ctrl+C/Ctrl+D to quit."))
 
         while True:
             try:
                 user_input = await self.ui.prompt_async()
                 await self._process_input(user_input)
             except (EOFError, SystemExit):
-                self.ui.display_info("\nLeaving...")
+                self.ui_bus.dispatch(ui_events.Info("\nLeaving..."))
                 raise
             except Exception as loop_err:
-                self.ui.display_error(
+                self.ui_bus.dispatch(ui_events.Error(
                     f"\nAn unexpected error while processing input: {loop_err}",
-                )
+                ))
                 logger.exception(
                     "Unexpected error in interactive loop.",
                     exc_info=loop_err,
@@ -145,6 +148,10 @@ class Application:
 
 def create_app(args: Args) -> Application:
     """Run StreetRace🚗💨."""
+    ui_bus = UiBus()
+
+    ui_bus.dispatch(ui_events.Info(f"Starting in {args.working_dir}"))
+
     # Initialize CommandExecutor *before* completers that need command list
     cmd_executor = CommandExecutor()
 
@@ -153,30 +160,29 @@ def create_app(args: Args) -> Application:
     command_completer = CommandCompleter(cmd_executor)
     prompt_completer = PromptCompleter([path_completer, command_completer])
 
-    # Initialize ConsoleUI
+    # Initialize ConsoleUI as soon as possible, so we can start showing something
     ui = ConsoleUI(completer=prompt_completer)
-
-    ui.display_info(f"Starting in {args.working_dir}")
+    ui_bus.subscribe(ui.display)
 
     # Initialize SystemContext for handling system and project context
-    system_context = SystemContext(ui=ui, args=args)
+    system_context = SystemContext(ui_bus=ui_bus, args=args)
 
     # Initialize PromptProcessor for handling prompts and file mentions
-    prompt_processor = PromptProcessor(ui=ui, args=args)
+    prompt_processor = PromptProcessor(ui_bus=ui_bus, args=args)
 
-    llm_interface = get_llm_interface(args.model, ui)
+    llm_interface = get_llm_interface(args.model, ui_bus)
 
     tool_provider = ToolProvider(args.working_dir)
     # Initialize HistoryManager
     history_manager = HistoryManager(
         app_args=args,
-        ui=ui,
+        ui_bus=ui_bus,
         system_context=system_context,
     )
 
     # Initialize Interaction Manager
     workflow_supervisor = Supervisor(
-        ui=ui,
+        ui_bus=ui_bus,
         llm_interface=llm_interface,
         tool_provider=tool_provider,
         history_manager=history_manager,
@@ -184,20 +190,21 @@ def create_app(args: Args) -> Application:
 
     # Register commands
     cmd_executor.register(ExitCommand())
-    cmd_executor.register(HistoryCommand(ui=ui, history_manager=history_manager))
+    cmd_executor.register(HistoryCommand(ui_bus=ui_bus, history_manager=history_manager))
     cmd_executor.register(
         CompactCommand(
-            ui=ui,
+            ui_bus=ui_bus,
             history_manager=history_manager,
             llm_interface=llm_interface,
         ),
     )
-    cmd_executor.register(ClearCommand(ui=ui, history_manager=history_manager))
+    cmd_executor.register(ClearCommand(ui_bus=ui_bus, history_manager=history_manager))
 
     # Initialize the Application
     return Application(
         args=args,
         ui=ui,
+        ui_bus=ui_bus,
         cmd_executor=cmd_executor,
         prompt_processor=prompt_processor,
         history_manager=history_manager,

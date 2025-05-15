@@ -5,12 +5,13 @@ from pathlib import Path
 from streetrace.tools.definitions.path_utils import (
     normalize_and_validate_path,
 )
+from streetrace.tools.definitions.result import OpResult, OpResultCode
 
 
 def create_directory(
     path: str,
     work_dir: Path,
-) -> list[dict[str, str]]:
+) -> OpResult:
     """Create a new directory or ensure a directory exists.
 
     Can create multiple nested directories. If the directory exists,
@@ -21,7 +22,11 @@ def create_directory(
         work_dir (Path): Root path that restricts access.
 
     Returns:
-        Operation status.
+        dict[str,str]:
+            "tool_name": "create_directory"
+            "result": "success" or "failure"
+            "error": error message if the directory creation failed
+            "output": tool output if the directory was created
 
     """
     work_dir = work_dir.resolve()
@@ -34,7 +39,14 @@ def create_directory(
     try:
         abs_path.mkdir(parents=True, exist_ok=True)
     except OSError as e:
-        msg = f"Error creating directory '{rel_path}': {e!s}"
-        raise OSError(msg) from e
+        return OpResult(
+            tool_name="create_directory",
+            result=OpResultCode.FAILURE,
+            error=f"Error creating directory '{rel_path}': {e!s}",
+        )
     else:
-        return f"Successfully created directory '{rel_path!s}'"
+        return OpResult(
+            tool_name="create_directory",
+            result=OpResultCode.SUCCESS,
+            output=f"Successfully created directory '{rel_path!s}'",
+        )

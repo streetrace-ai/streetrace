@@ -11,7 +11,8 @@ from streetrace.commands.base_command import Command
 from streetrace.history import History, HistoryManager
 from streetrace.llm_interface import LlmInterface
 from streetrace.log import get_logger
-from streetrace.ui.console_ui import ConsoleUI
+from streetrace.ui import ui_events
+from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
 
@@ -21,12 +22,12 @@ class CompactCommand(Command):
 
     def __init__(
         self,
-        ui: ConsoleUI,
+        ui_bus: UiBus,
         history_manager: HistoryManager,
         llm_interface: LlmInterface,
     ) -> None:
         """Initialize a new instance of ClearCommand."""
-        self.ui = ui
+        self.ui_bus = ui_bus
         self.history_manager = history_manager
         self.llm_interface = llm_interface
 
@@ -51,10 +52,10 @@ class CompactCommand(Command):
         logger.info("Executing compact command.")
         current_history = self.history_manager.get_history()
         if not current_history or not current_history.messages:
-            self.ui.display_warning("No history available to compact.")
+            self.ui_bus.dispatch(ui_events.Warn("No history available to compact."))
             return
 
-        self.ui.display_info("Compacting conversation history...")
+        self.ui_bus.dispatch(ui_events.Info("Compacting conversation history..."))
 
         # Create a temporary history for the summarization request
         system_message = current_history.system_message
@@ -100,9 +101,9 @@ Return ONLY the summary without explaining what you're doing."""
             new_history.add_assistant_message(last_message)
             # Replace the current history
             self.history_manager.set_history(new_history)
-            self.ui.display_info("History compacted successfully.")
+            self.ui_bus.dispatch(ui_events.Info("History compacted successfully."))
         else:
-            self.ui.display_warning(
+            self.ui_bus.dispatch(ui_events.Warn(
                 "The last message in history is not model, skipping compact. Please report or fix in code if that's not right.",
-            )
+            ))
             logger.error("LLM response was not in the expected format for summary.")

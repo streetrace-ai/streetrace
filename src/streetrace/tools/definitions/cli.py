@@ -4,21 +4,15 @@ import queue
 import subprocess
 import threading
 from pathlib import Path
-from typing import IO, Any, TypedDict
+from typing import IO
 
-
-class CliResult(TypedDict):
-    """Execute CLI result."""
-
-    stdout: str
-    stderr: str
-    return_code: int | Any
+from streetrace.tools.definitions.result import CliResult, OpResultCode
 
 
 def execute_cli_command(
     args: str | list[str],
     work_dir: Path,
-) -> tuple[CliResult, str]:
+) -> CliResult:
     """Execute the CLI command and returns the output.
 
     The command's standard input/output/error are connected to the application's
@@ -31,12 +25,11 @@ def execute_cli_command(
         work_dir (Path): The working directory to execute the command in.
 
     Returns:
-        tuple[CliResult, str]:
-            CliResult: A dictionary containing:
-                - stdout: The captured standard output of the command
-                - stderr: The captured standard error of the command
-                - return_code: The return code of the command
-            str: UI view representation (rocess completed (return code))
+        dict[str,str]:
+            "tool_name": "execute_cli_command"
+            "result": "success" or "failure"
+            "stderr": stderr output of the CLI command
+            "stdout": stdout output of the CLI command
 
     """
     stdout_lines: list[str] = []
@@ -45,6 +38,8 @@ def execute_cli_command(
 
     # Normalize the working directory
     work_dir = work_dir.resolve()
+
+    completed_successfully = False
 
     try:
         q: queue.Queue[str | None] = queue.Queue()
@@ -84,15 +79,16 @@ def execute_cli_command(
             # b/c our stderr is for our errors, not tool errors
             for _line in iter(q.get, None):
                 pass
+        completed_successfully = True
     except Exception as e:  # noqa: BLE001 we want to report all exceptions to the agent
         stderr_lines.append("\n")
         stderr_lines.append(str(e))
 
     return (
         CliResult(
+            tool_name="execute_cli_command",
+            result=OpResultCode.SUCCESS if completed_successfully else OpResultCode.FAILURE,
             stdout="".join(stdout_lines),
             stderr="".join(stderr_lines),
-            return_code=process.returncode if process else 1,
-        ),
-        f"process completed ({process.returncode if process else 1})",
+        )
     )

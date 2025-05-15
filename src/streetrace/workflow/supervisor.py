@@ -17,7 +17,7 @@ from streetrace.messages import SYSTEM_MVP
 from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui.adk_event_renderer import render_event as _  # noqa: F401
-from streetrace.ui.console_ui import ConsoleUI
+from streetrace.ui.ui_bus import UiBus
 from streetrace.utils.uid import get_user_identity
 
 # TODO(krmrn42): usage stats, costs -> Events?
@@ -30,13 +30,13 @@ class Supervisor:
 
     def __init__(
         self,
-        ui: ConsoleUI,
+        ui_bus: UiBus,
         llm_interface: LlmInterface,
         tool_provider: ToolProvider,
         history_manager: HistoryManager,
     ) -> None:
         """Initialize a new instance of workflow supervisor."""
-        self.ui = ui
+        self.ui_bus = ui_bus
         self.llm_interface = llm_interface
         self.session_service = InMemorySessionService()
         self.session_id = datetime.now(tz=get_localzone()).strftime("%Y-%m-%d_%H-%M")
@@ -140,8 +140,6 @@ class Supervisor:
             state.
         - we don't need a workflow router for now, the root agent is our router.
         """
-        self.ui.display_info(f"Payload: {payload}")
-
         parts = []
         if payload:
             if payload.prompt:
@@ -175,7 +173,7 @@ class Supervisor:
                 session_id=session.id,
                 new_message=content,
             ):
-                self.ui.display(event)
+                self.ui_bus.dispatch(event)
 
                 # Key Concept: is_final_response() marks the concluding message for the turn.
                 if event.is_final_response():

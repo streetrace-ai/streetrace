@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from streetrace.tools.definitions.read_directory_structure import (
-    read_directory_structure,
+from streetrace.tools.definitions.list_directory import (
+    list_directory,
 )
 
 
@@ -53,7 +53,7 @@ class TestReadDirectoryStructure(unittest.TestCase):
 
     def test_no_gitignore(self) -> None:
         """Test reading directory structure without any gitignore files."""
-        result = read_directory_structure(
+        result = list_directory(
             str(self.temp_dir),
             self.temp_dir.parent,
         )
@@ -79,7 +79,7 @@ class TestReadDirectoryStructure(unittest.TestCase):
         # Create root gitignore
         (self.temp_dir / ".gitignore").write_text("*.log\n")
 
-        result = read_directory_structure(
+        result = list_directory(
             str(self.temp_dir),
             self.temp_dir.parent,
         )
@@ -104,7 +104,7 @@ class TestReadDirectoryStructure(unittest.TestCase):
         # Create dir2 gitignore - ignore cache files (This won't affect root listing)
         (self.temp_dir / "dir2" / ".gitignore").write_text("*.cache\n")
 
-        result = read_directory_structure(
+        result = list_directory(
             str(self.temp_dir),
             self.temp_dir.parent,
         )
@@ -122,7 +122,7 @@ class TestReadDirectoryStructure(unittest.TestCase):
         # Create root gitignore that ignores dir2
         (self.temp_dir / ".gitignore").write_text("dir2/\n")
 
-        result = read_directory_structure(
+        result = list_directory(
             str(self.temp_dir),
             self.temp_dir.parent,
         )
@@ -148,7 +148,7 @@ class TestReadDirectoryStructure(unittest.TestCase):
             "!dir1_file.txt\n",
         )  # Don't ignore this specific txt
 
-        result = read_directory_structure(
+        result = list_directory(
             str(self.temp_dir),
             self.temp_dir.parent,
         )

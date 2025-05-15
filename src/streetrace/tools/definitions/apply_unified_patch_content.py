@@ -1,13 +1,17 @@
 import subprocess
 from pathlib import Path
 
+from streetrace.tools.definitions.result import CliResult, OpResultCode
+
 
 # Having model to patch instead of writing full files would be awesome, but you
 # know how it is to force a model to follow a specific format. I wasn't able to
 # get this to work reliably.
 # one idea is to bake in a small model that can apply losely formatted patches,
 # allowing the model some freedom of expression.
-def apply_unified_patch_content(patch_content: str, work_dir: Path) -> dict[str,str]:
+# alternatively implement structured output, but it's easier to stick to write_file
+# vs. loosing quality.
+def apply_unified_patch_content(patch_content: str, work_dir: Path) -> CliResult:
     r"""Apply a unified diff patch to local files in the working directory.
 
     Start all local paths with the current directory (./), e.g.:
@@ -49,7 +53,8 @@ def apply_unified_patch_content(patch_content: str, work_dir: Path) -> dict[str,
 
     Returns:
         dict[str,str]:
-            "result": success or failure
+            "tool_name": "apply_unified_patch_content"
+            "result": "success" or "failure"
             "stderr": stderr output of the GNU patch command
             "stdout": stdout output of the GNU patch command
 
@@ -63,14 +68,16 @@ def apply_unified_patch_content(patch_content: str, work_dir: Path) -> dict[str,
             text=True,
             check=True,
         )
-        return {
-            "result": "success",
-            "stderr": result.stderr.strip(),
-            "stdout": result.stdout.strip(),
-        }
+        return CliResult(
+            tool_name="apply_unified_patch_content",
+            result=OpResultCode.SUCCESS,
+            stdout=result.stdout.strip(),
+            stderr=result.stderr.strip(),
+        )
     except subprocess.CalledProcessError as e:
-        return {
-            "result": "failure",
-            "stderr": e.stderr.strip(),
-            "stdout": e.stdout.strip(),
-        }
+        return CliResult(
+            tool_name="apply_unified_patch_content",
+            result=OpResultCode.FAILURE,
+            stdout=e.stdout.strip(),
+            stderr=e.stderr.strip(),
+        )

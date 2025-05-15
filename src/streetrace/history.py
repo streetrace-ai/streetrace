@@ -6,14 +6,18 @@ from typing import TYPE_CHECKING
 
 import litellm
 from pydantic import BaseModel
+from rich.console import Console
+from rich.table import Table
 
 from streetrace.args import Args
 from streetrace.log import get_logger
 from streetrace.system_context import SystemContext
+from streetrace.ui.colors import Styles
+from streetrace.ui.render_protocol import register_renderer
 
 if TYPE_CHECKING:
     # Avoid circular imports for type hinting
-    from streetrace.ui.console_ui import ConsoleUI
+    from streetrace.ui.ui_bus import UiBus
 
 
 logger = get_logger(__name__)
@@ -21,6 +25,8 @@ logger = get_logger(__name__)
 _MAX_MENTION_CONTENT_LENGTH = 20000
 """Maximum length for file content to prevent excessive tokens."""
 
+_MAX_CONTEXT_PREVIEW_LENGTH = 200
+"""Maximum length for context preview."""
 
 class Role(str, Enum):
     """Roles in a conversation between user, model and tools."""
@@ -141,6 +147,35 @@ class History(BaseModel):
             litellm.Message(role="user", content=f"---\n# {title}\n\n{content}\n\n---"),
         )
 
+@register_renderer
+def render_history(history: History, console: Console) -> None:
+    """Render a full history on the UI."""
+    table = Table(title="Conversation history")
+
+    table.add_column("Role", justify="right", style=Styles.RICH_HISTORY_ROLE, no_wrap=True)
+    table.add_column("Message", style=Styles.RICH_HISTORY_MESSAGE)
+
+    if history.system_message:
+        table.add_row("System", history.system_message)
+    if history.context:
+        context_str = str(history.context)
+        display_context = (
+            context_str[:_MAX_CONTEXT_PREVIEW_LENGTH] + "..."
+            if len(context_str) > _MAX_CONTEXT_PREVIEW_LENGTH
+            else context_str
+        )
+        table.add_row("Context", display_context)
+    if not history.messages:
+        table.add_row("", "No other messages yet...")
+    else:
+        for msg in history.messages:
+            content = msg.content
+            if msg.tool_calls:
+                content += "\n\n + tool calls"
+            table.add_row(msg.role, content)
+
+    console.print(table)
+
 
 class HistoryManager:
     """Manages the state and operations related to conversation history."""
@@ -148,19 +183,19 @@ class HistoryManager:
     def __init__(
         self,
         app_args: Args,
-        ui: "ConsoleUI",
+        ui_bus: "UiBus",
         system_context: SystemContext,
     ) -> None:
         """Initialize the HistoryManager.
 
         Args:
             app_args: Application args.
-            ui: ConsoleUI instance for displaying messages.
+            ui_bus: UI event bus to send messages to the UI.
             system_context: System and project context data access.
 
         """
         self.app_args = app_args
-        self.ui = ui
+        self.ui_bus = ui_bus
         self.system_context = system_context
         self._conversation_history: History | None = None
         logger.info("HistoryManager initialized.")

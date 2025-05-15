@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pathspec
 
-from streetrace.tools.definitions.read_directory_structure import is_ignored
+from streetrace.tools.definitions.list_directory import is_ignored
 
 
 # Unit tests for is_ignored

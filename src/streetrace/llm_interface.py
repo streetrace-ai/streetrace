@@ -18,7 +18,8 @@ from tenacity import (
 
 from streetrace.history import History
 from streetrace.log import get_logger
-from streetrace.ui.console_ui import ConsoleUI
+from streetrace.ui import ui_events
+from streetrace.ui.ui_bus import UiBus
 
 _MAX_RETRIES = 7
 """Maximum number of retry attempts for the retrying LLM."""
@@ -66,9 +67,9 @@ class LlmInterface(ABC, Generic[TLlmInterface]):
         """Call LLM interface's async generate method based on conversation history."""
 
 
-def get_llm_interface(model: str, ui: ConsoleUI) -> LlmInterface:
+def get_llm_interface(model: str, ui_bus: UiBus) -> LlmInterface:
     """Create an LLM interface factory."""
-    return AdkLiteLlmInterface(model, ui)
+    return AdkLiteLlmInterface(model, ui_bus)
 
 
 class RetryingLiteLlm(LiteLlm):
@@ -78,17 +79,17 @@ class RetryingLiteLlm(LiteLlm):
     implementation to handle transient errors like rate limits and server errors.
     """
 
-    def __init__(self, model: str, ui: ConsoleUI, **kwargs) -> None:
+    def __init__(self, model: str, ui_bus: UiBus, **kwargs) -> None:
         """Initialize the RetryingLiteLlm with a model and UI for feedback.
 
         Args:
             model: The name of the LiteLlm model
-            ui: Console UI component for displaying retry messages to the user
+            ui_bus: UI event bus to send messages to the UI.
             **kwargs: Additional arguments passed to the LiteLlm constructor
 
         """
         super().__init__(model=model, **kwargs)
-        self._ui = ui
+        self._ui_bus = ui_bus
         logger.debug("Initialized RetryingLiteLlm with model: %s", model)
 
     @override
@@ -140,9 +141,9 @@ class RetryingLiteLlm(LiteLlm):
             with attempt_context:
                 attempt += 1
                 if attempt > 1:
-                    self._ui.display_info(
+                    self._ui_bus.dispatch(ui_events.Info(
                         f"Retrying (attempt {attempt}/{_MAX_RETRIES})...",
-                    )
+                    ))
 
                 try:
                     # Call the original method for a single response
@@ -158,23 +159,23 @@ class RetryingLiteLlm(LiteLlm):
                 except RateLimitError as rate_limit_err:
                     # Log and display the rate limit error
                     logger.exception()
-                    self._ui.display_warning(
+                    self._ui_bus.dispatch(ui_events.Warning(
                         f"LLM rate limit reached: {rate_limit_err}",
-                    )
+                    ))
                     # Signal tenacity to retry
                     raise TryAgain from rate_limit_err
 
                 except InternalServerError as server_error:
                     # Log and display the server error
                     logger.exception("Server error encountered.")
-                    self._ui.display_error(f"LLM server error: {server_error}")
+                    self._ui_bus.dispatch(ui_events.Error(f"LLM server error: {server_error}"))
                     # Signal tenacity to retry
                     raise TryAgain from server_error
 
                 except Exception as e:
                     # Log unexpected errors but don't retry
                     logger.exception("LLM call failed with non-retried exception")
-                    self._ui.display_error(f"LLM error: {e}")
+                    self._ui_bus.dispatch(ui_events.Error(f"LLM error: {e}"))
                     # Re-raise the exception
                     raise
 
@@ -186,16 +187,16 @@ class AdkLiteLlmInterface(LlmInterface[RetryingLiteLlm]):
     functionality for handling transient errors like rate limits and server errors.
     """
 
-    def __init__(self, model: str, ui: ConsoleUI) -> None:
+    def __init__(self, model: str, ui_bus: UiBus) -> None:
         """Initialize new AdkLiteLlmInterface for the given model.
 
         Args:
             model (str): Model names in format provider/model, or just model. See https://docs.litellm.ai/docs/set_keys.
-            ui: UI component to write messages for the user.
+            ui_bus: UI event bus to send messages to the UI.
 
         """
-        self.llm_instance = RetryingLiteLlm(model=model, ui=ui)
-        self.ui = ui
+        self.llm_instance = RetryingLiteLlm(model=model, ui_bus=ui_bus)
+        self.ui_bus = ui_bus
 
     @override
     @property
@@ -235,5 +236,5 @@ class AdkLiteLlmInterface(LlmInterface[RetryingLiteLlm]):
             # RetryingLiteLlm should handle retryable exceptions, so this should only happen
             # for non-retryable errors after all retry attempts have been exhausted
             logger.exception("LLM call failed after retry attempts")
-            self.ui.display_error(f"LLM error: {e}")
+            self.ui_bus.dispatch(ui_events.Error(f"LLM error: {e}"))
             raise
