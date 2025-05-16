@@ -108,6 +108,8 @@ pyyaml = "^6.0.1"
 google-adk = "^0.4.0"
 typed-argparse = "^0.3.1"
 pypubsub = "^4.0.3"
+mistune = "^3.1.3"
+marko = "^2.1.3"
 
 
 [tool.poetry.scripts]

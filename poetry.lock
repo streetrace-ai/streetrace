@@ -1940,6 +1940,23 @@ rtd = ["jupyter_sphinx", "mdit-py-plugins", "myst-parser", "pyyaml", "sphinx", "
 testing = ["coverage", "pytest", "pytest-cov", "pytest-regressions"]
 
 [[package]]
+name = "marko"
+version = "2.1.3"
+description = "A markdown parser with high extensibility."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "marko-2.1.3-py3-none-any.whl", hash = "sha256:b4125d44b94606d6f13ddc77fef8cc4c87f70d54bc7d52d6547958b9f998a9d5"},
+    {file = "marko-2.1.3.tar.gz", hash = "sha256:31aacb14867328f054cc39f884212907822a43d6a30cd75b0767e001a5e2f9fc"},
+]
+
+[package.extras]
+codehilite = ["pygments"]
+repr = ["objprint"]
+toc = ["python-slugify"]
+
+[[package]]
 name = "markupsafe"
 version = "3.0.2"
 description = "Safely add untrusted strings to HTML/XML markup."
@@ -2048,6 +2065,18 @@ groups = ["main", "dev"]
 files = [
     {file = "mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8"},
     {file = "mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba"},
+]
+
+[[package]]
+name = "mistune"
+version = "3.1.3"
+description = "A sane and fast Markdown parser with useful plugins and renderers"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "mistune-3.1.3-py3-none-any.whl", hash = "sha256:1a32314113cff28aa6432e99e522677c8587fd83e3d51c29b82a52409c842bd9"},
+    {file = "mistune-3.1.3.tar.gz", hash = "sha256:a7035c21782b2becb6be62f8f25d3df81ccb4d6fa477a6525b15af06539f02a0"},
 ]
 
 [[package]]
@@ -4260,4 +4289,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "4709a30d41d622558b7c91e07f6e9255ef4ba8857607c16dc9b6452f74b71f90"
+content-hash = "868d75b83bc5554ca4323cf0f17e7f06899a72442dfbc3d81ec4c44efdc0464b"

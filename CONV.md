@@ -825,3 +825,51 @@ Read the next full chunk until we see `}}` or `|`. If we see `}}` we consider in
 Keep in mind that a single quote (` or ') is a part of a word, unless it's a '' (double single quote) which denotes a double quote in wikipedia.
 
 Also create a helper function that takes text content as an input, uses _extract_first_infobox, and pretty prints the infobox, so I can test with various fancy articles.
+
+===
+
+Third party code (google-adk):
+
+session.py: @.venv/lib/python3.12/site-packages/google/adk/sessions/session.py
+event.py: @.venv/lib/python3.12/site-packages/google/adk/events/event.py
+
+---
+
+Session object serialized as json: @tests/test_session_service.py.json
+
+---
+
+Expected markdown document: @tests/test_session_service.py.md
+
+---
+
+Implement the code in @src/streetrace/session_service.py
+
+---
+
+Implement tests in @tests/test_session_service.py
+
+---
+
+Please implement methods in `MDSessionSerializer`. Deduct the fields mapping from the provided json and markdown examples. Note that `events[].content.parts[].text` is external data, so valid markdown is not guaranteed. Use marko to convert the external markdown to AST before adding to the serialized document.
+
+When serializing, a better approach will be to build an AST of a complete document, and then render it to markdown. When deserializing, it seems best to parse markdown to AST, then create a dict and use model_validate to create the Session object.
+
+For markdown format, don't add any markers or front matter. Rely on the following facts:
+
+* Heading-1 ('#') is always the session-level info
+* `## App State` header contains data from Session.app_state
+* `## User State` header contains data from Session.user_state
+* `## Events` header contains the full Session.events list
+* Inside `## Events`, Heading-3 (`###`) defines the author of the message. There are two possible authors: the user (Session.user_id), and the app (Session.app_name). Consequent similar authors are skipped when rendering.
+* When deserializing, if can't extract the timestamp due to missing Heading-3, don't fill it in.
+* `#### call: $NAME` header specifies the 'function_call' field
+* `#### response: $NAME` header specifies the 'function_response' field
+
+Also, please implement tests covering the functionality using the existing example files (test_session_service.py.json and test_session_service.py.md).
+
+Add docstring comments in src/streetrace/session_service.py where missing.
+
+Review and critique the implementation as a third-party engineer, and introduce fixes as needed.
+
+Analyze the final implementation and provide feedback on what's missing, what are the pitfalls, and important missing test cases.

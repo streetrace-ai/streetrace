@@ -3,6 +3,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 
 from google.adk import Runner
 from google.adk.agents import Agent, BaseAgent
@@ -25,6 +26,18 @@ from streetrace.utils.uid import get_user_identity
 # TODO(krmrn42): persist global history
 
 
+def _serialise_session(session: Session, suffix: str = "") -> None:
+    path = Path(
+        f"./tmp/sessions/{session.app_name}_{session.user_id}_{session.id}{suffix}.json",
+    )
+    if not path.parent.exists():
+        path.parent.mkdir()
+    if not path.parent.is_dir():
+        msg = f"Tmp session path exists, but not a directory: {path.parent}"
+        raise ValueError(msg)
+    path.write_text(session.model_dump_json())
+
+
 class Supervisor:
     """Workflow supervisor manages and executes available workflows."""
 
@@ -41,7 +54,7 @@ class Supervisor:
         self.session_service = InMemorySessionService()
         self.session_id = datetime.now(tz=get_localzone()).strftime("%Y-%m-%d_%H-%M")
         self.session_user_id = get_user_identity()
-        self.session: Session = None
+        self.session: Session | None = None
         self.tool_provider = tool_provider
         self.history_manager = history_manager
 
@@ -155,11 +168,13 @@ class Supervisor:
                 )
 
         # Prepare the user's message in ADK format
-        content = types.Content(role="user", parts=parts)
+        content = types.Content(role="user", parts=parts) if parts else None
 
         final_response_text = "Agent did not produce a final response."  # Default
 
+        event_counter = 0
         session = self.get_or_create_session()
+        _serialise_session(session, "_00")
         async with self._create_agent("default") as root_agent:
             runner = Runner(
                 app_name=session.app_name,
@@ -171,8 +186,11 @@ class Supervisor:
             async for event in runner.run_async(
                 user_id=session.user_id,
                 session_id=session.id,
-                new_message=content,
+                new_message=content, # type: ignore[not-assignable]: wrong declaraion in adk
             ):
+                _serialise_session(
+                    self.get_or_create_session(), "_a" + str(event_counter),
+                )
                 self.ui_bus.dispatch_ui_update(event)
 
                 # Key Concept: is_final_response() marks the concluding message for the turn.
@@ -186,12 +204,37 @@ class Supervisor:
                         final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
                     # Add more checks here if needed (e.g., specific error codes)
                     break  # Stop processing events once the final response is found
+                _serialise_session(
+                    self.get_or_create_session(), "_x" + str(event_counter),
+                )
+                event_counter += 1
+            _serialise_session(self.get_or_create_session(), "_y")
+        _serialise_session(self.get_or_create_session(), "_z")
+
+        # z == y
+        # last x is missing one message (because break)
+        # last a == z == y
+        # a's events contain all events, gradually adding them one by one
+        # a0 contains the first assistant's response
+        # usage is nowhere to be found while I'm sure litellm reports usage
+
+        # global history will maintain user's requests and model's final responses
+        # global history will only be used for rag
+        # each session starts from scratch
+        # each session will be saved in a storage, so we can create a UI to view all
+        # sessions
+
+        # serialization format: MD with front matter and special sections for attributes
+        # process: implement a BaseSessionService inheriting from InMemorySessionService
+        #   when even is received, it writes to MD
 
         # Add the agent's final message to the history
         if final_response_text:
-            self.history_manager.get_history().add_assistant_message(
-                final_response_text,
-            )
+            history = self.history_manager.get_history()
+            if not history:
+                msg = "History is not initialized"
+                raise ValueError(msg)
+            history.add_assistant_message(final_response_text)
 
         # https://google.github.io/adk-docs/runtime/#how-it-works-a-simplified-invocation
         # how do multiple agents work? https://google.github.io/adk-docs/agents/multi-agents/

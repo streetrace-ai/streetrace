@@ -20,7 +20,6 @@ def init_logging(args: Args) -> None:
 
     Should be called once when the application starts.
     """
-    litellm.suppress_debug_info = True
     # --- Logging Configuration ---
     # Basic config for file logging
     basicConfig(
@@ -41,6 +40,7 @@ def init_logging(args: Args) -> None:
 
     # Configure Logging Level based on args
     if args.verbose:
+        litellm. _turn_on_debug()  # noqa: SLF001 https://docs.litellm.ai/docs/debugging/local_debugging
         # Add console handler only if debug is enabled
         console_handler.setLevel(DEBUG)
         # Root logger setup
@@ -48,6 +48,8 @@ def init_logging(args: Args) -> None:
         root_logger.setLevel(DEBUG)
         root_logger.addHandler(console_handler)
         root_logger.info("Debug logging enabled.")
+    else:
+        litellm.suppress_debug_info = True
     # --- End Logging Configuration ---
 
 

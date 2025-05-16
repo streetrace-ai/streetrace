@@ -13,7 +13,7 @@ from mcp import StdioServerParameters
 from streetrace.tools.definitions.fake_tools import get_current_time, get_weather
 from streetrace.utils.hide_args import hide_args
 
-AnyTool = Callable | BaseTool | None
+AnyTool = Callable | BaseTool
 
 _MCP_TOOLS_PREFIX = "mcp:"
 _STREETRACE_TOOLS_PREFIX = "streetrace:"

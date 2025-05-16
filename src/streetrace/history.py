@@ -2,7 +2,7 @@
 
 from dataclasses import field
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import litellm
 from pydantic import BaseModel
@@ -65,11 +65,17 @@ class History(BaseModel):
         messages = []
         if self.system_message:
             messages.append(
-                litellm.Message(role=Role.SYSTEM, content=self.system_message),
+                litellm.Message(
+                    role=Role.SYSTEM, # type: ignore[not-assignable]: wrong declaraion in adk
+                    content=self.system_message,
+                ),
             )
         if self.context:
             messages.append(
-                litellm.Message(role=Role.CONTEXT, content=self.context),
+                litellm.Message(
+                    role=Role.CONTEXT, # type: ignore[not-assignable]: wrong declaraion in adk
+                    content=self.context,
+                ),
             )
         return messages + self.messages
 
@@ -96,7 +102,7 @@ class History(BaseModel):
     def add_assistant_message_test(
         self,
         content: str,
-        tool_call: dict[str, any] | None = None,
+        tool_call: dict[str, Any] | None = None,
     ) -> None:
         """Add an assistant message to the conversation history.
 
@@ -133,7 +139,10 @@ class History(BaseModel):
 
         """
         self.messages.append(
-            litellm.Message(role="user", content=content),
+            litellm.Message(
+                role="user", # type: ignore[not-assignable]: wrong declaraion in adk
+                content=content,
+            ),
         )
 
     def add_context_message(self, title: str, content: str) -> None:
@@ -145,7 +154,10 @@ class History(BaseModel):
 
         """
         self.messages.append(
-            litellm.Message(role="user", content=f"---\n# {title}\n\n{content}\n\n---"),
+            litellm.Message(
+                role="user", # type: ignore[not-assignable]: wrong declaraion in adk
+                content=f"---\n# {title}\n\n{content}\n\n---",
+            ),
         )
 
 
@@ -176,9 +188,11 @@ def render_history(history: History, console: Console) -> None:
         table.add_row("", "No other messages yet...")
     else:
         for msg in history.messages:
-            content = msg.content
+            content = msg.content or ""
+            if content and msg.tool_calls:
+                content += "\n\n"
             if msg.tool_calls:
-                content += "\n\n + tool calls"
+                content += " + tool calls"
             table.add_row(msg.role, content)
 
     console.print(table)
