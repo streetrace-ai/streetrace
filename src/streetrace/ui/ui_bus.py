@@ -125,7 +125,8 @@ class UiBus:
 
         """
         self._publisher.sendMessage(
-            _PROMPT_TOKEN_COUNT_ESTIMATE_EVENT, token_count=token_count,
+            _PROMPT_TOKEN_COUNT_ESTIMATE_EVENT,
+            token_count=token_count,
         )
 
     def on_prompt_token_count_estimate(self, listener: Callable) -> None:

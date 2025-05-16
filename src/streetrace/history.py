@@ -155,7 +155,10 @@ def render_history(history: History, console: Console) -> None:
     table = Table(title="Conversation history")
 
     table.add_column(
-        "Role", justify="right", style=Styles.RICH_HISTORY_ROLE, no_wrap=True,
+        "Role",
+        justify="right",
+        style=Styles.RICH_HISTORY_ROLE,
+        no_wrap=True,
     )
     table.add_column("Message", style=Styles.RICH_HISTORY_MESSAGE)
 
