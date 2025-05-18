@@ -26,7 +26,7 @@ def history_manager_instance():
 
     # Mock system_context for get_system_message and get_project_context
     mock_sc.get_system_message.return_value = "Test System Message"
-    mock_sc.get_project_context.return_value = "Test Project Context"
+    mock_sc.get_project_context.return_value = ["Test Project Context"]
 
     # Mock build_context on the PromptProcessor mock
     mock_initial_context = MagicMock()
@@ -49,7 +49,7 @@ def history_manager_instance():
 
     # Re-assign after reset
     mock_sc.get_system_message.return_value = "Test System Message"
-    mock_sc.get_project_context.return_value = "Test Project Context"
+    mock_sc.get_project_context.return_value = ["Test Project Context"]
     mock_pp.build_context.return_value = mock_initial_context
 
     return manager
@@ -70,7 +70,7 @@ def test_initialize_history_interactive(history_manager_instance: HistoryManager
     history = manager.get_history()
     assert history is not None
     assert history.system_message == "Test System Message"
-    assert history.context == "Test Project Context"
+    assert history.context == ["Test Project Context"]
     assert len(history.messages) == 0
 
 

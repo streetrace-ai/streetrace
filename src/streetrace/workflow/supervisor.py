@@ -7,6 +7,7 @@ from pathlib import Path
 
 from google.adk import Runner
 from google.adk.agents import Agent, BaseAgent
+from google.adk.events import Event
 from google.adk.sessions import InMemorySessionService, Session
 from google.genai import types  # For creating message Content/Parts
 from tzlocal import get_localzone
@@ -14,7 +15,6 @@ from tzlocal import get_localzone
 from streetrace.app_name import APP_NAME
 from streetrace.history import HistoryManager
 from streetrace.llm_interface import LlmInterface
-from streetrace.messages import SYSTEM_MVP
 from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui.adk_event_renderer import render_event as _  # noqa: F401
@@ -72,6 +72,21 @@ class Supervisor:
                 session_id=self.session_id,
                 state={},  # <<< Initialize state during creation
             )
+            context = self.history_manager.system_context.get_project_context()
+            context_event = Event(
+                author="user",
+                content=types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="\n".join(context))],
+                ),
+            )
+            self.session_service.append_event(session, context_event)
+            session = self.session_service.get_session(
+                app_name=APP_NAME,
+                user_id=self.session_user_id,
+                session_id=self.session_id,
+            )
+
         self.session = session
         return session
 
@@ -106,6 +121,7 @@ class Supervisor:
             "streetrace:fs_tool::list_directory",
             "streetrace:fs_tool::read_file",
             "streetrace:fs_tool::write_file",
+            "streetrace:cli_tool::execute_cli_command",
             # "streetrace:git_tool::apply_git_format_patch",
             # "streetrace:git_tool::apply_git_unified_diff",
         ]
@@ -114,7 +130,7 @@ class Supervisor:
                 name="StreetRace",
                 model=self.llm_interface.llm,
                 description=APP_NAME,
-                instruction=SYSTEM_MVP,
+                instruction=self.history_manager.system_context.get_system_message(),
                 tools=tools,
             )
             yield root_agent
@@ -186,10 +202,11 @@ class Supervisor:
             async for event in runner.run_async(
                 user_id=session.user_id,
                 session_id=session.id,
-                new_message=content, # type: ignore[not-assignable]: wrong declaraion in adk
+                new_message=content,  # type: ignore[not-assignable]: wrong declaraion in adk
             ):
                 _serialise_session(
-                    self.get_or_create_session(), "_a" + str(event_counter),
+                    self.get_or_create_session(),
+                    "_a" + str(event_counter),
                 )
                 self.ui_bus.dispatch_ui_update(event)
 
@@ -205,7 +222,8 @@ class Supervisor:
                     # Add more checks here if needed (e.g., specific error codes)
                     break  # Stop processing events once the final response is found
                 _serialise_session(
-                    self.get_or_create_session(), "_x" + str(event_counter),
+                    self.get_or_create_session(),
+                    "_x" + str(event_counter),
                 )
                 event_counter += 1
             _serialise_session(self.get_or_create_session(), "_y")

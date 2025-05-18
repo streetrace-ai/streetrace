@@ -4,6 +4,8 @@ This module provides the SystemContext class responsible for loading and managin
 system messages and project context from the configuration directory.
 """
 
+from collections.abc import Iterable
+
 from streetrace import messages
 from streetrace.args import Args
 from streetrace.log import get_logger
@@ -58,14 +60,14 @@ class SystemContext:
         # Default system message
         return messages.SYSTEM
 
-    def get_project_context(self) -> str:
+    def get_project_context(self) -> Iterable[str]:
         """Read and combine all context files from the config directory (excluding system.md).
 
         Returns:
             A string containing the combined content of all context files.
 
         """
-        combined_context = ""
+        combined_context = []
         if not self.config_dir.exists() or not self.config_dir.is_dir():
             logger.info("Context directory '%s' not found.", self.config_dir)
             return combined_context
@@ -86,7 +88,6 @@ class SystemContext:
             logger.info("No additional context files found in '%s'.", self.config_dir)
             return combined_context
 
-        context_content_parts = []
         logger.info(
             "Reading project context files: %s",
             ", ".join(str(f) for f in context_files),
@@ -102,18 +103,15 @@ class SystemContext:
         for file_path in context_files:
             try:
                 content = file_path.read_text(encoding="utf-8")
-                context_content_parts.append(
-                    f"--- Context from: {file_path.name} ---\n\n{content}\n\n--- End Context: {file_path.name} ---\n\n\n",
-                )
+                combined_context.append(content)
                 logger.debug("Read context from: %s", file_path)
             except Exception as e:
                 log_msg = f"Error reading context file {file_path}: {e}"
                 logger.exception(log_msg)
                 self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
 
-        combined_context = "".join(context_content_parts)
         logger.info(
             "Successfully loaded project context from %d file(s).",
-            len(context_content_parts),
+            len(combined_context),
         )
         return combined_context

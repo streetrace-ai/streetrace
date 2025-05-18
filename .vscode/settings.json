@@ -32,4 +32,7 @@
     "python.analysis.ignore": [
         "tests/"
     ],
+    "editor.rulers": [
+        88
+    ],
 }

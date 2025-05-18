@@ -80,7 +80,7 @@ class TestSystemContext(unittest.TestCase):
     def test_get_project_context_no_files(self) -> None:
         """Test that empty string is returned when no context files exist."""
         context = self.system_context.get_project_context()
-        assert context == ""
+        assert context == []
 
     def test_get_project_context_with_files(self) -> None:
         """Test that context is combined from multiple files."""
@@ -94,12 +94,13 @@ class TestSystemContext(unittest.TestCase):
 
         try:
             context = self.system_context.get_project_context()
-            assert "Context from: context1.md" in context
-            assert "Content of context file 1" in context
-            assert "Context from: context2.md" in context
-            assert "Content of context file 2" in context
-            assert "End Context: context1.md" in context
-            assert "End Context: context2.md" in context
+            assert len(context) == 2
+            assert "Context from: context1.md" in context[0]
+            assert "Content of context file 1" in context[0]
+            assert "Context from: context2.md" in context[1]
+            assert "Content of context file 2" in context[1]
+            assert "End Context: context1.md" in context[0]
+            assert "End Context: context2.md" in context[1]
         finally:
             context_file1.unlink()
             context_file2.unlink()
@@ -135,10 +136,9 @@ class TestSystemContext(unittest.TestCase):
                 side_effect=side_effect_function,
             ):
                 context = self.system_context.get_project_context()
-                assert "Context from: context1.md" in context
-                assert "Content of context file 1" in context
-                # context2.md content should be missing
-                assert "Context from: context2.md" not in context
+                assert len(context) == 1
+                assert "Context from: context1.md" in context[0]
+                assert "Content of context file 1" in context[0]
                 self.mock_ui.display_error.assert_called_once()
         finally:
             context_file1.unlink()
@@ -153,7 +153,7 @@ class TestSystemContext(unittest.TestCase):
         )
 
         context = system_context.get_project_context()
-        assert context == ""
+        assert context == []
 
     def test_get_project_context_error_listing_dir(self) -> None:
         """Test that errors listing directory are handled."""
@@ -161,7 +161,7 @@ class TestSystemContext(unittest.TestCase):
             mock_iterdir.side_effect = PermissionError("Cannot list directory")
 
             context = self.system_context.get_project_context()
-            assert context == ""
+            assert context == []
             self.mock_ui.display_error.assert_called_once()
 
 

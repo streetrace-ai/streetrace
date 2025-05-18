@@ -1,5 +1,6 @@
 """Conversation history management."""
 
+from collections.abc import Iterable
 from dataclasses import field
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -35,9 +36,9 @@ class Role(str, Enum):
     @staticmethod
     def _generate_next_value_(
         name: str,
-        _start: int,
-        _count: int,
-        _last_values: list[str],
+        start: int,  # noqa: ARG004
+        count: int,  # noqa: ARG004
+        last_values: list[str],  # noqa: ARG004
     ) -> str:
         return name
 
@@ -52,7 +53,7 @@ class History(BaseModel):
     """Model for the conversation history."""
 
     system_message: str | None = None
-    context: str | None = None
+    context: Iterable[str] | None = None
     messages: list[litellm.Message] = field(default_factory=list)
 
     def get_all_messages(self) -> list[litellm.Message]:
@@ -66,15 +67,15 @@ class History(BaseModel):
         if self.system_message:
             messages.append(
                 litellm.Message(
-                    role=Role.SYSTEM, # type: ignore[not-assignable]: wrong declaraion in adk
+                    role=Role.SYSTEM,  # type: ignore[not-assignable]: wrong declaraion in adk
                     content=self.system_message,
                 ),
             )
         if self.context:
             messages.append(
                 litellm.Message(
-                    role=Role.CONTEXT, # type: ignore[not-assignable]: wrong declaraion in adk
-                    content=self.context,
+                    role=Role.CONTEXT,  # type: ignore[not-assignable]: wrong declaraion in adk
+                    content="".join(self.context),
                 ),
             )
         return messages + self.messages
@@ -140,7 +141,7 @@ class History(BaseModel):
         """
         self.messages.append(
             litellm.Message(
-                role="user", # type: ignore[not-assignable]: wrong declaraion in adk
+                role="user",  # type: ignore[not-assignable]: wrong declaraion in adk
                 content=content,
             ),
         )
@@ -155,7 +156,7 @@ class History(BaseModel):
         """
         self.messages.append(
             litellm.Message(
-                role="user", # type: ignore[not-assignable]: wrong declaraion in adk
+                role="user",  # type: ignore[not-assignable]: wrong declaraion in adk
                 content=f"---\n# {title}\n\n{content}\n\n---",
             ),
         )

@@ -14,11 +14,11 @@
 
 ### krmrn42, May 15th, 5:46:15 PM
 
-Read all files in the ./tmp/inputs directory, sum up their content as strings, and save the result in ./tmp/ outputs in a file named with the current date.
+> Read all files in the ./tmp/inputs directory, sum up their content as strings, and save the result in ./tmp/ outputs in a file named with the current date.
 
 ### street-race, May 15th, 5:46:15 PM
 
-I'll help you read all files in the ./tmp/inputs directory, concatenate their contents, and save the result to a new file with today's date. Let me start by checking if the directories exist and what files are in the inputs directory.
+> I'll help you read all files in the ./tmp/inputs directory, concatenate their contents, and save the result to a new file with today's date. Let me start by checking if the directories exist and what files are in the inputs directory.
 
 #### call: `list_directory`
 
@@ -47,7 +47,7 @@ I'll help you read all files in the ./tmp/inputs directory, concatenate their co
 }
 ```
 
-Great! I found two files in the inputs directory: \"a.txt\" and \"b.txt\". Now I need to check if the outputs directory exists and create it if it doesn't.
+> Great! I found two files in the inputs directory: \"a.txt\" and \"b.txt\". Now I need to check if the outputs directory exists and create it if it doesn't.
 
 #### call: `list_directory`
 
@@ -80,7 +80,7 @@ Great! I found two files in the inputs directory: \"a.txt\" and \"b.txt\". Now I
 }
 ```
 
-The outputs directory exists. Now I'll read the content of each file in the inputs directory and concatenate them.
+> The outputs directory exists. Now I'll read the content of each file in the inputs directory and concatenate them.
 
 #### call: `read_file`
 
@@ -130,9 +130,9 @@ The outputs directory exists. Now I'll read the content of each file in the inpu
 }
 ```
 
-Now I have the content of both files. I'll concatenate them and create a new file with today's date in the outputs directory.
-
-Let me generate the current date in YYYY-MM-DD format for the filename. Since I don't have a direct way to get the current date through the available functions, I'll create a file with the date format pattern and you'll get a file with today's actual date when this runs.
+> Now I have the content of both files. I'll concatenate them and create a new file with today's date in the outputs directory.
+>
+> Let me generate the current date in YYYY-MM-DD format for the filename. Since I don't have a direct way to get the current date through the available functions, I'll create a file with the date format pattern and you'll get a file with today's actual date when this runs.
 
 #### call: `write_file`
 

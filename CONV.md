@@ -870,6 +870,10 @@ Also, please implement tests covering the functionality using the existing examp
 
 Add docstring comments in src/streetrace/session_service.py where missing.
 
-Review and critique the implementation as a third-party engineer, and introduce fixes as needed.
+Review and critique the implementation as a third-party engineer, and fix the code based on feedback.
 
 Analyze the final implementation and provide feedback on what's missing, what are the pitfalls, and important missing test cases.
+
+===
+
+Analyze the requirements and understand the goal. Come up several approaches to reach the goal. List the trade-offs of each approach. Review the approaches and critique as a software engineer. Choose and propose the best approach. Provide a short description of each approach, and a detailed description of the proposed approach.

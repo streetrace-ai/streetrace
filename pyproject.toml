@@ -47,6 +47,7 @@ allow-star-arg-any = true
     "ANN201", # allow missing return types annotations in tests.
     "ANN202", # allow missing return types annotations in tests.
     "ANN204", # allow missing return types annotations in tests.
+    "ANN206", # allow missing return types annotations in tests.
     "PLR2004", # allow magic values in tests.
     "PT011", # allow broad assert raise checks in tests.
 ]

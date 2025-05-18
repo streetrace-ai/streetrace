@@ -164,7 +164,6 @@ def list_directory(
 def read_file(
     path: str,
     work_dir: Path,
-    encoding: str = "utf-8",
 ) -> str:
     """Read the contents of a file from the file system.
 
@@ -181,7 +180,7 @@ def read_file(
             "output": file contents if the reading succeeded
 
     """
-    return rf.read_file(_clean_path(path), work_dir, encoding)
+    return rf.read_file(_clean_path(path), work_dir)
 
 
 def write_file(
