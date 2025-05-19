@@ -2,12 +2,13 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
-from typing import Generic, TypeVar, override
+from typing import cast, override
 
+from google.adk.models.base_llm import BaseLlm
 from google.adk.models.lite_llm import LiteLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from litellm import token_counter
+from litellm import token_counter  # type: ignore[not-exported]: documented use
 from litellm.exceptions import InternalServerError, RateLimitError
 from litellm.types.utils import ModelResponse
 from tenacity import (
@@ -34,12 +35,10 @@ _RETRY_WAIT_INCREMENT = 30
 _RETRY_WAIT_MAX = 10 * 60  # 10 minutes
 """Maximum waiting time between retries in seconds (10 minutes)."""
 
-TLlmInterface = TypeVar("TLlmInterface")
-
 logger = get_logger(__name__)
 
 
-class LlmInterface(ABC, Generic[TLlmInterface]):
+class LlmInterface(ABC):
     """A generic LLM interface.
 
     Provides a way to call an LLM using StreetRace🚗💨 internal types for ease of use.
@@ -54,9 +53,9 @@ class LlmInterface(ABC, Generic[TLlmInterface]):
 
     """
 
-    @property
-    def llm(self) -> TLlmInterface:
-        """The internal LLM interface instance."""
+    @abstractmethod
+    def get_adk_llm(self) -> BaseLlm:
+        """Get the ADK LLM interface instance."""
         raise NotImplementedError
 
     @abstractmethod
@@ -171,9 +170,9 @@ class RetryingLiteLlm(LiteLlm):
 
                 except RateLimitError as rate_limit_err:
                     # Log and display the rate limit error
-                    logger.exception()
+                    logger.exception("Rate limit error")
                     self._ui_bus.dispatch_ui_update(
-                        ui_events.Warning(
+                        ui_events.Warn(
                             f"LLM rate limit reached: {rate_limit_err}",
                         ),
                     )
@@ -197,7 +196,7 @@ class RetryingLiteLlm(LiteLlm):
                     raise
 
 
-class AdkLiteLlmInterface(LlmInterface[RetryingLiteLlm]):
+class AdkLiteLlmInterface(LlmInterface):
     """LiteLLM interface for ADK using RetryingLiteLlm.
 
     This implementation uses the RetryingLiteLlm class which has built-in retry
@@ -218,8 +217,7 @@ class AdkLiteLlmInterface(LlmInterface[RetryingLiteLlm]):
         ui_bus.on_typing_prompt(self.estimate_token_count)
 
     @override
-    @property
-    def llm(self) -> RetryingLiteLlm:
+    def get_adk_llm(self) -> RetryingLiteLlm:
         """Get the internal LLM interface reference."""
         return self.llm_instance
 
@@ -234,6 +232,7 @@ class AdkLiteLlmInterface(LlmInterface[RetryingLiteLlm]):
         messages = [{"user": "role", "content": prompt}]
         estimated_token_count = token_counter(model=self.model, messages=messages)
         self.ui_bus.dispatch_prompt_token_count_estimate(estimated_token_count)
+        return estimated_token_count
 
     # RetryingLiteLlm already handles the retry logic internally, so we don't need
     # the tenacity decorator here anymore
@@ -256,12 +255,15 @@ class AdkLiteLlmInterface(LlmInterface[RetryingLiteLlm]):
         # which will handle retries internally
         try:
             # Use the llm_client from RetryingLiteLlm to make the API call
-            return await self.llm_instance.llm_client.acompletion(
-                model=self.llm_instance.model,
-                messages=[m.to_dict() for m in history.get_all_messages()],
-                stream=False,
-                tools=tools,
-                num_retries=0,  # Let RetryingLiteLlm handle retries
+            return cast(
+                "ModelResponse",
+                await self.llm_instance.llm_client.acompletion(
+                    model=self.llm_instance.model,
+                    messages=[m.to_dict() for m in history.get_all_messages()],
+                    stream=False,
+                    tools=tools,
+                    num_retries=0,  # Let RetryingLiteLlm handle retries
+                ),
             )
         except Exception as e:
             # RetryingLiteLlm should handle retryable exceptions, so this should only happen

@@ -128,7 +128,7 @@ class Supervisor:
         async with self.tool_provider.get_tools(required_tools) as tools:
             root_agent = Agent(
                 name="StreetRace",
-                model=self.llm_interface.llm,
+                model=self.llm_interface.get_adk_llm(),
                 description=APP_NAME,
                 instruction=self.history_manager.system_context.get_system_message(),
                 tools=tools,
