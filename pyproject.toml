@@ -16,17 +16,13 @@ license = {file = "LICENSE"}
 [project.scripts]
 streetrace = "streetrace.main:main"
 
-[tool.black]
-line-length = 88
-target-version = ['py310'] # Updated target version for match statements
-
 [tool.ruff]
 line-length = 88
 fix = true
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["E501", "D203", "D213", "ANN002", "ANN003"]  # Example: ignore line-too-long if black already formats
+ignore = ["D203", "D213", "ANN002", "ANN003"]
 
 [tool.ruff.flake8-annotations]
 allow-star-arg-any = true
@@ -79,7 +75,6 @@ asyncio_mode = "auto"
 [tool.poetry.group.dev.dependencies]
 deptry = "^0.23.0"
 python-dotenv = "^1.1.0"
-black = "^25.1.0"
 ruff = "^0.11.7"
 mypy = "^1.15.0"
 bandit = "^1.8.3"

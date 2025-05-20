@@ -20,6 +20,7 @@ To make this a real tool, I need to:
 
 ### todo
 
+- [ ] build context mode
 - [ ] identify all features of interaction manager and confirm in adk implementation
     - [ ] count tokens: check if tokens are stored in session
     - [ ] fix status progress

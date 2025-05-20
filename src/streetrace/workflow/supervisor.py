@@ -242,9 +242,8 @@ class Supervisor:
         # each session will be saved in a storage, so we can create a UI to view all
         # sessions
 
-        # serialization format: MD with front matter and special sections for attributes
         # process: implement a BaseSessionService inheriting from InMemorySessionService
-        #   when even is received, it writes to MD
+        #   when even is received, it writes to the storage
 
         # Add the agent's final message to the history
         if final_response_text:

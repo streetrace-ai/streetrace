@@ -27,14 +27,14 @@ Describe this project based on @README.md
 Then we will add the following items into the conversation history:
 
 - user message 1:
-Contents of ./README.md:
+  Contents of ./README.md:
 
 ```md
 ...CONTENTS OF THE FILE...
 ```
 
 - user message 2:
-Describe this project based on @README.md
+  Describe this project based on @README.md
 
 Summarize the requirements and describe the alternative approaches. Keep asking questions to clarify requirements before starting to implement.
 
@@ -53,8 +53,6 @@ Describe the alternative approaches. Keep asking questions to clarify requiremen
 
 ===
 
-
-
 ===
 
 This is a python project with a lot of python code. I want to make sure the code is perfect from the lint, style, and documentation perspectives. Could you look around the files and folders and suggest a good project structure and a CI pipeline that guarantees high code quality and reports or auto-fixes all potential code style issues?
@@ -63,23 +61,23 @@ This is a python project with a lot of python code. I want to make sure the code
 
 Let's implement token counting for gemini. Whenever the response is received, we need to get token counts from response usage_metadata. What we need is to know how much tokens this conversation history consumes (prompt_token_count), how much of it is cached (cached_content_token_count), and candidates_token_count. We can use these token counds in the manage_conversation_history to try and fit the conversation history into the context window. We also need to accumulate tokens and print stats for every response: numbers for the current response, and total numbers for this working session.
 
-
 ===
 
 Let's make sure we have 100% test coverage for @src/streetrace/llm/anthropic/impl.py. The existing tests might be heavily outdated, please go ahead and remove or re-write implausible tests, the ground truth is in the implementation. Please keep the implementation as-is, unless there are obvious issues with it. I want the code to be concise and assertive, may be , so you might as well re-write it and remove parts that do not make senseare not present in the actual converter.py.
 Make sure you activate venv when running tests, so that you have anthropic and may be /impl right dependencies.
 Make sure to check with the @CONTRIBUTING.do not make sensemd when introducing changes.
 
-
 ===
 
 run pytest and try to fix failing tests. Do not modify files under src/streetrace as they work as expected.
 
 Anthropic:
+
 - Ignored the "do not modify" part and started making pointless changes in the codebase
 - Very slow in general, but even then, rate limits made imposible to dig through everything.
 
 Gemini:
+
 - Ignored the "do not modify" but the modifications were at least not that dumb
 - Errored out with 500, but fixed over a half of the tests driving coverage to 60%
 
@@ -96,7 +94,6 @@ All files in the ./tmp/inputs directory contain numbers. Sum up thouse numbers a
 ===
 
 The commands, like 'history', 'exit', and 'quit' should start with a slash, allowing the user to type a slash and then the command name. When typing slash, the autocomplete should trigger suggesting available commands. To allow that, @src/streetrace/path_completer.py should be refactored leveraging composition pattern. The main Completer called PromptCompleter will handle all completions, leveraging helper classes to provide those completions. PromptCompleter will be initialized with a list of helper completer classes. When completions are requested, it will iterate through all available helper completers and provide a concatenated list of all completioons.
-
 
 ===
 
@@ -117,6 +114,7 @@ The status has to stay just "Working, total requests: n_requests" until the firs
 ---
 
 #### ✅ **Format Specification**
+
 Each chat message must be written in the following structure:
 
 ```markdown
@@ -176,12 +174,12 @@ def deserialize_chat_from_markdown(path):
 ---
 
 #### ✅ **Rendering Goals**
+
 - File should render cleanly in Markdown viewers.
 - Easy for humans to browse, edit, and version-control (e.g. Git).
 - Metadata must remain visible and editable.
 
 ---
-
 
 In @app/application.py there is conversation history object for both interactive and non-interactive mode. We need to implement conversation history management over app restarts. This includes:
 
@@ -193,7 +191,6 @@ In @app/application.py there is conversation history object for both interactive
 6. Implement an optional command line argument to specify the conversation history ID (applicable to both interactive and non-interactive modes). If the argument is specified, the history needs to be hydrated from the referenced history file. If an invalid history ID is provided by the user, we should immediately error out and exit.
 
 Let's store the history as markdown files that look nice when rendered, but include special macros that we can use when parsing and saving to allow parsing as a proper history. The big advantage of storing in mardown is that user can immediately render the result, use a markdown editor to edit it, etc., so lets make sure the rendered format shows proper formatting for turns, roles, and all messages. Describe the alternative approaches. Keep asking questions to clarify requirements before starting to implement.
-
 
 ---
 
@@ -298,7 +295,9 @@ You will be penalized for reading the existing files at this stage, just leverag
 Task:
 
 ---
+
 > ...
+
 ---
 
 Save your analysis output in tasks/0001/10-Requirements.md.
@@ -328,7 +327,9 @@ I have prepared an implementation approach summary that provides more context in
 Task:
 
 ---
+
 > ...
+
 ---
 
 Please provide a step-by-step detailed textual flow chart for this feature and save it in tasks/0001/30-Flwochart.md.
@@ -340,7 +341,9 @@ Please provide a step-by-step detailed textual flow chart for this feature and s
 I am working on a new task described as follows:
 
 ---
+
 > ...
+
 ---
 
 I have summarized the requirements in @tasks/0001/10-Requirements.md.
@@ -354,7 +357,9 @@ Define a set of user scenarios that can be used as ground rules for testing this
 I am working on a new task described as follows:
 
 ---
+
 > ...
+
 ---
 
 I have summarized the requirements in @tasks/0001/10-Requirements.md, an implementation approach in @tasks/0001/20-Approach.md, and ground truth user scenarios in @tasks/0001/40-GroundRules.md.
@@ -373,7 +378,9 @@ Please list the created tests and stubs in tasks/0001/50-GroundRuleTests.md.
 I am working on a new task described as follows:
 
 ---
+
 > ...
+
 ---
 
 I have summarized the implementation approach in the following files:
@@ -397,7 +404,9 @@ Analyze the implementation and describe the implementation details in tasks/0001
 The original user's request was:
 
 ---
+
 > ...
+
 ---
 
 I've prepared a flowchart related to this feature in @tasks/0001/30-Flwochart.md, and implemented this feature describing my understanding in @tasks/0001/20-Approach.md, implementation in @tasks/0001/60-Implementation.md.
@@ -442,7 +451,9 @@ Save your analysis result in tasks/0001/80-StaticAnalysis.md
 The original user's request was:
 
 ---
+
 > ...
+
 ---
 
 Review the implemented code for quality and relevance of introduced changes, based on the given input. You can check the modified and added files using `git status -u`. Analyze if there are important issues with the reviewed code, such as potential bugs and security issues, high cyclomatic complexity, or low maintainability, and summarize your recommendations on further optimizations. Provide a short conclusion and suggestions on enhancing the code if necessary.
@@ -465,19 +476,18 @@ Workflow:
    Store the requirements
 1. **Approach**
 1. Summarize the result and store separately so we can re-write the history going forward.
-2. **Ground rule scenarios**
+1. **Ground rule scenarios**
    Store the scenarios.
-3. **Ground rule tests**
+1. **Ground rule tests**
    Store the test path / name.
-3. **Implement**
+1. **Implement**
    Summarize the implemented solution.
    Store the summary.
-7. Iterate until the tests pass.
-8. Review all changes and idenfity if they fulfill the original requirements
-8. Implement additional tests to achieve high level of coverage for the new code.
-9. **Code review**
-9. **Static analysis**
-
+1. Iterate until the tests pass.
+1. Review all changes and idenfity if they fulfill the original requirements
+1. Implement additional tests to achieve high level of coverage for the new code.
+1. **Code review**
+1. **Static analysis**
 
 ---
 
@@ -544,9 +554,9 @@ See lint issues in @tmp/lint.txt and fix them. Run `make test` to make sure all 
 
 Thoughts:
 
-* Can I have the model to manage the conv history keeping only what's needed?
-* Can I run CLI right from the prompt to append the result to user messages?
-* Can I pipe CLI results into model with additional instructions? If the pipe is not saved in history, then it gives me a way
+- Can I have the model to manage the conv history keeping only what's needed?
+- Can I run CLI right from the prompt to append the result to user messages?
+- Can I pipe CLI results into model with additional instructions? If the pipe is not saved in history, then it gives me a way
   to quickly add CLI result summaries to history. E.g.:
 
   ```
@@ -562,7 +572,6 @@ Thoughts:
   ```
 
   Adds the summarization result to history.
-
 
 ===
 
@@ -606,7 +615,7 @@ When creating tests, please make sure to create small and fast tests.
 
 ---
 
-Run `git status` to see what's in progress right now. There are several tests failing, specifically in @tests/test_application.py, @tests/test_history_ manager.py, and @tests/test_interaction_manager.py. Please fix failing tests.
+Run `git status` to see what's in progress right now. There are several tests failing, specifically in @tests/test*application.py, @tests/test_history* manager.py, and @tests/test_interaction_manager.py. Please fix failing tests.
 
 Remember, when running any python code, run with `poetry`, for example `poetry run pytest tests/test_application.py --timeout=5`.
 When running pytest, always run a specific file or test, for example `poetry run pytest tests/test_history_manager.py --timeout=5`.
@@ -633,12 +642,11 @@ In all cases, we need to introduce some kind of history management that is separ
 
 What are the other options to achieve the goal?
 
-
 # RAG approach
 
 I want to enable LLM to be able to find where a certain feature is implemented and how it impacts the rest of the codebase.
- Ideally, I want to index the codebase so the LLM can search the index and find relevant code locations. Assuming the user continuously uses similar vocabulary,
- and the code is well documented, I want the model to call a tool providing relevant keywords, and find all places in code relevant to this feature.
+Ideally, I want to index the codebase so the LLM can search the index and find relevant code locations. Assuming the user continuously uses similar vocabulary,
+and the code is well documented, I want the model to call a tool providing relevant keywords, and find all places in code relevant to this feature.
 
 For example, I have a web-app that implements a todo list. When I say "Add category labels to todo lists", the model calls a tool:
 
@@ -653,7 +661,6 @@ How to implement a tool like that?
 Just share a proposal, don't start implementing yet.
 
 Answer as an expert in the area, then act as a third-party expert in the area, assess the proposal, critique and provide feedback. Finally, merge both to share your conclusion.
-
 
 # mcp (brainstorm template)
 
@@ -676,7 +683,6 @@ Some quick examples:
 3. Define a team of experts, and brainstorm this with the team.
 4. Follow an ATAM process to evaluate.
 
-
 ====
 
 Create a python app that has three running modes each of which implements the following:
@@ -688,8 +694,8 @@ Downloads the latest english-language wikipedia dump (from a mirror if there is 
 # 2. Parser
 
 1. Reads the wikipedia dump from a location indicated in the '--dump' argument and unpacks it.
-3. Parses it to find all articles about people, locations, and redirects (see details below).
-4. Stores the extracted data in local csv files (e.g., persons.csv, locations.csv, redirects.csv).
+2. Parses it to find all articles about people, locations, and redirects (see details below).
+3. Stores the extracted data in local csv files (e.g., persons.csv, locations.csv, redirects.csv).
 
 At this step, the parser extracts all fields as text keeping creole formatting, i.e. `[[` and `]]`, etc.
 
@@ -760,10 +766,12 @@ Then process the people dump (`./data/people_raw.csv`) in a streaming pipeline:
 1. Wikipedia page title (the page name that goes into the URL),
 2. Extract person's name from one of the fields, in order of priority: `full_name`, `full name`, `name`, page title. Remove HTML comments and all contens of any HTML tags, just keep plain text.
 3. Extract birth date from `birth_date`. We need the fullest possible date available in a form of json object like `{'y': 1900, 'm': 3, d: 10}` where both month and day are zero bound. For example:
-  - '{{birth date and age|1957|7|24|df=y}}' extracts as `{'y': 1957, 'm': 6, d: 23}`
-  - '1320s' extracts as `{'y': 1320}`
-  - '20 or 21 July 356 BC' extracts as `{'y': -356, 'm': 6, d: 20}`
-  - '{{circa|980}}' extracts as `{'y': 980}`
+
+- '{{birth date and age|1957|7|24|df=y}}' extracts as `{'y': 1957, 'm': 6, d: 23}`
+- '1320s' extracts as `{'y': 1320}`
+- '20 or 21 July 356 BC' extracts as `{'y': -356, 'm': 6, d: 20}`
+- '{{circa|980}}' extracts as `{'y': 980}`
+
 4. Extract person's birth location by taking all links from `birth_place` and looking them up in the name to coordinates mapping we've built before. The first location that was possible to map in the order the locations appear in the `birth_place` field wins. For example, if the `birth_place` = "Perhaps [[Transoxiana]], or eastern [[Uzbekistan]]", try looking up 'Transoxiana' in the location directory, which will fail, then try 'Uzbekistan' and use the identified coordinates.
 5. Extract occupation as plain value from one of the fields, in order of priority: 'Short description' or 'Infobox type'
 
@@ -811,7 +819,7 @@ Takes place and day and month of birth, translates the place of birth to lat/lon
 
 In the @parser.py `_process_content` function, where we extract person data, let's first extract the full in fobox with all of its attributes (including the type), and then lookup its properties.
 
-Specifically, lets create a new function called _extract_first_infobox that will accept `content` and return a dict[str,str]. _extract_first_infobox will find the first full infobox in the article (`{{infobox ... }}`) and parse it extracting all properties and their values.
+Specifically, lets create a new function called \_extract_first_infobox that will accept `content` and return a dict[str,str]. \_extract_first_infobox will find the first full infobox in the article (`{{infobox ... }}`) and parse it extracting all properties and their values.
 
 I believe, to address that, we need to create a state machine that can consume full quoted and parenthesised chunks of text. If we treat the infobox syntax as {{infobox name | property=value | property=value | .. }}, then we should follow this process to parse it properly:
 
@@ -824,7 +832,7 @@ Read the next full chunk until we see `}}` or `|`. If we see `}}` we consider in
 "free `=`" or "free `|`" means `=` or `|` that does not belong to any previous text chunk.
 Keep in mind that a single quote (` or ') is a part of a word, unless it's a '' (double single quote) which denotes a double quote in wikipedia.
 
-Also create a helper function that takes text content as an input, uses _extract_first_infobox, and pretty prints the infobox, so I can test with various fancy articles.
+Also create a helper function that takes text content as an input, uses \_extract_first_infobox, and pretty prints the infobox, so I can test with various fancy articles.
 
 ===
 
@@ -857,14 +865,14 @@ When serializing, a better approach will be to build an AST of a complete docume
 
 For markdown format, don't add any markers or front matter. Rely on the following facts:
 
-* Heading-1 ('#') is always the session-level info
-* `## App State` header contains data from Session.app_state
-* `## User State` header contains data from Session.user_state
-* `## Events` header contains the full Session.events list
-* Inside `## Events`, Heading-3 (`###`) defines the author of the message. There are two possible authors: the user (Session.user_id), and the app (Session.app_name). Consequent similar authors are skipped when rendering.
-* When deserializing, if can't extract the timestamp due to missing Heading-3, don't fill it in.
-* `#### call: $NAME` header specifies the 'function_call' field
-* `#### response: $NAME` header specifies the 'function_response' field
+- Heading-1 ('#') is always the session-level info
+- `## App State` header contains data from Session.app_state
+- `## User State` header contains data from Session.user_state
+- `## Events` header contains the full Session.events list
+- Inside `## Events`, Heading-3 (`###`) defines the author of the message. There are two possible authors: the user (Session.user_id), and the app (Session.app_name). Consequent similar authors are skipped when rendering.
+- When deserializing, if can't extract the timestamp due to missing Heading-3, don't fill it in.
+- `#### call: $NAME` header specifies the 'function_call' field
+- `#### response: $NAME` header specifies the 'function_response' field
 
 Also, please implement tests covering the functionality using the existing example files (test_session_service.py.json and test_session_service.py.md).
 
@@ -877,3 +885,17 @@ Analyze the final implementation and provide feedback on what's missing, what ar
 ===
 
 Analyze the requirements and understand the goal. Come up several approaches to reach the goal. List the trade-offs of each approach. Review the approaches and critique as a software engineer. Choose and propose the best approach. Provide a short description of each approach, and a detailed description of the proposed approach.
+
+===
+
+Take a look at @src/streetrace/session_service.py. I've implemented a `class MDSessionWriter` to render session objects as mardown. Now we need to deserialize the stored markdown back into session object. The example Session.model_dump_json() output is in @tests/test_session_service.py.json, and the example markdown written by `MDSessionWriter.write_session` is in @tests/test_session_service.py.md.
+
+Please implement the `MDSessionReader.read_session` method. Keep `MDSessionWriter` and `MDSessionWriter` as is.
+
+Note that the event author title ("### _{author}_\n") in "All Events" section is only written when the author name changes. During deserialization, make sure that a new event is created as needed based on the test_session_service.py.json example provided. In one event, there can be only the text and only one function call or response. Every following call and response are new events.
+
+Analyze different approaches to implementation, provide their trade-offs, and critique the approaches. Choose the best approach based on critique and trade-offs.
+
+When any unexpected markup is seen, raise the UnexpectedMarkdownFormatError (you can use the `_unexpected_err` helper). This is a low level component, it should raise exceptions and fail fast when it cannot process the data.
+
+Please create a complete implementation, implement clean code with short and clear methods, then ask for feedback before running tests and lint.

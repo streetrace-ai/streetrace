@@ -1,21 +1,9 @@
-.PHONY: format fixformat lint fixlint typecheck security depcheck unusedcode check test coverage report quickfix publishpatch
-
-format:
-	poetry run black --check src tests
-
-fixformat:
-	poetry run black src tests
+.PHONY: lint typed security depcheck unusedcode quickcheck check test coverage report publishpatch
 
 lint:
-	poetry run ruff check src tests
-
-fixlint:
 	poetry run ruff check src tests --fix
 
-fixlintunsafe:
-	poetry run ruff check src tests --fix --unsafe-fixes
-
-typecheck:
+typed:
 	poetry run mypy src tests
 
 security:
@@ -36,9 +24,9 @@ coverage:
 report:
 	poetry run coverage report --show-missing
 
-quickfix: fixformat fixlint
+quickcheck: lint
 
-check: format lint typecheck security depcheck unusedcode
+check: lint typed security depcheck unusedcode
 
 publishpatch:
 	poetry version patch
