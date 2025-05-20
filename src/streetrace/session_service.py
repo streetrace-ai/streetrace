@@ -11,10 +11,29 @@ from google.adk.sessions.base_session_service import (
     GetSessionConfig,
     ListSessionsResponse,
 )
+from rich.console import Console
 
 from streetrace.log import get_logger
+from streetrace.ui.render_protocol import register_renderer
 
 logger = get_logger(__name__)
+
+
+@register_renderer
+def render_list_of_sessions(obj: list[Session], console: Console) -> None:
+    """Display a list of sessions in the console."""
+    app_name = ", ".join({session.app_name for session in obj})
+    user_id = ", ".join({session.user_id for session in obj})
+    session_list = [
+        f"- {session.id} (last updated: {session.last_update_time})" for session in obj
+    ]
+
+    session_listing = (
+        f"Available sessions for app '{app_name}' and user '{user_id}':\n"
+        + "\n".join(session_list)
+    )
+
+    console.print(session_listing)
 
 
 class JSONSessionSerializer:

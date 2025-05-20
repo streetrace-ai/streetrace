@@ -164,9 +164,9 @@ class History(BaseModel):
 
 
 @register_renderer
-def render_history(history: History, console: Console) -> None:
+def render_history(obj: History, console: Console) -> None:
     """Render a full history on the UI."""
-    table = Table(title="Conversation history")
+    table = Table(title="Conversation history", show_lines=True)
 
     table.add_column(
         "Role",
@@ -176,20 +176,21 @@ def render_history(history: History, console: Console) -> None:
     )
     table.add_column("Message", style=Styles.RICH_HISTORY_MESSAGE)
 
-    if history.system_message:
-        table.add_row("System", history.system_message)
-    if history.context:
-        context_str = str(history.context)
-        display_context = (
-            context_str[:_MAX_CONTEXT_PREVIEW_LENGTH] + "..."
-            if len(context_str) > _MAX_CONTEXT_PREVIEW_LENGTH
-            else context_str
-        )
-        table.add_row("Context", display_context)
-    if not history.messages:
+    if obj.system_message:
+        table.add_row("System", obj.system_message)
+    if obj.context:
+        for context_item in obj.context:
+            context_str = str(context_item)
+            display_context = (
+                context_str[:_MAX_CONTEXT_PREVIEW_LENGTH] + "..."
+                if len(context_str) > _MAX_CONTEXT_PREVIEW_LENGTH
+                else context_str
+            )
+            table.add_row("Context", display_context)
+    if not obj.messages:
         table.add_row("", "No other messages yet...")
     else:
-        for msg in history.messages:
+        for msg in obj.messages:
             content = msg.content or ""
             if content and msg.tool_calls:
                 content += "\n\n"

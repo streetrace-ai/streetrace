@@ -21,8 +21,8 @@ class Error(_Str):
 
 
 @register_renderer
-def render_error(event: Error, console: Console) -> None:
-    console.print(event, style=Styles.RICH_ERROR)
+def render_error(obj: Error, console: Console) -> None:
+    console.print(obj, style=Styles.RICH_ERROR)
 
 
 class Warn(_Str):
@@ -30,8 +30,8 @@ class Warn(_Str):
 
 
 @register_renderer
-def render_warn(event: Warn, console: Console) -> None:
-    console.print(event, style=Styles.RICH_WARNING)
+def render_warn(obj: Warn, console: Console) -> None:
+    console.print(obj, style=Styles.RICH_WARNING)
 
 
 class Info(_Str):
@@ -39,8 +39,8 @@ class Info(_Str):
 
 
 @register_renderer
-def render_info(event: Info, console: Console) -> None:
-    console.print(event, style=Styles.RICH_INFO)
+def render_info(obj: Info, console: Console) -> None:
+    console.print(obj, style=Styles.RICH_INFO)
 
 
 _PROMPT = "You:"
@@ -51,5 +51,5 @@ class UserInput(_Str):
 
 
 @register_renderer
-def render_user_input(event: UserInput, console: Console) -> None:
-    console.print(f"{_PROMPT} {event}", style=Styles.RICH_PROMPT)
+def render_user_input(obj: UserInput, console: Console) -> None:
+    console.print(f"{_PROMPT} {obj}", style=Styles.RICH_PROMPT)

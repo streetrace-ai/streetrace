@@ -18,10 +18,6 @@ from streetrace.ui.ui_bus import UiBus
 logger = get_logger(__name__)
 
 
-# TODO(krmrn42): Rename PromptContext -> ProcessedPrompt
-# TODO(krmrn42): raw_prompt -> prompt
-# TODO(krmrn42): mentioned_files -> mentions
-# TODO(krmrn42): PromptProcessor.build_context -> remove working_dir arg
 class ProcessedPrompt(BaseModel):
     """Holds the processed context components for the AI prompt."""
 
@@ -151,7 +147,7 @@ class PromptProcessor:
         if mentions_found > 0:
             self.ui_bus.dispatch_ui_update(
                 ui_events.Info(
-                    f"[Loading content from {', '.join(['@'+m for m in mentions_loaded])}]",
+                    f"[Loading content from {', '.join(['@' + m for m in mentions_loaded])}]",
                 ),
             )
 

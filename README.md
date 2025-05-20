@@ -70,11 +70,36 @@ Options:
 - `--path` - Specify which path to use as the working directory for all file operations
 - `--debug` - Enable debug logging.
 
-If no provider is specified, StreetRace🚗💨 will automatically select an AI model based on the available API keys in the following order:
-1. Anthropic (if ANTHROPIC_API_KEY is set)
-2. Gemini (if GEMINI_API_KEY is set)
-3. OpenAI (if OPENAI_API_KEY is set)
-4. Ollama (if OLLAMA_API_URL is set or Ollama is installed locally)
+#### Session Management Arguments
+
+StreetRace🚗💨 supports persistence of conversations through sessions. You can specify:
+
+- `--app-name` - Application name for the session (defaults to the current working directory name)
+- `--user-id` - User ID for the session (defaults to your GitHub username, Git username, or OS username)
+- `--session-id` - Session ID to use or create (defaults to current timestamp)
+- `--list-sessions` - List all available sessions for the current app and user
+
+Examples:
+
+```bash
+# List all sessions for the current app and user
+python src/streetrace/main.py --list-sessions
+
+# Create or continue a specific session
+python src/streetrace/main.py --session-id my-project-refactoring
+
+# Work with a specific app name and user
+python src/streetrace/main.py --app-name my-project --user-id john.doe --session-id feature-x
+```
+
+If no session arguments are provided, StreetRace🚗💨 will:
+1. Use the current working directory name as the app name
+2. Use your detected user identity as the user ID
+3. Create a new session with a timestamp-based ID
+
+This allows you to maintain separate conversation contexts for different projects or tasks.
+
+If you want to work with the same agent/context across multiple runs, use the same session ID.
 
 #### Working with Files in Another Directory
 

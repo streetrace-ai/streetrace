@@ -1,9 +1,15 @@
 """Parse and organize app args."""
 
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 
 import typed_argparse as tap
+from tzlocal import get_localzone
+
+from streetrace.utils.uid import get_user_identity
+
+_START_TIME = datetime.now(tz=get_localzone())
 
 
 class Args(tap.TypedArgs):
@@ -18,6 +24,13 @@ class Args(tap.TypedArgs):
         help="Prompt to use",
     )
     verbose: bool = tap.arg(help="Enables verbose (DEBUG) logging")
+    app_name: str | None = tap.arg(
+        help="Application name for the session",
+        default=None,
+    )
+    user_id: str | None = tap.arg(help="User ID for the session", default=None)
+    session_id: str | None = tap.arg(help="Session ID to use (or create)", default=None)
+    list_sessions: bool = tap.arg(help="List available sessions", default=False)
 
     @property
     def non_interactive_prompt(self) -> tuple[str | None, bool]:
@@ -56,6 +69,51 @@ class Args(tap.TypedArgs):
             )
 
         return work_dir
+
+    @property
+    def effective_app_name(self) -> str:
+        """Get the application name to use for sessions.
+
+        If app_name is provided by the user, use that.
+        Otherwise, use the current working directory name.
+
+        Returns:
+            str: The application name to use for sessions
+
+        """
+        if self.app_name:
+            return self.app_name
+        return self.working_dir.name
+
+    @property
+    def effective_user_id(self) -> str:
+        """Get the user ID to use for sessions.
+
+        If user_id is provided by the user, use that.
+        Otherwise, determine it from the environment.
+
+        Returns:
+            str: The user ID to use for sessions
+
+        """
+        if self.user_id:
+            return self.user_id
+        return get_user_identity()
+
+    @property
+    def effective_session_id(self) -> str:
+        """Get the session ID to use.
+
+        If session_id is provided by the user, use that.
+        Otherwise, generate a new ID based on the current time.
+
+        Returns:
+            str: The session ID to use
+
+        """
+        if self.session_id:
+            return self.session_id
+        return _START_TIME.strftime("%Y-%m-%d_%H-%M")
 
 
 def bind_and_run(app_main: Callable[[Args], None]) -> None:

@@ -922,3 +922,32 @@ One line description: how this module contributes to the project goal.
 More details, covering concise function description, lifecycle, and third-party
 dependencies.
 ```
+
+===
+
+Take a look at the @src/streetrace/app.py, specifically at the `_process_prompt`. When
+it runs a new prompt it invokes `self.workflow_supervisor.run_async` passing the prompt.
+
+Note that the workflow_supervisor is initialized with a `session_service` that allows
+managing current processing sessions.
+
+I want to enable users to choose which session they are working in. The user should be
+able to pass a command line arg specifying a session ID they want to use, or leave
+unspecified to create a new session.
+
+Session ID is compound from app_name, user_id, and session_id.
+See @src/streetrace/workflow/supervisor.py for how these fields are managed now.
+
+Let's move all three fields to @src/streetrace/args.py, which implements the command
+line arguments, so the user can provide all three as arguments. In the supervisor.py
+we will then use those values for args.
+
+If any of those values are not provided:
+
+1. For app_name use the cwd directory name.
+2. For user_id use the get_user_identity.
+3. For session_id, create a new ID as it's done in the supervisor now.
+
+Update README.md when done to describe this functionality.
+
+===

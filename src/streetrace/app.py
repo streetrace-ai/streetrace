@@ -71,6 +71,11 @@ class Application:
     async def run(self) -> None:
         """Start the application execution based on provided arguments."""
         self.history_manager.initialize_history()
+
+        # If only listing sessions, we don't need to run the input loop
+        if self.args.list_sessions:
+            return
+
         if self.args.prompt or self.args.arbitrary_prompt:
             await self._run_non_interactive()
         else:
@@ -184,6 +189,7 @@ def create_app(args: Args) -> Application:
     tool_provider = ToolProvider(args.working_dir)
 
     session_service = JSONSessionService(context_dir / "sessions")
+
     # Initialize HistoryManager
     history_manager = HistoryManager(
         app_args=args,
@@ -191,13 +197,14 @@ def create_app(args: Args) -> Application:
         system_context=system_context,
     )
 
-    # Initialize Interaction Manager
+    # Initialize Workflow Supervisor, passing the args
     workflow_supervisor = Supervisor(
         ui_bus=ui_bus,
         llm_interface=llm_interface,
         tool_provider=tool_provider,
         history_manager=history_manager,
         session_service=session_service,
+        args=args,
     )
 
     # Register commands
