@@ -3,12 +3,11 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
-from pathlib import Path
 
 from google.adk import Runner
 from google.adk.agents import Agent, BaseAgent
 from google.adk.events import Event
-from google.adk.sessions import InMemorySessionService, Session
+from google.adk.sessions import BaseSessionService, Session
 from google.genai import types  # For creating message Content/Parts
 from tzlocal import get_localzone
 
@@ -26,18 +25,6 @@ from streetrace.utils.uid import get_user_identity
 # TODO(krmrn42): persist global history
 
 
-def _serialise_session(session: Session, suffix: str = "") -> None:
-    path = Path(
-        f"./tmp/sessions/{session.app_name}_{session.user_id}_{session.id}{suffix}.json",
-    )
-    if not path.parent.exists():
-        path.parent.mkdir()
-    if not path.parent.is_dir():
-        msg = f"Tmp session path exists, but not a directory: {path.parent}"
-        raise ValueError(msg)
-    path.write_text(session.model_dump_json())
-
-
 class Supervisor:
     """Workflow supervisor manages and executes available workflows."""
 
@@ -47,11 +34,12 @@ class Supervisor:
         llm_interface: LlmInterface,
         tool_provider: ToolProvider,
         history_manager: HistoryManager,
+        session_service: BaseSessionService,
     ) -> None:
         """Initialize a new instance of workflow supervisor."""
         self.ui_bus = ui_bus
         self.llm_interface = llm_interface
-        self.session_service = InMemorySessionService()
+        self.session_service = session_service
         self.session_id = datetime.now(tz=get_localzone()).strftime("%Y-%m-%d_%H-%M")
         self.session_user_id = get_user_identity()
         self.session: Session | None = None
@@ -86,6 +74,9 @@ class Supervisor:
                 user_id=self.session_user_id,
                 session_id=self.session_id,
             )
+            if session is None:
+                msg = "session is None"
+                raise AssertionError(msg)
 
         self.session = session
         return session
@@ -190,7 +181,6 @@ class Supervisor:
 
         event_counter = 0
         session = self.get_or_create_session()
-        _serialise_session(session, "_00")
         async with self._create_agent("default") as root_agent:
             runner = Runner(
                 app_name=session.app_name,
@@ -204,10 +194,6 @@ class Supervisor:
                 session_id=session.id,
                 new_message=content,  # type: ignore[not-assignable]: wrong declaraion in adk
             ):
-                _serialise_session(
-                    self.get_or_create_session(),
-                    "_a" + str(event_counter),
-                )
                 self.ui_bus.dispatch_ui_update(event)
 
                 # Key Concept: is_final_response() marks the concluding message for the turn.
@@ -221,13 +207,7 @@ class Supervisor:
                         final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
                     # Add more checks here if needed (e.g., specific error codes)
                     break  # Stop processing events once the final response is found
-                _serialise_session(
-                    self.get_or_create_session(),
-                    "_x" + str(event_counter),
-                )
                 event_counter += 1
-            _serialise_session(self.get_or_create_session(), "_y")
-        _serialise_session(self.get_or_create_session(), "_z")
 
         # z == y
         # last x is missing one message (because break)

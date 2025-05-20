@@ -20,6 +20,7 @@ from streetrace.history import HistoryManager
 from streetrace.llm_interface import get_llm_interface
 from streetrace.log import get_logger
 from streetrace.prompt_processor import PromptProcessor
+from streetrace.session_service import JSONSessionService
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui import ui_events
@@ -29,6 +30,8 @@ from streetrace.ui.ui_bus import UiBus
 from streetrace.workflow.supervisor import Supervisor
 
 logger = get_logger(__name__)
+
+CONTEXT_DIR = ".streetrace"
 
 
 class Application:
@@ -108,7 +111,7 @@ class Application:
         # According to coding guide, core components should be fail-fast.
         # Raise if non_interactive_prompt is unexpectedly None.
         user_input, confirm_with_user = self.args.non_interactive_prompt
-        if not user_input.strip():
+        if not user_input or not user_input.strip():
             error_msg = "Non-interactive mode requires a prompt, but none was provided."
             logger.error(error_msg)
             raise ValueError(error_msg)
@@ -168,8 +171,10 @@ def create_app(args: Args) -> Application:
     # Initialize ConsoleUI as soon as possible, so we can start showing something
     ui = ConsoleUI(completer=prompt_completer, ui_bus=ui_bus)
 
+    context_dir = args.working_dir / CONTEXT_DIR
+
     # Initialize SystemContext for handling system and project context
-    system_context = SystemContext(ui_bus=ui_bus, args=args)
+    system_context = SystemContext(ui_bus=ui_bus, context_dir=context_dir)
 
     # Initialize PromptProcessor for handling prompts and file mentions
     prompt_processor = PromptProcessor(ui_bus=ui_bus, args=args)
@@ -177,6 +182,8 @@ def create_app(args: Args) -> Application:
     llm_interface = get_llm_interface(args.model, ui_bus)
 
     tool_provider = ToolProvider(args.working_dir)
+
+    session_service = JSONSessionService(context_dir / "sessions")
     # Initialize HistoryManager
     history_manager = HistoryManager(
         app_args=args,
@@ -190,6 +197,7 @@ def create_app(args: Args) -> Application:
         llm_interface=llm_interface,
         tool_provider=tool_provider,
         history_manager=history_manager,
+        session_service=session_service,
     )
 
     # Register commands

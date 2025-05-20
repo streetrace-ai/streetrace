@@ -899,3 +899,26 @@ Analyze different approaches to implementation, provide their trade-offs, and cr
 When any unexpected markup is seen, raise the UnexpectedMarkdownFormatError (you can use the `_unexpected_err` helper). This is a low level component, it should raise exceptions and fail fast when it cannot process the data.
 
 Please create a complete implementation, implement clean code with short and clear methods, then ask for feedback before running tests and lint.
+
+===
+
+Take a look at @src/streetrace/workflow/supervisor.py.
+
+Analyze the module from the project goals perspective, understand why this module is
+essential to this project, describe the module's goal and function. Analyze third-party
+dependencies and why they are used. If there are public classes, analyze if they are
+created in @src/streetrace/app.py or @src/streetrace/main.py, and what other core
+components depend on it.
+
+Add or update this component's description in ./COMPONENTS.md following this structure:
+
+```
+# APP_NAME Components Overview
+
+## ./workflow/supervisor.py
+
+One line description: how this module contributes to the project goal.
+
+More details, covering concise function description, lifecycle, and third-party
+dependencies.
+```

@@ -14,6 +14,8 @@ StreetRace🚗💨 is your agentic AI peer that enables engineers to leverage AI
 
 StreetRace🚗💨 defines a set of tools that the AI model can use to interact with the file system (listing directories, reading/writing files, and executing CLI commands) and search for text within files. The core logic uses a common LLMAPI interface implemented by provider-specific classes (Anthropic, Gemini, OpenAI, Ollama) to handle interactions with different AI models. This architecture makes it easy to switch between providers while maintaining consistent functionality.
 
+For a detailed description of individual components, see [COMPONENTS.md](COMPONENTS.md).
+
 **Key Components:**
 
 * `ai_interface.py`: Defines the abstract base LLMAPI class that all provider implementations must follow.

@@ -78,7 +78,14 @@ class JSONSessionSerializer:
         """Write a session to a JSON file."""
         path = self._file_path(session=session)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(session.model_dump_json())
+        path.write_text(
+            session.model_dump_json(
+                indent=2,
+                # exclude_unset=True,  # noqa: ERA001 reminder: idk, this removes events
+                # exclude_defaults=True,  # noqa: ERA001 reminder: defaults are helpful
+                exclude_none=True,
+            ),
+        )
         return path
 
     def delete(
@@ -220,14 +227,15 @@ class JSONSessionService(InMemorySessionService):
             app_name,
             user_id,
         )
-        if app_name not in super().sessions:  # pragma: no cover
-            super().sessions[app_name] = {}
-        if user_id not in super().sessions[app_name]:  # pragma: no cover
-            super().sessions[app_name][user_id] = {}
+
+        if app_name not in self.sessions:  # pragma: no cover
+            self.sessions[app_name] = {}
+        if user_id not in self.sessions[app_name]:  # pragma: no cover
+            self.sessions[app_name][user_id] = {}
 
         in_memory_session = copy.deepcopy(session)
-        super().sessions[app_name][user_id][session_id] = in_memory_session
-        return super()._merge_state(app_name, user_id, copy.deepcopy(session))
+        self.sessions[app_name][user_id][session_id] = in_memory_session
+        return self._merge_state(app_name, user_id, copy.deepcopy(session))
 
     @override
     def create_session(
@@ -281,45 +289,32 @@ class JSONSessionService(InMemorySessionService):
             user_id=user_id,
             session_id=session_id,
         )
-        logger.info(
-            "Session %s deleted from memory for %s/%s. Deleting from storage.",
-            session_id,
-            app_name,
-            user_id,
-        )
         self.serializer.delete(
             app_name=app_name,
             user_id=user_id,
             session_id=session_id,
         )
+        logger.info(
+            "Session %s deleted for %s/%s.",
+            session_id,
+            app_name,
+            user_id,
+        )
 
     @override
     def append_event(self, session: Session, event: Event) -> Event:
         """Append an event to a session in memory and updates the storage."""
-        session_in_memory = super().get_session(
-            app_name=session.app_name,
-            user_id=session.user_id,
-            session_id=session.id,
-        )
-
-        if not session_in_memory:  # pragma: no cover
-            logger.warning(
-                "Session %s for append_event not found in memory. Base class will create it.",
-                session.id,
-            )
-
         evt = super().append_event(
             session=session,
             event=event,
         )
 
-        authoritative_session = super().sessions[session.app_name][session.user_id][
-            session.id
-        ]
+        # it's unclear how to handle if the session is missing in memory or in
+        # storage, so we defer the in-memory handling to super(), and always save
+        self.serializer.write(session)
 
         logger.debug(
             "Event appended to session %s. Updating storage.",
-            authoritative_session.id,
+            session.id,
         )
-        self.serializer.write(session=authoritative_session)
         return evt

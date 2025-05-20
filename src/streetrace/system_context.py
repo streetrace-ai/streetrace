@@ -5,16 +5,14 @@ system messages and project context from the configuration directory.
 """
 
 from collections.abc import Iterable
+from pathlib import Path
 
 from streetrace import messages
-from streetrace.args import Args
 from streetrace.log import get_logger
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
-
-_CONTEXT_DIR = ".streetrace"
 
 
 class SystemContext:
@@ -24,16 +22,16 @@ class SystemContext:
     from the configuration directory.
     """
 
-    def __init__(self, ui_bus: UiBus, args: Args) -> None:
+    def __init__(self, ui_bus: UiBus, context_dir: Path) -> None:
         """Initialize the SystemContext.
 
         Args:
             ui_bus: UI event bus to exchange messages with the UI.
-            args: App args.
+            context_dir: Context storage directory.
 
         """
         self.ui_bus = ui_bus
-        self.config_dir = args.working_dir / _CONTEXT_DIR
+        self.config_dir = context_dir
         logger.info("SystemContext initialized with config_dir: %s", self.config_dir)
 
     def get_system_message(self) -> str:
@@ -61,7 +59,7 @@ class SystemContext:
         return messages.SYSTEM
 
     def get_project_context(self) -> Iterable[str]:
-        """Read and combine all context files from the config directory (excluding system.md).
+        """Read and combine all context files (excluding system.md).
 
         Returns:
             A string containing the combined content of all context files.

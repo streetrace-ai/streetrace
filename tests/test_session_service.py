@@ -5,7 +5,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from google.adk.events import Event
 from google.adk.sessions import Session
+from google.genai import types as genai_types
 
 from streetrace.session_service import JSONSessionSerializer, JSONSessionService
 
@@ -191,3 +193,87 @@ class TestSessionService:
             session_id="no_session",
         )
         assert session is None
+
+    def test_md_session_service_uses_custom_serializer(self):
+        """Test that JSONSessionService uses the provided serializer instance."""
+        mock_serializer_path = self.temp_dir_path / "custom_serialize_path"
+        mock_serializer_path.mkdir(exist_ok=True)
+        mock_serializer = JSONSessionSerializer(mock_serializer_path)
+
+        original_write = mock_serializer.write
+        original_read = mock_serializer.read
+
+        service_with_mock = JSONSessionService(
+            self.temp_dir_path,
+            serializer=mock_serializer,
+        )
+
+        with (
+            patch.object(mock_serializer, "write", wraps=original_write) as mock_write,
+            patch.object(mock_serializer, "read", wraps=original_read) as mock_read,
+        ):
+            s_info = {"app_name": "custom", "user_id": "ser", "session_id": "s1"}
+            created_session = service_with_mock.create_session(**s_info)
+            mock_write.assert_called_once_with(session=created_session)
+
+            service_with_mock.sessions.clear()
+            service_with_mock.get_session(**s_info)
+            mock_read.assert_called_once_with(
+                app_name=s_info["app_name"],
+                user_id=s_info["user_id"],
+                session_id=s_info["session_id"],
+                config=None,
+            )
+
+    def test_create_get_append_session_roundtrip(self):
+        """Test create, get, and append operations with persistence."""
+        app_name = "roundtrip_app"
+        user_id = "roundtrip_user"
+        session_id = "rt_session1"
+
+        created_session = self.service.create_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            state={"initial": "state"},
+        )
+        assert created_session.id == session_id
+        assert created_session.state == {"initial": "state"}
+
+        self.service.sessions.clear()
+
+        retrieved_session = self.service.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        assert retrieved_session is not None
+        assert retrieved_session.id == session_id
+        assert retrieved_session.state == {"initial": "state"}
+        assert not retrieved_session.events
+
+        event1_content = genai_types.Content(parts=[genai_types.Part(text="Hello")])
+        event1 = Event(author="user", timestamp=1700000000, content=event1_content)
+
+        appended_event1 = self.service.append_event(
+            session=retrieved_session,
+            event=event1,
+        )
+        assert appended_event1.content.parts[0].text == "Hello"
+        assert len(retrieved_session.events) == 1
+
+        self.service.sessions.clear()
+
+        retrieved_session_after_append = self.service.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        assert retrieved_session_after_append is not None
+        assert len(retrieved_session_after_append.events) == 1
+        assert retrieved_session_after_append.events[0].content.parts[0].text == "Hello"
+        assert retrieved_session_after_append.events[0].author == "user"
+        assert retrieved_session_after_append.events[0].timestamp == pytest.approx(
+            1700000000,
+        )
+        assert retrieved_session_after_append.state == {"initial": "state"}

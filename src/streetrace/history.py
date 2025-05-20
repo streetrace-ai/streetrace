@@ -3,6 +3,7 @@
 from collections.abc import Iterable
 from dataclasses import field
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import litellm
@@ -241,7 +242,7 @@ class HistoryManager:
         """Set the conversation history (used during compaction)."""
         self._conversation_history = history
 
-    def add_mentions_to_history(self, mentioned_files: list[tuple[str, str]]) -> None:
+    def add_mentions_to_history(self, mentioned_files: list[tuple[Path, str]]) -> None:
         """Add content from mentioned files to conversation history.
 
         Args:
@@ -257,7 +258,7 @@ class HistoryManager:
             return
 
         for filepath, content in mentioned_files:
-            context_title = filepath
+            context_title = str(filepath)
             context_message = content
             if len(content) > _MAX_MENTION_CONTENT_LENGTH:
                 context_title = f"{filepath} (truncated)"
