@@ -31,7 +31,7 @@ _Note:_ A GitHub Actions workflow (`.github/workflows/quality-checks.yml`) is al
 
 ## Style and Conventions
 
-- Follow the `black` code style (automatically enforced by running the command above).
+- Follow the code style using `ruff` (automatically enforced by running the command above).
 - Use type hints (`mypy` helps check these).
 - Keep functions and classes focused (Single Responsibility Principle).
 - Add docstrings to public modules, classes, and functions.

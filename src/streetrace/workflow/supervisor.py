@@ -15,9 +15,9 @@ from streetrace.args import Args
 from streetrace.history import HistoryManager
 from streetrace.llm_interface import LlmInterface
 from streetrace.prompt_processor import ProcessedPrompt
+from streetrace.session_service import DisplaySessionsList
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
-from streetrace.ui import ui_events
 from streetrace.ui.adk_event_renderer import render_event as _  # noqa: F401
 from streetrace.ui.ui_bus import UiBus
 
@@ -126,16 +126,13 @@ class SessionManager:
             user_id=self.user_id,
         )
 
-        if not sessions_response.sessions:
-            msg = (
-                f"No sessions found for app '{self.app_name}' and user '{self.user_id}'"
-            )
-            self.ui_bus.dispatch_ui_update(
-                ui_events.Info(msg),
-            )
-            return
+        display_list = DisplaySessionsList(
+            app_name=self.app_name,
+            user_id=self.user_id,
+            list_sessions=sessions_response,
+        )
 
-        self.ui_bus.dispatch_ui_update(sessions_response.sessions)
+        self.ui_bus.dispatch_ui_update(display_list)
 
 
 class Supervisor:
@@ -225,7 +222,7 @@ class Supervisor:
             if payload.mentions:
                 for mention in payload.mentions:
                     mention_text = (
-                        f"\nAttached file `{mention[0]!s}:\n\n```\n{mention[1]}\n```\n"
+                        f"\nAttached file `{mention[0]!s}`:\n\n```\n{mention[1]}\n```\n"
                     )
                     parts.append(types.Part.from_text(text=mention_text))
 

@@ -7,9 +7,12 @@ the current conversation history in the interactive mode.
 from collections.abc import Sequence
 from typing import override
 
+from google.adk.events import Event
 from google.adk.sessions import Session
 from pydantic import BaseModel
-from rich.console import Console
+from rich.console import Console, Group
+from rich.markdown import Markdown
+from rich.syntax import Syntax
 from rich.table import Table
 
 from streetrace.commands.base_command import Command
@@ -30,14 +33,111 @@ class _DisplayHistory(BaseModel):
     session: Session | None
 
 
-_MAX_CONTEXT_PREVIEW_LENGTH = 200
-"""Maximum length for context preview."""
+_MAX_FUNCTION_ARG_LENGTH = 20
+"""Maximum length for function arguments preview."""
+
+_MAX_RESPONSE_VALUE_LENGTH = 20
+"""Maximum length for function response values preview."""
+
+
+def _truncate_value(value: object, max_length: int) -> str:
+    """Truncate a value to a maximum length and add ellipsis if needed.
+
+    Args:
+        value: The value to truncate
+        max_length: Maximum allowed length
+
+    Returns:
+        Truncated string with ellipsis if needed
+
+    """
+    string_value = str(value)
+    if len(string_value) <= max_length:
+        return string_value
+    return f"{string_value[:max_length]}... [{len(string_value)} chars]"
+
+
+def _render_message_content(msg: Event) -> Group:
+    """Extract and format message content parts for rendering.
+
+    Args:
+        msg: The event to render content from.
+
+    Returns:
+        A list of rendered content parts.
+
+    """
+    group = Group()
+
+    # Check for escalation messages
+    if msg.is_final_response() and msg.actions and msg.actions.escalate:
+        error_message = (
+            f"Agent escalated: {msg.error_message or 'No specific message.'}"
+        )
+        group.renderables.append(
+            f"[{Styles.RICH_ERROR}]{error_message}[/{Styles.RICH_ERROR}]",
+        )
+
+    if msg.content and msg.content.parts:
+        for part in msg.content.parts:
+            # Handle text content
+            if part.text:
+                style = Styles.RICH_INFO
+                if msg.is_final_response():
+                    style = Styles.RICH_MODEL
+
+                markdown_text = Markdown(
+                    part.text,
+                    inline_code_theme=Styles.RICH_MD_CODE,
+                    style=style,
+                )
+                group.renderables.append(markdown_text)
+
+            # Handle function calls
+            if part.function_call:
+                fn = part.function_call
+                # Truncate function arguments to improve readability
+                truncated_args = _truncate_value(fn.args, _MAX_FUNCTION_ARG_LENGTH)
+                group.renderables.append(
+                    Syntax(
+                        code=f"{fn.name}({truncated_args})",
+                        lexer="python",
+                        theme=Styles.RICH_TOOL_CALL,
+                        line_numbers=False,
+                        background_color="default",
+                    ),
+                )
+
+            # Handle function responses
+            if part.function_response:
+                fn = part.function_response
+                if fn.response:
+                    response_lines = []
+                    for key in fn.response:
+                        value = _truncate_value(
+                            fn.response[key],
+                            _MAX_RESPONSE_VALUE_LENGTH,
+                        )
+                        response_lines.append(f"  ↳ {key}: {value}")
+
+                    response_text = "\n".join(response_lines)
+                    group.renderables.append(
+                        Syntax(
+                            code=response_text,
+                            lexer="python",
+                            theme=Styles.RICH_TOOL_CALL,
+                            line_numbers=False,
+                            background_color="default",
+                        ),
+                    )
+
+    return group
 
 
 @register_renderer
 def render_history(obj: _DisplayHistory, console: Console) -> None:
     """Render a full history on the UI."""
-    table = Table(title="Conversation history", show_lines=True)
+    table = Table(title="Conversation history")
 
     table.add_column(
         "Role",
@@ -49,24 +149,30 @@ def render_history(obj: _DisplayHistory, console: Console) -> None:
 
     if obj.system_message:
         table.add_row("System", obj.system_message)
-    if obj.context:
-        for context_item in obj.context:
-            context_str = str(context_item)
-            display_context = (
-                context_str[:_MAX_CONTEXT_PREVIEW_LENGTH] + "..."
-                if len(context_str) > _MAX_CONTEXT_PREVIEW_LENGTH
-                else context_str
-            )
-            table.add_row("Context", display_context)
+        table.add_row("", "")
 
     session_message_count = 0
     if obj.session:
         for msg in obj.session.events:
-            # render here
-            pass
+            session_message_count += 1
+            message_parts = _render_message_content(msg)
+            if (
+                msg.content
+                and msg.content.parts
+                and msg.content.parts[0].function_response is None
+            ):
+                # add a blank line to separate between events unless it's a function
+                # response
+                table.add_row("", "")
+                # Add row to table with role and combined message parts
+                table.add_row(msg.author, message_parts)
+            else:
+                # Add row to table with role and combined message parts
+                table.add_row("", message_parts)
 
     if session_message_count == 0:
         table.add_row("", "No other messages yet...")
+
     console.print(table)
 
 

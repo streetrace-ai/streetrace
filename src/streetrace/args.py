@@ -17,7 +17,10 @@ class Args(tap.TypedArgs):
 
     path: Path | None = tap.arg(help="Working directory")
     model: str | None = tap.arg(
-        help="Model to use, see https://docs.litellm.ai/docs/set_keys. Required if running a prompt."
+        help=(
+            "Model to use, see https://docs.litellm.ai/docs/set_keys. "
+            "Required if running a prompt."
+        ),
     )
     prompt: str | None = tap.arg(help="Non-interactive prompt mode")
     arbitrary_prompt: list[str] | None = tap.arg(
@@ -65,7 +68,10 @@ class Args(tap.TypedArgs):
             work_dir = Path.cwd().resolve()
 
         if not work_dir.is_dir():
-            msg = f"Specified path '{self.path}' resolved to '{work_dir}' which is not a valid directory."
+            msg = (
+                f"Specified path '{self.path}' resolved to '{work_dir}' which is "
+                "not a valid directory."
+            )
             raise ValueError(
                 msg,
             )

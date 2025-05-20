@@ -11,25 +11,39 @@ from google.adk.sessions.base_session_service import (
     GetSessionConfig,
     ListSessionsResponse,
 )
+from pydantic import BaseModel
 from rich.console import Console
 
 from streetrace.log import get_logger
+from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import register_renderer
 
 logger = get_logger(__name__)
 
 
+class DisplaySessionsList(BaseModel):
+    """Internal container that holds data solely to render a list of sessions."""
+
+    app_name: str
+    user_id: str
+    list_sessions: ListSessionsResponse
+
+
 @register_renderer
-def render_list_of_sessions(obj: list[Session], console: Console) -> None:
+def render_list_of_sessions(obj: DisplaySessionsList, console: Console) -> None:
     """Display a list of sessions in the console."""
-    app_name = ", ".join({session.app_name for session in obj})
-    user_id = ", ".join({session.user_id for session in obj})
+    if not obj.list_sessions or not obj.list_sessions.sessions:
+        msg = f"No sessions found for app '{obj.app_name}' and user '{obj.user_id}'"
+        console.print(msg, Styles.RICH_INFO)
+        return
+
     session_list = [
-        f"- {session.id} (last updated: {session.last_update_time})" for session in obj
+        f"- {session.id} (last updated: {session.last_update_time})"
+        for session in obj.list_sessions.sessions
     ]
 
     session_listing = (
-        f"Available sessions for app '{app_name}' and user '{user_id}':\n"
+        f"Available sessions for app '{obj.app_name}' and user '{obj.user_id}':\n"
         + "\n".join(session_list)
     )
 
