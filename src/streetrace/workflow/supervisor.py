@@ -2,21 +2,140 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 from google.adk import Runner
 from google.adk.agents import Agent, BaseAgent
 from google.adk.events import Event
 from google.adk.sessions import BaseSessionService, Session
-from google.genai import types  # For creating message Content/Parts
+from google.genai import types
+from tzlocal import get_localzone  # For creating message Content/Parts
 
 from streetrace.args import Args
 from streetrace.history import HistoryManager
 from streetrace.llm_interface import LlmInterface
 from streetrace.prompt_processor import ProcessedPrompt
+from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui import ui_events
 from streetrace.ui.adk_event_renderer import render_event as _  # noqa: F401
 from streetrace.ui.ui_bus import UiBus
+
+_SESSION_ID_TIME_FORMAT = "%Y-%m-%d_%H-%M"
+
+
+def _session_id(user_provided_id: str | None = None) -> str:
+    return user_provided_id or datetime.now(tz=get_localzone()).strftime(
+        _SESSION_ID_TIME_FORMAT,
+    )
+
+
+class SessionManager:
+    current_session: Session | None = None
+
+    def __init__(
+        self,
+        args: Args,
+        session_service: BaseSessionService,
+        system_context: SystemContext,
+        ui_bus: UiBus,
+    ):
+        self.session_service = session_service
+        self.args = args
+        self.system_context = system_context
+        self.ui_bus = ui_bus
+        self.current_session_id = _session_id(self.args.session_id)
+
+    @property
+    def app_name(self) -> str:
+        """Get the current app name used for session ID."""
+        return self.args.effective_app_name
+
+    @property
+    def user_id(self) -> str:
+        """Get the current app name used for session ID."""
+        return self.args.effective_user_id
+
+    def reset_session(self, new_id: str | None = None) -> None:
+        """Reset session id so the new ID will be treated as the current session id.
+
+        This causes the SessionService to create/retrieve self.current_session_id using.
+        In a normal flow, the ID should be generated automatically (leave blank), so a
+        new session is created.
+
+        get_or_create_session will always use the self.current_session_id as the current
+        session id, and will create a new session if the ID does not correspond to an
+        existing session.
+
+        Args:
+            new_id (Optional): Don't set in a normal scenario. This should be generated
+                automatically.
+
+        """
+        self.current_session_id = _session_id(new_id)
+
+    def get_current_session(self) -> Session | None:
+        """Create the ADK agent session with empty state or get existing session."""
+        session_id = self.current_session_id
+        return self.session_service.get_session(
+            app_name=self.app_name,
+            user_id=self.user_id,
+            session_id=session_id,
+        )
+
+    def get_or_create_session(self) -> Session:
+        """Create the ADK agent session with empty state or get existing session."""
+        session_id = self.current_session_id
+        session = self.session_service.get_session(
+            app_name=self.app_name,
+            user_id=self.user_id,
+            session_id=session_id,
+        )
+        if not session:
+            session = self.session_service.create_session(
+                app_name=self.app_name,
+                user_id=self.user_id,
+                session_id=session_id,
+                state={},  # Initialize state during creation
+            )
+            context = self.system_context.get_project_context()
+            context_event = Event(
+                author="user",
+                content=types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="\n".join(context))],
+                ),
+            )
+            self.session_service.append_event(session, context_event)
+            session = self.session_service.get_session(
+                app_name=self.app_name,
+                user_id=self.user_id,
+                session_id=session_id,
+            )
+            if session is None:
+                msg = "session is None"
+                raise AssertionError(msg)
+
+        self.current_session = session
+        return session
+
+    def display_sessions(self) -> None:
+        """List all available sessions for the current user and app."""
+        sessions_response = self.session_service.list_sessions(
+            app_name=self.app_name,
+            user_id=self.user_id,
+        )
+
+        if not sessions_response.sessions:
+            msg = (
+                f"No sessions found for app '{self.app_name}' and user '{self.user_id}'"
+            )
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Info(msg),
+            )
+            return
+
+        self.ui_bus.dispatch_ui_update(sessions_response.sessions)
 
 
 class Supervisor:
@@ -28,7 +147,7 @@ class Supervisor:
         llm_interface: LlmInterface,
         tool_provider: ToolProvider,
         history_manager: HistoryManager,
-        session_service: BaseSessionService,
+        session_manager: SessionManager,
         args: Args,
     ) -> None:
         """Initialize a new instance of workflow supervisor.
@@ -38,73 +157,19 @@ class Supervisor:
             llm_interface: Interface to the LLM
             tool_provider: Provider of tools for the agent
             history_manager: Manager of conversation history
-            session_service: Service for managing ADK sessions
+            session_manager: SessionManager for conversation sessions
             args: Application arguments containing session information
 
         """
         self.ui_bus = ui_bus
         self.llm_interface = llm_interface
-        self.session_service = session_service
+        self.session_manager = session_manager
         self.app_name = args.effective_app_name
         self.session_user_id = args.effective_user_id
         self.session_id = args.effective_session_id
         self.session: Session | None = None
         self.tool_provider = tool_provider
         self.history_manager = history_manager
-
-        if args.list_sessions:
-            self._list_available_sessions()
-
-    def _list_available_sessions(self) -> None:
-        """List all available sessions for the current user and app."""
-        sessions_response = self.session_service.list_sessions(
-            app_name=self.app_name,
-            user_id=self.session_user_id,
-        )
-
-        if not sessions_response.sessions:
-            msg = f"No sessions found for app '{self.app_name}' and user '{self.session_user_id}'"
-            self.ui_bus.dispatch_ui_update(
-                ui_events.Info(msg),
-            )
-            return
-
-        self.ui_bus.dispatch_ui_update(sessions_response.sessions)
-
-    def get_or_create_session(self) -> Session:
-        """Create the ADK agent session with empty state or get existing session."""
-        session = self.session_service.get_session(
-            app_name=self.app_name,
-            user_id=self.session_user_id,
-            session_id=self.session_id,
-        )
-        if not session:
-            session = self.session_service.create_session(
-                app_name=self.app_name,
-                user_id=self.session_user_id,
-                session_id=self.session_id,
-                state={},  # Initialize state during creation
-            )
-            context = self.history_manager.system_context.get_project_context()
-            context_event = Event(
-                author="user",
-                content=types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text="\n".join(context))],
-                ),
-            )
-            self.session_service.append_event(session, context_event)
-            session = self.session_service.get_session(
-                app_name=self.app_name,
-                user_id=self.session_user_id,
-                session_id=self.session_id,
-            )
-            if session is None:
-                msg = "session is None"
-                raise AssertionError(msg)
-
-        self.session = session
-        return session
 
     @asynccontextmanager
     async def _create_agent(self, agent_type: str) -> AsyncGenerator[BaseAgent, None]:
@@ -170,11 +235,11 @@ class Supervisor:
         final_response_text = "Agent did not produce a final response."  # Default
 
         event_counter = 0
-        session = self.get_or_create_session()
+        session = self.session_manager.get_or_create_session()
         async with self._create_agent("default") as root_agent:
             runner = Runner(
                 app_name=session.app_name,
-                session_service=self.session_service,
+                session_service=self.session_manager.session_service,
                 agent=root_agent,
             )
             # Key Concept: run_async executes the agent logic and yields Events.

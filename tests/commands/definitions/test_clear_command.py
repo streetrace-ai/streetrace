@@ -3,16 +3,16 @@ import unittest
 # Import Application for type hinting if needed, but avoid direct use
 from unittest.mock import MagicMock, patch
 
-from streetrace.commands.definitions.clear_command import ClearCommand
+from streetrace.commands.definitions.reset_command import ResetSessionCommand
 from streetrace.history import HistoryManager
 
 
 class TestClearCommand(unittest.TestCase):
-    """Unit tests for the ClearCommand."""
+    """Unit tests for the ResetSessionCommand."""
 
     def setUp(self) -> None:
         """Set up test fixtures."""
-        self.command = ClearCommand()
+        self.command = ResetSessionCommand()
         # Mock the HistoryManager
         self.mock_history_manager = MagicMock(spec=HistoryManager)
         # Mock the Application instance - remove spec=Application

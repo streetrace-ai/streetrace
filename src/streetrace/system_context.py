@@ -4,7 +4,7 @@ This module provides the SystemContext class responsible for loading and managin
 system messages and project context from the configuration directory.
 """
 
-from collections.abc import Iterable
+from collections.abc import Sequence
 from pathlib import Path
 
 from streetrace import messages
@@ -58,7 +58,7 @@ class SystemContext:
         # Default system message
         return messages.SYSTEM
 
-    def get_project_context(self) -> Iterable[str]:
+    def get_project_context(self) -> Sequence[str]:
         """Read and combine all context files (excluding system.md).
 
         Returns:

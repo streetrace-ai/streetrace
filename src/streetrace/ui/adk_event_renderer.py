@@ -10,21 +10,21 @@ from streetrace.ui.render_protocol import register_renderer
 
 
 @register_renderer
-def render_event(event: Event, console: Console) -> None:
+def render_event(obj: Event, console: Console) -> None:
     """Render the provided google.adk.events.Event to rich.console."""
-    author = f"[bold]{event.author}:[/bold]"
-    if event.is_final_response() and event.actions and event.actions.escalate:
+    author = f"[bold]{obj.author}:[/bold]"
+    if obj.is_final_response() and obj.actions and obj.actions.escalate:
         # Handle potential errors/escalations
         console.print(
             author,
-            f"Agent escalated: {event.error_message or 'No specific message.'}",
+            f"Agent escalated: {obj.error_message or 'No specific message.'}",
             style=Styles.RICH_ERROR,
         )
-    if event.content and event.content.parts:
-        for part in event.content.parts:
+    if obj.content and obj.content.parts:
+        for part in obj.content.parts:
             if part.text:
                 style = Styles.RICH_INFO
-                if event.is_final_response():
+                if obj.is_final_response():
                     style = Styles.RICH_MODEL
 
                 console.print(
@@ -50,14 +50,18 @@ def render_event(event: Event, console: Console) -> None:
 
             if part.function_response:
                 fn = part.function_response
-                console.print(
-                    Syntax(
-                        code="\n".join(
-                            [f"  ↳ {key}: {fn.response[key]}" for key in fn.response],
+                if fn.response:
+                    console.print(
+                        Syntax(
+                            code="\n".join(
+                                [
+                                    f"  ↳ {key}: {fn.response[key]}"
+                                    for key in fn.response
+                                ],
+                            ),
+                            lexer="python",
+                            theme=Styles.RICH_TOOL_CALL,
+                            line_numbers=False,
+                            background_color="default",
                         ),
-                        lexer="python",
-                        theme=Styles.RICH_TOOL_CALL,
-                        line_numbers=False,
-                        background_color="default",
-                    ),
-                )
+                    )

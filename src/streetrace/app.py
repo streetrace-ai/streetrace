@@ -6,15 +6,16 @@ components and managing the application lifecycle.
 """
 
 # Core application components
+
 from streetrace.args import Args
 from streetrace.commands.command_executor import CommandExecutor
 
 # Import specific command classes
 from streetrace.commands.definitions import (
-    ClearCommand,
     CompactCommand,
     ExitCommand,
     HistoryCommand,
+    ResetSessionCommand,
 )
 from streetrace.history import HistoryManager
 from streetrace.llm_interface import get_llm_interface
@@ -27,7 +28,7 @@ from streetrace.ui import ui_events
 from streetrace.ui.completer import CommandCompleter, PathCompleter, PromptCompleter
 from streetrace.ui.console_ui import ConsoleUI
 from streetrace.ui.ui_bus import UiBus
-from streetrace.workflow.supervisor import Supervisor
+from streetrace.workflow.supervisor import SessionManager, Supervisor
 
 logger = get_logger(__name__)
 
@@ -45,7 +46,8 @@ class Application:
         cmd_executor: CommandExecutor,
         prompt_processor: PromptProcessor,
         history_manager: HistoryManager,
-        workflow_supervisor: Supervisor,
+        session_manager: SessionManager,
+        workflow_supervisor: Supervisor | None,
     ) -> None:
         """Initialize the Application with necessary components and configuration.
 
@@ -54,17 +56,24 @@ class Application:
             ui: ConsoleUI instance for handling user interaction and displaying output.
             ui_bus: UI event bus to exchange messages with the UI.
             cmd_executor: CommandExecutor instance for processing internal commands.
-            prompt_processor: PromptProcessor instance for processing prompts and file mentions.
+            prompt_processor: PromptProcessor instance for processing prompts and file
+                mentions.
             history_manager: HistoryManager instance for managing conversation history.
-            workflow_supervisor: Supervisor to use for user<->agent interaction management.
+            session_manager: SessionManager to manage conversation sessions.
+            workflow_supervisor: Supervisor to use for user<->agent interaction
+                management.
 
         """
+        if not workflow_supervisor and not args.list_sessions:
+            msg = "workflow_supervisor was not created but required."
+            raise ValueError(msg)
         self.args = args
         self.ui = ui
         self.ui_bus = ui_bus
         self.cmd_executor = cmd_executor
         self.prompt_processor = prompt_processor
         self.history_manager = history_manager
+        self.session_manager = session_manager
         self.workflow_supervisor = workflow_supervisor
         logger.info("Application initialized.")
 
@@ -74,7 +83,8 @@ class Application:
 
         # If only listing sessions, we don't need to run the input loop
         if self.args.list_sessions:
-            return
+            self.session_manager.display_sessions()
+            raise SystemExit
 
         if self.args.prompt or self.args.arbitrary_prompt:
             await self._run_non_interactive()
@@ -109,6 +119,9 @@ class Application:
             )
 
         # Process with InteractionManager using the persistent history
+        if not self.workflow_supervisor:
+            msg = "Cannot run workflow as workflow_supervisor was not initialized."
+            raise ValueError(msg)
         await self.workflow_supervisor.run_async(processed_prompt)
 
     async def _run_non_interactive(self) -> None:
@@ -131,11 +144,14 @@ class Application:
 
         await self._process_input(user_input)
 
+        raise SystemExit
+
     async def _run_interactive(self) -> None:
         """Handle interactive mode (conversation loop)."""
         self.ui_bus.dispatch_ui_update(
             ui_events.Info(
-                "Entering interactive mode. Type '/history', '/compact', '/clear', '/exit', or press Ctrl+C/Ctrl+D to quit.",
+                "Entering interactive mode. Type '/bye' to exit, '/help' for etc., "
+                "or press Ctrl+C/Ctrl+D to quit.",
             ),
         )
 
@@ -184,7 +200,7 @@ def create_app(args: Args) -> Application:
     # Initialize PromptProcessor for handling prompts and file mentions
     prompt_processor = PromptProcessor(ui_bus=ui_bus, args=args)
 
-    llm_interface = get_llm_interface(args.model, ui_bus)
+    llm_interface = get_llm_interface(args.model, ui_bus) if args.model else None
 
     tool_provider = ToolProvider(args.working_dir)
 
@@ -197,29 +213,47 @@ def create_app(args: Args) -> Application:
         system_context=system_context,
     )
 
-    # Initialize Workflow Supervisor, passing the args
-    workflow_supervisor = Supervisor(
-        ui_bus=ui_bus,
-        llm_interface=llm_interface,
-        tool_provider=tool_provider,
-        history_manager=history_manager,
-        session_service=session_service,
+    session_manager = SessionManager(
         args=args,
+        session_service=session_service,
+        system_context=system_context,
+        ui_bus=ui_bus,
+    )
+
+    # Initialize Workflow Supervisor, passing the args
+    workflow_supervisor = (
+        Supervisor(
+            ui_bus=ui_bus,
+            llm_interface=llm_interface,
+            tool_provider=tool_provider,
+            history_manager=history_manager,
+            session_manager=session_manager,
+            args=args,
+        )
+        if llm_interface
+        else None
     )
 
     # Register commands
     cmd_executor.register(ExitCommand())
     cmd_executor.register(
-        HistoryCommand(ui_bus=ui_bus, history_manager=history_manager),
-    )
-    cmd_executor.register(
-        CompactCommand(
+        HistoryCommand(
             ui_bus=ui_bus,
-            history_manager=history_manager,
-            llm_interface=llm_interface,
+            system_context=system_context,
+            session_manager=session_manager,
         ),
     )
-    cmd_executor.register(ClearCommand(ui_bus=ui_bus, history_manager=history_manager))
+    if llm_interface:
+        cmd_executor.register(
+            CompactCommand(
+                ui_bus=ui_bus,
+                history_manager=history_manager,
+                llm_interface=llm_interface,
+            ),
+        )
+    cmd_executor.register(
+        ResetSessionCommand(ui_bus=ui_bus, session_manager=session_manager),
+    )
 
     # Initialize the Application
     return Application(
@@ -229,5 +263,6 @@ def create_app(args: Args) -> Application:
         cmd_executor=cmd_executor,
         prompt_processor=prompt_processor,
         history_manager=history_manager,
+        session_manager=session_manager,
         workflow_supervisor=workflow_supervisor,
     )

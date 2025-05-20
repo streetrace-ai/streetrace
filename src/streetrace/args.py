@@ -16,7 +16,9 @@ class Args(tap.TypedArgs):
     """App args."""
 
     path: Path | None = tap.arg(help="Working directory")
-    model: str = tap.arg(help="Model to use, see https://docs.litellm.ai/docs/set_keys")
+    model: str | None = tap.arg(
+        help="Model to use, see https://docs.litellm.ai/docs/set_keys. Required if running a prompt."
+    )
     prompt: str | None = tap.arg(help="Non-interactive prompt mode")
     arbitrary_prompt: list[str] | None = tap.arg(
         positional=True,

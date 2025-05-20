@@ -26,7 +26,7 @@ class CompactCommand(Command):
         history_manager: HistoryManager,
         llm_interface: LlmInterface,
     ) -> None:
-        """Initialize a new instance of ClearCommand."""
+        """Initialize a new instance of ResetSessionCommand."""
         self.ui_bus = ui_bus
         self.history_manager = history_manager
         self.llm_interface = llm_interface

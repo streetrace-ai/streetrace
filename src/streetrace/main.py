@@ -22,6 +22,8 @@ def main(args: Args) -> None:
             # if the current prompt is empty, then Ctrl+C will cause
             # SystemExit from KeyboardInterrupt
             continue
+        except SystemExit:
+            break
         except Exception as app_err:
             msg = f"Critical error during application execution: {app_err}"
             logger.exception(msg)
