@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
-from typing import cast, override
+from typing import TYPE_CHECKING, Any, cast, override
 
 from google.adk.models.base_llm import BaseLlm
 from google.adk.models.lite_llm import LiteLlm
@@ -10,7 +10,6 @@ from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from litellm import token_counter  # type: ignore[not-exported]: documented use
 from litellm.exceptions import InternalServerError, RateLimitError
-from litellm.types.utils import ModelResponse
 from tenacity import (
     AsyncRetrying,
     TryAgain,
@@ -18,10 +17,12 @@ from tenacity import (
     wait_incrementing,
 )
 
-from streetrace.history import History
 from streetrace.log import get_logger
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
+
+if TYPE_CHECKING:
+    from litellm.types.utils import ModelResponse
 
 _MAX_RETRIES = 7
 """Maximum number of retry attempts for the retrying LLM."""
@@ -61,9 +62,9 @@ class LlmInterface(ABC):
     @abstractmethod
     async def generate_async(
         self,
-        history: History,
+        messages: list,
         tools: list[dict],
-    ) -> ModelResponse:
+    ) -> dict[str, Any]:
         """Call LLM interface's async generate method based on conversation history."""
 
     def estimate_token_count(
@@ -239,13 +240,14 @@ class AdkLiteLlmInterface(LlmInterface):
     @override
     async def generate_async(
         self,
-        history: History,
+        messages: list,
         tools: list[dict],
-    ) -> ModelResponse:
-        """Generate content using the provided history and the initialized LiteLlm instance.
+    ) -> dict[str, Any]:
+        """Generate content for the provided messages using internal LiteLlm instance.
 
         Args:
-            history: Conversation history in LiteLlm format.
+            messages: List of messages accepted by LiteLLM, see
+                https://github.com/search?q=repo%3ABerriAI%2Flitellm+path%3Alitellm%2Fmain.py+%22def+completion%28%22&type=code
             tools: tools in OpenAI format.
 
         """
@@ -255,19 +257,21 @@ class AdkLiteLlmInterface(LlmInterface):
         # which will handle retries internally
         try:
             # Use the llm_client from RetryingLiteLlm to make the API call
-            return cast(
+            r = cast(
                 "ModelResponse",
                 await self.llm_instance.llm_client.acompletion(
                     model=self.llm_instance.model,
-                    messages=[m.to_dict() for m in history.get_all_messages()],
+                    messages=messages,
                     stream=False,
                     tools=tools,
                     num_retries=0,  # Let RetryingLiteLlm handle retries
                 ),
             )
+            return r.model_dump()
         except Exception as e:
-            # RetryingLiteLlm should handle retryable exceptions, so this should only happen
-            # for non-retryable errors after all retry attempts have been exhausted
+            # RetryingLiteLlm should handle retryable exceptions, so this should only
+            # happen for non-retryable errors after all retry attempts have been
+            # exhausted
             logger.exception("LLM call failed after retry attempts")
             self.ui_bus.dispatch_ui_update(ui_events.Error(f"LLM error: {e}"))
             raise

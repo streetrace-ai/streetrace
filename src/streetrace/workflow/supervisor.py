@@ -2,137 +2,19 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from datetime import datetime
 
 from google.adk import Runner
 from google.adk.agents import Agent, BaseAgent
-from google.adk.events import Event
-from google.adk.sessions import BaseSessionService, Session
-from google.genai import types
-from tzlocal import get_localzone  # For creating message Content/Parts
+from google.genai import types as genai_types
 
 from streetrace.args import Args
 from streetrace.history import HistoryManager
 from streetrace.llm_interface import LlmInterface
 from streetrace.prompt_processor import ProcessedPrompt
-from streetrace.session_service import DisplaySessionsList
-from streetrace.system_context import SystemContext
+from streetrace.session_service import SessionManager
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui.adk_event_renderer import render_event as _  # noqa: F401
 from streetrace.ui.ui_bus import UiBus
-
-_SESSION_ID_TIME_FORMAT = "%Y-%m-%d_%H-%M"
-
-
-def _session_id(user_provided_id: str | None = None) -> str:
-    return user_provided_id or datetime.now(tz=get_localzone()).strftime(
-        _SESSION_ID_TIME_FORMAT,
-    )
-
-
-class SessionManager:
-    current_session: Session | None = None
-
-    def __init__(
-        self,
-        args: Args,
-        session_service: BaseSessionService,
-        system_context: SystemContext,
-        ui_bus: UiBus,
-    ):
-        self.session_service = session_service
-        self.args = args
-        self.system_context = system_context
-        self.ui_bus = ui_bus
-        self.current_session_id = _session_id(self.args.session_id)
-
-    @property
-    def app_name(self) -> str:
-        """Get the current app name used for session ID."""
-        return self.args.effective_app_name
-
-    @property
-    def user_id(self) -> str:
-        """Get the current app name used for session ID."""
-        return self.args.effective_user_id
-
-    def reset_session(self, new_id: str | None = None) -> None:
-        """Reset session id so the new ID will be treated as the current session id.
-
-        This causes the SessionService to create/retrieve self.current_session_id using.
-        In a normal flow, the ID should be generated automatically (leave blank), so a
-        new session is created.
-
-        get_or_create_session will always use the self.current_session_id as the current
-        session id, and will create a new session if the ID does not correspond to an
-        existing session.
-
-        Args:
-            new_id (Optional): Don't set in a normal scenario. This should be generated
-                automatically.
-
-        """
-        self.current_session_id = _session_id(new_id)
-
-    def get_current_session(self) -> Session | None:
-        """Create the ADK agent session with empty state or get existing session."""
-        session_id = self.current_session_id
-        return self.session_service.get_session(
-            app_name=self.app_name,
-            user_id=self.user_id,
-            session_id=session_id,
-        )
-
-    def get_or_create_session(self) -> Session:
-        """Create the ADK agent session with empty state or get existing session."""
-        session_id = self.current_session_id
-        session = self.session_service.get_session(
-            app_name=self.app_name,
-            user_id=self.user_id,
-            session_id=session_id,
-        )
-        if not session:
-            session = self.session_service.create_session(
-                app_name=self.app_name,
-                user_id=self.user_id,
-                session_id=session_id,
-                state={},  # Initialize state during creation
-            )
-            context = self.system_context.get_project_context()
-            context_event = Event(
-                author="user",
-                content=types.Content(
-                    role="user",
-                    parts=[types.Part.from_text(text="\n".join(context))],
-                ),
-            )
-            self.session_service.append_event(session, context_event)
-            session = self.session_service.get_session(
-                app_name=self.app_name,
-                user_id=self.user_id,
-                session_id=session_id,
-            )
-            if session is None:
-                msg = "session is None"
-                raise AssertionError(msg)
-
-        self.current_session = session
-        return session
-
-    def display_sessions(self) -> None:
-        """List all available sessions for the current user and app."""
-        sessions_response = self.session_service.list_sessions(
-            app_name=self.app_name,
-            user_id=self.user_id,
-        )
-
-        display_list = DisplaySessionsList(
-            app_name=self.app_name,
-            user_id=self.user_id,
-            list_sessions=sessions_response,
-        )
-
-        self.ui_bus.dispatch_ui_update(display_list)
 
 
 class Supervisor:
@@ -164,7 +46,6 @@ class Supervisor:
         self.app_name = args.effective_app_name
         self.session_user_id = args.effective_user_id
         self.session_id = args.effective_session_id
-        self.session: Session | None = None
         self.tool_provider = tool_provider
         self.history_manager = history_manager
 
@@ -218,16 +99,16 @@ class Supervisor:
         parts = []
         if payload:
             if payload.prompt:
-                parts.append(types.Part.from_text(text=payload.prompt))
+                parts.append(genai_types.Part.from_text(text=payload.prompt))
             if payload.mentions:
                 for mention in payload.mentions:
                     mention_text = (
                         f"\nAttached file `{mention[0]!s}`:\n\n```\n{mention[1]}\n```\n"
                     )
-                    parts.append(types.Part.from_text(text=mention_text))
+                    parts.append(genai_types.Part.from_text(text=mention_text))
 
         # Prepare the user's message in ADK format
-        content = types.Content(role="user", parts=parts) if parts else None
+        content = genai_types.Content(role="user", parts=parts) if parts else None
 
         final_response_text = "Agent did not produce a final response."  # Default
 

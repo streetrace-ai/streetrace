@@ -43,11 +43,9 @@ def init_logging(args: Args) -> None:
         # https://docs.litellm.ai/docs/debugging/local_debugging
         litellm._turn_on_debug()  # type: ignore[symbol-not-exported] # noqa: SLF001
         # Add console handler only if debug is enabled
-        console_handler.setLevel(DEBUG)
         # Root logger setup
         # Set root logger level to DEBUG initially to capture everything
         root_logger.setLevel(DEBUG)
-        root_logger.addHandler(console_handler)
         root_logger.info("Debug logging enabled.")
     else:
         litellm.suppress_debug_info = True

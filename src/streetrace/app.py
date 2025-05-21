@@ -128,23 +128,33 @@ class Application:
         """Handle non-interactive mode (single prompt execution)."""
         # According to coding guide, core components should be fail-fast.
         # Raise if non_interactive_prompt is unexpectedly None.
-        user_input, confirm_with_user = self.args.non_interactive_prompt
-        if not user_input or not user_input.strip():
-            error_msg = "Non-interactive mode requires a prompt, but none was provided."
-            logger.error(error_msg)
-            raise ValueError(error_msg)
-
-        self.ui_bus.dispatch_ui_update(ui_events.UserInput(user_input))
-        if confirm_with_user:
-            confirmation = self.ui.confirm_with_user(
-                ":stop_sign: continue? ([underline]yes[/underline]/no) ",
-            )
-            if confirmation == "no":
+        return_code = 0
+        try:
+            user_input, confirm_with_user = self.args.non_interactive_prompt
+            if not user_input or not user_input.strip():
+                error_msg = (
+                    "Non-interactive mode requires a prompt, but none was provided."
+                )
+                logger.error(error_msg)
+                self.ui_bus.dispatch_ui_update(ui_events.Error(error_msg))
+                return_code = 1
                 return
 
-        await self._process_input(user_input)
+            self.ui_bus.dispatch_ui_update(ui_events.UserInput(user_input))
+            if confirm_with_user:
+                confirmation = self.ui.confirm_with_user(
+                    ":stop_sign: continue? ([underline]YES[/underline]/no) ",
+                )
+                if confirmation.lower() not in ["yes", "y"]:
+                    return
 
-        raise SystemExit
+            await self._process_input(user_input)
+        except Exception as err:
+            # in non-interactive we always leave the app when done or err.
+            self.ui_bus.dispatch_ui_update(ui_events.Error(str(err)))
+            raise SystemExit(1) from err
+        finally:
+            raise SystemExit(return_code)
 
     async def _run_interactive(self) -> None:
         """Handle interactive mode (conversation loop)."""
@@ -247,7 +257,9 @@ def create_app(args: Args) -> Application:
         cmd_executor.register(
             CompactCommand(
                 ui_bus=ui_bus,
-                history_manager=history_manager,
+                args=args,
+                session_manager=session_manager,
+                system_context=system_context,
                 llm_interface=llm_interface,
             ),
         )

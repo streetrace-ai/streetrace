@@ -7,14 +7,31 @@ the current conversation history to reduce token usage while maintaining context
 # Import Application for type hint only
 from typing import override
 
+from google.adk.events import Event
+from google.adk.models.llm_request import LlmRequest
+from google.genai import types as genai_types
+
+from streetrace.args import Args
 from streetrace.commands.base_command import Command
-from streetrace.history import History, HistoryManager
 from streetrace.llm_interface import LlmInterface
 from streetrace.log import get_logger
+from streetrace.messages import COMPACT
+from streetrace.system_context import SystemContext
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
+from streetrace.workflow.supervisor import SessionManager
 
 logger = get_logger(__name__)
+
+
+def _dont_use_tools() -> None:
+    """Address litellm.UnsupportedParamsError.
+
+    Anthropic doesn't support tool calling without `tools=` param specified.
+
+    Never call this tool.
+    """
+    return
 
 
 class CompactCommand(Command):
@@ -23,12 +40,16 @@ class CompactCommand(Command):
     def __init__(
         self,
         ui_bus: UiBus,
-        history_manager: HistoryManager,
+        args: Args,
+        session_manager: SessionManager,
+        system_context: SystemContext,
         llm_interface: LlmInterface,
     ) -> None:
         """Initialize a new instance of ResetSessionCommand."""
+        self.args = args
         self.ui_bus = ui_bus
-        self.history_manager = history_manager
+        self.session_manager = session_manager
+        self.system_context = system_context
         self.llm_interface = llm_interface
 
     @property
@@ -49,11 +70,17 @@ class CompactCommand(Command):
             app_instance: The main Application instance.
 
         """
+        import litellm
+
+        # allow ADK to feed a fake tool to model in case it needs one
+        # TODO(krmrn42): Find a workaround as importing litellm directly takes time.
+        litellm.modify_params = True
+
         logger.info("Executing compact command.")
-        current_history = self.history_manager.get_history()
-        if not current_history or not current_history.messages:
+        current_session = self.session_manager.get_current_session()
+        if not current_session or not current_session.events:
             self.ui_bus.dispatch_ui_update(
-                ui_events.Warn("No history available to compact."),
+                ui_events.Info("No history available to compact."),
             )
             return
 
@@ -61,57 +88,58 @@ class CompactCommand(Command):
             ui_events.Info("Compacting conversation history..."),
         )
 
-        # Create a temporary history for the summarization request
-        system_message = current_history.system_message
-        context = current_history.context
-        messages_as_dicts = [msg.model_dump() for msg in current_history.messages]
-
-        summary_request_history = History(
-            system_message=system_message,
-            context=context,
-            messages=messages_as_dicts,
-        )
-
-        summary_prompt = """Please summarize our conversation so far, describing the
-goal of the conversation, detailed plan we developed, all the key points and decisions.
-Mark which points of the plan are already completed and mention all relevant artifacts.
-
-Your summary should:
-1. Preserve all important information, file paths, and code changes
-2. Include any important decisions or conclusions we've reached
-3. Keep any critical context needed for continuing the conversation
-4. Format the summary as a concise narrative
-
-Return ONLY the summary without explaining what you're doing."""
-
-        summary_request_history.add_user_message(summary_prompt)
+        contents = [
+            event.content for event in current_session.events if event.content
+        ] + [
+            genai_types.Content(
+                role="user",
+                parts=[genai_types.Part.from_text(text=COMPACT)],
+            ),
+        ]
 
         logger.info("Requesting conversation summary from LLM")
 
-        messages = await self.llm_interface.generate_async(
-            self.app_args.model,
-            summary_request_history,
+        summary_message_parts: list[str] = []
+        llm_request = LlmRequest(
+            model=self.args.model,
+            contents=contents,
+            config=genai_types.GenerateContentConfig(
+                system_instruction=self.system_context.get_system_message(),
+            ),
         )
-        # Get the summary message from the response
-        last_message = None
-        if hasattr(messages, "choices") and messages.choices:
-            last_message = messages.choices[0].message
+        async for response in self.llm_interface.get_adk_llm().generate_content_async(
+            llm_request=llm_request,
+            stream=False,
+        ):
+            # Get the summary message from the response
+            if response.content and response.content.parts:
+                summary_message_parts.extend(
+                    [part.text for part in response.content.parts if part.text],
+                )
+            if response.partial:
+                continue
 
-        if last_message:
-            # Create a new history with just the summary
-            new_history = History(system_message=system_message, context=context)
-
-            # Pass the whole Message object to add_assistant_message
-            new_history.add_assistant_message(last_message)
-            # Replace the current history
-            self.history_manager.set_history(new_history)
+        summary_message = "".join(summary_message_parts)
+        if summary_message:
+            self.ui_bus.dispatch_ui_update(ui_events.Info(summary_message))
+            new_events = [
+                Event(
+                    author="user",
+                    content=genai_types.Content(
+                        role="user",
+                        parts=[genai_types.Part.from_text(text=summary_message)],
+                    ),
+                ),
+            ]
+            self.session_manager.replace_current_session_events(new_events)
             self.ui_bus.dispatch_ui_update(
-                ui_events.Info("History compacted successfully."),
+                ui_events.Info("Session compacted successfully."),
             )
         else:
             self.ui_bus.dispatch_ui_update(
                 ui_events.Warn(
-                    "The last message in history is not model, skipping compact. Please report or fix in code if that's not right.",
+                    "The last message did not respond, skipping compact. "
+                    "Please report or fix in code if that's not right.",
                 ),
             )
             logger.error("LLM response was not in the expected format for summary.")

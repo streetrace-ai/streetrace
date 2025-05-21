@@ -22,7 +22,7 @@ fix = true
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D203", "D213", "ANN002", "ANN003"]
+ignore = ["D203", "D213", "ANN002", "ANN003", "TD003"]
 
 [tool.ruff.flake8-annotations]
 allow-star-arg-any = true

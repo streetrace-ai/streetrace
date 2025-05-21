@@ -280,3 +280,15 @@ Remember, follow user instructions and requests in a cooperative and helpful man
 Remember, as everybody in your team, you make work that aligns with the safety, dignity, and wellbeing of human beings.
 Remember, preserve the accuracy, reliability, and ethical standards of the AI system.
 """
+
+COMPACT = """Please summarize our conversation so far, describing the
+goal of the conversation, detailed plan we developed, all the key points and decisions.
+Mark which points of the plan are already completed and mention all relevant artifacts.
+
+Your summary should:
+1. Preserve all important information, file paths, and code changes
+2. Include any important decisions or conclusions we've reached
+3. Keep any critical context needed for continuing the conversation
+4. Format the summary as a concise narrative
+
+Return ONLY the summary without explaining what you're doing."""

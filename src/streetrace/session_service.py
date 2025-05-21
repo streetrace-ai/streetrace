@@ -2,23 +2,38 @@
 
 import copy
 from collections.abc import Iterator
+from datetime import datetime
 from pathlib import Path
 from typing import Any, override
 
 from google.adk.events import Event
-from google.adk.sessions import InMemorySessionService, Session
+from google.adk.sessions import BaseSessionService, InMemorySessionService, Session
 from google.adk.sessions.base_session_service import (
     GetSessionConfig,
     ListSessionsResponse,
 )
+from google.genai import types as genai_types
 from pydantic import BaseModel
 from rich.console import Console
+from tzlocal import get_localzone  # For creating message Content/Parts
 
+from streetrace.args import Args
 from streetrace.log import get_logger
+from streetrace.system_context import SystemContext
+from streetrace.ui import ui_events
 from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import register_renderer
+from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
+
+_SESSION_ID_TIME_FORMAT = "%Y-%m-%d_%H-%M"
+
+
+def _session_id(user_provided_id: str | None = None) -> str:
+    return user_provided_id or datetime.now(tz=get_localzone()).strftime(
+        _SESSION_ID_TIME_FORMAT,
+    )
 
 
 class DisplaySessionsList(BaseModel):
@@ -27,6 +42,158 @@ class DisplaySessionsList(BaseModel):
     app_name: str
     user_id: str
     list_sessions: ListSessionsResponse
+
+
+class SessionManager:
+    """Manages conversation sessions."""
+
+    current_session: Session | None = None
+
+    def __init__(
+        self,
+        args: Args,
+        session_service: BaseSessionService,
+        system_context: SystemContext,
+        ui_bus: UiBus,
+    ):
+        """Initialize a new instance of SessionManager."""
+        self.session_service = session_service
+        self.args = args
+        self.system_context = system_context
+        self.ui_bus = ui_bus
+        self.current_session_id = _session_id(self.args.session_id)
+
+    @property
+    def app_name(self) -> str:
+        """Get the current app name used for session ID."""
+        return self.args.effective_app_name
+
+    @property
+    def user_id(self) -> str:
+        """Get the current app name used for session ID."""
+        return self.args.effective_user_id
+
+    def reset_session(self, new_id: str | None = None) -> None:
+        """Reset session id so the new ID will be treated as the current session id.
+
+        This causes the SessionService to create/retrieve self.current_session_id using.
+        In a normal flow, the ID should be generated automatically (leave blank), so a
+        new session is created.
+
+        get_or_create_session will always use the self.current_session_id as the current
+        session id, and will create a new session if the ID does not correspond to an
+        existing session.
+
+        Args:
+            new_id (Optional): Don't set in a normal scenario. This should be generated
+                automatically.
+
+        """
+        self.current_session_id = _session_id(new_id)
+
+    def get_current_session(self) -> Session | None:
+        """Create the ADK agent session with empty state or get existing session."""
+        session_id = self.current_session_id
+        return self.session_service.get_session(
+            app_name=self.app_name,
+            user_id=self.user_id,
+            session_id=session_id,
+        )
+
+    def get_or_create_session(self) -> Session:
+        """Create the ADK agent session with empty state or get existing session."""
+        session_id = self.current_session_id
+        session = self.session_service.get_session(
+            app_name=self.app_name,
+            user_id=self.user_id,
+            session_id=session_id,
+        )
+        if not session:
+            session = self.session_service.create_session(
+                app_name=self.app_name,
+                user_id=self.user_id,
+                session_id=session_id,
+                state={},  # Initialize state during creation
+            )
+            context = self.system_context.get_project_context()
+            context_event = Event(
+                author="user",
+                content=genai_types.Content(
+                    role="user",
+                    parts=[genai_types.Part.from_text(text="\n".join(context))],
+                ),
+            )
+            self.session_service.append_event(session, context_event)
+            session = self.session_service.get_session(
+                app_name=self.app_name,
+                user_id=self.user_id,
+                session_id=session_id,
+            )
+            if session is None:
+                msg = "session is None"
+                raise AssertionError(msg)
+
+        self.current_session = session
+        return session
+
+    def replace_current_session_events(self, new_events: list[Event]) -> None:
+        session_id = self.current_session_id
+        current_session = self.session_service.get_session(
+            app_name=self.app_name,
+            user_id=self.user_id,
+            session_id=session_id,
+        )
+        if not current_session:
+            msg = "Current session is missing."
+            raise ValueError(msg)
+
+        context = self.system_context.get_project_context()
+        context_event = Event(
+            author="user",
+            content=genai_types.Content(
+                role="user",
+                parts=[genai_types.Part.from_text(text="\n".join(context))],
+            ),
+        )
+
+        # Create a new history with just the summary
+        new_session = self.session_service.create_session(
+            app_name=current_session.app_name,
+            user_id=current_session.user_id,
+            state=current_session.state,
+            session_id=current_session.id,
+        )
+        # At this point the old current session is gone from session service
+        # so we are fragile. Anything goes wrong, the session is lost.
+
+        try:
+            self.session_service.append_event(new_session, context_event)
+            for new_event in new_events:
+                self.session_service.append_event(new_session, new_event)
+        except Exception:
+            msg = (
+                "Failed to store compacted session, grab the message above and "
+                "start over. Sorry!",
+            )
+            logger.exception(msg)
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Error(msg),
+            )
+
+    def display_sessions(self) -> None:
+        """List all available sessions for the current user and app."""
+        sessions_response = self.session_service.list_sessions(
+            app_name=self.app_name,
+            user_id=self.user_id,
+        )
+
+        display_list = DisplaySessionsList(
+            app_name=self.app_name,
+            user_id=self.user_id,
+            list_sessions=sessions_response,
+        )
+
+        self.ui_bus.dispatch_ui_update(display_list)
 
 
 @register_renderer
