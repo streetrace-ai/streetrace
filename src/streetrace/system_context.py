@@ -5,15 +5,33 @@ system messages and project context from the configuration directory.
 """
 
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
+
+from tzlocal import get_localzone
 
 from streetrace import messages
 from streetrace.log import get_logger
-from streetrace.session_service import Session
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
+
+_SYSTEM_MD = "SYSTEM.md"
+_CONVERSATIONS_MD = "CONVERSATIONS.md"
+_CONVERSATIONS_MD_TEMPLATE = """
+## {date}
+
+### User:
+
+{user}
+
+### Assistant:
+
+{assistant}
+
+"""
+_CONVERSATION_HEADER_DATE_FORMAT = "%a %b %d %H:%M:%S %Y %z"
 
 
 class SystemContext:
@@ -42,7 +60,7 @@ class SystemContext:
             The loaded system message or a default message if none is found.
 
         """
-        system_message_path = self.config_dir / "system.md"
+        system_message_path = self.config_dir / _SYSTEM_MD
         if system_message_path.exists():
             try:
                 logger.debug("Reading system message from: %s", system_message_path)
@@ -75,7 +93,7 @@ class SystemContext:
             context_files = [
                 f
                 for f in self.config_dir.iterdir()
-                if f.is_file() and f.name != "system.md"
+                if f.is_file() and f.name not in [_SYSTEM_MD, _CONVERSATIONS_MD]
             ]
         except Exception as e:
             log_msg = f"Error listing context directory '{self.config_dir}': {e}"
@@ -115,6 +133,21 @@ class SystemContext:
         )
         return combined_context
 
-    def add_context_from(self, session: Session) -> None:
-        """Add user's request and assistant's final response to project context."""
-        # TODO(krmrn42): Implement
+    def add_context_from_turn(
+        self,
+        user_prompt: str,
+        assistant_response: str,
+    ) -> None:
+        """Add the sequence of request-responses to project context."""
+        # payload can be empty if the user just sends an empty message
+        # see Application._process_input in app.py
+        conv_path = self.config_dir / _CONVERSATIONS_MD
+        buffer = _CONVERSATIONS_MD_TEMPLATE.format(
+            date=datetime.now(tz=get_localzone()).strftime(
+                _CONVERSATION_HEADER_DATE_FORMAT,
+            ),
+            user=user_prompt,
+            assistant=assistant_response,
+        )
+        with conv_path.open(mode="a", encoding="utf-8") as f:
+            f.write(buffer)
