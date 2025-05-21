@@ -18,15 +18,16 @@ from streetrace.ui.ui_bus import UiBus
 logger = get_logger(__name__)
 
 _SYSTEM_MD = "SYSTEM.md"
+# TODO(krmrn42): Experiment with pre-processing this file and use messages for RAG
 _CONVERSATIONS_MD = "CONVERSATIONS.md"
 _CONVERSATIONS_MD_TEMPLATE = """
-## {date}
+# {date}
 
-### User:
+## User
 
 {user}
 
-### Assistant:
+## Assistant
 
 {assistant}
 

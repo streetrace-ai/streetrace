@@ -113,7 +113,6 @@ class Supervisor:
 
         event_counter = 0
         session = self.session_manager.get_or_create_session()
-        pre_run_events_count = len(session.events)
         async with self._create_agent("default") as root_agent:
             runner = Runner(
                 app_name=session.app_name,
@@ -146,8 +145,7 @@ class Supervisor:
 
         # Add the agent's final message to the history
         if final_response_text:
-            content = self.session_manager.post_process(
+            self.session_manager.post_process(
                 processed_prompt=payload,
-                session=session,
-                previous_events_count=pre_run_events_count,
+                original_session=session,
             )

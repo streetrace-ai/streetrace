@@ -340,9 +340,9 @@ class JSONSessionService(InMemorySessionService):
             state=session.state,
         )
         for i in range(start_at):
-            super().append_event(session, new_session.events[i])
+            super().append_event(new_session, session.events[i])
         for event in new_events:
-            super().append_event(session, event)
+            super().append_event(new_session, event)
         new_session = super().get_session(
             app_name=session.app_name,
             user_id=session.user_id,
@@ -485,7 +485,10 @@ class SessionManager:
                 author="user",
                 content=genai_types.Content(
                     role="user",
-                    parts=[genai_types.Part.from_text(text="\n".join(context))],
+                    parts=[
+                        genai_types.Part.from_text(text=context_part)
+                        for context_part in context
+                    ],
                 ),
             )
             self.session_service.append_event(session, context_event)
@@ -546,7 +549,7 @@ class SessionManager:
         self,
         session: Session,
         previous_events_count: int,
-    ) -> str | None:
+    ) -> str:
         """Keep only assistant's final response in instead of the full ReAct loop.
 
         Perhaps we will need to investigate other approaches to maintain the
@@ -565,44 +568,32 @@ class SessionManager:
 
         """
         if len(session.events) <= previous_events_count + 1:
-            logger.warning(
-                "Cannot post-process, session does not contain extra messages.",
-            )
-            return None
+            msg = "Cannot post-process, session does not contain extra messages."
+            raise ValueError(msg)
         last_event = session.events[-1]
         if last_event.author == "user":
-            logger.warning(
-                "Cannot post-process, the last session event is user's message.",
-                extra=last_event.model_dump(),
-            )
-            return None
+            msg = "Cannot post-process, the last session event is user's message."
+            raise ValueError(msg)
         if not last_event.content or not last_event.content.parts:
-            logger.warning(
-                "Cannot post-process, the last session event is empty.",
-                extra=last_event.model_dump(),
-            )
-            return None
+            msg = "Cannot post-process, the last session event is empty."
+            raise ValueError(msg)
         tools = [
             part.function_call or part.function_response
             for part in last_event.content.parts
             if part.function_call or part.function_response
         ]
         if tools:
-            logger.warning(
+            msg = (
                 "Cannot post-process, the last message has tool data which "
-                "indicates that the loop is not complete",
-                extra=last_event.model_dump(),
+                "indicates that the loop is not complete"
             )
-            return None
+            raise ValueError(msg)
         text = "".join(
             [part.text for part in last_event.content.parts if part.text],
         ).strip()
         if not text:
-            logger.warning(
-                "Cannot post-process, the last session event has no text parts.",
-                extra=last_event.model_dump(),
-            )
-            return None
+            msg = "Cannot post-process, the last session event has no text parts."
+            raise ValueError(msg)
         self.session_service.replace_events(
             session=session,
             new_events=[last_event],
@@ -652,8 +643,7 @@ class SessionManager:
     def post_process(
         self,
         processed_prompt: ProcessedPrompt | None,
-        session: Session,
-        previous_events_count: int,
+        original_session: Session,
     ) -> None:
         """Process session after ReAct loop.
 
@@ -665,15 +655,23 @@ class SessionManager:
 
         Args:
             processed_prompt: The input to the last agent interaction
-            session: The current session.
+            original_session: The original session.
             previous_events_count: Number of events to keep as-is in the beginning of
                 the session.
 
         """
+        previous_events_count = len(original_session.events)
+        session = self.session_service.get_session(
+            app_name=original_session.app_name,
+            user_id=original_session.user_id,
+            session_id=original_session.id,
+        )
+        if not session:
+            msg = "Session not found."
+            raise ValueError(msg)
         assistant_response = self._squash_turn_events(session, previous_events_count)
-        if assistant_response:
-            self._add_project_context(
-                processed_prompt=processed_prompt,
-                assistant_response=assistant_response,
-                session=session,
-            )
+        self._add_project_context(
+            processed_prompt=processed_prompt,
+            assistant_response=assistant_response,
+            session=session,
+        )
