@@ -8,10 +8,10 @@ from google.adk.agents import Agent, BaseAgent
 from google.genai import types as genai_types
 
 from streetrace.args import Args
-from streetrace.history import HistoryManager
 from streetrace.llm_interface import LlmInterface
 from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.session_service import SessionManager
+from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui.adk_event_renderer import render_event as _  # noqa: F401
 from streetrace.ui.ui_bus import UiBus
@@ -25,7 +25,7 @@ class Supervisor:
         ui_bus: UiBus,
         llm_interface: LlmInterface,
         tool_provider: ToolProvider,
-        history_manager: HistoryManager,
+        system_context: SystemContext,
         session_manager: SessionManager,
         args: Args,
     ) -> None:
@@ -35,8 +35,8 @@ class Supervisor:
             ui_bus: UI event bus for displaying messages to the user
             llm_interface: Interface to the LLM
             tool_provider: Provider of tools for the agent
-            history_manager: Manager of conversation history
-            session_manager: SessionManager for conversation sessions
+            system_context: System Context manager
+            session_manager: Conversaion sessions manager
             args: Application arguments containing session information
 
         """
@@ -47,7 +47,7 @@ class Supervisor:
         self.session_user_id = args.effective_user_id
         self.session_id = args.effective_session_id
         self.tool_provider = tool_provider
-        self.history_manager = history_manager
+        self.system_context = system_context
 
     @asynccontextmanager
     async def _create_agent(self, agent_type: str) -> AsyncGenerator[BaseAgent, None]:
@@ -77,7 +77,7 @@ class Supervisor:
                 name="StreetRace",
                 model=self.llm_interface.get_adk_llm(),
                 description=f"StreetRace - Session: {self.session_id}",
-                instruction=self.history_manager.system_context.get_system_message(),
+                instruction=self.system_context.get_system_message(),
                 tools=tools,
             )
             yield root_agent
@@ -107,7 +107,6 @@ class Supervisor:
                     )
                     parts.append(genai_types.Part.from_text(text=mention_text))
 
-        # Prepare the user's message in ADK format
         content = genai_types.Content(role="user", parts=parts) if parts else None
 
         final_response_text = "Agent did not produce a final response."  # Default
@@ -120,8 +119,9 @@ class Supervisor:
                 session_service=self.session_manager.session_service,
                 agent=root_agent,
             )
-            # Key Concept: run_async executes the agent logic and yields Events.
-            # We iterate through events to find the final answer.
+            # Key Concept: run_async executes the agent logic and yields Events while
+            # it goes through ReAct loop. We iterate through events to reach the final
+            # answer.
             async for event in runner.run_async(
                 user_id=session.user_id,
                 session_id=session.id,
@@ -145,8 +145,4 @@ class Supervisor:
 
         # Add the agent's final message to the history
         if final_response_text:
-            history = self.history_manager.get_history()
-            if not history:
-                msg = "History is not initialized"
-                raise ValueError(msg)
-            history.add_assistant_message(final_response_text)
+            self.system_context.add_context_from(session)

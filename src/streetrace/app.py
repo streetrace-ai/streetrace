@@ -17,7 +17,6 @@ from streetrace.commands.definitions import (
     HistoryCommand,
     ResetSessionCommand,
 )
-from streetrace.history import HistoryManager
 from streetrace.llm_interface import get_llm_interface
 from streetrace.log import get_logger
 from streetrace.prompt_processor import PromptProcessor
@@ -45,7 +44,6 @@ class Application:
         ui_bus: UiBus,
         cmd_executor: CommandExecutor,
         prompt_processor: PromptProcessor,
-        history_manager: HistoryManager,
         session_manager: SessionManager,
         workflow_supervisor: Supervisor | None,
     ) -> None:
@@ -58,7 +56,6 @@ class Application:
             cmd_executor: CommandExecutor instance for processing internal commands.
             prompt_processor: PromptProcessor instance for processing prompts and file
                 mentions.
-            history_manager: HistoryManager instance for managing conversation history.
             session_manager: SessionManager to manage conversation sessions.
             workflow_supervisor: Supervisor to use for user<->agent interaction
                 management.
@@ -72,15 +69,12 @@ class Application:
         self.ui_bus = ui_bus
         self.cmd_executor = cmd_executor
         self.prompt_processor = prompt_processor
-        self.history_manager = history_manager
         self.session_manager = session_manager
         self.workflow_supervisor = workflow_supervisor
         logger.info("Application initialized.")
 
     async def run(self) -> None:
         """Start the application execution based on provided arguments."""
-        self.history_manager.initialize_history()
-
         # If only listing sessions, we don't need to run the input loop
         if self.args.list_sessions:
             self.session_manager.display_sessions()
@@ -104,19 +98,10 @@ class Application:
         processed_prompt = None
 
         # If not a command, process the input as a prompt
-        if user_input.strip():
-            # Build context mainly for mentions specific to this input
-            processed_prompt = self.prompt_processor.build_context(user_input)
 
-            # Add mentioned files and the user prompt via HistoryManager
-            self.history_manager.add_mentions_to_history(
-                processed_prompt.mentions,
-            )
-            self.history_manager.add_user_message(user_input)
-            logger.debug(
-                "User prompt added to history",
-                extra={"user_input": user_input},
-            )
+        if user_input.strip():
+            # Extract mentions from this prompt
+            processed_prompt = self.prompt_processor.build_context(user_input)
 
         # Process with InteractionManager using the persistent history
         if not self.workflow_supervisor:
@@ -216,13 +201,6 @@ def create_app(args: Args) -> Application:
 
     session_service = JSONSessionService(context_dir / "sessions")
 
-    # Initialize HistoryManager
-    history_manager = HistoryManager(
-        app_args=args,
-        ui_bus=ui_bus,
-        system_context=system_context,
-    )
-
     session_manager = SessionManager(
         args=args,
         session_service=session_service,
@@ -236,7 +214,7 @@ def create_app(args: Args) -> Application:
             ui_bus=ui_bus,
             llm_interface=llm_interface,
             tool_provider=tool_provider,
-            history_manager=history_manager,
+            system_context=system_context,
             session_manager=session_manager,
             args=args,
         )
@@ -274,7 +252,6 @@ def create_app(args: Args) -> Application:
         ui_bus=ui_bus,
         cmd_executor=cmd_executor,
         prompt_processor=prompt_processor,
-        history_manager=history_manager,
         session_manager=session_manager,
         workflow_supervisor=workflow_supervisor,
     )

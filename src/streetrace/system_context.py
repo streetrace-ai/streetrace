@@ -9,6 +9,7 @@ from pathlib import Path
 
 from streetrace import messages
 from streetrace.log import get_logger
+from streetrace.session_service import Session
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
 
@@ -113,3 +114,7 @@ class SystemContext:
             len(combined_context),
         )
         return combined_context
+
+    def add_context_from(self, session: Session) -> None:
+        """Add user's request and assistant's final response to project context."""
+        # TODO(krmrn42): Implement
