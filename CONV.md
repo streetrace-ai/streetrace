@@ -951,3 +951,16 @@ If any of those values are not provided:
 Update README.md when done to describe this functionality.
 
 ===
+
+In the ./src/streetrace/commands there is a command base class, executor, and
+definitions in the subfolder. The commands are registered with the app in
+@src/streetrace/app.py.
+
+Let's add a '/help' command that will list all existing commands and provide their
+descriptions.
+
+Something slipped my mind.
+
+1. Command arguments
+2. Full agent impl
+3. Put the context in the first user's message as separate parts

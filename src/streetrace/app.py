@@ -14,6 +14,7 @@ from streetrace.commands.command_executor import CommandExecutor
 from streetrace.commands.definitions import (
     CompactCommand,
     ExitCommand,
+    HelpCommand,
     HistoryCommand,
     ResetSessionCommand,
 )
@@ -243,6 +244,9 @@ def create_app(args: Args) -> Application:
         )
     cmd_executor.register(
         ResetSessionCommand(ui_bus=ui_bus, session_manager=session_manager),
+    )
+    cmd_executor.register(
+        HelpCommand(ui_bus=ui_bus, cmd_executor=cmd_executor),
     )
 
     # Initialize the Application

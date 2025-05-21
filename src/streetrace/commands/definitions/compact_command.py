@@ -100,6 +100,7 @@ class CompactCommand(Command):
         logger.info("Requesting conversation summary from LLM")
 
         summary_message_parts: list[str] = []
+        role: str | None = None
         llm_request = LlmRequest(
             model=self.args.model,
             contents=contents,
@@ -113,6 +114,7 @@ class CompactCommand(Command):
         ):
             # Get the summary message from the response
             if response.content and response.content.parts:
+                role = response.content.role
                 summary_message_parts.extend(
                     [part.text for part in response.content.parts if part.text],
                 )
@@ -122,11 +124,16 @@ class CompactCommand(Command):
         summary_message = "".join(summary_message_parts)
         if summary_message:
             self.ui_bus.dispatch_ui_update(ui_events.Info(summary_message))
+            author, role = next(
+                (event.author, event.content.role)
+                for event in reversed(current_session.events)
+                if event.author != "user" and event.content and event.content.parts
+            )
             new_events = [
                 Event(
-                    author="user",
+                    author=author,
                     content=genai_types.Content(
-                        role="user",
+                        role=role,
                         parts=[genai_types.Part.from_text(text=summary_message)],
                     ),
                 ),

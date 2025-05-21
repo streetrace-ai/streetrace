@@ -130,11 +130,12 @@ When run without `--prompt`, StreetRace🚗💨 enters interactive mode.
 
 These commands can be typed directly into the prompt (with autocompletion support):
 
+* `/help`: Display a list of all available commands with their descriptions.
 * `/exit`: Exit the interactive session.
 * `/quit`: Quit the interactive session.
 * `/history`: Display the conversation history.
 * `/compact`: Summarize conversation history to reduce token count.
-* (Future commands like `/help`, `/config` could be added here)
+* `/reset`: Reset the current session, clearing the conversation history.
 
 For detailed information about the `/compact` command, see [docs/commands/compact.md](docs/commands/compact.md).
 

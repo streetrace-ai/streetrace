@@ -137,7 +137,12 @@ def _render_message_content(msg: Event) -> Group:
 @register_renderer
 def render_history(obj: _DisplayHistory, console: Console) -> None:
     """Render a full history on the UI."""
-    table = Table(title="Conversation history")
+    table = Table(
+        title="Conversation history",
+        show_lines=False,
+        leading=1,
+        box=None,
+    )
 
     table.add_column(
         "Role",
@@ -149,7 +154,6 @@ def render_history(obj: _DisplayHistory, console: Console) -> None:
 
     if obj.system_message:
         table.add_row("System", obj.system_message)
-        table.add_row("", "")
 
     session_message_count = 0
     if obj.session:
@@ -163,7 +167,6 @@ def render_history(obj: _DisplayHistory, console: Console) -> None:
             ):
                 # add a blank line to separate between events unless it's a function
                 # response
-                table.add_row("", "")
                 # Add row to table with role and combined message parts
                 table.add_row(msg.author, message_parts)
             else:
