@@ -1,19 +1,102 @@
 """Console UI."""
 
-from typing import Any
+from types import TracebackType
+from typing import TYPE_CHECKING, Any
 
 from prompt_toolkit import HTML, PromptSession
 from prompt_toolkit.completion import Completer  # Base class
+from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.validation import Validator
 from rich.console import Console
-from rich.status import Status
 
+from streetrace.app_state import AppState
 from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import render_using_registered_renderer
 from streetrace.ui.ui_bus import UiBus
 
+if TYPE_CHECKING:
+    from rich.status import Status
+
 _PROMPT = "You:"
+
+_TOOLBAR_TEMPLATE = (
+    "<highlight>{current_model}</highlight> | "
+    "usage: <highlight>{usage_and_cost.app_run_usage.prompt_tokens}</highlight>in/"
+    "<highlight>{usage_and_cost.app_run_usage.completion_tokens}</highlight>out, "
+    "<highlight>${usage_and_cost.app_run_usage.cost:,.2f}</highlight> | "
+    "Send: Esc,Enter | Hints: @ Tab / | Break/Exit: Ctrl+C"
+)
+
+
+def _format_app_state_str(template: str, app_state: AppState) -> str:
+    return template.format(
+        current_model=app_state.current_model,
+        usage_and_cost=app_state.usage_and_cost,
+    )
+
+
+class StatusSpinner:
+    """Console Status, encapsulates rich.status."""
+
+    _ICON = "hamburger"
+    _EMPTY_MESSAGE = "Working..."
+    _STATUS_MESSAGE = (
+        "{current_model} Working... {usage_and_cost.turn_usage.prompt_tokens}in:"
+        "{usage_and_cost.turn_usage.completion_tokens}out, "
+        "${usage_and_cost.turn_usage.cost:,.2f}"
+    )
+
+    def __init__(self, app_state: AppState, console: Console) -> None:
+        """Initialize the instance and instantiate rich.status.
+
+        Args:
+            app_state: App State container.
+            console: The console instance to attach the spinner to.
+
+        """
+        self.app_state = app_state
+        self.console = console
+        self._status: Status | None = None
+
+    def update_state(self) -> None:
+        """Update status message."""
+        if self._status:
+            self._status.update(
+                _format_app_state_str(StatusSpinner._STATUS_MESSAGE, self.app_state),
+            )
+
+    def __enter__(self) -> "StatusSpinner":
+        """Enter the context by starting the spinner.
+
+        Returns:
+            self, so that logging methods can be called within the context.
+
+        """
+        print("Showing status")
+        self._status = self.console.status(
+            status=StatusSpinner._EMPTY_MESSAGE,
+            spinner=StatusSpinner._ICON,
+        ).__enter__()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Exit the context by propagating the signal to the spinner.
+
+        Args:
+            exc_type: The type of exception raised (if any).
+            exc_value: The exception instance (if any).
+            traceback: The traceback object (if any).
+
+        """
+        if self._status:
+            self._status.__exit__(exc_type, exc_value, traceback)
+            self._status = None
 
 
 class ConsoleUI:
@@ -25,7 +108,12 @@ class ConsoleUI:
 
     cursor_is_in_line: bool = False
 
-    def __init__(self, completer: Completer, ui_bus: UiBus) -> None:
+    def __init__(
+        self,
+        app_state: AppState,
+        completer: Completer,
+        ui_bus: UiBus,
+    ) -> None:
         """Initialize the ConsoleUI.
 
         Args:
@@ -33,6 +121,7 @@ class ConsoleUI:
             ui_bus: UI event bus to exchange messages with the UI.
 
         """
+        self.app_state = app_state
         self.console = Console()
         self.completer = completer  # Use the generic completer instance
         # Enable multiline input, potentially useful for longer prompts or pasted code
@@ -50,9 +139,15 @@ class ConsoleUI:
         """Display an object using a known renderer."""
         render_using_registered_renderer(obj, self.console)
 
-    def status(self, message: str) -> Status:
+    def status(self) -> StatusSpinner:
         """Display a status message using rich.console.status."""
-        return self.console.status(message, spinner="hamburger")
+        self.spinner = StatusSpinner(self.app_state, self.console)
+        return self.spinner
+
+    def update_state(self) -> None:
+        """Update status message."""
+        if self.spinner:
+            self.spinner.update_state()
 
     def _update_rprompt(self, token_count: int | None) -> None:
         if token_count is None:
@@ -82,28 +177,20 @@ class ConsoleUI:
         def build_prompt_continuation(
             width: int,
             _1: int,
-            _2: bool,  # noqa: FBT001
-        ) -> list[tuple[str, str]]:
+            _2: int,
+        ) -> StyleAndTextTuples:
             # Defines appearance for continuation lines in multiline mode
             # Simple dots for now, could be more elaborate
             return [
                 ("class:prompt-continuation", "." * width),  # Style in Styles.PT
             ]
 
-        def build_bottom_toolbar() -> list[tuple[str, str]]:
-            # Help text at the bottom
-            current_model = "some model"
-            input_tokens = "123"
-            output_tokens = "456"
-            cost = "123.00"
+        def build_bottom_toolbar() -> HTML:
             return HTML(
-                f"Model <highlight>{current_model}</highlight> | "
-                f"tokens: <highlight>{input_tokens}</highlight>/<highlight>{output_tokens}</highlight>, <highlight>${cost}</highlight> | "
-                f"New Line: Enter | Send: Esc,Enter | "
-                f"Autocomplete: @ Tab / | Exit: /bye,Ctrl+C",
+                _format_app_state_str(_TOOLBAR_TEMPLATE, self.app_state),
             )
 
-        def send_is_typing(text: str) -> None:
+        def send_is_typing(text: str) -> bool:
             self.ui_bus.dispatch_typing_prompt(text)
             return True
 
@@ -114,8 +201,8 @@ class ConsoleUI:
         try:
             with patch_stdout():
                 user_input = await self.prompt_session.prompt_async(
-                    build_prompt,  # Use the function to build the prompt dynamically if needed
-                    style=Styles.PT_ANSI,  # Apply the custom style map
+                    build_prompt,
+                    style=Styles.PT_ANSI,
                     prompt_continuation=build_prompt_continuation,
                     bottom_toolbar=build_bottom_toolbar,
                     validator=Validator.from_callable(send_is_typing),

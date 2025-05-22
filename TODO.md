@@ -1,70 +1,55 @@
 # todo
 
-## 2025-04-29
-
-To make this a real tool, I need to:
-
-    1. Use an LLM gateway to access LLMs, e.g. https://github.com/BerriAI/litellm
-    2. How does StreetRace relate to benefit from a2a? Perhaps run as a Server exposing agents? Allow connecting to other agent providers and run them as a client?
-    3. Use MCP for all context, allow adding new MCP providers and implement a set of default tools, e.g. local files
-    4. The user can define their custom agents and tools.
-    5. Run all ReAct sequences as Actors. Find if we can use llama index, or find a lightweight actor model framework. Pyakka looks cool, but it seems too tightly coupled to threading, which is not the point I'm looking for.
-    5. Show an example of leveraging coding agents with this, e.g. https://github.com/noahshinn/reflexion, https://github.com/alekst23/creo-cortex
-    6. Show an example of implementing a full eng workflow from requirements to tests, perfect code, docs, etc.
-
-### release:
-
-- [ ] cleanup logs
+- [ ] fix tests
 - [ ] update readme
-- [ ] mcp integration
-
-### todo
-
+- [ ] allow creating agents in the workspace
+- [ ] create an example agent
+- [ ] Show an example of leveraging coding agents with this, e.g. https://github.com/noahshinn/reflexion, https://github.com/alekst23/creo-cortex
+- [ ] Show an example of implementing a full eng workflow from requirements to tests, perfect code, docs, etc.
+- [ ] cleanup logs
 - [ ] build context mode
-- [ ] identify all features of interaction manager and confirm in adk implementation
-    - [ ] count tokens: check if tokens are stored in session
-    - [ ] fix status progress
-    - [ ] show request tokens, costs, session tokens and costs, daily/monthly etc.
-    - [ ] PAIN cost management - show request cost, session cost, and set limits / quotas / budgets
-    - [ ] PAIN Show total token count in this chat session in status bar
+- [ ] set limits / quotas / budgets
 - [ ] code execution
 - [ ] break up new features into tasks (see email)
-- [ ] fix tests
-- [ ] how to manage history?
-    - [ ] maintain conversation history over restarts,
-    - [ ] don't keep old files in history
-    - [ ] show files already in context over the prompt
-    - [x] Add turn summary to session instead of full contents.
-    - [ ] compact and cleanup session
 - [ ] imports performance
 - [ ] PAIN add cli timeout to avoid hanging commands, report timeout to the model.
-- [ ] count request tokens before the request is sent, and show it separately.
-
 - [ ] Prompt history
 - [ ] langchain tools
 - [ ] mcp tools with sse
 - [ ] Integrate MCP prompts as slash-commands.
-- [ ] add last modification date to read/write_file to check if it's overwriting a newer version.
 - [ ] print available backends and model names
 - [ ] use logprobs to output model confidence
-- [ ] When the model runs python interpreter as a tool, Ctrl+C hands the app
+- [ ] When the model runs python interpreter as a tool, Ctrl+C hangs the app
 - [ ] When the model runs python interpreter as a tool, the user cannot see what they are typing
-- [ ] support @last conversation
-- [ ] @mentions should support folders
+- [ ] (why?) support @last conversation
+- [ ] (why?) @mentions should support folders
 - [ ] prompt templates
 - [ ] web ui that works on your repo in the background, so you can work on the go
-- [ ] If gemini responds with malformed tools or other model errors, feed it back so it can fix its own error
-- [ ] add datetime to Message
+- [ ] (Not doing, there is nothing to send back if 500) If gemini responds with malformed tools or other model errors, feed it back so it can fix its own error
+- [ ] (Not doing, not much helpful) add datetime to Message
 - [ ] usage stats
-- [ ] google.genai.errors.ServerError: 500 INTERNAL. {'error': {'code': 500, 'message': 'An internal error has occurred. Please retry or report
 - [ ] run cli in background
 - [ ] Add command to summarize work done and store it in worklog from the user scenario perspective, as in "what's new"?
 - [ ] read_file, when the file is missing, see if it's somewhere around and return "did you mean"
 - [ ] cli command validation (e.g., can configure regex in agent or streetrace config file)
 
+# done
 
-### done
-
+- [x] identify all features of interaction manager and confirm in adk implementation
+  - [x] count tokens: check if tokens are stored in session
+  - [x] fix status progress
+  - [x] show request tokens, costs, session tokens and costs
+  - [x] PAIN cost management - show request cost, session cost
+  - [x] PAIN Show total token count in this chat session in status bar
+- [x] how to manage history?
+  - [x] maintain conversation history over restarts,
+  - [x] don't keep old files in history
+  - [x] (Not doing, there are no files in the context) show files already in context over the prompt
+  - [x] Add turn summary to session instead of full contents.
+  - [x] compact and cleanup session
+- [x] count request tokens before the request is sent, and show it separately.
+- [x] (Not doing, reduces reliability, better isolate with working environments) add last modification date to read/write_file to check if it's overwriting a newer version.
+- [x] google.genai.errors.ServerError: 500 INTERNAL. {'error': {'code': 500, 'message': 'An internal error has occurred. Please retry or report
 - [x] event-driven ui
 - [x] estimate token count while typing the prompt
 - [x] print working directory
@@ -99,11 +84,10 @@ To make this a real tool, I need to:
 - [x] How to use other models on vertexai
 - [x] create console print module so it uses the proper colors
 - [x] count input/output tokens consumed
-- [x] _generate_with_tools needs to return finish reason
+- [x] \_generate_with_tools needs to return finish reason
 - [x] anthropic api 529 overloaded
 - [x] text editor
-- [x] Handle retryable API errors:
-        * HTTPStatusError: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'
+- [x] Handle retryable API errors: \* HTTPStatusError: Client error '429 Too Many Requests' for url 'https://api.anthropic.com/v1/messages'
 - [x] compact history command
 - [x] summarize task command (Summarize this conversation describing the goal and outcomes. Mention paths to all files included in this context.)
 - [x] create an ollama implementation similar to gemini and anthropic
@@ -115,29 +99,28 @@ To make this a real tool, I need to:
 - [x] also add space between message and function name
 - [x] @mention files and folders
 
-
-### ideas
+# ideas
 
 - [ ] It would be great to allow in-code documentation to be sent as context.
 - [ ] Keep only cli
 - [ ] Bootstrapping and "Build context" mode:
-    - [ ] Discover project rules and recommendations
-    - [ ] Describe project structure and document each file
-    - [ ] Code review
-    - [ ] Describe code health pipeline, confirm if all the necessary tools are configured
-    - [ ] Auto add readme and context to the conversation history
+  - [ ] Discover project rules and recommendations
+  - [ ] Describe project structure and document each file
+  - [ ] Code review
+  - [ ] Describe code health pipeline, confirm if all the necessary tools are configured
+  - [ ] Auto add readme and context to the conversation history
 - [ ] Law of robotics
 
-## thoughts
+# thoughts
 
-### linting, unit tests, etc.
+## linting, unit tests, etc.
 
 There seem to be to things:
 
 1. Something that has be done related to specific changes.
-    E.g., implement new tests.
+   E.g., implement new tests.
 2. Something that has to be done for all changes.
-    E.g., run all tests and static analysis.
+   E.g., run all tests and static analysis.
 
 For all changes, there has to be a feedback loop with the model itself before it completes. So we should make
 sure the model finishes any task with running a pre-release pipeline involving all checks, and address all issues.
@@ -149,19 +132,17 @@ Ideas:
 2. Add a tool that runs pre-release checks.
    Solid for a project, but not applicable for street-race as a more common tool.
 
-
-### Console status
+## Console status
 
 We need to inform the user about current processing stats and costs:
 
-1. When typing a prompt in ConsoleUI.prompt_async (see @src/streetrace/ui/console_ui.py) -> we need to show the estimated number of tokens in the typed prompt in rprompt.
+1. **_DONE_** When typing a prompt in ConsoleUI.prompt_async (see @src/streetrace/ui/console_ui.py) -> we need to show the estimated number of tokens in the typed prompt in rprompt.
 2. During the turn -> Turn tokens in status update. (supervisor)
 3. When typing -> total tokens and cost of the current session. (console_ui -> app -> console_ui)
 
 What if I load yesterday's session? Totals will show cumulative for the loaded session.
 
-
-#### Show the estimated number of tokens when typing
+### Show the estimated number of tokens when typing
 
 > **_DONE_**
 
@@ -169,11 +150,11 @@ Create a class called TokenEstimator in @src/streetrace/llm_interface.py. Initia
 
 In ConsoleUI's `prompt_async`, we need to pass in a validator parameter into `prompt_session.prompt_async` call. The validator
 
-#### Bits and pieces
+### Bits and pieces
 
 1. We need to get the usage and costs data from litellm in llm_interface.
 
-#### Updating UI
+### Updating UI
 
 > **_DONE_**
 
@@ -187,7 +168,7 @@ There is the App that does something.
 There is the UI, and its sole purpose is to communicate with the user.
 
 UI will display info produced by other components (push)
-UI might *request* info from other components (pull)
+UI might _request_ info from other components (pull)
 
 So there is a natural two-way dependency causing deadlocks.
 

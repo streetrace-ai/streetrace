@@ -46,6 +46,7 @@ from typing import Any
 
 from pubsub.core import Publisher
 
+from streetrace.costs import UsageAndCost
 from streetrace.log import get_logger
 
 logger = get_logger(__name__)
@@ -55,6 +56,7 @@ logger = get_logger(__name__)
 _UI_UPDATE_EVENT = "ui_update_event"
 _TYPING_PROMPT_EVENT = "typing_prompt_event"
 _PROMPT_TOKEN_COUNT_ESTIMATE_EVENT = "prompt_token_count_estimate_event"  # noqa: S105
+_USAGE_DATA_EVENT = "usage_data"
 
 
 class UiBus:
@@ -142,3 +144,32 @@ class UiBus:
 
         """
         self._publisher.subscribe(listener, _PROMPT_TOKEN_COUNT_ESTIMATE_EVENT)
+
+    def dispatch_usage_data(self, usage: UsageAndCost) -> None:
+        """Send usage data stats update.
+
+        Typically, LlmInterface will issue update requests based on LiteLLM's
+        completion_cost.
+
+        Args:
+            usage: Usage data.
+
+        """
+        self._publisher.sendMessage(
+            _USAGE_DATA_EVENT,
+            usage=usage,
+        )
+
+    def on_usage_data(self, listener: Callable) -> None:
+        """Subscribe to prompt token count updates.
+
+        The listener must be sync.
+
+        Typically, ConsoleUI will subscribe to update requests
+        and update the prompt session rprompt.
+
+        Args:
+            listener: A Callable[[int],...] listener to receive rprompt update requests.
+
+        """
+        self._publisher.subscribe(listener, _USAGE_DATA_EVENT)

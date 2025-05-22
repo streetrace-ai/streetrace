@@ -7,6 +7,7 @@ components and managing the application lifecycle.
 
 # Core application components
 
+from streetrace.app_state import AppState
 from streetrace.args import Args
 from streetrace.commands.command_executor import CommandExecutor
 
@@ -18,6 +19,7 @@ from streetrace.commands.definitions import (
     HistoryCommand,
     ResetSessionCommand,
 )
+from streetrace.costs import UsageAndCost
 from streetrace.llm_interface import get_llm_interface
 from streetrace.log import get_logger
 from streetrace.prompt_processor import PromptProcessor
@@ -41,6 +43,7 @@ class Application:
     def __init__(  # noqa: PLR0913 - Many dependencies needed for orchestration
         self,
         args: Args,
+        state: AppState,
         ui: ConsoleUI,
         ui_bus: UiBus,
         cmd_executor: CommandExecutor,
@@ -52,6 +55,7 @@ class Application:
 
         Args:
             args: App args.
+            state: App State container.
             ui: ConsoleUI instance for handling user interaction and displaying output.
             ui_bus: UI event bus to exchange messages with the UI.
             cmd_executor: CommandExecutor instance for processing internal commands.
@@ -72,7 +76,20 @@ class Application:
         self.prompt_processor = prompt_processor
         self.session_manager = session_manager
         self.workflow_supervisor = workflow_supervisor
+        self.ui_bus.on_usage_data(self._on_usage_data)
+        self.state = state
         logger.info("Application initialized.")
+
+    def _on_usage_data(self, usage: UsageAndCost) -> None:
+        self.state.usage_and_cost.add_usage(usage)
+        self.update_state()
+
+    def update_state(self) -> None:
+        """Push app state updates.
+
+        In leu of more versatile state management solution.
+        """
+        self.ui.update_state()
 
     async def run(self) -> None:
         """Start the application execution based on provided arguments."""
@@ -154,7 +171,8 @@ class Application:
         while True:
             try:
                 user_input = await self.ui.prompt_async()
-                await self._process_input(user_input)
+                with self.ui.status():
+                    await self._process_input(user_input)
             except (EOFError, SystemExit):
                 self.ui_bus.dispatch_ui_update(ui_events.Info("\nLeaving..."))
                 raise
@@ -173,6 +191,8 @@ class Application:
 
 def create_app(args: Args) -> Application:
     """Run StreetRace🚗💨."""
+    state = AppState(current_model=args.model)
+
     ui_bus = UiBus()
 
     ui_bus.dispatch_ui_update(ui_events.Info(f"Starting in {args.working_dir}"))
@@ -186,7 +206,7 @@ def create_app(args: Args) -> Application:
     prompt_completer = PromptCompleter([path_completer, command_completer])
 
     # Initialize ConsoleUI as soon as possible, so we can start showing something
-    ui = ConsoleUI(completer=prompt_completer, ui_bus=ui_bus)
+    ui = ConsoleUI(app_state=state, completer=prompt_completer, ui_bus=ui_bus)
 
     context_dir = args.working_dir / CONTEXT_DIR
 
@@ -252,6 +272,7 @@ def create_app(args: Args) -> Application:
     # Initialize the Application
     return Application(
         args=args,
+        state=state,
         ui=ui,
         ui_bus=ui_bus,
         cmd_executor=cmd_executor,
