@@ -73,7 +73,6 @@ class StatusSpinner:
             self, so that logging methods can be called within the context.
 
         """
-        print("Showing status")
         self._status = self.console.status(
             status=StatusSpinner._EMPTY_MESSAGE,
             spinner=StatusSpinner._ICON,
@@ -117,6 +116,7 @@ class ConsoleUI:
         """Initialize the ConsoleUI.
 
         Args:
+            app_state: App State container.
             completer: An instance of a prompt_toolkit Completer implementation.
             ui_bus: UI event bus to exchange messages with the UI.
 
