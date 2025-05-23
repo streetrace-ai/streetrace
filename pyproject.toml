@@ -58,6 +58,7 @@ check_untyped_defs = true
 files = ["src", "tests"]
 # Escaped backslash for TOML list string
 ignore_missing_imports = false
+disable_error_code = ["import-untyped"]
 
 # If using pytest
 [tool.pytest.ini_options]

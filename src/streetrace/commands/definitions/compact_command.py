@@ -13,7 +13,7 @@ from google.genai import types as genai_types
 
 from streetrace.args import Args
 from streetrace.commands.base_command import Command
-from streetrace.llm_interface import LlmInterface
+from streetrace.llm.llm_interface import LlmInterface
 from streetrace.log import get_logger
 from streetrace.messages import COMPACT
 from streetrace.system_context import SystemContext
@@ -88,6 +88,12 @@ class CompactCommand(Command):
             ui_events.Info("Compacting conversation history..."),
         )
 
+        new_events: list[Event] = []
+        for event in current_session.events:
+            if event.author != "user":
+                break
+            new_events.append(event.model_copy())
+
         contents = [
             event.content for event in current_session.events if event.content
         ] + [
@@ -123,13 +129,13 @@ class CompactCommand(Command):
 
         summary_message = "".join(summary_message_parts)
         if summary_message:
-            self.ui_bus.dispatch_ui_update(ui_events.Info(summary_message))
+            self.ui_bus.dispatch_ui_update(ui_events.Markdown(summary_message))
             author, role = next(
                 (event.author, event.content.role)
                 for event in reversed(current_session.events)
                 if event.author != "user" and event.content and event.content.parts
             )
-            new_events = [
+            new_events.append(
                 Event(
                     author=author,
                     content=genai_types.Content(
@@ -137,7 +143,7 @@ class CompactCommand(Command):
                         parts=[genai_types.Part.from_text(text=summary_message)],
                     ),
                 ),
-            ]
+            )
             self.session_manager.replace_current_session_events(new_events)
             self.ui_bus.dispatch_ui_update(
                 ui_events.Info("Session compacted successfully."),

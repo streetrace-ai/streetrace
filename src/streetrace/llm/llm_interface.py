@@ -1,20 +1,16 @@
 """A single point of creating an interface to any LLM used by StreetRace🚗💨."""
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator
 from typing import Any, cast, override
 
 from google.adk.models.base_llm import BaseLlm
-from google.adk.models.lite_llm import LiteLlm, LiteLLMClient
+from google.adk.models.lite_llm import LiteLlm
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from litellm import (
-    CustomStreamWrapper,
-    completion_cost,  # type: ignore[not-exported]: documented use
-    token_counter,  # type: ignore[not-exported]: documented use
-)
 from litellm.exceptions import InternalServerError, RateLimitError
-from litellm.types.utils import ModelResponse, Usage
+from litellm.types.utils import ModelResponse
+from litellm.utils import token_counter
 from tenacity import (
     AsyncRetrying,
     TryAgain,
@@ -22,7 +18,7 @@ from tenacity import (
     wait_incrementing,
 )
 
-from streetrace.costs import UsageAndCost
+from streetrace.llm.lite_llm_client import LiteLLMClientWithUsage
 from streetrace.log import get_logger
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
@@ -65,8 +61,8 @@ class LlmInterface(ABC):
     @abstractmethod
     async def generate_async(
         self,
-        messages: list,
-        tools: list[dict],
+        messages: list[Any],
+        tools: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Call LLM interface's async generate method based on conversation history."""
 
@@ -84,142 +80,6 @@ class LlmInterface(ABC):
 def get_llm_interface(model: str, ui_bus: UiBus) -> LlmInterface:
     """Create an LLM interface factory."""
     return AdkLiteLlmInterface(model, ui_bus)
-
-
-def _try_extract_usage(response: ModelResponse) -> Usage | None:
-    usage = response.get("usage", None)
-    if not usage:
-        logger.warning("Usage not found in ModelResponse: %s", response)
-        return None
-    if not isinstance(usage, Usage):
-        logger.warning("Unexpected usage type: %s:\n%s", type(usage), usage)
-        return None
-    logger.info("Usage found: %s", usage)
-    return usage
-
-
-def _try_extract_cost(
-    model: str,
-    messages: object,
-    completion_response: ModelResponse,
-) -> float | None:
-    """Use litellm.completion_cost to calculate costs based on known costs.
-
-    See https://docs.litellm.ai/docs/completion/token_usage.
-
-    Raises:
-        Exception, if the calculation was unsuccessful (perhaps, model costs are not
-            known).
-
-    """
-    if not isinstance(messages, list):
-        logger.warning(
-            "Unexpected messages type for cost calculation: %s:\n%s",
-            type(messages),
-            messages,
-        )
-        messages = list(messages) if isinstance(messages, Iterable) else [messages]
-    return completion_cost(
-        model=model,
-        messages=messages,
-        completion_response=completion_response,
-    )
-
-
-class LiteLLMClientWithUsage(LiteLLMClient):
-    """Provides acompletion method (for better testability)."""
-
-    def __init__(self, ui_bus: UiBus) -> None:
-        """Initialize a new instance."""
-        super().__init__()
-        self.ui_bus = ui_bus
-
-    def _process_usage_and_cost(
-        self,
-        model: str,
-        messages: object,
-        completion_response: object,
-    ) -> None:
-        if not isinstance(completion_response, ModelResponse):
-            if isinstance(completion_response, CustomStreamWrapper):
-                logger.warning(
-                    "NotImplemented (and not plans for now): CustomStreamWrapper "
-                    "streaming generator cannot provide usage info itself.",
-                )
-            else:
-                logger.warning(
-                    "Cannot extract usage from LiteLLM response type %s",
-                    type(completion_response),
-                )
-            return
-
-        usage = _try_extract_usage(completion_response)
-
-        try:
-            cost = _try_extract_cost(model, messages, completion_response)
-        except Exception:
-            msg = (
-                "Cost could not be calculated. See "
-                "https://docs.litellm.ai/docs/completion/token_usage#6-completion_cost."
-            )
-            logger.exception(msg)
-            self.ui_bus.dispatch_ui_update(ui_events.Warn(msg))
-        else:
-            usage_and_costs = UsageAndCost(
-                completion_tokens=usage.completion_tokens if usage else None,
-                prompt_tokens=usage.prompt_tokens if usage else None,
-                cost=cost,
-            )
-            self.ui_bus.dispatch_usage_data(usage_and_costs)
-
-    async def acompletion(
-        self,
-        model,  # noqa: ANN001
-        messages,  # noqa: ANN001
-        tools,  # noqa: ANN001
-        **kwargs,
-    ) -> ModelResponse | CustomStreamWrapper:
-        """Asynchronously calls acompletion.
-
-        Args:
-          model: The model name.
-          messages: The messages to send to the model.
-          tools: The tools to use for the model.
-          **kwargs: Additional arguments to pass to acompletion.
-
-        Returns:
-          The model response as a message.
-
-        """
-        response = await super().acompletion(model, messages, tools, **kwargs)
-        self._process_usage_and_cost(model, messages, response)
-        return response
-
-    def completion(
-        self,
-        model,  # noqa: ANN001
-        messages,  # noqa: ANN001
-        tools,  # noqa: ANN001
-        stream=False,  # noqa: ANN001, FBT002
-        **kwargs,
-    ) -> ModelResponse | CustomStreamWrapper:
-        """Call LiteLLM completion, use in streaming mode.
-
-        Args:
-          model: The model to use.
-          messages: The messages to send.
-          tools: The tools to use for the model.
-          stream: Whether to stream the response.
-          **kwargs: Additional arguments to pass to completion.
-
-        Returns:
-          The response from the model.
-
-        """
-        response = super().completion(model, messages, tools, stream, **kwargs)
-        if not stream:
-            self._process_usage_and_cost(model, messages, response)
-        return response
 
 
 class RetryingLiteLlm(LiteLlm):
@@ -382,8 +242,8 @@ class AdkLiteLlmInterface(LlmInterface):
     @override
     async def generate_async(
         self,
-        messages: list,
-        tools: list[dict],
+        messages: list[Any],
+        tools: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Generate content for the provided messages using internal LiteLlm instance.
 

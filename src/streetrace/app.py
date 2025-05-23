@@ -20,7 +20,7 @@ from streetrace.commands.definitions import (
     ResetSessionCommand,
 )
 from streetrace.costs import UsageAndCost
-from streetrace.llm_interface import get_llm_interface
+from streetrace.llm.llm_interface import get_llm_interface
 from streetrace.log import get_logger
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.session_service import JSONSessionService

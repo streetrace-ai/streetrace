@@ -8,7 +8,7 @@ from google.adk.agents import Agent, BaseAgent
 from google.genai import types as genai_types
 
 from streetrace.args import Args
-from streetrace.llm_interface import LlmInterface
+from streetrace.llm.llm_interface import LlmInterface
 from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.session_service import SessionManager
 from streetrace.system_context import SystemContext

@@ -9,7 +9,7 @@ from typing import override
 from prompt_toolkit.document import Document
 from prompt_toolkit.validation import Validator
 
-from streetrace.llm_interface import LlmInterface
+from streetrace.llm.llm_interface import LlmInterface
 
 
 class TokenEstimatingValidator(Validator):

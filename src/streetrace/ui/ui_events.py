@@ -43,6 +43,15 @@ def render_info(obj: Info, console: Console) -> None:
     console.print(obj, style=Styles.RICH_INFO)
 
 
+class Markdown(_Str):
+    pass
+
+
+@register_renderer
+def render_markdown(obj: Markdown, console: Console) -> None:
+    console.print(Markdown(obj), style=Styles.RICH_INFO)
+
+
 _PROMPT = "You:"
 
 
