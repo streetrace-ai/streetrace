@@ -89,7 +89,7 @@ class PromptProcessor:
             processed_mentions.add(cleaned_mention)
 
         mentions = sorted(processed_mentions)
-        loaded_files = []
+        loaded_files: list[tuple[Path, str]] = []
 
         if not mentions:
             return loaded_files

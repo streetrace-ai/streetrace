@@ -23,14 +23,14 @@ from streetrace.costs import UsageAndCost
 from streetrace.llm.llm_interface import get_llm_interface
 from streetrace.log import get_logger
 from streetrace.prompt_processor import PromptProcessor
-from streetrace.session_service import JSONSessionService
+from streetrace.session_service import JSONSessionService, SessionManager
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui import ui_events
 from streetrace.ui.completer import CommandCompleter, PathCompleter, PromptCompleter
 from streetrace.ui.console_ui import ConsoleUI
 from streetrace.ui.ui_bus import UiBus
-from streetrace.workflow.supervisor import SessionManager, Supervisor
+from streetrace.workflow.supervisor import Supervisor
 
 logger = get_logger(__name__)
 

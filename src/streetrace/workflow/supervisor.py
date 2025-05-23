@@ -125,7 +125,7 @@ class Supervisor:
             async for event in runner.run_async(
                 user_id=session.user_id,
                 session_id=session.id,
-                new_message=content,  # type: ignore[not-assignable]: wrong declaration in adk
+                new_message=content,  # type: ignore[unused-ignore]
             ):
                 self.ui_bus.dispatch_ui_update(event)
 

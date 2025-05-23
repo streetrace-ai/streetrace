@@ -18,7 +18,7 @@ class SearchResult(TypedDict):
 class FindInFilesResult(OpResult):
     """Tool result to send to LLM."""
 
-    output: list[SearchResult] | None  # type: ignore[override-wrong-type]
+    output: list[SearchResult] | None  # type: ignore[misc]
 
 
 # TODO(krmrn42): Honor .gitignore

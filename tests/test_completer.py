@@ -241,7 +241,6 @@ class TestCommandCompleter(unittest.TestCase):
 
 
 class TestPromptCompleterComposition(unittest.TestCase):
-    # Tests remain the same as PromptCompleter delegates based on internal logic of children
     def setUp(self) -> None:
         self.mock_path_completer = MagicMock(spec=PathCompleter)
         self.mock_command_completer = MagicMock(spec=CommandCompleter)

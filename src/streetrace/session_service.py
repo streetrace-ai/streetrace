@@ -201,7 +201,7 @@ class JSONSessionSerializer:
 
 
 # TODO(krmrn42): composition instead of inheritance
-class JSONSessionService(InMemorySessionService):
+class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
     """ADK Session Service that combines in-memory and json storage."""
 
     def __init__(
@@ -218,7 +218,7 @@ class JSONSessionService(InMemorySessionService):
         )
 
     @override
-    def get_session(  # type: ignore[incompatible override]
+    def get_session(  # type: ignore[misc]
         self,
         *,
         app_name: str,
@@ -281,7 +281,7 @@ class JSONSessionService(InMemorySessionService):
         return self._merge_state(app_name, user_id, copy.deepcopy(session))
 
     @override
-    def create_session(
+    def create_session(  # type: ignore[misc]
         self,
         *,
         app_name: str,
@@ -347,7 +347,7 @@ class JSONSessionService(InMemorySessionService):
         return new_session
 
     @override
-    def list_sessions(
+    def list_sessions(  # type: ignore[misc]
         self,
         *,
         app_name: str,
@@ -359,7 +359,7 @@ class JSONSessionService(InMemorySessionService):
         return ListSessionsResponse(sessions=list(sessions_iter))
 
     @override
-    def delete_session(
+    def delete_session(  # type: ignore[misc]
         self,
         *,
         app_name: str,
@@ -385,7 +385,11 @@ class JSONSessionService(InMemorySessionService):
         )
 
     @override
-    def append_event(self, session: Session, event: Event) -> Event:
+    def append_event(  # type: ignore[misc]
+        self,
+        session: Session,
+        event: Event,
+    ) -> Event:
         """Append an event to a session in memory and updates the storage."""
         evt = super().append_event(
             session=session,

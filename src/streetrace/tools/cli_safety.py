@@ -91,7 +91,7 @@ def _parse_command(args: str | list[str]) -> list[tuple[str, list[str]]]:
     """
     args_str = " ".join(args) if isinstance(args, list) else args
 
-    parsed_commands = []
+    parsed_commands: list[tuple[str, list[str]]] = []
 
     try:
         # Parse the command using bashlex

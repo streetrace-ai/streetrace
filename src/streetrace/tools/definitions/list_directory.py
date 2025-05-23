@@ -22,7 +22,7 @@ class ListDirItems(TypedDict):
 class ListDirResult(OpResult):
     """Dir listing result to sent to LLM."""
 
-    output: ListDirItems | None  # type: ignore[override-wrong-type]
+    output: ListDirItems | None  # type: ignore[misc]
 
 
 def load_gitignore_for_directory(path: Path) -> pathspec.PathSpec:

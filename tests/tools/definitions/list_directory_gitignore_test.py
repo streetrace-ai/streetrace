@@ -139,11 +139,12 @@ class TestReadDirectoryStructure(unittest.TestCase):
         )
 
     def test_pattern_override(self) -> None:
-        """Test that patterns can be overridden in nested directories (won't affect root listing)."""
+        """Test that patterns can be overridden in nested directories."""
         # Create root gitignore - ignore all txt files
         (self.temp_dir / ".gitignore").write_text("*.txt\n")
 
-        # Create dir1 gitignore - but keep specific txt files (doesn't affect root listing)
+        # Create dir1 gitignore - but keep specific txt files
+        # (doesn't affect root listing)
         (self.temp_dir / "dir1" / ".gitignore").write_text(
             "!dir1_file.txt\n",
         )  # Don't ignore this specific txt

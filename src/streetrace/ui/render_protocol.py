@@ -1,6 +1,6 @@
 """Object to Rich Console rendering protocol."""
 
-from typing import Protocol, TypeVar, runtime_checkable
+from typing import Any, Protocol, TypeVar, runtime_checkable
 
 from rich.console import Console
 
@@ -16,7 +16,7 @@ class RendererFn(Protocol[T_Protocol_contra]):
         ...
 
 
-_display_renderers_registry: dict[type, RendererFn] = {}
+_display_renderers_registry: dict[type, RendererFn[Any]] = {}
 
 
 def register_renderer(

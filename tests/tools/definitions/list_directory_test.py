@@ -36,7 +36,7 @@ class TestDirectoryStructureTool(unittest.TestCase):
         (sub_dir / self.sub_file_name).write_text("content")
 
     def test_specific_directory(self) -> None:
-        """Test that tool works with a specified directory path relative to parent work_dir."""
+        """Test that tool works with a specified directory path relative to work_dir."""
         # Create a file in current directory to verify we're not scanning it
         current_marker = Path("current_dir_marker.txt")
         current_marker.write_text("marker")
@@ -64,13 +64,14 @@ class TestDirectoryStructureTool(unittest.TestCase):
                 current_marker.unlink()
 
     def test_subdirectory_path(self) -> None:
-        """Test that tool works with a subdirectory path relative to its parent work_dir."""
+        """Test that tool works with a subdirectory path relative to work_dir."""
         sub_dir_path = self.temp_dir / self.sub_dir_name
 
         # Call the tool with subdirectory path, using temp_dir as work_dir
         result = list_directory(str(sub_dir_path), self.temp_dir)
 
-        # Verify the structure only includes the subdirectory contents, relative to temp_dir
+        # Verify the structure only includes the subdirectory contents, relative to
+        # temp_dir
         assert len(result["dirs"]) == 0  # No sub-sub-directories
         assert len(result["files"]) == 1
         assert str(Path(self.sub_dir_name) / self.sub_file_name) == result["files"][0]

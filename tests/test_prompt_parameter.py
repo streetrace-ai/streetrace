@@ -56,8 +56,6 @@ class TestPromptParameter(unittest.TestCase):
 
         # Assert that input() was never called (non-interactive mode)
         mock_input.assert_not_called()
-        # Assert UI display for non-interactive start (optional)
-        # mock_ui_instance.display_info.assert_any_call("Running with provided prompt...") # noqa: ERA001
 
     @patch("pathlib.Path.cwd")  # Mock getcwd
     @patch("pathlib.Path.is_dir")  # Mock getcwd
@@ -96,11 +94,3 @@ class TestPromptParameter(unittest.TestCase):
         mock_app_instance.run.assert_called_once()
         call_args, call_kwargs = mock_app_instance.run.call_args
         # Interactive mode doesn't pass prompt to run
-
-        # Note: We don't assert input() here as the Application's run loop is mocked
-        # Assert UI display for interactive start (optional)
-        # mock_ui_instance.display_info.assert_any_call("Entering interactive mode...") # noqa: ERA001
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -5,6 +5,7 @@ import importlib
 from collections.abc import AsyncGenerator, Callable, Iterator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
@@ -13,7 +14,7 @@ from mcp import StdioServerParameters
 from streetrace.tools.definitions.fake_tools import get_current_time, get_weather
 from streetrace.utils.hide_args import hide_args
 
-AnyTool = Callable | BaseTool
+type AnyTool = Callable[..., Any] | BaseTool
 
 _MCP_TOOLS_PREFIX = "mcp:"
 _STREETRACE_TOOLS_PREFIX = "streetrace:"
@@ -116,7 +117,7 @@ class ToolProvider:
         self,
         tool_refs: list[str],
         work_dir: Path,
-    ) -> Iterator[Callable]:
+    ) -> Iterator[AnyTool]:
         """Get StreetRace tools from tool references.
 
         Args:
@@ -124,7 +125,7 @@ class ToolProvider:
             work_dir: Working directory to pass to tools.
 
         Yields:
-            Callable tools with work_dir argument hidden.
+            Tools with work_dir argument hidden.
 
         """
         tool_refs = [

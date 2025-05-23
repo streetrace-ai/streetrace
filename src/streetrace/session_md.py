@@ -4,6 +4,7 @@ import json
 import re
 from datetime import UTC, datetime
 from pathlib import Path
+from types import TracebackType
 
 from google.adk.events import Event
 from google.adk.sessions import Session
@@ -53,7 +54,13 @@ class MDSessionWriter:
         self.writer = self.path.open(mode="w", encoding="utf-8")
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:  # noqa: ANN001, D105
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        """Close writer on context exit."""
         self.writer.close()
 
     def _write_line(self, md_line: str) -> None:
@@ -68,7 +75,7 @@ class MDSessionWriter:
         author = event.author
         if author == "user":
             author = self._session.user_id
-        return author
+        return str(author)
 
     def _write_session_header(self) -> None:
         title_template = "# @{user_name} - @{model_name}\n"
@@ -89,8 +96,7 @@ class MDSessionWriter:
 
     def _safe_md(self, md: str) -> str:
         """Fix md syntax and replace common format markers in the input text."""
-        md_lines = self.md.render(self.md.parse(md))
-        md_lines = md_lines.splitlines(keepends=True)
+        md_lines = self.md.render(self.md.parse(md)).splitlines(keepends=True)
         md_buffer: list[str] = []
         for line in md_lines:
             new_line = line
@@ -130,7 +136,7 @@ class MDSessionWriter:
                     self._write_line(safe_md)
                     lines_written += 1
                 else:
-                    err_msg = ("text not in final response",)
+                    err_msg = "text not in final response"
                 if part.function_call or part.function_response:
                     err_msg = "function_call or function_response in final response"
                 if err_msg:

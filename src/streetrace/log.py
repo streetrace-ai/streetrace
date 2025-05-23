@@ -41,7 +41,7 @@ def init_logging(args: Args) -> None:
     # Configure Logging Level based on args
     if args.verbose:
         # https://docs.litellm.ai/docs/debugging/local_debugging
-        litellm._turn_on_debug()  # type: ignore[symbol-not-exported] # noqa: SLF001
+        litellm._turn_on_debug()  # type: ignore[attr-defined,no-untyped-call] # noqa: SLF001
         # Add console handler only if debug is enabled
         # Root logger setup
         # Set root logger level to DEBUG initially to capture everything
@@ -52,7 +52,6 @@ def init_logging(args: Args) -> None:
     # --- End Logging Configuration ---
 
 
-# TODO(krmrn42): Move all import logging to from streetrace.logging import get_logger
 def get_logger(name: str) -> Logger:
     """Proxy for logging.getLogger."""
     return getLogger(name)

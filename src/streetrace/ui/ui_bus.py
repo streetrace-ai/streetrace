@@ -48,8 +48,6 @@ from streetrace.log import get_logger
 
 logger = get_logger(__name__)
 
-# TODO(krmrn42): Implement waiting for user input (confirm, prompt)
-
 _UI_UPDATE_EVENT = "ui_update_event"
 _TYPING_PROMPT_EVENT = "typing_prompt_event"
 _PROMPT_TOKEN_COUNT_ESTIMATE_EVENT = "prompt_token_count_estimate_event"  # noqa: S105
@@ -74,7 +72,7 @@ class UiBus:
         """
         self._publisher.sendMessage(_UI_UPDATE_EVENT, obj=event)
 
-    def on_ui_update_requested(self, listener: Callable) -> None:
+    def on_ui_update_requested(self, listener: Callable[[Any], None]) -> None:
         """Subscribe to UI update requests.
 
         The listener must be sync.
@@ -99,7 +97,7 @@ class UiBus:
         """
         self._publisher.sendMessage(_TYPING_PROMPT_EVENT, prompt=prompt)
 
-    def on_typing_prompt(self, listener: Callable) -> None:
+    def on_typing_prompt(self, listener: Callable[[str], None]) -> None:
         """Subscribe to prompt typing events.
 
         The listener must be sync.
@@ -128,7 +126,7 @@ class UiBus:
             token_count=token_count,
         )
 
-    def on_prompt_token_count_estimate(self, listener: Callable) -> None:
+    def on_prompt_token_count_estimate(self, listener: Callable[[int], None]) -> None:
         """Subscribe to prompt token count updates.
 
         The listener must be sync.
@@ -157,7 +155,7 @@ class UiBus:
             usage=usage,
         )
 
-    def on_usage_data(self, listener: Callable) -> None:
+    def on_usage_data(self, listener: Callable[[UsageAndCost], None]) -> None:
         """Subscribe to prompt token count updates.
 
         The listener must be sync.

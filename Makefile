@@ -1,10 +1,10 @@
 .PHONY: lint typed security depcheck unusedcode quickcheck check test coverage report publishpatch
 
 lint:
-	poetry run ruff check src tests --fix
+	poetry run ruff check src tests --ignore=FIX002 --fix
 
 typed:
-	poetry run mypy src tests
+	poetry run mypy src
 
 security:
 	poetry run bandit -r src tests

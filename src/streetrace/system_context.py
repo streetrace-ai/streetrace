@@ -85,7 +85,7 @@ class SystemContext:
             A string containing the combined content of all context files.
 
         """
-        combined_context = []
+        combined_context: list[str] = []
         if not self.config_dir.exists() or not self.config_dir.is_dir():
             logger.info("Context directory '%s' not found.", self.config_dir)
             return combined_context

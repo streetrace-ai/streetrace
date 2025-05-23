@@ -162,7 +162,9 @@ class CommandCompleter(Completer):
         Only completes if the command is the only content on the line (trimmed).
         """
         cmd_names = [
-            cmd_name for cmd in self.command_executor.commands for cmd_name in cmd.names
+            f"/{cmd_name}"
+            for cmd in self.command_executor.commands
+            for cmd_name in cmd.names
         ]
         text = document.text
         text_trimmed = text.strip()

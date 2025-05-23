@@ -66,7 +66,7 @@ def hide_args(
         new_doc = "\n".join(filtered_lines)
 
     @wraps(fn)
-    def wrapper(*args: Any, **kwargs: Any) -> Callable[..., TReturn]:
+    def wrapper(*args: Any, **kwargs: Any) -> TReturn:
         bound_args = new_sig.bind(*args, **kwargs)
         bound_args.apply_defaults()
         all_args = dict(bound_args.arguments)
@@ -74,7 +74,7 @@ def hide_args(
         return fn(**all_args)
 
     # Reflect modified signature
-    wrapper.__signature__ = new_sig
+    wrapper.__signature__ = new_sig  # type: ignore[attr-defined]
     wrapper.__name__ = fn.__name__
     wrapper.__doc__ = new_doc
 

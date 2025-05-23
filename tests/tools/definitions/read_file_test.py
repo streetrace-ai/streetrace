@@ -87,7 +87,8 @@ class TestReadFile(unittest.TestCase):
 
     def test_directory_traversal_prevention(self) -> None:
         """Test that directory traversal attempts are blocked."""
-        # Attempt to access a file outside work_dir using relative path (parent directory traversal)
+        # Attempt to access a file outside work_dir using relative path
+        # (parent directory traversal)
         parent_dir = self.temp_dir.parent
         # Create a path that attempts to go up and out of the allowed directory
         traversal_path = self.subdir / ".." / ".." / parent_dir.name / "some_file.txt"

@@ -9,9 +9,9 @@ from typing import override
 
 from streetrace.commands.base_command import Command
 from streetrace.log import get_logger
+from streetrace.session_service import SessionManager
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
-from streetrace.workflow.supervisor import SessionManager
 
 logger = get_logger(__name__)
 

@@ -125,7 +125,7 @@ class ConsoleUI:
         self.console = Console()
         self.completer = completer  # Use the generic completer instance
         # Enable multiline input, potentially useful for longer prompts or pasted code
-        self.prompt_session = PromptSession(
+        self.prompt_session: PromptSession[Any] = PromptSession(
             completer=self.completer,  # Pass the completer here
             complete_while_typing=True,  # Suggest completions proactively
             multiline=True,  # Allow multiline input with Esc+Enter
@@ -218,7 +218,7 @@ class ConsoleUI:
             raise SystemExit from kb_interrupt
         else:
             self.cursor_is_in_line = False  # Prompt resets cursor position
-            return user_input
+            return str(user_input)
         finally:
             self._update_rprompt(None)
 
@@ -226,7 +226,6 @@ class ConsoleUI:
         """Ask the user to type something and return the typed string."""
         return self.console.input(f"[green]{message}[/green]").strip()
 
-    # TODO(krmrn42): fix tests
     def display_info(self, message: str) -> None:
         """Display a standard informational message."""
         self.console.print(message, style=Styles.RICH_INFO)

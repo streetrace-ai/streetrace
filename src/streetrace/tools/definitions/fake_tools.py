@@ -1,5 +1,7 @@
 """Fake tools implementation for testing."""
 
+# mypy: disable-error-code="type-arg"
+
 import datetime
 from zoneinfo import ZoneInfo
 
@@ -48,5 +50,5 @@ def get_current_time(city: str) -> dict:
 
     tz = ZoneInfo(tz_identifier)
     now = datetime.datetime.now(tz)
-    report = f'The current time in {city} is {now.strftime("%Y-%m-%d %H:%M:%S %Z%z")}'
+    report = f"The current time in {city} is {now.strftime('%Y-%m-%d %H:%M:%S %Z%z')}"
     return {"status": "success", "report": report}
