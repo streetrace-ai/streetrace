@@ -175,6 +175,23 @@ Hello, interactive world!
 
 To exit interactive processes, use the standard method for that program (such as Ctrl-D for Python REPL or `:q` for vim).
 
+### CLI Command Safety
+
+StreetRace🚗💨 includes a safety mechanism for CLI command execution. Each command requested by the AI is analyzed and categorized into one of three safety levels:
+
+- **Safe**: Commands from a pre-configured safe list with only relative paths
+- **Ambiguous**: Commands not in the safe list but without obvious risks
+- **Risky**: Commands with absolute paths, directory traversal attempts, or potentially dangerous operations
+
+Risky commands are blocked by default to prevent unintended filesystem operations or system changes. This adds a layer of protection when working with AI-suggested commands.
+
+The safety checker uses `bashlex` to parse and analyze commands and arguments, checking for:
+- Command presence in a predefined safe list
+- Use of absolute vs. relative paths
+- Directory traversal attempts (using `..` to move outside the working directory)
+
+This helps ensure that StreetRace🚗💨 operates within the intended working directory and with known-safe commands.
+
 ### System Message Customization
 
 StreetRace🚗💨 centralizes system message handling in `main.py` and passes it to the provider implementations. By default, it looks for a system message in `.streetrace/system.md` and uses a default message if not found.

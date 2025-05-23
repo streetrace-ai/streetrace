@@ -3,7 +3,6 @@
 from pathlib import Path
 from typing import Any
 
-import streetrace.tools.definitions.apply_unified_patch_content as apply_patch
 import streetrace.tools.definitions.create_directory as c
 import streetrace.tools.definitions.find_in_files as s
 import streetrace.tools.definitions.list_directory as rds
@@ -15,65 +14,6 @@ def _clean_path(input_str: str) -> str:
     """Clean the input paths from surrounding whitespace and quotes."""
     # Only strip whitespace, not quotes
     return input_str.strip("\"'\r\n\t ")
-
-
-def apply_unified_patch_content(
-    patch_content: str,
-    work_dir: Path,
-) -> dict[str, Any]:
-    r"""Apply a unified diff patch to local files in the working directory.
-
-    Start all local paths with the current directory (./), e.g.:
-
-    ```
-    --- /dev/null
-    +++ ./answer.txt
-    @@ -0,0 +1 @@
-    +42
-    ```
-
-    You should provide at least three context lines before and after each
-    change hunk, e.g.:
-
-    ```
-    --- ./answer.txt
-    +++ ./answer.txt
-    @@ -3,7 +3,7 @@ to life,
-    the universe,
-    and everything:
-
-    -42
-    +43
-
-    From The
-    Hitchhiker's
-    ```
-
-    This is a preferred way of applying changes to project files. It allows
-    changing several files at once. All changes to all files can be applied
-    at once following the GNU patch unified diff format.
-
-    Never run bash scripts with apply_unified_patch_content. Use this function
-    only to create or modify files in the working directory.
-
-    Args:
-        patch_content (str): The unified diff patch content.
-        work_dir (Path): The directory where the patch should be applied.
-
-    Returns:
-        dict[str,str]:
-            "tool_name": "apply_unified_patch_content"
-            "result": "success" or "failure"
-            "stderr": stderr output of the GNU patch command
-            "stdout": stdout output of the GNU patch command
-
-    """
-    return dict(
-        apply_patch.apply_unified_patch_content(
-            patch_content=patch_content,
-            work_dir=work_dir,
-        ),
-    )
 
 
 def create_directory(

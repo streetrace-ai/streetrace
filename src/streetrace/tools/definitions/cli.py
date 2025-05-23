@@ -6,7 +6,18 @@ import threading
 from pathlib import Path
 from typing import IO
 
+from streetrace.log import get_logger
+from streetrace.tools.cli_safety import SafetyCategory, cli_safe_category
 from streetrace.tools.definitions.result import CliResult, OpResultCode
+
+logger = get_logger(__name__)
+
+# Error message for risky commands
+RISKY_COMMAND_ERROR = (
+    "Command execution blocked: The command was flagged as potentially risky. "
+    "Please use relative paths and avoid commands that may affect system state outside "
+    "the current directory."
+)
 
 
 def execute_cli_command(
@@ -39,6 +50,24 @@ def execute_cli_command(
     # Normalize the working directory
     work_dir = work_dir.resolve()
 
+    # Check command safety
+    safety_category = cli_safe_category(args)
+    if safety_category == SafetyCategory.RISKY:
+        logger.warning(
+            "Attempted to execute risky command",
+            extra={"command_input": args},
+        )
+        return CliResult(
+            tool_name="execute_cli_command",
+            result=OpResultCode.FAILURE,
+            stdout="",
+            stderr=RISKY_COMMAND_ERROR,
+        )
+
+    if safety_category == SafetyCategory.AMBIGUOUS:
+        logger.info("Executing ambiguous command", extra={"command_input": args})
+        # We still allow ambiguous commands, but log them for auditing
+
     completed_successfully = False
 
     try:
@@ -61,7 +90,7 @@ def execute_cli_command(
             t.start()
             return t
 
-        process = subprocess.Popen(
+        process = subprocess.Popen(  # noqa: S603
             args,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -80,9 +109,14 @@ def execute_cli_command(
             for _line in iter(q.get, None):
                 pass
         completed_successfully = True
-    except Exception as e:  # noqa: BLE001 we want to report all exceptions to the agent
+    except Exception as e:
+        error_message = str(e)
+        logger.exception(
+            "Error executing CLI command",
+            extra={"error": error_message, "command_input": args},
+        )
         stderr_lines.append("\n")
-        stderr_lines.append(str(e))
+        stderr_lines.append(error_message)
 
     return CliResult(
         tool_name="execute_cli_command",
