@@ -60,7 +60,7 @@ class CompactCommand(Command):
     @property
     def description(self) -> str:
         """Command description."""
-        return "Summarize conversation history to reduce token count while maintaining context."
+        return "Summarize conversation history and replace history with the summary."
 
     @override
     async def execute_async(self) -> None:

@@ -14,11 +14,12 @@ from streetrace.commands.command_executor import CommandExecutor
 class PathCompleter(Completer):
     """A prompt_toolkit @path completer.
 
-    Suggests file and directory paths relative to a working directory when the user types '@'.
-    Only activates if the cursor is adjacent to or within a valid @-mention path.
+    Suggests file and directory paths relative to a working directory when the user
+    types '@'. Only activates if the cursor is adjacent to or within a valid @-mention
+    path.
     """
 
-    def __init__(self, working_dir: Path | str) -> None:
+    def __init__(self, working_dir: Path) -> None:
         """Initialize the PathCompleter.
 
         Args:
@@ -26,21 +27,18 @@ class PathCompleter(Completer):
                          paths should be suggested. Can be a string or Path object.
 
         """
-        # Convert str to Path if needed
-        working_dir_path = Path(working_dir)
-
-        if not working_dir_path.is_dir():
-            msg = f"The provided working directory '{working_dir}' is not a valid directory."
+        if not working_dir.is_dir():
+            msg = f"working_dir '{working_dir}' is not a valid directory."
             raise ValueError(
                 msg,
             )
 
-        self.working_dir = working_dir_path.absolute()
+        self.working_dir = working_dir.absolute()
 
     def get_completions(  # noqa: C901, PLR0912
         self,
         document: Document,
-        _: CompleteEvent,
+        complete_event: CompleteEvent,  # noqa: ARG002
     ) -> Iterable[Completion]:
         """Generate completions for file/directory paths after an '@' symbol."""
         text_before_cursor = document.text_before_cursor
@@ -157,15 +155,15 @@ class CommandCompleter(Completer):
     def get_completions(
         self,
         document: Document,
-        _: CompleteEvent,
+        complete_event: CompleteEvent,  # noqa: ARG002
     ) -> Iterable[Completion]:
         """Generate completions for commands starting with '/'.
 
         Only completes if the command is the only content on the line (trimmed).
         """
-        commands = sorted(
-            self.command_executor.get_command_names_with_prefix(),
-        )
+        cmd_names = [
+            cmd_name for cmd in self.command_executor.commands for cmd_name in cmd.names
+        ]
         text = document.text
         text_trimmed = text.strip()
 
@@ -173,13 +171,10 @@ class CommandCompleter(Completer):
         # Requires / followed by zero or more valid command characters.
         # Use a pattern that enforces the starting slash.
         command_pattern_match = re.fullmatch(r"/([\w\-_]*)?", text_trimmed)
-        # Special case: if the input is exactly "/", it's a valid prefix but won't match above
         is_just_slash = text_trimmed == "/"
 
         if not command_pattern_match and not is_just_slash:
             return []  # Not a valid command-only context
-
-        # --- If context is valid, proceed ---
 
         prefix = text_trimmed
         start_pos = -len(prefix)
@@ -191,7 +186,7 @@ class CommandCompleter(Completer):
                 display=cmd,
                 display_meta="command",
             )
-            for cmd in commands
+            for cmd in cmd_names
             if cmd.startswith(prefix)
         ]
 

@@ -60,7 +60,6 @@ class DummyCommand(Command):
 
 
 class TestCommandExecutor(unittest.TestCase):
-
     def setUp(self) -> None:
         """Set up a new CommandExecutor for each test."""
         # Revert to patching the logger instance directly within the module
@@ -75,10 +74,8 @@ class TestCommandExecutor(unittest.TestCase):
     def test_register_command_success(self) -> None:
         """Test successful registration of a command."""
         self.executor.register(DummyCommand())
-        assert _TEST_CMD_NAME in self.executor.get_commands()
-        assert (
-            self.executor.get_command_descriptions()[_TEST_CMD_NAME] == _TEST_CMD_DESC
-        )
+        assert self.executor.get_command(_TEST_CMD_NAME)
+        assert self.executor.get_command(_TEST_CMD_NAME).description == _TEST_CMD_DESC
 
     def test_register_command_case_insensitivity(self) -> None:
         """Test that command names are stored lowercased."""
@@ -116,23 +113,8 @@ class TestCommandExecutor(unittest.TestCase):
         """Test retrieving the list of registered command names."""
         self.executor.register(DummyCommand(name="cmdb"))
         self.executor.register(DummyCommand(name="cmda"))
-        assert self.executor.get_commands() == ["cmdb", "cmda"]  # Order of registration
-
-    def test_get_commands_with_prefix(self) -> None:
-        """Test retrieving the list of registered command names."""
-        self.executor.register(DummyCommand(name="cmdb"))
-        self.executor.register(DummyCommand(name="cmda"))
-        assert self.executor.get_command_names_with_prefix() == [
-            "/cmdb",
-            "/cmda",
-        ]  # Order of registration
-
-    def test_get_command_descriptions(self) -> None:
-        """Test retrieving the command descriptions."""
-        self.executor.register(DummyCommand(name="cmdb", description="Command B Desc"))
-        self.executor.register(DummyCommand(name="cmda", description="Command A Desc"))
-        expected_descriptions = {"cmda": "Command A Desc", "cmdb": "Command B Desc"}
-        assert self.executor.get_command_descriptions() == expected_descriptions
+        registered_names = [c.name for c in self.executor.commands]
+        assert registered_names == ["cmda", "cmdb"]
 
     def test_execute_existing_command_continue(self) -> None:
         """Test executing a command (no args) that signals continue."""

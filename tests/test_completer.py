@@ -214,10 +214,6 @@ class TestPathCompleter(unittest.TestCase):
         with pytest.raises(ValueError, match="not a valid directory"):
             PathCompleter(Path("/invalid/dir"))
 
-        # Also test with string path
-        with pytest.raises(ValueError, match="not a valid directory"):
-            PathCompleter("/invalid/dir")
-
 
 class TestCommandCompleter(unittest.TestCase):
     # Updated tests for new CommandCompleter logic

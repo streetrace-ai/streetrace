@@ -71,7 +71,7 @@ class PromptProcessor:
             prompt: The user's input prompt containing potential @file mentions.
 
         Returns:
-            A list of tuples containing (file_path, file_content) for each valid mention.
+            A list of (file_path, file_content) tuples for each valid mention.
 
         """
         mention_pattern = r"@([^\s@]+)"
@@ -111,10 +111,13 @@ class PromptProcessor:
                 )
 
                 if common_path != abs_working_dir:
-                    log_msg = f"Mention '@{mention}' points outside the working directory '{self.args.working_dir}'. Skipping."
+                    log_msg = (
+                        f"'Skipping @{mention}' (points outside the working directory "
+                        f"'{self.args.working_dir}')."
+                    )
                     self.ui_bus.dispatch_ui_update(ui_events.Warn(log_msg))
                     logger.warning(
-                        "Security Warning: Mention '@%s' resolved to '%s' which is outside the working directory '%s'. Skipping.",
+                        log_msg,
                         mention,
                         abs_mention_path,
                         self.args.working_dir,
@@ -136,7 +139,7 @@ class PromptProcessor:
                         self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
                         logger.exception("Error reading mentioned file '%s'", mention)
                 else:
-                    log_msg = f"Mentioned path @{mention} not found or is not a file. Skipping."
+                    log_msg = f"Skipping @{mention} (path not found or is not a file)."
                     self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
                     logger.warning(log_msg)
             except Exception as e:
@@ -145,10 +148,9 @@ class PromptProcessor:
                 logger.exception(log_msg)
 
         if mentions_found > 0:
+            valid_mentions = ", ".join(["@" + m for m in mentions_loaded])
             self.ui_bus.dispatch_ui_update(
-                ui_events.Info(
-                    f"[Loading content from {', '.join(['@' + m for m in mentions_loaded])}]",
-                ),
+                ui_events.Info(f"[Loading content from {valid_mentions}]"),
             )
 
         return loaded_files

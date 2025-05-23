@@ -55,14 +55,12 @@ class HelpCommand(Command):
         """
         logger.info("Executing help command")
 
-        # Get command descriptions from the executor
-        command_descriptions = self.cmd_executor.get_command_descriptions()
-
         # Format the output
         help_text = "Available commands:\n\n"
 
-        for name, description in sorted(command_descriptions.items()):
-            help_text += f"/{name}: {description}\n"
+        for cmd in self.cmd_executor.commands:
+            names = ",".join([f"/{name}" for name in cmd.names])
+            help_text += f"{names}: {cmd.description}\n"
 
         # Display the help information
         self.ui_bus.dispatch_ui_update(ui_events.Info(help_text))

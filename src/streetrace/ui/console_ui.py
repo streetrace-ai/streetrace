@@ -22,10 +22,15 @@ _PROMPT = "You:"
 
 _TOOLBAR_TEMPLATE = (
     "<highlight>{current_model}</highlight> | "
-    "usage: <highlight>{usage_and_cost.app_run_usage.prompt_tokens}</highlight>in/"
-    "<highlight>{usage_and_cost.app_run_usage.completion_tokens}</highlight>out, "
-    "<highlight>${usage_and_cost.app_run_usage.cost:,.2f}</highlight> | "
+    "usage: <highlight>{usage_and_cost.app_run_usage.prompt_tokens_str}</highlight>in/"
+    "<highlight>{usage_and_cost.app_run_usage.completion_tokens_str}</highlight>out, "
+    "<highlight>${usage_and_cost.app_run_usage.cost_str}</highlight> | "
     "Send: Esc,Enter | Hints: @ Tab / | Break/Exit: Ctrl+C"
+)
+_STATUS_MESSAGE_TEMPLATE = (
+    "{current_model} Working... {usage_and_cost.turn_usage.prompt_tokens_str}in:"
+    "{usage_and_cost.turn_usage.completion_tokens_str}out, "
+    "${usage_and_cost.turn_usage.cost_str}"
 )
 
 
@@ -41,11 +46,6 @@ class StatusSpinner:
 
     _ICON = "hamburger"
     _EMPTY_MESSAGE = "Working..."
-    _STATUS_MESSAGE = (
-        "{current_model} Working... {usage_and_cost.turn_usage.prompt_tokens}in:"
-        "{usage_and_cost.turn_usage.completion_tokens}out, "
-        "${usage_and_cost.turn_usage.cost:,.2f}"
-    )
 
     def __init__(self, app_state: AppState, console: Console) -> None:
         """Initialize the instance and instantiate rich.status.
@@ -63,7 +63,7 @@ class StatusSpinner:
         """Update status message."""
         if self._status:
             self._status.update(
-                _format_app_state_str(StatusSpinner._STATUS_MESSAGE, self.app_state),
+                _format_app_state_str(_STATUS_MESSAGE_TEMPLATE, self.app_state),
             )
 
     def __enter__(self) -> "StatusSpinner":

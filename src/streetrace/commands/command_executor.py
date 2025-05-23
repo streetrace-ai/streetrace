@@ -4,6 +4,8 @@ This module provides the CommandExecutor class which handles registration,
 lookup, and execution of commands in the application.
 """
 
+from collections.abc import Sequence
+
 from pydantic import BaseModel
 
 from streetrace.log import get_logger
@@ -32,8 +34,28 @@ class CommandExecutor:
     def __init__(self) -> None:
         """Initialize the CommandExecutor with an empty command registry."""
         # Stores command names (lowercase) mapped to their Command instances
-        self._commands: dict[str, Command] = {}
+        self._commands: list[Command] = []
         logger.info("CommandExecutor initialized.")
+
+    @property
+    def commands(self) -> Sequence[Command]:
+        """Immutable access to registered commands."""
+        return tuple(self._commands)
+
+    def get_command(self, cmd_name: str) -> Command | None:
+        """Get a registered command by name.
+
+        Args:
+            cmd_name: Name of command to retrieve.
+
+        Returns:
+            Command registered with a given name, or None if none found.
+
+        """
+        return next(
+            (cmd for cmd in self._commands if cmd_name in cmd.names),
+            None,
+        )
 
     def register(self, command_instance: Command) -> None:
         """Register a Command instance.
@@ -52,46 +74,34 @@ class CommandExecutor:
 
         for name in command_instance.names:
             if not name.strip():
-                msg = f"Command name '{name}' from {type(command_instance).__name__} cannot be empty or whitespace."
+                msg = (
+                    f"Command name '{name}' from {type(command_instance).__name__} "
+                    "cannot be empty or whitespace."
+                )
                 raise ValueError(msg)
 
             if name != name.rstrip().lower():
-                msg = f"Command name '{name}' from {type(command_instance).__name__} cannot contain leading or trailing whitespace or uppercase characters."
+                msg = (
+                    f"Command name '{name}' from {type(command_instance).__name__} "
+                    "cannot contain leading or trailing whitespace or uppercase "
+                    "characters."
+                )
                 raise ValueError(msg)
 
-            if name in self._commands:
-                msg = f"Attempt to redefine command '/{name}'. {type(command_instance).__name__} cannot be added because {type(self._commands[name]).__name__} is already registered."
+            if self.get_command(name):
+                msg = (
+                    f"Attempt to redefine command '/{name}'. "
+                    f"{type(command_instance).__name__} cannot be added because "
+                    "{type(self._commands[name]).__name__} is already registered."
+                )
                 raise ValueError(msg)
 
-            self._commands[name] = command_instance
-            logger.debug(
-                "Command '/%s' (%s) registered: %s",
-                name,
-                type(command_instance).__name__,
-                command_instance.description,
-            )
-
-    def get_commands(self) -> list[str]:
-        """Return a sorted list of registered command names (lowercase).
-
-        Returns:
-            A list of command names (e.g., 'exit', 'history') in registration order.
-
-        """
-        return list(self._commands.keys())
-
-    def get_command_descriptions(self) -> dict[str, str]:
-        """Return a dictionary of command names (lowercase) and their descriptions."""
-        return {name: cmd.description for name, cmd in self._commands.items()}
-
-    def get_command_names_with_prefix(self) -> list[str]:
-        """Return a sorted list of registered command names, prefixed with '/'.
-
-        Returns:
-            A list of command names (e.g., '/exit', '/history') in registration order.
-
-        """
-        return [f"/{name}" for name in self._commands]
+        self._commands.append(command_instance)
+        logger.debug(
+            "Command %s registered as %s",
+            type(command_instance).__name__,
+            ",".join([f"/{name}" for name in command_instance.names]),
+        )
 
     async def execute_async(
         self,
@@ -115,7 +125,9 @@ class CommandExecutor:
             # If input doesn't start with '/', it's not a command for this executor
             return CommandStatus(command_executed=False)
 
-        if command_name not in self._commands:
+        command_instance = self.get_command(command_name)
+
+        if not command_instance:
             # Input started with '/' but didn't match any registered command
             logger.debug(
                 "Input '%s' is not a valid command name.",
@@ -125,7 +137,6 @@ class CommandExecutor:
             # We return False because *this specific input* wasn't a known command.
             return CommandStatus(command_executed=False)
 
-        command_instance = self._commands[command_name]
         logger.info("Executing command: '/%s'", command_name)
         try:
             await command_instance.execute_async()
