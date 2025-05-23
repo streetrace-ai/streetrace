@@ -30,3 +30,43 @@ class OpResult(BaseResult):
 
     output: str | None
     error: str | None
+
+
+def op_success(tool_name: str, output: str) -> OpResult:
+    """Construct OpResult message for a successful tool call."""
+    return OpResult(
+        tool_name=tool_name,
+        result=OpResultCode.SUCCESS,
+        output=output,
+        error=None,
+    )
+
+
+def op_error(tool_name: str, error: str) -> OpResult:
+    """Construct OpResult message for a failed tool call."""
+    return OpResult(
+        tool_name=tool_name,
+        result=OpResultCode.FAILURE,
+        output=None,
+        error=error,
+    )
+
+
+def cli_success(tool_name: str, stdout: str, stderr: str) -> CliResult:
+    """Construct CliResult message for a successful tool call."""
+    return CliResult(
+        tool_name=tool_name,
+        result=OpResultCode.SUCCESS,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def cli_error(tool_name: str, stdout: str, stderr: str) -> CliResult:
+    """Construct CliResult message for a failed tool call."""
+    return CliResult(
+        tool_name=tool_name,
+        result=OpResultCode.SUCCESS,
+        stdout=stdout,
+        stderr=stderr,
+    )

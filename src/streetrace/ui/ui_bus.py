@@ -12,12 +12,9 @@ that type.
 
 Alternatives considered:
 
-There are multiple ways to achieve that. For now we are going with
-a simple UI update bus. We don't need State otherwise, as the other components
+There are multiple ways to achieve decoupling in UI updates. For now we are going with
+a simple UI update bus. We don't need complex state management, as the other components
 seem to be ok bening coupled via DI (this may change in the future).
-
-The other reason I don't want to itroduce state is that it provides either
-a complexity on the consumers' side (RxPY), or strongly typed state object (observables).
 
 ## Built-in Python Options
 

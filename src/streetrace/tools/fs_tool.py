@@ -1,6 +1,7 @@
 """File system tools."""
 
 from pathlib import Path
+from typing import Any
 
 import streetrace.tools.definitions.apply_unified_patch_content as apply_patch
 import streetrace.tools.definitions.create_directory as c
@@ -19,7 +20,7 @@ def _clean_path(input_str: str) -> str:
 def apply_unified_patch_content(
     patch_content: str,
     work_dir: Path,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     r"""Apply a unified diff patch to local files in the working directory.
 
     Start all local paths with the current directory (./), e.g.:
@@ -67,16 +68,18 @@ def apply_unified_patch_content(
             "stdout": stdout output of the GNU patch command
 
     """
-    return apply_patch.apply_unified_patch_content(
-        patch_content=patch_content,
-        work_dir=work_dir,
+    return dict(
+        apply_patch.apply_unified_patch_content(
+            patch_content=patch_content,
+            work_dir=work_dir,
+        ),
     )
 
 
 def create_directory(
     path: str,
     work_dir: Path,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Create a new directory or ensure a directory exists.
 
     Can create multiple nested directories. If the directory exists,
@@ -94,9 +97,11 @@ def create_directory(
             "output": tool output if the directory was created
 
     """
-    return c.create_directory(
-        _clean_path(path),
-        work_dir=work_dir,
+    return dict(
+        c.create_directory(
+            _clean_path(path),
+            work_dir=work_dir,
+        ),
     )
 
 
@@ -104,7 +109,7 @@ def find_in_files(
     pattern: str,
     search_string: str,
     work_dir: Path,
-) -> dict[str, str | list[dict[str, str]]]:
+) -> dict[str, Any]:
     """Recursively search for files and directories matching a pattern.
 
     Searches through all subdirectories from the starting path. The search
@@ -128,17 +133,19 @@ def find_in_files(
                 - "snippet": match snippet
 
     """
-    return s.find_in_files(
-        _clean_path(pattern),
-        _clean_path(search_string),
-        work_dir=work_dir,
+    return dict(
+        s.find_in_files(
+            _clean_path(pattern),
+            _clean_path(search_string),
+            work_dir=work_dir,
+        ),
     )
 
 
 def list_directory(
     path: str,
     work_dir: Path,
-) -> dict[str, list[str]]:
+) -> dict[str, Any]:
     """List all files and directories in a specified path.
 
     Honors .gitignore rules.
@@ -158,13 +165,13 @@ def list_directory(
                     - "files": list of files in this directory
 
     """
-    return rds.list_directory(_clean_path(path), work_dir)
+    return dict(rds.list_directory(_clean_path(path), work_dir))
 
 
 def read_file(
     path: str,
     work_dir: Path,
-) -> str:
+) -> dict[str, Any]:
     """Read the contents of a file from the file system.
 
     Args:
@@ -173,24 +180,25 @@ def read_file(
         encoding (str): Text encoding to use.
 
     Returns:
-        dict[str,str]:
+        dict[str,Any]:
             "tool_name": "read_file"
             "result": "success" or "failure"
             "error": error message if there was an error reading the file
             "output": file contents if the reading succeeded
 
     """
-    return rf.read_file(_clean_path(path), work_dir)
+    return dict(rf.read_file(_clean_path(path), work_dir))
 
 
 def write_file(
     path: str,
     content: str,
     work_dir: Path,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Create or overwrite a file with content encoded as utf-8.
 
-    Always specify two parameters when calling this function: path to the file, and content to write.
+    For python scripts, checks python syntax before writing and outputs syntax errors
+    if present.
 
     Args:
         path (str): The path to the file to write, relative to the working directory.
@@ -198,14 +206,16 @@ def write_file(
         work_dir (str): The working directory.
 
     Returns:
-        dict[str,str]:
+        dict[str,Any]:
             "tool_name": "write_file"
             "result": "success" or "failure"
             "error": error message if there was an error writing to the file
 
     """
-    return wf.write_utf8_file(
-        _clean_path(path),
-        content,
-        work_dir,
+    return dict(
+        wf.write_utf8_file(
+            _clean_path(path),
+            content,
+            work_dir,
+        ),
     )

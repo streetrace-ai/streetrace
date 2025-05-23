@@ -12,7 +12,11 @@ vs. loosing quality.
 import subprocess
 from pathlib import Path
 
-from streetrace.tools.definitions.result import CliResult, OpResultCode
+from streetrace.tools.definitions.result import (
+    CliResult,
+    cli_error,
+    cli_success,
+)
 
 
 def apply_unified_patch_content(patch_content: str, work_dir: Path) -> CliResult:
@@ -72,16 +76,14 @@ def apply_unified_patch_content(patch_content: str, work_dir: Path) -> CliResult
             text=True,
             check=True,
         )
-        return CliResult(
+        return cli_success(
             tool_name="apply_unified_patch_content",
-            result=OpResultCode.SUCCESS,
             stdout=result.stdout.strip(),
             stderr=result.stderr.strip(),
         )
     except subprocess.CalledProcessError as e:
-        return CliResult(
+        return cli_error(
             tool_name="apply_unified_patch_content",
-            result=OpResultCode.FAILURE,
             stdout=e.stdout.strip(),
             stderr=e.stderr.strip(),
         )

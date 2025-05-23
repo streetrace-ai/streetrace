@@ -1,6 +1,7 @@
 """CLI tools."""
 
 from pathlib import Path
+from typing import Any
 
 from streetrace.tools.definitions import cli
 
@@ -8,7 +9,7 @@ from streetrace.tools.definitions import cli
 def execute_cli_command(
     command: list[str],
     work_dir: Path,
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Execute a CLI command interactively. Does not provide shell access.
 
     Args:
@@ -22,4 +23,4 @@ def execute_cli_command(
             - return_code: The return code of the command
 
     """
-    return cli.execute_cli_command(command, work_dir)
+    return dict(cli.execute_cli_command(command, work_dir))

@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def normalize_and_validate_path(path: str | Path, work_dir: Path) -> Path:
-    """Normalize and validate a file or directory path to ensure it's within the working directory.
+    """Normalize and validate a file or directory path.
 
     This function performs the following:
     1. Normalizes both the path and work_dir (resolves '..', '.' etc.)
@@ -30,7 +30,10 @@ def normalize_and_validate_path(path: str | Path, work_dir: Path) -> Path:
 
     # Security check: ensure the path is within the work_dir
     if not str(abs_path).startswith(str(work_dir.resolve())):
-        msg = f"Security error: Path '{path}' resolves to a location outside the allowed working directory."
+        msg = (
+            f"Security error: Path '{path}' resolves to a location outside the allowed "
+            "working directory."
+        )
         raise ValueError(
             msg,
         )

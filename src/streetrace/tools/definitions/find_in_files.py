@@ -18,7 +18,7 @@ class SearchResult(TypedDict):
 class FindInFilesResult(OpResult):
     """Tool result to send to LLM."""
 
-    output: list[SearchResult]
+    output: list[SearchResult] | None  # type: ignore[override-wrong-type]
 
 
 # TODO(krmrn42): Honor .gitignore
@@ -86,9 +86,11 @@ def find_in_files(
             tool_name="find_in_files",
             result=OpResultCode.SUCCESS,
             output=matches,
+            error=None,
         )
     return FindInFilesResult(
         tool_name="find_in_files",
         result=OpResultCode.FAILURE,
+        output=None,
         error="\n\n".join(errors),
     )

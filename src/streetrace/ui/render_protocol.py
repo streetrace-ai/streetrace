@@ -25,8 +25,8 @@ def register_renderer(
     """Add a renderer to registry so it can be used in ConsoleUI."""
     if not isinstance(protocol, RendererFn):
         msg = (
-            f" Function {protocol.__name__}({protocol.__annotations__}) does not conform to "
-            "RendererFn protocol."
+            f"Function {protocol.__name__}({protocol.__annotations__}) does not "
+            "conform to RendererFn protocol."
         )
         raise TypeError(msg)
     target_object_type = next(

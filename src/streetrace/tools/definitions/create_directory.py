@@ -5,7 +5,11 @@ from pathlib import Path
 from streetrace.tools.definitions.path_utils import (
     normalize_and_validate_path,
 )
-from streetrace.tools.definitions.result import OpResult, OpResultCode
+from streetrace.tools.definitions.result import (
+    OpResult,
+    op_error,
+    op_success,
+)
 
 
 def create_directory(
@@ -39,14 +43,12 @@ def create_directory(
     try:
         abs_path.mkdir(parents=True, exist_ok=True)
     except OSError as e:
-        return OpResult(
+        return op_error(
             tool_name="create_directory",
-            result=OpResultCode.FAILURE,
             error=f"Error creating directory '{rel_path}': {e!s}",
         )
     else:
-        return OpResult(
+        return op_success(
             tool_name="create_directory",
-            result=OpResultCode.SUCCESS,
             output=f"Successfully created directory '{rel_path!s}'",
         )

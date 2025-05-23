@@ -22,7 +22,7 @@ class ListDirItems(TypedDict):
 class ListDirResult(OpResult):
     """Dir listing result to sent to LLM."""
 
-    output: ListDirItems | None
+    output: ListDirItems | None  # type: ignore[override-wrong-type]
 
 
 def load_gitignore_for_directory(path: Path) -> pathspec.PathSpec:
@@ -127,6 +127,7 @@ def list_directory(
         return ListDirResult(
             tool_name="list_directory",
             result=OpResultCode.FAILURE,
+            output=None,
             error=str(ex),
         )
     else:
@@ -159,4 +160,5 @@ def list_directory(
                 dirs=dirs,
                 files=files,
             ),
+            error=None,
         )

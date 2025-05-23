@@ -7,7 +7,11 @@ from streetrace.tools.definitions.path_utils import (
     normalize_and_validate_path,
     validate_file_exists,
 )
-from streetrace.tools.definitions.result import OpResult, OpResultCode
+from streetrace.tools.definitions.result import (
+    OpResult,
+    op_error,
+    op_success,
+)
 
 _BINARY_THRESHOLD = 0.3
 """Threshold of non-text chars in file sample for the file to be considered binary."""
@@ -53,7 +57,7 @@ def read_file(
     """Read the contents of a file from the file system.
 
     Args:
-        file_path (str): The path to the file to read, relative to the working directory.
+        file_path (str): Path of the file to read, relative to the working directory.
         work_dir (str): The working directory.
         encoding (str): Text encoding to use.
 
@@ -74,30 +78,17 @@ def read_file(
 
         # Auto-detect binary if requested and we're not in binary mode already
         if is_binary_file(abs_file_path):
-            return OpResult(result=OpResultCode.SUCCESS, output="<binary>")
+            return op_success(tool_name="read_file", output="<binary>")
 
         # Read and return file contents
         with codecs.open(str(abs_file_path), "r", encoding=encoding) as f:
             contents = f.read()
-            return OpResult(
+            return op_success(
                 tool_name="read_file",
-                result=OpResultCode.SUCCESS,
                 output=contents,
             )
     except (ValueError, OSError) as e:
-        return OpResult(
+        return op_error(
             tool_name="read_file",
-            result=OpResultCode.FAILURE,
             error=str(e),
-        )
-    except UnicodeDecodeError as e:
-        msg = (
-            f"Failed to decode '{file_path}' with encoding '{encoding}': "
-            f"(object: {e.object}, start: {e.start}, end: {e.end}, reason: {e.reason}). "
-            f"{e!s}"
-        )
-        return OpResult(
-            tool_name="read_file",
-            result=OpResultCode.FAILURE,
-            error=msg,
         )

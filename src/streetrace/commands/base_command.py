@@ -1,7 +1,7 @@
 """Define the base class for all application commands.
 
-This module provides the abstract base class that all command implementations must inherit from,
-ensuring a consistent interface for command execution and description.
+This module provides the abstract base class that all command implementations must
+inherit from, ensuring a consistent interface for command execution and description.
 """
 
 from abc import ABC, abstractmethod

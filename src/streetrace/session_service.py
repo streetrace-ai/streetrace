@@ -129,8 +129,6 @@ class JSONSessionSerializer:
         path.write_text(
             session.model_dump_json(
                 indent=2,
-                # exclude_unset=True,  # noqa: ERA001 reminder: idk, this removes events
-                # exclude_defaults=True,  # noqa: ERA001 reminder: defaults are helpful
                 exclude_none=True,
             ),
         )
@@ -161,7 +159,7 @@ class JSONSessionSerializer:
                     pass
 
         elif path.is_dir():  # pragma: no cover
-            msg = f"Incorrect data storage structure, '{path}' is a directory, not deleting."
+            msg = f"Incorrect data storage structure, '{path}' is a directory."
             logger.error(msg)
 
     def list_saved(
@@ -170,7 +168,7 @@ class JSONSessionSerializer:
         app_name: str,
         user_id: str,
     ) -> Iterator[Session]:
-        """List saved sessions by reading their JSON files, yielding minimal sessions."""
+        """List saved sessions."""
         root_path = self.storage_path / app_name / user_id
         if not root_path.is_dir():
             return
@@ -229,10 +227,6 @@ class JSONSessionService(InMemorySessionService):
         config: GetSessionConfig | None = None,
     ) -> Session | None:
         """Get a session, trying memory first, then falling back to storage."""
-        # TODO(krmrn42): If app_name is not provided, use the cwd folder name
-        # TODO(krmrn42): If user_id is not provided, use streetrace.utils.uid.get_user_identity
-        # TODO(krmrn42): If session_id is not provided, use current time in human readable format
-
         session = super().get_session(
             app_name=app_name,
             user_id=user_id,
@@ -296,7 +290,6 @@ class JSONSessionService(InMemorySessionService):
         session_id: str | None = None,
     ) -> Session:
         """Create a session in memory and writes it to storage."""
-        # TODO(krmrn42): Handle session_id generation (e.g. human readable time) if None
         session = super().create_session(
             app_name=app_name,
             user_id=user_id,
@@ -348,8 +341,8 @@ class JSONSessionService(InMemorySessionService):
             user_id=session.user_id,
             session_id=session.id,
         )
-        # TODO(krmrn42): Restore session in try..except (easier to do if we compose
-        #   instead of inherit).
+        # TODO(krmrn42): Restore session in try..except
+        #   (easier to do if we compose instead of inherit).
         self.serializer.write(new_session)
         return new_session
 
