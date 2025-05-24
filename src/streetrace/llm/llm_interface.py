@@ -1,4 +1,10 @@
-"""A single point of creating an interface to any LLM used by StreetRace🚗💨."""
+"""Provides a standardized interface for all LLM providers used by StreetRace🚗💨.
+
+This module defines the common abstraction layer for interacting with language models
+through the LlmInterface abstract class, with concrete implementations for specific
+providers. It serves as the central point for creating LLM interfaces and handles
+token estimation, API standardization, and provider-agnostic interactions.
+"""
 
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, cast, override

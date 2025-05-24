@@ -1,4 +1,10 @@
-"""File system tools."""
+"""File system tools for AI agents to safely interact with the local file system.
+
+This module provides a standardized interface for AI agents to perform file system
+operations like reading, writing, listing directories, and searching file contents.
+All operations are constrained to the working directory for security, with path
+sanitization and validation to prevent unauthorized access.
+"""
 
 from pathlib import Path
 from typing import Any

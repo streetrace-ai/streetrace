@@ -2,7 +2,9 @@
 
 This module provides a decorator `hide_args` that allows hiding specific
 keyword arguments from a function's signature and automatically injecting
-them when the function is called.
+them when the function is called. It's essential for StreetRace's tool
+architecture, enabling clean interfaces for AI agents while maintaining
+internal consistency.
 """
 
 import inspect

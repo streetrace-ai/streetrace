@@ -904,7 +904,9 @@ Please create a complete implementation, implement clean code with short and cle
 
 Take a look at @src/streetrace/workflow/supervisor.py.
 
-Analyze the module from the project goals perspective, understand why this module is
+Treat this as a single module.
+
+Analyze the module from the project goals perspective, understand why the module is
 essential to this project, describe the module's goal and function. Analyze third-party
 dependencies and why they are used. If there are public classes, analyze if they are
 created in @src/streetrace/app.py or @src/streetrace/main.py, and what other core
@@ -922,6 +924,8 @@ One line description: how this module contributes to the project goal.
 More details, covering concise function description, lifecycle, and third-party
 dependencies.
 ```
+
+Then update the modules docstring with a concise description of the module.
 
 ===
 

@@ -1,4 +1,9 @@
-"""Get user's id from GitHub, Git, or OS."""
+"""Get user's name from GitHub, Git, or OS for session management.
+
+This module provides functionality to retrieve a reliable user identifier
+through multiple fallback methods, supporting StreetRace's session tracking
+and attribution capabilities.
+"""
 
 import getpass
 import shutil
@@ -6,7 +11,17 @@ import subprocess
 
 
 def get_user_identity() -> str:
-    """Get user's id from GitHub, Git, or OS."""
+    """Get user's id from GitHub, Git, or OS.
+
+    Attempts to identify the user in the following order:
+    1. GitHub login via GitHub CLI
+    2. Git user.name configuration
+    3. OS username as fallback
+
+    Returns:
+        A string containing the user identifier from the first successful method
+
+    """
     # 1. Try GitHub CLI (`gh`)
     if shutil.which("gh"):
         try:

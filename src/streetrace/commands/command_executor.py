@@ -1,7 +1,9 @@
-"""Manage and execute commands derived from the Command base class.
+"""Manage and execute application-specific commands using a command pattern.
 
-This module provides the CommandExecutor class which handles registration,
-lookup, and execution of commands in the application.
+This module provides the CommandExecutor class which implements the command pattern
+for StreetRace, enabling users to execute internal commands prefixed with '/' (e.g.,
+'/help', '/exit'). It handles command registration, command lookup, validation,
+and asynchronous execution with proper error handling and status reporting.
 """
 
 from collections.abc import Sequence

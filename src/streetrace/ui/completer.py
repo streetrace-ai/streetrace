@@ -1,4 +1,15 @@
-"""prompt_toolkit completers for the main user's prompt."""
+"""Provide intelligent auto-completion for file paths and commands in the console.
+
+This module implements a set of specialized prompt_toolkit completers that enhance
+user experience by providing contextual suggestions:
+
+1. PathCompleter: Suggests file and directory paths when users type '@' mentions
+2. CommandCompleter: Provides command suggestions when users type '/' commands
+3. PromptCompleter: Composes multiple completers into a unified interface
+
+These completers help users efficiently navigate the file system and discover available
+commands without needing to remember exact paths or command names.
+"""
 
 import os
 import re

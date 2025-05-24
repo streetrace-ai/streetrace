@@ -1,6 +1,9 @@
-"""CLI command safety checking module.
+"""CLI command safety checking module for secure command execution.
 
-This module provides functions to analyze CLI commands for safety concerns.
+This module provides security mechanisms to analyze and classify CLI commands before
+execution. It uses parsing and heuristic analysis to determine if commands are safe
+to run, potentially risky, or ambiguous, preventing commands that could compromise
+system security or access unauthorized resources.
 """
 
 import re

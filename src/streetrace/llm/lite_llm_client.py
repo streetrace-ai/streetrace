@@ -1,4 +1,10 @@
-"""A class to swap ADK's LiteLLMClient to allow counting tokens and costs."""
+"""Implements LLM clients with retry, usage tracking, and cost calculation capabilities.
+
+This module extends Google ADK's LiteLLM client implementation to provide enhanced
+functionality including retry mechanisms for transient errors, usage statistics for
+token consumption, and cost calculation based on model pricing. These components form
+the reliable foundation for StreetRace's interactions with various LLM providers.
+"""
 
 from collections.abc import AsyncGenerator, Iterable
 from typing import Any, override

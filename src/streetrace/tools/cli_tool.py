@@ -1,4 +1,9 @@
-"""CLI tools."""
+"""CLI command execution tools for AI agents with controlled environment access.
+
+This module provides functionality for AI agents to execute command line operations
+in a sandboxed environment. Commands are executed with proper output capturing and
+security measures to prevent potentially harmful operations.
+"""
 
 from pathlib import Path
 from typing import Any
