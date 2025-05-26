@@ -1,0 +1,76 @@
+# StreetRace Tools Configuration
+# This file defines the tools available to agents in the StreetRace system
+
+tools:
+  # File System Tools
+  - name: create_directory
+    description: "Create a new directory or ensure a directory exists"
+    source: local
+    module: streetrace.tools.fs_tool
+    function: create_directory
+    requires_agent: false
+
+  - name: list_directory
+    description: "Lists files and directories in a specified path, honoring .gitignore rules"
+    source: local
+    module: streetrace.tools.fs_tool
+    function: list_directory
+    requires_agent: false
+
+  - name: read_file
+    description: "Reads the contents of a file from the file system"
+    source: local
+    module: streetrace.tools.fs_tool
+    function: read_file
+    requires_agent: false
+
+  - name: write_file
+    description: "Creates or overwrites a file with the specified content"
+    source: local
+    module: streetrace.tools.fs_tool
+    function: write_file
+    requires_agent: false
+
+  - name: find_in_files
+    description: "Searches for text in files matching a pattern"
+    source: local
+    module: streetrace.tools.fs_tool
+    function: find_in_files
+    requires_agent: false
+
+  # CLI Tools
+  - name: execute_cli_command
+    description: "Executes a CLI command in a controlled environment"
+    source: local
+    module: streetrace.tools.cli_tool
+    function: execute_cli_command
+    requires_agent: false
+
+  # Agent Management Tools
+  - name: list_agents
+    description: "Lists all available agents in the system"
+    source: local
+    module: streetrace.tools.agent_tools
+    function: list_agents
+    requires_agent: false
+
+  - name: list_tools
+    description: "Lists all available tools that can be provided to agents"
+    source: local
+    module: streetrace.tools.agent_tools
+    function: list_tools
+    requires_agent: false
+
+  - name: run_agent
+    description: "Runs a specified agent with the provided input"
+    source: local
+    module: streetrace.tools.agent_tools
+    function: run_agent
+    requires_agent: true
+
+  # Example of an MCP-sourced tool (for illustration)
+  # - name: semantic_search
+  #   description: "Performs semantic search on a corpus of documents"
+  #   source: mcp
+  #   server: knowledge_mcp
+  #   requires_agent: false

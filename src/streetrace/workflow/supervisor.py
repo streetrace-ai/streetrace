@@ -71,6 +71,8 @@ class Supervisor:
             "streetrace:fs_tool::read_file",
             "streetrace:fs_tool::write_file",
             "streetrace:cli_tool::execute_cli_command",
+            "streetrace:agent_tools::list_agents",
+            "streetrace:agent_tools::list_tools",
         ]
         async with self.tool_provider.get_tools(required_tools) as tools:
             root_agent = Agent(

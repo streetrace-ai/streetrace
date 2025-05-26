@@ -189,3 +189,55 @@ for:
 
 This helps ensure that StreetRace🚗💨 operates within the intended working directory and
 with known-safe commands.
+
+### Agent System
+
+StreetRace🚗💨 includes a modular agent system that allows for specialized agents to be discovered and used.
+
+#### Agent Discovery
+
+The `list_agents` tool allows the assistant to discover available agents in the system. 
+Agents are searched for in the following locations:
+
+- `./agents/` (relative to the current working directory)
+- `../../agents/` (relative to the src/streetrace/app.py)
+
+#### Creating Custom Agents
+
+To create a custom agent, follow these requirements:
+
+1. Create a directory for your agent in the `./agents/` folder (e.g., `./agents/my_agent/`)
+2. Create an `agent.py` file with these required functions:
+   - `get_agent_metadata()` - Returns a dictionary with `name` and `description` keys
+   - `run_agent(input_text: str)` - Implements the agent's functionality
+
+3. Add a `README.md` file with documentation for your agent
+
+Example agent structure:
+```
+./agents/
+  my_agent/
+    agent.py      # Contains get_agent_metadata() and run_agent() functions
+    README.md     # Documentation
+```
+
+#### Tool Configuration
+
+Tools available to agents are defined in the `./tools/tools.yaml` configuration file. This file specifies:
+
+- Tool name and description
+- Source type (e.g., 'local' for Python modules or 'mcp' for external services)
+- Module and function name for local tools
+- Whether the tool requires agent capabilities
+
+The configuration makes it easy to add, modify, or disable tools without changing code.
+
+#### Tool Discovery
+
+The `list_tools` tool provides information about available tools that can be provided to agents.
+This helps the assistant understand what capabilities are available in the system.
+
+The tool returns a list of available tools with:
+- Tool name
+- Description
+- Whether the tool requires agent capabilities

@@ -586,3 +586,290 @@ This reliable user identification is essential for session management in StreetR
 
 These changes ensure that developers new to the project can better understand the purpose and implementation of these utility modules and how they fit into the overall architecture of StreetRace.
 
+
+# Mon May 26 10:51:43 2025 -0700
+
+## User
+
+Let's create a way to add more agents.
+
+General requirements:
+
+1. Agents can be created in the ./agents folder relative to the current folder, or in the ../../agents folder relative to the src/streetrace/app.py file.
+2. Each agent is located in it's own subfolder, for example `./agents/software_engineer`.
+3. An agent consists of:
+   * agent.py - the main script that defines the agent using Google ADK.
+   * agent.py exports one function: `run_agent(input: str)`
+   * agent.py has a main function so it can run independently
+   * README.md - a detailed description of the agent.
+4. When the app starts (@src/streetrace/app.py), it uses a new discover_agents module (put it under src/streetrace/) to discover all existing agents and creates a list of agents, passing it to Supervisor's `run_async` so the supervisor knows what agents are available.
+
+Analyze the requirements and come up with a final solution. Review and critique the solution as a third-party AI automation engineer, and provide the final merged solution. Only provide the solution, wait before starting to implement so I review the solution.
+   
+
+## Assistant
+
+I'll analyze the requirements for implementing an agent discovery system in the StreetRace project. Let's design a comprehensive solution for discovering and using agents.
+
+# Agent Discovery System Design
+
+## Overview
+
+We need to create a mechanism to discover and register agents dynamically from specific locations. These agents will be Python modules following a standardized structure and interface.
+
+## Requirements Analysis
+
+1. Agents will be located in:
+   - `./agents/` (relative to current working directory)
+   - `../../agents/` (relative to src/streetrace/app.py)
+
+2. Each agent needs:
+   - Its own subfolder (e.g., `./agents/software_engineer/`)
+   - An `agent.py` file with a `run_agent(input: str)` function and a main entry point
+   - A `README.md` with agent documentation
+
+3. The application should discover all available agents on startup and pass them to the Supervisor
+
+## Proposed Solution
+
+I'll create a modular system with these components:
+
+1. **Agent Interface**: Define a standard interface all agents must implement
+2. **Agent Discovery Module**: Scan directories for valid agents
+3. **Agent Registry**: Store discovered agents for use by the Supervisor
+4. **Integration with Supervisor**: Pass registered agents to the Supervisor
+
+### Component Details
+
+#### 1. Agent Interface
+
+We'll define a standardized interface for all agents to ensure consistency.
+
+#### 2. Agent Discovery Module (`src/streetrace/discover_agents.py`)
+
+This module will:
+- Scan both agent directories
+- Validate each potential agent directory
+- Import and verify `agent.py` for required functionality
+- Create agent metadata records
+
+#### 3. Agent Registry
+
+Store discovered agents with metadata like:
+- Name (derived from directory name)
+- Description (extracted from README.md)
+- Path to agent module
+- Reference to run_agent function
+
+#### 4. Supervisor Integration
+
+Update the Supervisor class to:
+- Accept a list of available agents
+- Provide mechanism to select and use specific agents
+
+## Implementation Approach
+
+The approach balances flexibility with reliability:
+
+1. **Loose Coupling**: The agent discovery is separate from agent execution
+2. **Validation**: We'll verify agents meet requirements before registering them
+3. **Error Handling**: Gracefully handle invalid agent modules with clear error messages
+4. **Documentation**: Thorough documentation for creating new agents
+
+## Review and Critique
+
+### Strengths
+- Modular design separates discovery from execution
+- Validation ensures only compatible agents are registered
+- Dynamic discovery enables easy extensibility
+
+### Potential Issues
+- Error handling for malformed agents needs careful consideration
+- Performance impact of dynamic imports should be monitored
+- Need to ensure security measures for executing code from potentially untrusted agents
+
+### Improvements
+- Add agent versioning to handle compatibility
+- Consider a more formal plugin architecture for future expansion
+- Add telemetry to track agent performance and usage
+
+## Final Solution Approach
+
+I recommend implementing the solution with:
+
+1. A dedicated `AgentInterface` class/protocol
+2. A thorough discovery module with robust validation
+3. Clear error messages for developers creating new agents
+4. Agent metadata including capabilities and requirements
+5. Documentation templates for new agent creation
+
+This design balances the requirements for flexibility, reliability, and maintainability.
+
+
+# Mon May 26 11:08:25 2025 -0700
+
+## User
+
+Let's also create a new tool called list_agents in src/streetrace/tools to discover the agents. We will pass this tool to the root agent so it can discover agents on its own. 
+Let's also create another tool called list_tools that will list tools that can be provided to agents. For now, it can return a stub with a fake `run_agent` tool.
+
+## Assistant
+
+Perfect! Let's summarize the changes we've made:
+
+# Summary of Changes: Agent Tools Implementation
+
+## Goal of the Change
+To implement an agent discovery system that allows the StreetRace assistant to discover and interact with specialized agents. The system provides two new tools:
+1. `list_agents`: Discovers available agents in standard locations
+2. `list_tools`: Lists tools that can be provided to agents
+
+## User Scenarios Addressed
+1. **Agent Discovery**: Users can now ask StreetRace to list available specialized agents
+2. **Tool Exploration**: Users can inquire about what tools are available to agents
+3. **Agent Assistance**: Users can eventually run specialized agents for specific tasks through StreetRace
+
+## Implementation Details
+
+### New Files Created:
+
+1. **`src/streetrace/tools/definitions/list_agents.py`**
+   - Implements a tool that discovers agents in standard locations
+   - Validates that discovered agents have the required structure
+   - Extracts metadata like descriptions from agent READMEs
+   - Handles error conditions gracefully
+
+2. **`src/streetrace/tools/definitions/list_tools.py`**
+   - Lists available tools with their descriptions
+   - Classifies tools based on whether they require agent capabilities
+   - Provides a static list for now, but designed for future extensibility
+
+3. **`src/streetrace/tools/agent_tools.py`**
+   - Provides wrapper functions for the agent discovery tools
+   - Exposes the tools with standardized interfaces
+   - Integrates with the existing tool provider system
+
+### Modified Files:
+
+1. **`src/streetrace/workflow/supervisor.py`**
+   - Added the new agent tools to the list of required tools
+   - Ensures the root agent can discover and potentially interact with other agents
+
+2. **`COMPONENTS.md`**
+   - Added detailed documentation for the new agent_tools.py component
+   - Explained how it fits into the overall system architecture
+
+3. **`README.md`**
+   - Added a new section explaining the agent tools functionality
+   - Documented the requirements for creating custom agents
+   - Described the locations where agents are discovered
+
+## Key Features of the Implementation
+
+1. **Security**: Strict validation of agent directories and files
+2. **Error Handling**: Graceful handling of missing or malformed agents
+3. **Documentation**: Comprehensive docstrings and updated project documentation
+4. **Type Safety**: Full type annotations throughout the implementation
+5. **Code Quality**: Passes all ruff linting checks
+
+## Future Extensions
+
+1. The implementation lays groundwork for implementing a `run_agent` tool
+2. The agent discovery mechanism can be extended to support different agent types
+3. Tool discovery can be made dynamic rather than static
+
+This implementation enables a hierarchical agent architecture where StreetRace can serve as a "supervisor" agent that discovers and potentially delegates to specialized agents for specific tasks.
+
+
+# Mon May 26 12:04:03 2025 -0700
+
+## User
+
+That looks great, thank you! Let's also assume each agent exports a get_agent_metadata function that returns the necessary metadata, like name and description. Let's import that functioon in `get_agent_description` and provide name and description from the metadata.
+
+The `discover_agents` then will immediately try to load the metadata instead of using `is_valid_agent_directory`, and if the import succeeded - provide the agent info.
+
+Let's also upgrade the `list_tools` function to provide a list of available tools from a local config file. It has to read tools.yaml from the ./tools folder relative to the current folder, or in the `../../tools` folder relative to the src/streetrace/app.py file.
+
+Please create an initial ./tools/tools.yaml listing the existing tools. Each tool in the yaml has to define where to load the tool from. For each tool, the config will define the source to load from (e.g. 'local' for python modules, or 'mcp' for tools loaded from MCP). For 'local' tools, it provides a full python module name to import from, for 'mcp' tools - a name of the MCP server that provides the tool.
+
+Please also create one sample "Hello World" agent example in the ./agents directory. Only implement stubs for `run_agent` and `agent_metadata`.
+
+Lastly, please implement unit tests for:
+
+* list_agents tool
+* list_tools tool
+
+## Assistant
+
+Great! All tests are now passing. 
+
+Let's summarize what we've accomplished:
+
+# Summary of Changes: Agent Discovery System Implementation
+
+## Goal of the Change
+We've implemented a dynamic agent discovery system that allows StreetRace to find and utilize specialized agents. The system provides mechanisms to discover agents, extract their metadata, and list available tools.
+
+## User Scenarios Addressed
+1. **Agent Discovery**: Users can now discover and utilize specialized agents
+2. **Tool Configuration**: Tools are now configurable via YAML, making it easy to add or modify available tools
+3. **Extensibility**: The framework enables creating and adding new specialized agents
+
+## Implementation Details
+
+### Modified Files:
+
+1. **`src/streetrace/tools/definitions/list_agents.py`**
+   - Enhanced to import and validate agent modules
+   - Added metadata extraction from `get_agent_metadata()` function
+   - Implemented robust error handling for various failure scenarios
+   - Added structured agent information including name, path, and description
+
+2. **`src/streetrace/tools/definitions/list_tools.py`**
+   - Updated to load tool definitions from YAML configuration files
+   - Added fallback to default tools if configuration can't be loaded
+   - Implemented detailed error handling and logging
+
+3. **`COMPONENTS.md`**
+   - Updated to document the agent_tools module capabilities
+   - Added information about configuration-based tool loading
+
+4. **`README.md`**
+   - Added comprehensive documentation on the agent system
+   - Provided instructions for creating custom agents
+   - Documented the agent discovery process
+
+### New Files:
+
+1. **`./agents/hello_world/agent.py`**
+   - Created a sample agent implementation
+   - Implemented required interface methods: `get_agent_metadata()` and `run_agent()`
+
+2. **`./agents/hello_world/README.md`**
+   - Added documentation for the sample agent
+
+3. **`./tools/tools.yaml`**
+   - Created tool configuration defining available tools
+   - Specified source type, module, and function for each tool
+
+4. **`./agents/agent_schema.yaml`**
+   - Defined schema for agent structure validation
+   - Documented required files and functions
+
+5. **`./tests/unit/tools/definitions/test_list_agents.py`**
+   - Implemented comprehensive unit tests for agent discovery functionality
+
+6. **`./tests/unit/tools/definitions/test_list_tools.py`**
+   - Implemented unit tests for tool discovery and configuration loading
+
+## Key Features
+
+1. **Dynamic Discovery**: The system automatically discovers agents in standard locations
+2. **Metadata Extraction**: Gets agent information from standardized metadata functions
+3. **Configuration-Based Tools**: Tools are defined in YAML for easy maintenance
+4. **Robust Error Handling**: Gracefully handles missing or malformed agents
+5. **Comprehensive Testing**: Full unit test coverage for new functionality
+
+This implementation provides a solid foundation for a modular agent ecosystem within StreetRace, allowing for specialized agents to handle specific tasks while maintaining a consistent interface.
+

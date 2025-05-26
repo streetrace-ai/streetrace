@@ -208,6 +208,30 @@ The cli_tool module provides a simplified interface for executing command-line o
 
 This tool delegates to the underlying implementation in the definitions directory, maintaining a clean interface for tool consumption while the safety checks are handled by the cli_safety module.
 
+## ./tools/agent_tools.py
+
+Provides specialized tools for agent discovery and management that enable the primary AI assistant to find and utilize other agents in the system.
+
+The agent_tools module implements agent management functionality:
+
+1. **Agent Discovery**: Searches predefined locations for valid agent implementations with the `list_agents` function.
+
+2. **Tool Discovery**: Provides information about available tools that can be given to agents with the `list_tools` function.
+
+3. **Metadata Extraction**: Extracts agent metadata from get_agent_metadata() functions in agent modules, with fallback to README files.
+
+4. **Configuration-Based Tools**: Loads tool definitions from YAML configuration files for a flexible, maintainable tool registry.
+
+5. **Validation**: Verifies that discovered agents meet the required interface standards before making them available.
+
+The implementation supports a modular agent ecosystem by:
+- Standardizing how agents are discovered and described
+- Providing a clear API for tool discovery and capabilities
+- Maintaining clean separation between agent discovery and execution
+- Using configuration files for tool definition to enable easy updates
+
+These tools enable a hierarchical agent architecture where the primary AI assistant can discover, select, and potentially invoke specialized agents for specific tasks, supporting a more modular and extensible system.
+
 ## ./tools/cli_safety.py
 
 Implements a robust security layer for analyzing and classifying CLI command safety before execution.
