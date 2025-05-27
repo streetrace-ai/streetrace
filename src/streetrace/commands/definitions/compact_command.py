@@ -127,8 +127,10 @@ class CompactCommand(Command):
             if response.partial:
                 continue
 
+        # TODO(krmrn42): Somewhere in this process we lose user's message
         summary_message = "".join(summary_message_parts)
         if summary_message:
+            # TODO(krmrn42): Compact result is still not displayed as markdown.
             self.ui_bus.dispatch_ui_update(ui_events.Markdown(summary_message))
             author, role = next(
                 (event.author, event.content.role)

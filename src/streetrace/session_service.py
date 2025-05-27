@@ -658,6 +658,8 @@ class SessionManager:
 
         """
         previous_events_count = len(original_session.events)
+
+        # TODO(krmrn42): Somewhere in this process we lose user's message
         session = self.session_service.get_session(
             app_name=original_session.app_name,
             user_id=original_session.user_id,
