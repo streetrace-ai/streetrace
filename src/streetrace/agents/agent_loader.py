@@ -1,35 +1,28 @@
-"""list_agents tool implementation.
-
-Discovers and lists available agents in the system from predefined directories.
-"""
+"""Agent manager for the StreetRace application."""
 
 import importlib.util
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any, TypedDict
+from typing import Any
 
+from pydantic import BaseModel
+
+from streetrace.agents.street_race_agent import StreetRaceAgent
+from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.log import get_logger
-from streetrace.tools.definitions.result import OpResult, OpResultCode
 
 logger = get_logger(__name__)
 
 
-class AgentInfo(TypedDict):
-    """Information about a discovered agent."""
+class AgentInfo(BaseModel):
+    """Detailed information about an agent."""
 
-    name: str
-    path: str
-    description: str | None
-
-
-class AgentListResult(OpResult):
-    """Result containing the list of available agents."""
-
-    output: list[AgentInfo] | None  # type: ignore[misc]
+    agent_card: StreetRaceAgentCard
+    module: ModuleType
 
 
-def import_agent_module(agent_dir: Path) -> ModuleType | None:
+def _import_agent_module(agent_dir: Path) -> ModuleType | None:
     """Import the agent module from the specified directory.
 
     Args:
@@ -97,7 +90,7 @@ def _get_streetrace_agent_class(module: ModuleType) -> type[Any] | None:
     return None
 
 
-def _validate_and_get_metadata(agent_dir: Path) -> dict[str, Any]:
+def _validate_impl(agent_dir: Path) -> AgentInfo:
     """Get agent metadata from the agent directory.
 
     Args:
@@ -110,7 +103,7 @@ def _validate_and_get_metadata(agent_dir: Path) -> dict[str, Any]:
         ValueError: If metadata is not found or invalid
 
     """
-    agent_module = import_agent_module(agent_dir)
+    agent_module = _import_agent_module(agent_dir)
 
     if agent_module is None:
         err_msg = f"Failed to import agent module from {agent_dir}"
@@ -134,22 +127,14 @@ def _validate_and_get_metadata(agent_dir: Path) -> dict[str, Any]:
         err_msg = f"Failed to get agent card from {agent_dir}: {ex!s}"
         raise ValueError(err_msg) from ex
     else:
-        return {
-            "name": agent_card.name,
-            "description": agent_card.description,
-        }
+        return AgentInfo(
+            agent_card=agent_card,
+            module=agent_module,
+        )
 
 
-def discover_agents(base_dirs: list[Path]) -> list[AgentInfo]:
-    """Discover valid agents in the specified directories.
-
-    Args:
-        base_dirs: List of base directories to search for agents
-
-    Returns:
-        List of AgentInfo for discovered agents
-
-    """
+def get_available_agents(base_dirs: list[Path]) -> list[AgentInfo]:
+    """Discover and retrieve the list of available agents."""
     agents = []
 
     for base_dir in base_dirs:
@@ -162,61 +147,25 @@ def discover_agents(base_dirs: list[Path]) -> list[AgentInfo]:
                 continue
 
             try:
-                agent_metadata = _validate_and_get_metadata(item)
-                agent_name = agent_metadata["name"]
-                agent_description = agent_metadata.get("description")
+                agent_metadata = _validate_impl(item)
             except (KeyError, ValueError, TypeError, AttributeError) as ex:
                 logger.warning(
                     "Failed to get agent name or description",
                     extra={"agent_dir": str(item), "error": str(ex)},
                 )
             else:
-                agents.append(
-                    AgentInfo(
-                        name=agent_name,
-                        path=str(item.relative_to(base_dir.parent)),
-                        description=agent_description,
-                    ),
-                )
+                agents.append(agent_metadata)
 
     return agents
 
 
-def list_agents(work_dir: Path) -> AgentListResult:
-    """List all available agents in the system.
-
-    Searches for agent directories in predefined locations and returns information
-    about each valid agent found. Only agents implementing the StreetRaceAgent
-    interface are discovered.
-
-    Args:
-        work_dir: Current working directory
-
-    Returns:
-        AgentListResult containing discovered agents
-
-    """
-    # Define paths to search for agents
-    agent_paths = [
-        work_dir / "agents",  # ./agents/ (relative to current working directory)
-        # ../../agents/ (relative to src/streetrace/app.py)
-        Path(__file__).parent.parent.parent.parent.parent / "agents",
-    ]
-
-    try:
-        agents = discover_agents(agent_paths)
-
-        return AgentListResult(
-            tool_name="list_agents",
-            result=OpResultCode.SUCCESS,
-            output=agents,
-            error=None,
+def get_agent_impl(agent_details: AgentInfo) -> type[StreetRaceAgent]:
+    """Get class implementing the agent."""
+    agent_class = _get_streetrace_agent_class(agent_details.module)
+    if agent_class is None:
+        err_msg = (
+            "No StreetRaceAgent implementation found for "
+            f"{agent_details.agent_card.name}"
         )
-    except OSError as ex:
-        error_message = f"Failed to list agents: {ex!s}"
-        return AgentListResult(
-            tool_name="list_agents",
-            result=OpResultCode.FAILURE,
-            output=None,
-            error=error_message,
-        )
+        raise ValueError(err_msg)
+    return agent_class

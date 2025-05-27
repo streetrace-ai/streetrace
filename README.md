@@ -204,7 +204,49 @@ Agents are searched for in the following locations:
 
 #### Creating Custom Agents
 
-To create a custom agent, follow these requirements:
+StreetRace supports two ways to create custom agents:
+
+##### Option 1: Using the StreetRaceAgent Interface (Recommended)
+
+1. Create a directory for your agent in the `./agents/` folder (e.g., `./agents/my_agent/`)
+2. Create an `agent.py` file with a class that inherits from `StreetRaceAgent` and implements:
+   - `get_agent_card()` - Returns metadata about the agent (name, description, capabilities)
+   - `get_required_tools()` - Returns a list of tools the agent needs
+   - `create_agent()` - Creates the actual agent instance with the provided model and tools
+
+3. Add a `README.md` file with documentation for your agent
+
+Example agent class:
+```python
+from streetrace.agents.street_race_agent import StreetRaceAgent
+from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
+
+class MyAgent(StreetRaceAgent):
+    def get_agent_card(self) -> StreetRaceAgentCard:
+        return StreetRaceAgentCard(
+            name="My Agent",
+            description="A specialized agent that does something useful",
+            capabilities=["capability1", "capability2"],
+        )
+    
+    async def get_required_tools(self) -> list[str]:
+        return [
+            "streetrace:fs_tool::read_file",
+            "streetrace:fs_tool::write_file",
+        ]
+    
+    async def create_agent(self, model_factory, tools) -> BaseAgent:
+        model = model_factory.get_default_model()
+        return Agent(
+            name="My Agent",
+            model=model,
+            description="My specialized agent",
+            instruction="You are a specialized agent that does X, Y, and Z...",
+            tools=tools,
+        )
+```
+
+##### Option 2: Legacy Approach (Basic Functions)
 
 1. Create a directory for your agent in the `./agents/` folder (e.g., `./agents/my_agent/`)
 2. Create an `agent.py` file with these required functions:
@@ -213,13 +255,19 @@ To create a custom agent, follow these requirements:
 
 3. Add a `README.md` file with documentation for your agent
 
-Example agent structure:
+#### Running Agents
+
+The `run_agent` tool allows the primary assistant to execute specialized agents:
+
+```python
+run_agent(
+    agent_name="Hello World",
+    input_text="What files are in this directory?",
+    model_name="default"  # Optional, defaults to the default model
+)
 ```
-./agents/
-  my_agent/
-    agent.py      # Contains get_agent_metadata() and run_agent() functions
-    README.md     # Documentation
-```
+
+This enables a hierarchical agent system where the primary StreetRace assistant can delegate tasks to specialized agents.
 
 #### Tool Configuration
 

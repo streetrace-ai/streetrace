@@ -76,6 +76,7 @@ class AdkLiteLlmInterface(LlmInterface):
         self.model = model
         self.llm_instance = RetryingLiteLlm(model=model, ui_bus=ui_bus)
         self.ui_bus = ui_bus
+        # TODO(krmrn42): only the currently used model should estimate the token count
         ui_bus.on_typing_prompt(self.estimate_token_count)
 
     @override

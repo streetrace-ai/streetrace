@@ -73,7 +73,7 @@ class CoderAgent(StreetRaceAgent):
         agent_card = self.get_agent_card()
         return Agent(
             name="StreetRace",
-            model=model_factory.get_default_model(),
+            model=model_factory.get_current_model(),
             description=agent_card.description,
             instruction=SYSTEM,
             tools=tools,

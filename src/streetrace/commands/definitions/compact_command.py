@@ -13,7 +13,7 @@ from google.genai import types as genai_types
 
 from streetrace.args import Args
 from streetrace.commands.base_command import Command
-from streetrace.llm.llm_interface import LlmInterface
+from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
 from streetrace.messages import COMPACT
 from streetrace.session_service import SessionManager
@@ -43,14 +43,14 @@ class CompactCommand(Command):
         args: Args,
         session_manager: SessionManager,
         system_context: SystemContext,
-        llm_interface: LlmInterface,
+        model_factory: ModelFactory,
     ) -> None:
         """Initialize a new instance of ResetSessionCommand."""
         self.args = args
         self.ui_bus = ui_bus
         self.session_manager = session_manager
         self.system_context = system_context
-        self.llm_interface = llm_interface
+        self.model_factory = model_factory
 
     @property
     def names(self) -> list[str]:
@@ -114,7 +114,9 @@ class CompactCommand(Command):
                 system_instruction=self.system_context.get_system_message(),
             ),
         )
-        async for response in self.llm_interface.get_adk_llm().generate_content_async(
+        async for (
+            response
+        ) in self.model_factory.get_current_model().generate_content_async(
             llm_request=llm_request,
             stream=False,
         ):

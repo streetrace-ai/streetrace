@@ -30,8 +30,56 @@ Key architectural components and dependencies:
 - `ToolProvider` for supplying file system and CLI capabilities
 - `BaseSessionService` implementation for persisting sessions between interactions
 - `LlmInterface` for interacting with language models through standardized interfaces
+- `AgentManager` for discovering, validating, and creating agents
+- `ModelFactory` for managing model creation and access
 
-The Supervisor is instantiated in `app.py` and serves as the core execution engine that processes each user prompt, manages agent responses, and handles the persistence of conversation state.
+The Supervisor is instantiated in `app.py` with proper dependency injection of ModelFactory and AgentManager instances, following SOLID principles and enabling better testability. It serves as the core execution engine that processes each user prompt, manages agent responses, and handles the persistence of conversation state.
+
+## ./agents/agent_manager.py
+
+Manages the discovery, validation, creation, and lifecycle of specialized AI agents in the StreetRace ecosystem.
+
+The AgentManager class provides a comprehensive agent management system:
+
+1. **Agent Discovery**: Searches standard locations for agent implementations and validates their conformance to required interfaces.
+
+2. **Interface Validation**: Ensures agents properly implement the StreetRaceAgent interface or provide legacy compatibility functions.
+
+3. **Agent Creation**: Creates agent instances with necessary dependencies (models, tools) injected properly.
+
+4. **Lifecycle Management**: Manages the async context for agent creation and cleanup through context managers.
+
+5. **Backward Compatibility**: Supports both modern StreetRaceAgent implementations and legacy function-based agents.
+
+The implementation follows clean architecture principles by:
+- Providing a clear domain model through the StreetRaceAgent interface
+- Implementing dependency injection for model and tool dependencies
+- Using the async context manager pattern for resource lifecycle management
+- Enforcing proper validation before allowing agent creation
+
+This component is instantiated in the Supervisor and enables a modular agent ecosystem where specialized agents can be created for specific tasks while maintaining a consistent interface and lifecycle management.
+
+## ./llm/model_factory.py
+
+Provides a factory for creating and managing language model instances with efficient caching and configuration.
+
+The ModelFactory class serves as a central point for model management:
+
+1. **Model Configuration**: Manages model configurations and provides access to configured models.
+
+2. **Interface Caching**: Creates and caches LlmInterface instances to avoid redundant initialization.
+
+3. **Default Model Access**: Provides access to the default model based on configuration.
+
+4. **Model Name Resolution**: Handles model name resolution and provides appropriate error handling.
+
+The implementation follows the factory pattern to:
+- Encapsulate the complexity of model creation and configuration
+- Provide a clean interface for accessing models by name
+- Enable efficient reuse of model instances
+- Support dependency injection in agent creation
+
+This component is used by the AgentManager and Supervisor to create and manage language model instances, providing a consistent interface for working with different model types and configurations.
 
 ## ./ui/ui_bus.py
 
@@ -222,15 +270,16 @@ The agent_tools module implements agent management functionality:
 
 4. **Configuration-Based Tools**: Loads tool definitions from YAML configuration files for a flexible, maintainable tool registry.
 
-5. **Validation**: Verifies that discovered agents meet the required interface standards before making them available.
+5. **Agent Execution**: Enables running specialized agents through the `run_agent` function, allowing the primary agent to delegate tasks.
 
 The implementation supports a modular agent ecosystem by:
 - Standardizing how agents are discovered and described
 - Providing a clear API for tool discovery and capabilities
 - Maintaining clean separation between agent discovery and execution
 - Using configuration files for tool definition to enable easy updates
+- Supporting both modern StreetRaceAgent implementations and legacy function-based agents
 
-These tools enable a hierarchical agent architecture where the primary AI assistant can discover, select, and potentially invoke specialized agents for specific tasks, supporting a more modular and extensible system.
+These tools enable a hierarchical agent architecture where the primary AI assistant can discover, select, and invoke specialized agents for specific tasks, supporting a more modular and extensible system.
 
 ## ./tools/cli_safety.py
 

@@ -31,7 +31,7 @@ class ToolProvider:
     @asynccontextmanager
     async def get_tools(
         self,
-        tool_refs: list[str],
+        tool_refs: list[str | AnyTool],
     ) -> AsyncGenerator[list[AnyTool], None]:
         """Yield a full list of tool implementations as a context-managed resource.
 
@@ -51,12 +51,17 @@ class ToolProvider:
         if "get_current_time" in tool_refs:
             tools.append(get_current_time)
 
+        base_tools = [tool for tool in tool_refs if isinstance(tool, BaseTool)]
+        tools.extend(base_tools)
+
+        tool_names = [tool for tool in tool_refs if isinstance(tool, str)]
+
         # Add StreetRace tools
-        streetrace_tools = list(self._get_streetrace_tools(tool_refs, self.work_dir))
+        streetrace_tools = list(self._get_streetrace_tools(tool_names, self.work_dir))
         tools.extend(streetrace_tools)
 
         # Get MCP servers and their tools
-        mcp_servers = self._get_mcp_servers_and_tools(tool_refs)
+        mcp_servers = self._get_mcp_servers_and_tools(tool_names)
 
         # Use nested async context managers to handle all servers
         async with self._create_mcp_toolsets(mcp_servers) as server_toolsets:

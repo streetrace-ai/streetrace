@@ -1,17 +1,53 @@
+"""Factory for creating and managing LLM models."""
+
 from google.adk.models.base_llm import BaseLlm
+
+from streetrace.llm.llm_interface import LlmInterface, get_llm_interface
+from streetrace.log import get_logger
+from streetrace.ui.ui_bus import UiBus
+
+logger = get_logger(__name__)
 
 
 class ModelFactory:
-    """Factory class to create and manage models for the StreetRace application."""
+    """Factory class to create and manage models for the StreetRace application.
 
-    def __init__(self, model_config) -> None:
-        """Initialize the ModelFactory with a model configuration."""
-        self.model_config = model_config
+    This class is responsible for:
+    1. Managing model configurations
+    2. Creating and caching LlmInterface instances
+    3. Providing access to underlying BaseLlm instances for agents
+    """
 
-    def get_default_model(self) -> str | BaseLlm:
-        """Return the default model based on the configuration."""
-        return self.model_config.get("default_model", "gpt-3.5-turbo")
+    current_model_name: str | None = None
 
-    def get_model(self, model_name: str) -> str | BaseLlm:
-        """Return a specific model based on the name."""
-        return self.model_config.get(model_name)
+    def __init__(self, default_model_name: str | None, ui_bus: UiBus) -> None:
+        """Initialize the ModelFactory with model configuration and UI bus.
+
+        Args:
+            default_model_name: Name of the model to use
+            ui_bus: UI event bus for displaying messages to the user
+
+        """
+        self.ui_bus = ui_bus
+        self.current_model_name = default_model_name
+
+    def get_llm_interface(self) -> LlmInterface:
+        """Return the default model based on the configuration.
+
+        Returns:
+            LlmInterface instance.
+
+        """
+        if self.current_model_name:
+            return get_llm_interface(self.current_model_name, self.ui_bus)
+        msg = "The current model is not set"
+        raise ValueError(msg)
+
+    def get_current_model(self) -> BaseLlm:
+        """Return the default model based on the configuration.
+
+        Returns:
+            Either a string model name or a BaseLlm instance.
+
+        """
+        return self.get_llm_interface().get_adk_llm()

@@ -1,88 +1,40 @@
 """Runs agents and implements the core user<->agent interaction loop."""
 
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
-
 from google.adk import Runner
-from google.adk.agents import Agent, BaseAgent
 from google.genai import types as genai_types
 
-from streetrace.args import Args
-from streetrace.llm.llm_interface import LlmInterface
+from streetrace.agents.agent_manager import AgentManager
+from streetrace.log import get_logger
 from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.session_service import SessionManager
-from streetrace.system_context import SystemContext
-from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui.adk_event_renderer import render_event as _  # noqa: F401
 from streetrace.ui.ui_bus import UiBus
+
+logger = get_logger(__name__)
 
 
 class Supervisor:
     """Workflow supervisor manages and executes available workflows."""
 
-    def __init__(  # noqa: PLR0913
+    def __init__(
         self,
-        ui_bus: UiBus,
-        llm_interface: LlmInterface,
-        tool_provider: ToolProvider,
-        system_context: SystemContext,
+        agent_manager: AgentManager,
         session_manager: SessionManager,
-        args: Args,
+        ui_bus: UiBus,
     ) -> None:
         """Initialize a new instance of workflow supervisor.
 
         Args:
             ui_bus: UI event bus for displaying messages to the user
-            llm_interface: Interface to the LLM
             tool_provider: Provider of tools for the agent
-            system_context: System Context manager
             session_manager: Conversaion sessions manager
             args: Application arguments containing session information
+            agent_manager: Manager for discovering and creating agents
 
         """
         self.ui_bus = ui_bus
-        self.llm_interface = llm_interface
         self.session_manager = session_manager
-        self.app_name = args.effective_app_name
-        self.session_user_id = args.effective_user_id
-        self.session_id = args.effective_session_id
-        self.tool_provider = tool_provider
-        self.system_context = system_context
-
-    @asynccontextmanager
-    async def _create_agent(self, agent_type: str) -> AsyncGenerator[BaseAgent, None]:
-        """Create an agent of a given type, and identify tools it needs.
-
-        Args:
-            agent_type: the agent library name to construct (only 'default' for now).
-
-        Returns:
-            An async generator yielding the created agent.
-
-        """
-        if agent_type != "default":
-            msg = "Only default agent definition is currently supported"
-            raise NotImplementedError(msg)
-
-        required_tools = [
-            "streetrace:fs_tool::create_directory",
-            "streetrace:fs_tool::find_in_files",
-            "streetrace:fs_tool::list_directory",
-            "streetrace:fs_tool::read_file",
-            "streetrace:fs_tool::write_file",
-            "streetrace:cli_tool::execute_cli_command",
-            "streetrace:agent_tools::list_agents",
-            "streetrace:agent_tools::list_tools",
-        ]
-        async with self.tool_provider.get_tools(required_tools) as tools:
-            root_agent = Agent(
-                name="StreetRace",
-                model=self.llm_interface.get_adk_llm(),
-                description=f"StreetRace - Session: {self.session_id}",
-                instruction=self.system_context.get_system_message(),
-                tools=tools,
-            )
-            yield root_agent
+        self.agent_manager = agent_manager
 
     async def run_async(self, payload: ProcessedPrompt | None) -> None:
         """Run the payload through the workflow.
@@ -115,7 +67,7 @@ class Supervisor:
 
         event_counter = 0
         session = self.session_manager.get_or_create_session()
-        async with self._create_agent("default") as root_agent:
+        async with self.agent_manager.create_agent("default") as root_agent:
             runner = Runner(
                 app_name=session.app_name,
                 session_service=self.session_manager.session_service,

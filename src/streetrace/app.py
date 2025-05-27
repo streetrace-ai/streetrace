@@ -7,6 +7,7 @@ components and managing the application lifecycle.
 
 # Core application components
 
+from streetrace.agents.agent_manager import AgentManager
 from streetrace.app_state import AppState
 from streetrace.args import Args
 from streetrace.commands.command_executor import CommandExecutor
@@ -20,7 +21,7 @@ from streetrace.commands.definitions import (
     ResetSessionCommand,
 )
 from streetrace.costs import UsageAndCost
-from streetrace.llm.llm_interface import get_llm_interface
+from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.session_service import JSONSessionService, SessionManager
@@ -49,7 +50,7 @@ class Application:
         cmd_executor: CommandExecutor,
         prompt_processor: PromptProcessor,
         session_manager: SessionManager,
-        workflow_supervisor: Supervisor | None,
+        workflow_supervisor: Supervisor,
     ) -> None:
         """Initialize the Application with necessary components and configuration.
 
@@ -122,9 +123,6 @@ class Application:
             processed_prompt = self.prompt_processor.build_context(user_input)
 
         # Process with InteractionManager using the persistent history
-        if not self.workflow_supervisor:
-            msg = "Cannot run workflow as workflow_supervisor was not initialized."
-            raise ValueError(msg)
         await self.workflow_supervisor.run_async(processed_prompt)
 
     async def _run_non_interactive(self) -> None:
@@ -216,8 +214,6 @@ def create_app(args: Args) -> Application:
     # Initialize PromptProcessor for handling prompts and file mentions
     prompt_processor = PromptProcessor(ui_bus=ui_bus, args=args)
 
-    llm_interface = get_llm_interface(args.model, ui_bus) if args.model else None
-
     tool_provider = ToolProvider(args.working_dir)
 
     session_service = JSONSessionService(context_dir / "sessions")
@@ -229,18 +225,23 @@ def create_app(args: Args) -> Application:
         ui_bus=ui_bus,
     )
 
+    # Create model factory
+    model_factory = ModelFactory(args.model, ui_bus)
+
+    # Create agent manager
+    agent_manager = AgentManager(
+        model_factory,
+        tool_provider,
+        system_context,
+        ui_bus,
+        args.working_dir,
+    )
+
     # Initialize Workflow Supervisor, passing the args
-    workflow_supervisor = (
-        Supervisor(
-            ui_bus=ui_bus,
-            llm_interface=llm_interface,
-            tool_provider=tool_provider,
-            system_context=system_context,
-            session_manager=session_manager,
-            args=args,
-        )
-        if llm_interface
-        else None
+    workflow_supervisor = Supervisor(
+        agent_manager=agent_manager,
+        session_manager=session_manager,
+        ui_bus=ui_bus,
     )
 
     # Register commands
@@ -252,16 +253,15 @@ def create_app(args: Args) -> Application:
             session_manager=session_manager,
         ),
     )
-    if llm_interface:
-        cmd_executor.register(
-            CompactCommand(
-                ui_bus=ui_bus,
-                args=args,
-                session_manager=session_manager,
-                system_context=system_context,
-                llm_interface=llm_interface,
-            ),
-        )
+    cmd_executor.register(
+        CompactCommand(
+            ui_bus=ui_bus,
+            args=args,
+            session_manager=session_manager,
+            system_context=system_context,
+            model_factory=model_factory,
+        ),
+    )
     cmd_executor.register(
         ResetSessionCommand(ui_bus=ui_bus, session_manager=session_manager),
     )
