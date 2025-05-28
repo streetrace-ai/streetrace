@@ -113,6 +113,8 @@ class JSONSessionSerializer:
             user_id=user_id,
             session_id=session_id,
         )
+        if not path.is_file():
+            return None
         try:
             return Session.model_validate_json(path.read_text())
         except (OSError, UnicodeDecodeError):  # pragma: no cover

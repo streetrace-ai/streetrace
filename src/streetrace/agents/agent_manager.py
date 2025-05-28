@@ -19,6 +19,8 @@ from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
 
+_DEFAULT_AGENT = "coder"
+
 
 class AgentManager:
     """Manages agent discovery, validation, and creation.
@@ -62,9 +64,10 @@ class AgentManager:
 
         """
         base_dirs = [
-            self.work_dir / "agents",  # ./agents/ (relative to working directory)
-            # ../../agents/ (relative to src/streetrace/agents/agent_manager.py)
-            Path(__file__).parent.parent.parent.parent / "agents",
+            # ./agents/ (relative to working directory)
+            self.work_dir / "agents",
+            # /agents/ (relative to repo root)
+            Path(__file__).parent / "../../../agents",
         ]
 
         return get_available_agents(base_dirs)
@@ -84,6 +87,7 @@ class AgentManager:
             ValueError: If agent creation fails
 
         """
+        agent_name = _DEFAULT_AGENT if agent_name == "default" else agent_name
         agent_info = next(
             (
                 agent_info
@@ -93,7 +97,7 @@ class AgentManager:
             None,
         )
         if not agent_info:
-            msg = "Specified agent not found."
+            msg = f"Specified agent not found ({agent_name})."
             raise ValueError(msg)
         agent_type = get_agent_impl(agent_info)
         agent_definition = agent_type()

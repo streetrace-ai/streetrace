@@ -84,7 +84,7 @@ def test_get_model_invalid_name(model_factory):
     """Test retrieving a model with an invalid name."""
     # Act & Assert
     with pytest.raises(
-        ValueError, match="Model 'invalid_model' not found in configuration"
+        ValueError, match="Model 'invalid_model' not found in configuration",
     ):
         model_factory.get_model("invalid_model")
 

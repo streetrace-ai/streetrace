@@ -6,8 +6,6 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from pydantic import BaseModel
-
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.log import get_logger
@@ -15,11 +13,16 @@ from streetrace.log import get_logger
 logger = get_logger(__name__)
 
 
-class AgentInfo(BaseModel):
-    """Detailed information about an agent."""
+class AgentInfo:
+    """Agent card and module references."""
 
     agent_card: StreetRaceAgentCard
     module: ModuleType
+
+    def __init__(self, agent_card: StreetRaceAgentCard, module: ModuleType) -> None:
+        """Initialize with the provided Agent Card and Module."""
+        self.agent_card = agent_card
+        self.module = module
 
 
 def _import_agent_module(agent_dir: Path) -> ModuleType | None:
@@ -148,10 +151,16 @@ def get_available_agents(base_dirs: list[Path]) -> list[AgentInfo]:
 
             try:
                 agent_metadata = _validate_impl(item)
-            except (KeyError, ValueError, TypeError, AttributeError) as ex:
-                logger.warning(
-                    "Failed to get agent name or description",
-                    extra={"agent_dir": str(item), "error": str(ex)},
+            except (
+                KeyError,
+                ValueError,
+                TypeError,
+                AttributeError,
+                FileNotFoundError,
+            ):
+                logger.exception(
+                    "Failed to get agent name or description from %s",
+                    item,
                 )
             else:
                 agents.append(agent_metadata)
