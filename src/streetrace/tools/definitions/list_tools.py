@@ -74,7 +74,7 @@ def _load_tools_config(config_path: Path) -> dict[str, Any]:
         msg = f"Invalid tools configuration format in {config_path}: {config}"
         raise TypeError(msg)
 
-    return config
+    return config  # type: ignore[no-any-return]
 
 
 def _get_tools_from_config(tools_config: dict[str, Any]) -> dict[str, ToolInfo]:
@@ -86,8 +86,8 @@ def _get_tools_from_config(tools_config: dict[str, Any]) -> dict[str, ToolInfo]:
         return tools_dict
     if not isinstance(tools_config["tools"], list):
         msg = (
-            "Invalid tools configuration format: ",
-            f"expected list, got {tools_config['tools']}",
+            "Invalid tools configuration format: "
+            f"expected list, got {tools_config['tools']}"
         )
         raise TypeError(msg)
     for tool_def in tools_config["tools"]:

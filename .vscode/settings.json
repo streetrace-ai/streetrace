@@ -18,6 +18,5 @@
   "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
   "ruff.interpreter": ["${workspaceFolder}/.venv/bin/python"],
   "python.analysis.ignore": ["tests/", ".venv"],
-  "editor.rulers": [88],
-  "editor.formatOnSave": true
+  "editor.rulers": [88]
 }

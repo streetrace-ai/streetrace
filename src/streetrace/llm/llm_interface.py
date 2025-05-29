@@ -52,11 +52,6 @@ class LlmInterface(ABC):
         """Call LLM interface's async generate method based on conversation history."""
 
 
-def get_llm_interface(model: str, ui_bus: UiBus) -> LlmInterface:
-    """Create an LLM interface factory."""
-    return AdkLiteLlmInterface(model, ui_bus)
-
-
 class AdkLiteLlmInterface(LlmInterface):
     """LiteLLM interface for ADK using RetryingLiteLlm.
 

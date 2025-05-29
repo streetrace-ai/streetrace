@@ -62,6 +62,8 @@ class SystemContext:
 
         """
         system_message_path = self.config_dir / _SYSTEM_MD
+        if not system_message_path.exists():
+            system_message_path = self.config_dir / _SYSTEM_MD.lower()
         if system_message_path.exists():
             try:
                 logger.debug("Reading system message from: %s", system_message_path)
@@ -78,6 +80,7 @@ class SystemContext:
         # Default system message
         return messages.SYSTEM
 
+    # TODO(krmrn42): pack permanent context in system message.
     def get_project_context(self) -> Sequence[str]:
         """Read and combine all context files (excluding system.md).
 

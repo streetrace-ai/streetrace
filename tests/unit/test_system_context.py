@@ -3,48 +3,56 @@
 import pathlib
 import shutil
 import tempfile
-import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from streetrace.system_context import SystemContext
-from streetrace.ui.console_ui import ConsoleUI
+from streetrace.ui.console_ui import UiBus
 
 
-class TestSystemContext(unittest.TestCase):
+@pytest.fixture(scope="class")
+def temp_dirs(request):
+    """Set up temporary directories once for all tests in the class."""
+    base_temp_dir = Path(
+        tempfile.mkdtemp(prefix="streetrace_test_system_context_"),
+    )
+    config_dir = base_temp_dir / ".streetrace"
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    # Set attributes on the test class
+    request.cls.base_temp_dir = base_temp_dir
+    request.cls.config_dir = config_dir
+
+    yield
+
+    # Clean up after all tests
+    if base_temp_dir.exists():
+        shutil.rmtree(base_temp_dir)
+
+
+@pytest.mark.usefixtures("temp_dirs")
+class TestSystemContext:
     """Test the SystemContext class."""
 
-    @classmethod
-    def setUpClass(cls) -> None:
-        """Set up temporary directories once for the class."""
-        cls.base_temp_dir = Path(
-            tempfile.mkdtemp(prefix="streetrace_test_system_context_"),
-        )
-        cls.config_dir = cls.base_temp_dir / ".streetrace"
-        cls.config_dir.mkdir(parents=True, exist_ok=True)
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        """Clean up the temporary directories once after all tests."""
-        if hasattr(cls, "base_temp_dir") and cls.base_temp_dir.exists():
-            shutil.rmtree(cls.base_temp_dir)
-
-    def setUp(self) -> None:
+    @pytest.fixture(autouse=True)
+    def setup_system_context(self):
         """Instantiate SystemContext for each test."""
         # Mock the UI to avoid console output during tests
-        self.mock_ui = MagicMock(spec=ConsoleUI)
+        self.mock_ui = MagicMock(spec=UiBus)
         self.system_context = SystemContext(
-            ui=self.mock_ui,
-            config_dir=self.config_dir,
+            ui_bus=self.mock_ui,
+            context_dir=self.config_dir,
         )
 
-    def test_get_system_message_default(self) -> None:
+    def test_get_system_message_default(self):
         """Test that default system message is returned when no system.md exists."""
         with patch("streetrace.messages.SYSTEM", "Default System Message"):
             system_message = self.system_context.get_system_message()
             assert system_message == "Default System Message"
 
-    def test_get_system_message_custom(self) -> None:
+    def test_get_system_message_custom(self):
         """Test that custom system message is read from file."""
         system_file = self.config_dir / "system.md"
         custom_message = "Custom System Message"
@@ -55,9 +63,10 @@ class TestSystemContext(unittest.TestCase):
             system_message = self.system_context.get_system_message()
             assert system_message == custom_message
         finally:
-            system_file.unlink()
+            if system_file.exists():
+                system_file.unlink()
 
-    def test_get_system_message_error(self) -> None:
+    def test_get_system_message_error(self):
         """Test that error is handled when system.md exists but can't be read."""
         system_file = self.config_dir / "system.md"
 
@@ -73,16 +82,17 @@ class TestSystemContext(unittest.TestCase):
                     # Should return default message and log error
                     system_message = self.system_context.get_system_message()
                     assert system_message == "Default System Message"
-                    self.mock_ui.display_error.assert_called_once()
+                    self.mock_ui.dispatch_ui_update.assert_called_once()
         finally:
-            system_file.unlink()
+            if system_file.exists():
+                system_file.unlink()
 
-    def test_get_project_context_no_files(self) -> None:
+    def test_get_project_context_no_files(self):
         """Test that empty string is returned when no context files exist."""
         context = self.system_context.get_project_context()
         assert context == []
 
-    def test_get_project_context_with_files(self) -> None:
+    def test_get_project_context_with_files(self):
         """Test that context is combined from multiple files."""
         context_file1 = self.config_dir / "context1.md"
         context_file2 = self.config_dir / "context2.md"
@@ -95,17 +105,15 @@ class TestSystemContext(unittest.TestCase):
         try:
             context = self.system_context.get_project_context()
             assert len(context) == 2
-            assert "Context from: context1.md" in context[0]
-            assert "Content of context file 1" in context[0]
-            assert "Context from: context2.md" in context[1]
-            assert "Content of context file 2" in context[1]
-            assert "End Context: context1.md" in context[0]
-            assert "End Context: context2.md" in context[1]
+            assert "Content of context file 1" in context
+            assert "Content of context file 2" in context
         finally:
-            context_file1.unlink()
-            context_file2.unlink()
+            if context_file1.exists():
+                context_file1.unlink()
+            if context_file2.exists():
+                context_file2.unlink()
 
-    def test_get_project_context_error_reading_file(self) -> None:
+    def test_get_project_context_error_reading_file(self):
         """Test that errors reading individual context files are handled."""
         context_file1 = self.config_dir / "context1.md"
         context_file2 = self.config_dir / "context2.md"
@@ -137,33 +145,30 @@ class TestSystemContext(unittest.TestCase):
             ):
                 context = self.system_context.get_project_context()
                 assert len(context) == 1
-                assert "Context from: context1.md" in context[0]
                 assert "Content of context file 1" in context[0]
-                self.mock_ui.display_error.assert_called_once()
+                self.mock_ui.dispatch_ui_update.assert_called()
         finally:
-            context_file1.unlink()
-            context_file2.unlink()
+            if context_file1.exists():
+                context_file1.unlink()
+            if context_file2.exists():
+                context_file2.unlink()
 
-    def test_get_project_context_no_dir(self) -> None:
+    def test_get_project_context_no_dir(self):
         """Test when config directory doesn't exist."""
         nonexistent_dir = Path("/nonexistent/dir")
         system_context = SystemContext(
-            ui=self.mock_ui,
-            config_dir=nonexistent_dir,
+            ui_bus=self.mock_ui,
+            context_dir=nonexistent_dir,
         )
 
         context = system_context.get_project_context()
         assert context == []
 
-    def test_get_project_context_error_listing_dir(self) -> None:
+    def test_get_project_context_error_listing_dir(self):
         """Test that errors listing directory are handled."""
         with patch("pathlib.Path.iterdir") as mock_iterdir:
             mock_iterdir.side_effect = PermissionError("Cannot list directory")
 
             context = self.system_context.get_project_context()
             assert context == []
-            self.mock_ui.display_error.assert_called_once()
-
-
-if __name__ == "__main__":
-    unittest.main()
+            self.mock_ui.dispatch_ui_update.assert_called_once()

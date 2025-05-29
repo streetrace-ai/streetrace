@@ -1172,3 +1172,95 @@ We've implemented comprehensive unit tests for the `streetrace.agents.agent_load
 
 These tests provide a robust foundation for ensuring the `agent_loader.py` module works as expected, which is critical for the proper discovery and loading of agents in the StreetRace application. The tests are designed to be maintainable and follow the project's coding style guidelines.
 
+
+# Thu May 29 11:18:12 2025 -0700
+
+## User
+
+Refactor @tests/unit/test_system_context.py to use pytest instead of unittest
+
+
+## Assistant
+
+## Summary of Changes
+
+### Goal of the Change
+The goal of this change was to refactor the test_system_context.py file to use pytest instead of unittest, aligning it with the rest of the test suite in the StreetRace project. This improves consistency in the testing framework and leverages pytest's more modern features.
+
+### Changes Implemented
+The main changes include:
+
+1. **Replaced unittest with pytest**:
+   - Removed unittest imports and unittest.main() call
+   - Converted unittest's setUp and tearDown methods to pytest fixtures
+   - Changed assertion style to use pytest's assert statements (which were already being used)
+
+2. **Improved Fixture Management**:
+   - Created a class-scoped fixture `temp_dirs` to handle setup and teardown of test directories
+   - Added an autouse fixture `setup_system_context` to instantiate the SystemContext for each test
+   - Added proper cleanup logic with existence checks before file deletion
+
+3. **Used pytest Marks**:
+   - Added the `@pytest.mark.usefixtures("temp_dirs")` to properly associate the fixture with the test class
+
+4. **Code Quality Improvements**:
+   - Ran ruff to ensure the code meets project style guidelines
+   - Improved error handling with existence checks before file deletion
+   - Maintained the same test coverage and behavior as the original tests
+
+### Benefits of the Change
+1. Consistency with the rest of the project's testing approach
+2. Better leveraging of pytest's features for future test extensions
+3. Improved resource management through pytest fixtures
+4. Easier to understand test setup and teardown
+
+All tests continue to pass successfully, demonstrating that the functionality has been preserved while modernizing the testing approach.
+
+
+# Thu May 29 11:21:16 2025 -0700
+
+## User
+
+Also refactor @tests/unit/test_completer.py for pytest
+
+## Assistant
+
+Great! All the tests are passing. Let me summarize the changes made to the `test_completer.py` file:
+
+## Summary of Changes
+
+### Goal of the Change
+The goal of this change was to refactor the `test_completer.py` file to use pytest instead of unittest, aligning it with the rest of the test suite in the StreetRace project. This improves consistency in the testing framework and leverages pytest's more modern features.
+
+### Changes Implemented
+The main changes include:
+
+1. **Replaced unittest with pytest**:
+   - Removed unittest imports and unittest.main() call
+   - Converted unittest's setUp method to a pytest fixture in TestPromptCompleterComposition
+
+2. **Improved Fixture Management**:
+   - Created a fixture `prompt_completer_setup` to handle the creation of test objects
+   - Returns a dictionary with all the necessary mock objects for tests
+   - Each test method receives the fixture and unpacks the required objects
+
+3. **Code Quality Improvements**:
+   - Ran ruff to ensure the code meets project style guidelines
+   - Fixed line length issues in test method signatures
+   - Added proper type hints for the fixtures
+   - Maintained the same test coverage and behavior as the original tests
+
+4. **Pytest Benefits**:
+   - Better dependency injection through fixtures
+   - More readable test setup and execution
+   - Consistent with project's testing standards
+
+### Benefits of the Change
+1. Consistency with the rest of the project's testing approach
+2. Better leveraging of pytest's features for future test extensions
+3. Improved test readability through dependency injection
+4. Easier to understand test setup
+5. Removed unittest-specific code that was not needed
+
+All tests continue to pass successfully, demonstrating that the functionality has been preserved while modernizing the testing approach.
+

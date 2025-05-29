@@ -2,7 +2,10 @@
 
 from google.adk.models.base_llm import BaseLlm
 
-from streetrace.llm.llm_interface import LlmInterface, get_llm_interface
+from streetrace.llm.llm_interface import (
+    AdkLiteLlmInterface,
+    LlmInterface,
+)
 from streetrace.log import get_logger
 from streetrace.ui.ui_bus import UiBus
 
@@ -31,17 +34,14 @@ class ModelFactory:
         self.ui_bus = ui_bus
         self.current_model_name = default_model_name
 
-    def get_llm_interface(self) -> LlmInterface:
+    def get_llm_interface(self, model_name: str) -> LlmInterface:
         """Return the default model based on the configuration.
 
         Returns:
             LlmInterface instance.
 
         """
-        if self.current_model_name:
-            return get_llm_interface(self.current_model_name, self.ui_bus)
-        msg = "The current model is not set"
-        raise ValueError(msg)
+        return AdkLiteLlmInterface(model_name, self.ui_bus)
 
     def get_current_model(self) -> BaseLlm:
         """Return the default model based on the configuration.
@@ -50,4 +50,7 @@ class ModelFactory:
             Either a string model name or a BaseLlm instance.
 
         """
-        return self.get_llm_interface().get_adk_llm()
+        if not self.current_model_name:
+            msg = "The current model is not set"
+            raise ValueError(msg)
+        return self.get_llm_interface(self.current_model_name).get_adk_llm()

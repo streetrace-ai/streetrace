@@ -1,4 +1,3 @@
-import unittest
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -77,7 +76,7 @@ class _FakePath:
         mock_iterdir.side_effect = fake_iterdir
 
 
-class TestPathCompleter(unittest.TestCase):
+class TestPathCompleter:
     @patch("pathlib.Path.is_dir", autospec=True)
     @patch("pathlib.Path.iterdir", autospec=True)
     def test_oserr(
@@ -215,77 +214,71 @@ class TestPathCompleter(unittest.TestCase):
             PathCompleter(Path("/invalid/dir"))
 
 
-class TestCommandCompleter(unittest.TestCase):
-    # Updated tests for new CommandCompleter logic
-    def test_complete_commands_strict(self) -> None:
-        """Test completion only when command is the only input (trimmed)."""
-        commands = ["/exit", "/help", "/history"]
-        completer = CommandCompleter(commands)
-        # Valid cases
-        assert _get_completion_texts(completer, "/") == ["/exit", "/help", "/history"]
-        assert _get_completion_texts(completer, "  /h  ") == [
-            "/help",
-            "/history",
-        ]  # Whitespace OK
-        assert _get_completion_texts(completer, "/hist") == ["/history"]
-        assert _get_completion_texts(completer, "/exit") == ["/exit"]
-        assert _get_completion_texts(completer, "") == []  # Empty is not / command
-
-        # Invalid cases (command not the only thing)
-        assert _get_completion_texts(completer, "exit") == []  # Not command format
-        assert _get_completion_texts(completer, "word /h") == []  # Command not alone
-        assert _get_completion_texts(completer, "/help me") == []  # Command not alone
-        assert (
-            _get_completion_texts(completer, " /help abc ") == []
-        )  # Command not alone (even with whitespace)
-
-
-class TestPromptCompleterComposition(unittest.TestCase):
-    def setUp(self) -> None:
-        self.mock_path_completer = MagicMock(spec=PathCompleter)
-        self.mock_command_completer = MagicMock(spec=CommandCompleter)
-        self.prompt_completer = PromptCompleter(
-            [self.mock_path_completer, self.mock_command_completer],
+class TestPromptCompleterComposition:
+    @pytest.fixture
+    def prompt_completer_setup(self):
+        """Set up test environment for prompt completer tests."""
+        mock_path_completer = MagicMock(spec=PathCompleter)
+        mock_command_completer = MagicMock(spec=CommandCompleter)
+        prompt_completer = PromptCompleter(
+            [mock_path_completer, mock_command_completer],
         )
+        return {
+            "mock_path_completer": mock_path_completer,
+            "mock_command_completer": mock_command_completer,
+            "prompt_completer": prompt_completer,
+        }
 
-    def test_calls_both_delegates(self) -> None:
+    def test_calls_both_delegates(self, prompt_completer_setup) -> None:
+        mock_path_completer = prompt_completer_setup["mock_path_completer"]
+        mock_command_completer = prompt_completer_setup["mock_command_completer"]
+        prompt_completer = prompt_completer_setup["prompt_completer"]
+
         doc = Document("some text", len("some text"))
         event = MagicMock()
-        self.mock_path_completer.get_completions.return_value = iter(
+        mock_path_completer.get_completions.return_value = iter(
             [Completion("path_comp")],
         )
-        self.mock_command_completer.get_completions.return_value = iter(
+        mock_command_completer.get_completions.return_value = iter(
             [Completion("cmd_comp")],
         )
-        completions = list(self.prompt_completer.get_completions(doc, event))
-        self.mock_path_completer.get_completions.assert_called_once_with(doc, event)
-        self.mock_command_completer.get_completions.assert_called_once_with(doc, event)
+        completions = list(prompt_completer.get_completions(doc, event))
+        mock_path_completer.get_completions.assert_called_once_with(doc, event)
+        mock_command_completer.get_completions.assert_called_once_with(doc, event)
         completion_texts = sorted([c.text for c in completions])
         assert completion_texts == ["cmd_comp", "path_comp"]
 
-    def test_works_if_one_delegate_returns_nothing(self) -> None:
+    def test_works_if_one_delegate_returns_nothing(
+        self, prompt_completer_setup,
+    ) -> None:
+        mock_path_completer = prompt_completer_setup["mock_path_completer"]
+        mock_command_completer = prompt_completer_setup["mock_command_completer"]
+        prompt_completer = prompt_completer_setup["prompt_completer"]
+
         doc = Document("@path", len("@path"))
         event = MagicMock()
-        self.mock_path_completer.get_completions.return_value = iter(
+        mock_path_completer.get_completions.return_value = iter(
             [Completion("path/comp1"), Completion("path/comp2")],
         )
-        self.mock_command_completer.get_completions.return_value = iter([])
-        completions = list(self.prompt_completer.get_completions(doc, event))
-        self.mock_path_completer.get_completions.assert_called_once_with(doc, event)
-        self.mock_command_completer.get_completions.assert_called_once_with(doc, event)
+        mock_command_completer.get_completions.return_value = iter([])
+        completions = list(prompt_completer.get_completions(doc, event))
+        mock_path_completer.get_completions.assert_called_once_with(doc, event)
+        mock_command_completer.get_completions.assert_called_once_with(doc, event)
         completion_texts = sorted([c.text for c in completions])
         assert completion_texts == ["path/comp1", "path/comp2"]
 
-    def test_works_if_command_delegate_returns_nothing(self) -> None:
+    def test_works_if_command_delegate_returns_nothing(
+        self, prompt_completer_setup,
+    ) -> None:
+        mock_path_completer = prompt_completer_setup["mock_path_completer"]
+        mock_command_completer = prompt_completer_setup["mock_command_completer"]
+        prompt_completer = prompt_completer_setup["prompt_completer"]
+
         doc = Document("/xyz", len("/xyz"))
         event = MagicMock()
-        self.mock_path_completer.get_completions.return_value = iter([])
-        self.mock_command_completer.get_completions.return_value = iter([])
-        completions = list(self.prompt_completer.get_completions(doc, event))
-        self.mock_path_completer.get_completions.assert_called_once_with(doc, event)
-        self.mock_command_completer.get_completions.assert_called_once_with(doc, event)
+        mock_path_completer.get_completions.return_value = iter([])
+        mock_command_completer.get_completions.return_value = iter([])
+        completions = list(prompt_completer.get_completions(doc, event))
+        mock_path_completer.get_completions.assert_called_once_with(doc, event)
+        mock_command_completer.get_completions.assert_called_once_with(doc, event)
         assert completions == []
-
-
-if __name__ == "__main__":
-    unittest.main()

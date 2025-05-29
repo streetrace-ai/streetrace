@@ -232,8 +232,6 @@ def create_app(args: Args) -> Application:
     agent_manager = AgentManager(
         model_factory,
         tool_provider,
-        system_context,
-        ui_bus,
         args.working_dir,
     )
 

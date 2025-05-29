@@ -13,9 +13,7 @@ from streetrace.agents.agent_loader import (
 )
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
-from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
-from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
 
@@ -36,8 +34,6 @@ class AgentManager:
         self,
         model_factory: ModelFactory,
         tool_provider: ToolProvider,
-        system_context: SystemContext,
-        ui_bus: UiBus,
         work_dir: Path,
     ) -> None:
         """Initialize the AgentManager.
@@ -45,15 +41,12 @@ class AgentManager:
         Args:
             model_factory: Factory for creating and managing LLM models
             tool_provider: Provider of tools for the agents
-            system_context: Agent's access to System Context
             ui_bus: UI event bus for displaying messages to the user
             work_dir: Current working directory
 
         """
         self.model_factory = model_factory
         self.tool_provider = tool_provider
-        self.system_context = system_context
-        self.ui_bus = ui_bus
         self.work_dir = work_dir
 
     def list_available_agents(self) -> list[AgentInfo]:
