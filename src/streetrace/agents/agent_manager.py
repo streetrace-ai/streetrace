@@ -17,7 +17,7 @@ from streetrace.tools.tool_provider import ToolProvider
 
 logger = get_logger(__name__)
 
-_DEFAULT_AGENT = "coder"
+_DEFAULT_AGENT = "Streetrace Coding Agent"
 
 
 class AgentManager:
