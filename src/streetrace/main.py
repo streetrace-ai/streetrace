@@ -30,5 +30,10 @@ def main(args: Args) -> None:
             raise
 
 
-if __name__ == "__main__":
+def cli() -> None:
+    """Entry point for the CLI."""
     bind_and_run(main)
+
+
+if __name__ == "__main__":
+    cli()

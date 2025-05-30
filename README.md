@@ -48,8 +48,9 @@ install guide](https://python-poetry.org/docs/#installation).
 
 ```bash
 $ git clone git@github.com:krmrn42/street-race.git
-$ cd street-race --model=$YOUR_FAVORITE_MODEL
+$ cd street-race
 $ poetry install
+$ poetry run streetrace --model=$YOUR_FAVORITE_MODEL
 ```
 
 Where `$YOUR_FAVORITE_MODEL` is the
@@ -196,7 +197,7 @@ StreetRace🚗💨 includes a modular agent system that allows for specialized a
 
 #### Agent Discovery
 
-The `list_agents` tool allows the assistant to discover available agents in the system. 
+The `list_agents` tool allows the assistant to discover available agents in the system.
 Agents are searched for in the following locations:
 
 - `./agents/` (relative to the current working directory)
@@ -210,6 +211,7 @@ StreetRace supports two ways to create custom agents:
 
 1. Create a directory for your agent in the `./agents/` folder (e.g., `./agents/my_agent/`)
 2. Create an `agent.py` file with a class that inherits from `StreetRaceAgent` and implements:
+
    - `get_agent_card()` - Returns metadata about the agent (name, description, capabilities)
    - `get_required_tools()` - Returns a list of tools the agent needs
    - `create_agent()` - Creates the actual agent instance with the provided model and tools
@@ -217,6 +219,7 @@ StreetRace supports two ways to create custom agents:
 3. Add a `README.md` file with documentation for your agent
 
 Example agent class:
+
 ```python
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
@@ -228,13 +231,13 @@ class MyAgent(StreetRaceAgent):
             description="A specialized agent that does something useful",
             capabilities=["capability1", "capability2"],
         )
-    
+
     async def get_required_tools(self) -> list[str]:
         return [
             "streetrace:fs_tool::read_file",
             "streetrace:fs_tool::write_file",
         ]
-    
+
     async def create_agent(self, model_factory, tools) -> BaseAgent:
         model = model_factory.get_default_model()
         return Agent(
@@ -250,6 +253,7 @@ class MyAgent(StreetRaceAgent):
 
 1. Create a directory for your agent in the `./agents/` folder (e.g., `./agents/my_agent/`)
 2. Create an `agent.py` file with these required functions:
+
    - `get_agent_metadata()` - Returns a dictionary with `name` and `description` keys
    - `run_agent(input_text: str)` - Implements the agent's functionality
 
@@ -286,6 +290,7 @@ The `list_tools` tool provides information about available tools that can be pro
 This helps the assistant understand what capabilities are available in the system.
 
 The tool returns a list of available tools with:
+
 - Tool name
 - Description
 - Whether the tool requires agent capabilities

@@ -112,4 +112,4 @@ a2a-sdk = "^0.2.4"
 
 
 [tool.poetry.scripts]
-streetrace = 'streetrace.main:main'
+streetrace = 'streetrace.main:cli'
