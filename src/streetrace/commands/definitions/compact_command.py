@@ -24,16 +24,6 @@ from streetrace.ui.ui_bus import UiBus
 logger = get_logger(__name__)
 
 
-def _dont_use_tools() -> None:
-    """Address litellm.UnsupportedParamsError.
-
-    Anthropic doesn't support tool calling without `tools=` param specified.
-
-    Never call this tool.
-    """
-    return
-
-
 class CompactCommand(Command):
     """Command to compact/summarize the conversation history to reduce token usage."""
 
@@ -62,6 +52,46 @@ class CompactCommand(Command):
         """Command description."""
         return "Summarize conversation history and replace history with the summary."
 
+    async def _summarize_contents(
+        self,
+        contents: list[genai_types.Content],
+    ) -> tuple[str | None, str | None]:
+        contents.append(
+            genai_types.Content(
+                role="user",
+                parts=[genai_types.Part.from_text(text=COMPACT)],
+            ),
+        )
+        llm_request = LlmRequest(
+            model=self.args.model,
+            contents=contents,
+            config=genai_types.GenerateContentConfig(
+                system_instruction=self.system_context.get_system_message(),
+            ),
+        )
+        role: str | None = None
+        summary_message_parts: list[str] = []
+        logger.info("Requesting conversation summary from LLM")
+        async for (
+            response
+        ) in self.model_factory.get_current_model().generate_content_async(
+            llm_request=llm_request,
+            stream=False,
+        ):
+            logger.info("receiving response %s", response)
+            if response.partial:
+                continue
+            # Get the summary message from the response
+            if response.content and response.content.parts:
+                role = response.content.role
+                summary_message_parts.extend(
+                    [part.text for part in response.content.parts if part.text],
+                )
+        summary_message = (
+            "".join(summary_message_parts) if summary_message_parts else None
+        )
+        return role, summary_message
+
     @override
     async def execute_async(self) -> None:
         """Execute the history compaction action using the HistoryManager.
@@ -88,75 +118,60 @@ class CompactCommand(Command):
             ui_events.Info("Compacting conversation history..."),
         )
 
-        new_events: list[Event] = []
+        last_non_user_author: str | None = None
+        compact_session_events: list[Event] = []
+        # tail_events accumulates the tail non-final events
+        tail_events: list[Event] = []
         for event in current_session.events:
             if event.author != "user":
-                break
-            new_events.append(event.model_copy())
+                last_non_user_author = event.author
+            if event.author == "user" or event.is_final_response():
+                tail_events.clear()
+                compact_session_events.append(event.model_copy())
+            else:
+                tail_events.append(event.model_copy())
 
-        contents = [
-            event.content for event in current_session.events if event.content
-        ] + [
-            genai_types.Content(
-                role="user",
-                parts=[genai_types.Part.from_text(text=COMPACT)],
-            ),
-        ]
-
-        logger.info("Requesting conversation summary from LLM")
-
-        summary_message_parts: list[str] = []
-        role: str | None = None
-        llm_request = LlmRequest(
-            model=self.args.model,
-            contents=contents,
-            config=genai_types.GenerateContentConfig(
-                system_instruction=self.system_context.get_system_message(),
-            ),
-        )
-        async for (
-            response
-        ) in self.model_factory.get_current_model().generate_content_async(
-            llm_request=llm_request,
-            stream=False,
-        ):
-            # Get the summary message from the response
-            if response.content and response.content.parts:
-                role = response.content.role
-                summary_message_parts.extend(
-                    [part.text for part in response.content.parts if part.text],
+        if tail_events:
+            contents = [
+                event.content for event in current_session.events if event.content
+            ]
+            if not contents:
+                self.ui_bus.dispatch_ui_update(
+                    ui_events.Info("Nothing to compact."),
                 )
-            if response.partial:
-                continue
+                return
+            role, summary_message = await self._summarize_contents(contents)
+            # TODO(krmrn42): Somewhere in this process we lose user's message
+            if summary_message:
+                # TODO(krmrn42): Compact result is still not displayed as markdown.
+                self.ui_bus.dispatch_ui_update(ui_events.Markdown(summary_message))
 
-        # TODO(krmrn42): Somewhere in this process we lose user's message
-        summary_message = "".join(summary_message_parts)
-        if summary_message:
-            # TODO(krmrn42): Compact result is still not displayed as markdown.
-            self.ui_bus.dispatch_ui_update(ui_events.Markdown(summary_message))
-            author, role = next(
-                (event.author, event.content.role)
-                for event in reversed(current_session.events)
-                if event.author != "user" and event.content and event.content.parts
-            )
-            new_events.append(
-                Event(
-                    author=author,
-                    content=genai_types.Content(
-                        role=role,
-                        parts=[genai_types.Part.from_text(text=summary_message)],
+                compact_session_events.append(
+                    Event(
+                        author=last_non_user_author or "assistant",
+                        content=genai_types.Content(
+                            role=role,
+                            parts=[genai_types.Part.from_text(text=summary_message)],
+                        ),
                     ),
-                ),
-            )
-            self.session_manager.replace_current_session_events(new_events)
-            self.ui_bus.dispatch_ui_update(
-                ui_events.Info("Session compacted successfully."),
-            )
+                )
+            else:
+                self.ui_bus.dispatch_ui_update(
+                    ui_events.Warn(
+                        "The session could not be compacted, see logs for details. "
+                        "Please report or fix in code if that's not right.",
+                    ),
+                )
+                logger.error("LLM response was not in the expected format for summary.")
+                logger.debug("History sent for compact: \n%s", contents)
+                return
         else:
             self.ui_bus.dispatch_ui_update(
-                ui_events.Warn(
-                    "The last message did not respond, skipping compact. "
-                    "Please report or fix in code if that's not right.",
-                ),
+                ui_events.Warn("History was cleaned up, non-final responses removed."),
             )
-            logger.error("LLM response was not in the expected format for summary.")
+
+        self.session_manager.replace_current_session_events(compact_session_events)
+
+        self.ui_bus.dispatch_ui_update(
+            ui_events.Info("Session compacted successfully."),
+        )

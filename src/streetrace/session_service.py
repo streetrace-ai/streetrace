@@ -515,18 +515,9 @@ class SessionManager:
             msg = "Current session is missing."
             raise ValueError(msg)
 
-        context = self.system_context.get_project_context()
-        context_event = Event(
-            author="user",
-            content=genai_types.Content(
-                role="user",
-                parts=[genai_types.Part.from_text(text="\n".join(context))],
-            ),
-        )
-
         self.session_service.replace_events(
             session=current_session,
-            new_events=[context_event, *new_events],
+            new_events=new_events,
         )
 
     def display_sessions(self) -> None:
