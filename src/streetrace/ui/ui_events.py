@@ -4,6 +4,7 @@ Should also specify how to render the event.
 """
 
 from rich.console import Console
+from rich.markdown import Markdown as RichMarkdown
 
 from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import register_renderer
@@ -49,7 +50,7 @@ class Markdown(_Str):
 
 @register_renderer
 def render_markdown(obj: Markdown, console: Console) -> None:
-    console.print(Markdown(obj), style=Styles.RICH_INFO)
+    console.print(RichMarkdown(obj), style=Styles.RICH_INFO)
 
 
 _PROMPT = "You:"
