@@ -4,6 +4,7 @@ This module tests how the Supervisor handles various error conditions including
 agent creation failures, runner exceptions, and other exceptional scenarios.
 """
 
+from collections.abc import AsyncGenerator
 from unittest.mock import Mock
 
 import pytest
@@ -78,7 +79,7 @@ class TestSupervisorErrorHandling:
         )
 
         # Mock runner execution failure
-        async def _failing_async_iter():
+        async def _failing_async_iter() -> AsyncGenerator[Mock, None]:
             if False:  # Make this an async generator
                 yield
             msg = "Runner execution failed"

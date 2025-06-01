@@ -9,7 +9,7 @@ import pytest
 
 from streetrace.args import Args
 from streetrace.prompt_processor import PromptProcessor
-from streetrace.ui.console_ui import UiBus
+from streetrace.ui.ui_bus import UiBus
 
 
 @pytest.fixture(scope="class")
@@ -51,7 +51,7 @@ class TestMentions:
         # Instantiate PromptProcessor with the mock UI
         self.prompt_processor = PromptProcessor(
             ui_bus=self.mock_ui,
-            args=Args(path=self.test_dir),
+            args=Args(path=self.test_dir, model="test-model"),
         )
 
     # --- Test methods using prompt_processor.parse_and_load_mentions ---

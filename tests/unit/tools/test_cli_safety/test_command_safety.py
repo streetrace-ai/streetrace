@@ -8,6 +8,7 @@ from streetrace.tools.cli_safety import (
 )
 
 
+# TODO(krmrn42): Use examples from https://cwe.mitre.org/data/definitions/78.html
 class TestCommandSafetyAnalysis:
     """Test scenarios for analyzing command safety."""
 

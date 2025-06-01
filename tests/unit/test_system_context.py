@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from streetrace.system_context import SystemContext
-from streetrace.ui.console_ui import UiBus
+from streetrace.ui.ui_bus import UiBus
 
 
 @pytest.fixture(scope="class")

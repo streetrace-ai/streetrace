@@ -50,7 +50,7 @@ logger = get_logger(__name__)
 
 _UI_UPDATE_EVENT = "ui_update_event"
 _TYPING_PROMPT_EVENT = "typing_prompt_event"
-_PROMPT_TOKEN_COUNT_ESTIMATE_EVENT = "prompt_token_count_estimate_event"  # noqa: S105
+_PROMPT_TOKEN_COUNT_ESTIMATE_EVENT = "prompt_token_count_estimate_event"  # noqa: S105  # nosec B105
 _USAGE_DATA_EVENT = "usage_data"
 
 

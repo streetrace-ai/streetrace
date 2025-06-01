@@ -24,7 +24,7 @@ class TestCompactCommandSuccessfulFlow:
     """Test CompactCommand successful compaction scenarios."""
 
     @pytest.fixture
-    def mock_dependencies(self) -> dict:
+    def mock_dependencies(self) -> dict[str, Mock]:
         """Create mock dependencies for CompactCommand."""
         mock_args = Mock(spec=Args)
         mock_args.model = "test-model"
@@ -75,11 +75,11 @@ class TestCompactCommandSuccessfulFlow:
         return [user_event, assistant_event, partial_event]
 
     @pytest.fixture
-    def compact_command(self, mock_dependencies: dict) -> CompactCommand:
+    def compact_command(self, mock_dependencies: dict[str, Mock]) -> CompactCommand:
         """Create a CompactCommand instance with mocked dependencies."""
         return CompactCommand(**mock_dependencies)
 
-    async def _async_iter_responses(self, responses: list):
+    async def _async_iter_responses(self, responses: list[Mock]):
         """Create an async iterator from a list of responses."""
         for response in responses:
             yield response
@@ -88,7 +88,7 @@ class TestCompactCommandSuccessfulFlow:
     async def test_successful_compaction_with_tail_events(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
         sample_events: list[Mock],
         patch_litellm_modify_params,
     ) -> None:
@@ -157,7 +157,7 @@ class TestCompactCommandSuccessfulFlow:
     async def test_successful_compaction_empty_contents_fallback(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
         patch_litellm_modify_params,
     ) -> None:
         """Test behavior when events exist but have no content to summarize."""

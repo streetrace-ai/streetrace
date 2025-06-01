@@ -24,7 +24,7 @@ class TestCompactCommandHistoryCleanup:
     """Test CompactCommand history cleanup scenarios."""
 
     @pytest.fixture
-    def mock_dependencies(self) -> dict:
+    def mock_dependencies(self) -> dict[str, Mock]:
         """Create mock dependencies for CompactCommand."""
         mock_args = Mock(spec=Args)
         mock_args.model = "test-model"
@@ -41,7 +41,7 @@ class TestCompactCommandHistoryCleanup:
         }
 
     @pytest.fixture
-    def compact_command(self, mock_dependencies: dict) -> CompactCommand:
+    def compact_command(self, mock_dependencies: dict[str, Mock]) -> CompactCommand:
         """Create a CompactCommand instance with mocked dependencies."""
         return CompactCommand(**mock_dependencies)
 
@@ -49,7 +49,7 @@ class TestCompactCommandHistoryCleanup:
     async def test_cleanup_only_final_events_no_tail(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
         patch_litellm_modify_params,
     ) -> None:
         """Test cleanup when all events are final (no tail events to summarize)."""
@@ -127,7 +127,7 @@ class TestCompactCommandHistoryCleanup:
     async def test_cleanup_mixed_events_keeps_final_only(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
         patch_litellm_modify_params,
     ) -> None:
         """Test cleanup when there are mixed events but no tail events."""
@@ -198,7 +198,7 @@ class TestCompactCommandHistoryCleanup:
     async def test_cleanup_preserves_event_order(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
         patch_litellm_modify_params,
     ) -> None:
         """Test that cleanup preserves the order of final events."""

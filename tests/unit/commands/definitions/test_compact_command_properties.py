@@ -20,7 +20,7 @@ class TestCompactCommandProperties:
     """Test CompactCommand basic properties and metadata."""
 
     @pytest.fixture
-    def mock_dependencies(self) -> dict:
+    def mock_dependencies(self) -> dict[str, Mock]:
         """Create mock dependencies for CompactCommand."""
         return {
             "ui_bus": Mock(spec=UiBus),
@@ -31,7 +31,7 @@ class TestCompactCommandProperties:
         }
 
     @pytest.fixture
-    def compact_command(self, mock_dependencies: dict) -> CompactCommand:
+    def compact_command(self, mock_dependencies: dict[str, Mock]) -> CompactCommand:
         """Create a CompactCommand instance with mocked dependencies."""
         return CompactCommand(**mock_dependencies)
 
@@ -52,7 +52,10 @@ class TestCompactCommandProperties:
         assert "summarize" in description.lower() or "compact" in description.lower()
         assert "history" in description.lower()
 
-    def test_initialization_stores_dependencies(self, mock_dependencies: dict) -> None:
+    def test_initialization_stores_dependencies(
+        self,
+        mock_dependencies: dict[str, Mock],
+    ) -> None:
         """Test that command properly stores all injected dependencies."""
         command = CompactCommand(**mock_dependencies)
 

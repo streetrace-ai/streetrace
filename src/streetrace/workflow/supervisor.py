@@ -65,7 +65,6 @@ class Supervisor:
 
         final_response_text = "Agent did not produce a final response."  # Default
 
-        event_counter = 0
         session = self.session_manager.get_or_create_session()
         async with self.agent_manager.create_agent("default") as root_agent:
             runner = Runner(
@@ -95,7 +94,6 @@ class Supervisor:
                         final_response_text = f"Agent escalated: {error_msg}"
                     # Add more checks here if needed (e.g., specific error codes)
                     break  # Stop processing events once the final response is found
-                event_counter += 1
 
         # Add the agent's final message to the history
         if final_response_text:

@@ -54,7 +54,7 @@ def app_state(fake_model_name) -> AppState:
 
 
 @pytest.fixture
-def work_dir(tmp_path) -> Path:
+def work_dir(tmp_path: Path) -> Path:
     """Fixture to provide a mock working directory."""
     return tmp_path
 
@@ -157,7 +157,7 @@ def shallow_console_ui(
 
 
 @pytest.fixture
-def context_dir(work_dir) -> Path:
+def context_dir(work_dir: Path) -> Path:
     return work_dir / "context"
 
 
@@ -200,7 +200,7 @@ def shallow_tool_provider(work_dir) -> ToolProvider:
 
 
 @pytest.fixture
-def sessions_dir(context_dir) -> Path:
+def sessions_dir(context_dir: Path) -> Path:
     return context_dir / "sessions"
 
 
@@ -498,6 +498,6 @@ def shallow_app(  # noqa: PLR0913
 @pytest.fixture
 def patch_litellm_modify_params():
     def patcher():
-        patch("litellm.modify_params", True)  # noqa: FBT003
+        return patch("litellm.modify_params", True)  # noqa: FBT003
 
     return patcher

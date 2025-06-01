@@ -229,26 +229,6 @@ class TestConsoleUIPromptFunctionality:
             # Should clear rprompt even after exception
             assert console_ui.prompt_session.rprompt is None
 
-    @pytest.mark.asyncio
-    async def test_prompt_async_sets_cursor_state(self, console_ui):
-        """Test that prompt_async manages cursor_is_in_line state."""
-        test_input = "test"
-
-        # Set initial state
-        console_ui.cursor_is_in_line = True
-
-        with patch.object(
-            console_ui.prompt_session,
-            "prompt_async",
-            new_callable=AsyncMock,
-        ) as mock_prompt:
-            mock_prompt.return_value = test_input
-
-            await console_ui.prompt_async()
-
-            # Should reset cursor state after prompt
-            assert console_ui.cursor_is_in_line is False
-
     def test_prompt_continuation_function(self, console_ui):
         """Test the prompt continuation function for multiline input."""
         test_input = "test"

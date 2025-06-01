@@ -32,7 +32,13 @@ class TestGetUserIdentity:
         assert result == "github-user"
         mock_which.assert_called_with("gh")
         mock_run.assert_called_once()
-        assert mock_run.call_args[0][0] == ["gh", "api", "user", "--jq", ".login"]
+        assert mock_run.call_args[0][0] == [
+            "/usr/bin/gh",
+            "api",
+            "user",
+            "--jq",
+            ".login",
+        ]
 
     @patch("subprocess.run")
     @patch("shutil.which")
@@ -56,7 +62,7 @@ class TestGetUserIdentity:
         assert result == "git-user"
         assert mock_which.call_count == 2
         assert mock_run.call_count == 2
-        assert mock_run.call_args[0][0] == ["git", "config", "user.name"]
+        assert mock_run.call_args[0][0] == ["/usr/bin/git", "config", "user.name"]
 
     @patch("subprocess.run")
     @patch("shutil.which")

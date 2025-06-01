@@ -22,7 +22,7 @@ class TestCompactCommandNoHistory:
     """Test CompactCommand behavior when no history is available."""
 
     @pytest.fixture
-    def mock_dependencies(self) -> dict:
+    def mock_dependencies(self) -> dict[str, Mock]:
         """Create mock dependencies for CompactCommand."""
         return {
             "ui_bus": Mock(spec=UiBus),
@@ -33,7 +33,7 @@ class TestCompactCommandNoHistory:
         }
 
     @pytest.fixture
-    def compact_command(self, mock_dependencies: dict) -> CompactCommand:
+    def compact_command(self, mock_dependencies: dict[str, Mock]) -> CompactCommand:
         """Create a CompactCommand instance with mocked dependencies."""
         return CompactCommand(**mock_dependencies)
 
@@ -41,7 +41,7 @@ class TestCompactCommandNoHistory:
     async def test_no_current_session(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
     ) -> None:
         """Test behavior when session_manager returns no current session."""
         # Arrange
@@ -74,7 +74,7 @@ class TestCompactCommandNoHistory:
     async def test_session_with_no_events(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
     ) -> None:
         """Test behavior when current session exists but has no events."""
         # Arrange
@@ -111,7 +111,7 @@ class TestCompactCommandNoHistory:
     async def test_session_with_none_events(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
     ) -> None:
         """Test behavior when current session has None as events."""
         # Arrange

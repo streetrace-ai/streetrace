@@ -15,20 +15,21 @@ _START_TIME = datetime.now(tz=get_localzone())
 class Args(tap.TypedArgs):
     """App args."""
 
-    path: Path | None = tap.arg(help="Working directory")
+    path: Path | None = tap.arg(help="Working directory", default=None)
     model: str | None = tap.arg(
         help=(
             "Model to use, see https://docs.litellm.ai/docs/set_keys. "
             "Required if running a prompt."
         ),
     )
-    prompt: str | None = tap.arg(help="Non-interactive prompt mode")
+    prompt: str | None = tap.arg(help="Non-interactive prompt mode", default=None)
     arbitrary_prompt: list[str] | None = tap.arg(
         positional=True,
         nargs="*",
         help="Prompt to use",
+        default=[],
     )
-    verbose: bool = tap.arg(help="Enables verbose (DEBUG) logging")
+    verbose: bool = tap.arg(help="Enables verbose (DEBUG) logging", default=False)
     app_name: str | None = tap.arg(
         help="Application name for the session",
         default=None,
@@ -107,21 +108,6 @@ class Args(tap.TypedArgs):
         if self.user_id:
             return self.user_id
         return get_user_identity()
-
-    @property
-    def effective_session_id(self) -> str:
-        """Get the session ID to use.
-
-        If session_id is provided by the user, use that.
-        Otherwise, generate a new ID based on the current time.
-
-        Returns:
-            str: The session ID to use
-
-        """
-        if self.session_id:
-            return self.session_id
-        return _START_TIME.strftime("%Y-%m-%d_%H-%M")
 
 
 def bind_and_run(app_main: Callable[[Args], None]) -> None:

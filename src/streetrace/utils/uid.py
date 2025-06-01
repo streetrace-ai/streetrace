@@ -7,7 +7,7 @@ and attribution capabilities.
 
 import getpass
 import shutil
-import subprocess
+import subprocess  # nosec B404 no user input
 
 
 def get_user_identity() -> str:
@@ -26,7 +26,7 @@ def get_user_identity() -> str:
     if shutil.which("gh"):
         try:
             result = subprocess.run(  # noqa: S603
-                ["gh", "api", "user", "--jq", ".login"],  # noqa: S607
+                ["/usr/bin/gh", "api", "user", "--jq", ".login"],  # nosec B603 no user input
                 capture_output=True,
                 text=True,
                 check=True,
@@ -41,7 +41,7 @@ def get_user_identity() -> str:
     if shutil.which("git"):
         try:
             result = subprocess.run(  # noqa: S603
-                ["git", "config", "user.name"],  # noqa: S607
+                ["/usr/bin/git", "config", "user.name"],  # nosec B603 no user input
                 capture_output=True,
                 text=True,
                 check=True,

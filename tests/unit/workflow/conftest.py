@@ -23,7 +23,7 @@ def mock_create_agent_context_manager(mock_agent) -> AsyncMock:
 @pytest.fixture
 def mock_agent_manager(
     mock_create_agent_context_manager,
-    mock_agent_manager,
+    mock_agent_manager: Mock,
 ) -> AgentManager:
     """Override the base mock_agent_manager with workflow-specific setup."""
     mock_agent_manager.create_agent.return_value = mock_create_agent_context_manager
@@ -83,7 +83,7 @@ def mock_final_response_event(events_mocker) -> Event:
 @pytest.fixture
 def mock_adk_runner(mock_final_response_event):
     def do_patch(events: list | None = None):
-        async def _async_iter_events(events: list):
+        async def _async_iter_events(events: list[Mock]):
             """Create an async iterator from a list of events."""
             for event in events:
                 yield event

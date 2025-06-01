@@ -1,14 +1,12 @@
 """Test ConsoleUI display methods.
 
-This module tests the various display methods in ConsoleUI including
-display(), display_info(), display_warning(), display_error(), and confirm_with_user().
+This module tests display() and confirm_with_user().
 """
 
 from unittest.mock import Mock, patch
 
 import pytest
 
-from streetrace.ui.colors import Styles
 from streetrace.ui.console_ui import ConsoleUI
 
 
@@ -32,33 +30,6 @@ class TestConsoleUIDisplayMethods:
         console_ui.display(test_obj)
 
         mock_render.assert_called_once_with(test_obj, console_ui.console)
-
-    def test_display_info(self, console_ui):
-        """Test display_info method."""
-        test_message = "This is an info message"
-
-        with patch.object(console_ui.console, "print") as mock_print:
-            console_ui.display_info(test_message)
-
-            mock_print.assert_called_once_with(test_message, style=Styles.RICH_INFO)
-
-    def test_display_warning(self, console_ui):
-        """Test display_warning method."""
-        test_message = "This is a warning message"
-
-        with patch.object(console_ui.console, "print") as mock_print:
-            console_ui.display_warning(test_message)
-
-            mock_print.assert_called_once_with(test_message, style=Styles.RICH_WARNING)
-
-    def test_display_error(self, console_ui):
-        """Test display_error method."""
-        test_message = "This is an error message"
-
-        with patch.object(console_ui.console, "print") as mock_print:
-            console_ui.display_error(test_message)
-
-            mock_print.assert_called_once_with(test_message, style=Styles.RICH_ERROR)
 
     def test_confirm_with_user(self, console_ui):
         """Test confirm_with_user method."""
@@ -89,25 +60,6 @@ class TestConsoleUIDisplayMethods:
             result = console_ui.confirm_with_user(test_message)
 
             assert result == expected_result
-
-    def test_display_methods_with_different_message_types(self, console_ui):
-        """Test display methods with various message types."""
-        # Test with empty string
-        with patch.object(console_ui.console, "print") as mock_print:
-            console_ui.display_info("")
-            mock_print.assert_called_with("", style=Styles.RICH_INFO)
-
-        # Test with multiline string
-        multiline_message = "Line 1\nLine 2\nLine 3"
-        with patch.object(console_ui.console, "print") as mock_print:
-            console_ui.display_warning(multiline_message)
-            mock_print.assert_called_with(multiline_message, style=Styles.RICH_WARNING)
-
-        # Test with unicode characters
-        unicode_message = "Unicode test: 🚗💨 StreetRace!"
-        with patch.object(console_ui.console, "print") as mock_print:
-            console_ui.display_error(unicode_message)
-            mock_print.assert_called_with(unicode_message, style=Styles.RICH_ERROR)
 
     def test_display_with_various_object_types(self, console_ui):
         """Test display method with different object types."""

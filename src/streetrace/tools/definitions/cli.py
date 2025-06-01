@@ -1,7 +1,7 @@
 """execute_cli_command tool implementation."""
 
 import queue
-import subprocess
+import subprocess  # nosec B404 see cli_safety.py
 import threading
 from pathlib import Path
 from typing import IO
@@ -50,6 +50,7 @@ def execute_cli_command(
     # Normalize the working directory
     work_dir = work_dir.resolve()
 
+    # scripts should run in a jail, see: https://cwe.mitre.org/data/definitions/78.html
     # Check command safety
     safety_category = cli_safe_category(args)
     if safety_category == SafetyCategory.RISKY:
@@ -90,7 +91,7 @@ def execute_cli_command(
             t.start()
             return t
 
-        process = subprocess.Popen(  # noqa: S603
+        process = subprocess.Popen(  # noqa: S603   # nosec B603 see cli_safety.py
             args,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

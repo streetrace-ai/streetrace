@@ -71,16 +71,6 @@ class TestConsoleUIInitialization:
             console_ui._update_rprompt,  # noqa: SLF001
         )
 
-    def test_cursor_class_attribute(self):
-        """Test that cursor_is_in_line class attribute exists."""
-        assert hasattr(ConsoleUI, "cursor_is_in_line")
-        assert ConsoleUI.cursor_is_in_line is False
-
-    def test_cursor_instance_attribute(self, console_ui):
-        """Test that cursor_is_in_line is accessible on instance."""
-        assert hasattr(console_ui, "cursor_is_in_line")
-        assert console_ui.cursor_is_in_line is False
-
     def test_initialization_creates_new_console(
         self,
         app_state,

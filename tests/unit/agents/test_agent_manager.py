@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from a2a.types import AgentCapabilities
 from google.adk.agents import BaseAgent
 
 from streetrace.agents.agent_loader import AgentInfo
@@ -27,7 +28,7 @@ class MockAgent(StreetRaceAgent):
         return StreetRaceAgentCard(
             name=self.agent_name,
             description=f"A test agent named {self.agent_name}",
-            capabilities={},
+            capabilities=AgentCapabilities(streaming=False),
             skills=[],
             defaultInputModes=["text"],
             defaultOutputModes=["text"],
@@ -41,7 +42,7 @@ class MockAgent(StreetRaceAgent):
     async def create_agent(
         self,
         model_factory: ModelFactory,  # noqa: ARG002
-        tools: list,  # noqa: ARG002
+        tools: list[AnyTool],  # noqa: ARG002
     ) -> BaseAgent:
         """Create a mock BaseAgent."""
         mock_agent = MagicMock(spec=BaseAgent)
@@ -93,7 +94,7 @@ def mock_agent_info() -> AgentInfo:
     mock_card = StreetRaceAgentCard(
         name="Test Agent",
         description="A test agent",
-        capabilities={},
+        capabilities=AgentCapabilities(streaming=False),
         skills=[],
         defaultInputModes=["text"],
         defaultOutputModes=["text"],
@@ -200,7 +201,7 @@ class TestAgentManager:
         default_agent_card = StreetRaceAgentCard(
             name="Streetrace Coding Agent",
             description="Default agent",
-            capabilities={},
+            capabilities=AgentCapabilities(streaming=False),
             skills=[],
             defaultInputModes=["text"],
             defaultOutputModes=["text"],
@@ -258,15 +259,16 @@ class TestAgentManager:
 
         # Mock agent that raises exception during initialization
         class FailingAgent(StreetRaceAgent):
+            msg = "Agent initialization failed"
+
             def get_agent_card(self) -> StreetRaceAgentCard:
-                return None
+                raise RuntimeError(self.msg)
 
-            async def get_required_tools(self) -> list[str]:
-                return []
+            async def get_required_tools(self) -> list[AnyTool | str]:
+                raise RuntimeError(self.msg)
 
-            async def create_agent(self, _model_factory, _tools) -> BaseAgent:
-                msg = "Agent initialization failed"
-                raise RuntimeError(msg)
+            async def create_agent(self, model_factory, tools) -> BaseAgent:  # noqa: ARG002
+                raise RuntimeError(self.msg)
 
         mock_get_agent_impl.return_value = FailingAgent
 
@@ -297,7 +299,7 @@ class TestAgentManager:
         agent1_card = StreetRaceAgentCard(
             name="Agent 1",
             description="First agent",
-            capabilities={},
+            capabilities=AgentCapabilities(streaming=False),
             skills=[],
             defaultInputModes=["text"],
             defaultOutputModes=["text"],
@@ -306,7 +308,7 @@ class TestAgentManager:
         agent2_card = StreetRaceAgentCard(
             name="Agent 2",
             description="Second agent",
-            capabilities={},
+            capabilities=AgentCapabilities(streaming=False),
             skills=[],
             defaultInputModes=["text"],
             defaultOutputModes=["text"],

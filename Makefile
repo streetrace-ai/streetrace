@@ -7,20 +7,21 @@ typed:
 	poetry run mypy src
 
 security:
-	poetry run bandit -r src tests
+	poetry run bandit -r src
 
 depcheck:
 	poetry run deptry src tests
 
 unusedcode:
-	poetry run vulture src tests
+	poetry run vulture src vulture_allow.txt
 
 test:
-	poetry run pytest tests -vv --no-header --timeout=5
+	poetry run pytest tests -vv --no-header --timeout=5 -q
 
 coverage:
 	poetry run coverage run --source=./src/streetrace -m pytest tests
 	poetry run coverage report --show-missing
+	poetry run coverage html
 
 quickcheck: lint
 

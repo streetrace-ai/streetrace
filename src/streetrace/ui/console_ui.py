@@ -105,8 +105,6 @@ class ConsoleUI:
     Leverages a completer for interactive input suggestions.
     """
 
-    cursor_is_in_line: bool = False
-
     def __init__(
         self,
         app_state: AppState,
@@ -218,7 +216,6 @@ class ConsoleUI:
 
             raise SystemExit from kb_interrupt
         else:
-            self.cursor_is_in_line = False  # Prompt resets cursor position
             return str(user_input)
         finally:
             self._update_rprompt(None)
@@ -226,15 +223,3 @@ class ConsoleUI:
     def confirm_with_user(self, message: str) -> str:
         """Ask the user to type something and return the typed string."""
         return self.console.input(f"[green]{message}[/green]").strip()
-
-    def display_info(self, message: str) -> None:
-        """Display a standard informational message."""
-        self.console.print(message, style=Styles.RICH_INFO)
-
-    def display_warning(self, message: str) -> None:
-        """Display a warning message."""
-        self.console.print(message, style=Styles.RICH_WARNING)
-
-    def display_error(self, message: str) -> None:
-        """Display an error message."""
-        self.console.print(message, style=Styles.RICH_ERROR)

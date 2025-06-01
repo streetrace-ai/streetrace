@@ -4,6 +4,7 @@ This module tests how CompactCommand handles various error conditions including
 LLM failures, malformed responses, and other exception scenarios.
 """
 
+from collections.abc import AsyncGenerator
 from unittest.mock import Mock
 
 import pytest
@@ -24,7 +25,7 @@ class TestCompactCommandErrorHandling:
     """Test CompactCommand error handling scenarios."""
 
     @pytest.fixture
-    def mock_dependencies(self) -> dict:
+    def mock_dependencies(self) -> dict[str, Mock]:
         """Create mock dependencies for CompactCommand."""
         mock_args = Mock(spec=Args)
         mock_args.model = "test-model"
@@ -64,11 +65,11 @@ class TestCompactCommandErrorHandling:
         return [user_event, assistant_event]
 
     @pytest.fixture
-    def compact_command(self, mock_dependencies: dict) -> CompactCommand:
+    def compact_command(self, mock_dependencies: dict[str, Mock]) -> CompactCommand:
         """Create a CompactCommand instance with mocked dependencies."""
         return CompactCommand(**mock_dependencies)
 
-    async def _async_iter_responses(self, responses: list):
+    async def _async_iter_responses(self, responses: list[Mock]):
         """Create an async iterator from a list of responses."""
         for response in responses:
             yield response
@@ -77,7 +78,7 @@ class TestCompactCommandErrorHandling:
     async def test_llm_returns_empty_summary(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
         sample_events_with_content: list[Mock],
         patch_litellm_modify_params,
     ) -> None:
@@ -125,7 +126,7 @@ class TestCompactCommandErrorHandling:
     async def test_llm_returns_none_content(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
         sample_events_with_content: list[Mock],
         patch_litellm_modify_params,
     ) -> None:
@@ -170,7 +171,7 @@ class TestCompactCommandErrorHandling:
     async def test_llm_returns_no_parts(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
         sample_events_with_content: list[Mock],
         patch_litellm_modify_params,
     ) -> None:
@@ -217,7 +218,7 @@ class TestCompactCommandErrorHandling:
     async def test_llm_exception_propagates(
         self,
         compact_command: CompactCommand,
-        mock_dependencies: dict,
+        mock_dependencies: dict[str, Mock],
         sample_events_with_content: list[Mock],
         patch_litellm_modify_params,
     ) -> None:
@@ -228,7 +229,7 @@ class TestCompactCommandErrorHandling:
         mock_dependencies["session_manager"].get_current_session.return_value = session
 
         # Mock LLM to raise an exception
-        async def _async_exception():
+        async def _async_exception() -> AsyncGenerator[Mock, None]:
             if False:  # Make this an async generator
                 yield
             msg = "LLM connection failed"
