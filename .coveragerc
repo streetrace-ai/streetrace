@@ -1,3 +1,8 @@
 [report]
 exclude_lines =
     pragma: no cover
+
+[run]
+omit =
+    src/streetrace/tools/definitions/fake_tools.py
+    src/streetrace/session_md.py
