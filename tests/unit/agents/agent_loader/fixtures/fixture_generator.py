@@ -39,14 +39,14 @@ class AgentFixtureGenerator:
         (base_dir / "not_a_directory.txt").touch()
 
         # Create agent.py files
-        with open(valid_agent1_dir / "agent.py", "w") as f:
+        with (valid_agent1_dir / "agent.py").open("w") as f:
             f.write(self._get_valid_agent_content("ValidAgent1"))
 
-        with open(valid_agent2_dir / "agent.py", "w") as f:
+        with (valid_agent2_dir / "agent.py").open("w") as f:
             f.write(self._get_valid_agent_content("ValidAgent2"))
 
         # Create a malformed agent.py
-        with open(base_dir / "malformed_agent", "w") as f:
+        with (base_dir / "malformed_agent").open("w") as f:
             f.write("This is not a valid Python file [")
 
         self.agent_dirs = [valid_agent1_dir, valid_agent2_dir, invalid_agent_dir]

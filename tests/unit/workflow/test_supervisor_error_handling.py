@@ -81,7 +81,8 @@ class TestSupervisorErrorHandling:
         async def _failing_async_iter():
             if False:  # Make this an async generator
                 yield
-            raise Exception("Runner execution failed")
+            msg = "Runner execution failed"
+            raise Exception(msg)  # noqa: TRY002
 
         # Mock runner
         from unittest.mock import patch
@@ -89,10 +90,12 @@ class TestSupervisorErrorHandling:
         mock_runner = Mock()
         mock_runner.run_async.return_value = _failing_async_iter()
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with (
+            patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner),
             # Act & Assert - Exception should propagate (fail-fast for core components)
-            with pytest.raises(Exception, match="Runner execution failed"):
-                await shallow_supervisor.run_async(prompt)
+            pytest.raises(Exception, match="Runner execution failed"),
+        ):
+            await shallow_supervisor.run_async(prompt)
 
         # Assert session and agent were created but post_process was not called
         shallow_supervisor.session_manager.get_or_create_session.assert_called_once()
@@ -106,7 +109,7 @@ class TestSupervisorErrorHandling:
         mock_session,
         mock_events_iterator,
     ) -> None:
-        """Test that UI dispatch failures don't stop the workflow (tolerant UI layer)."""
+        """Test that UI dispatch failures don't stop the workflow."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
 
@@ -133,11 +136,13 @@ class TestSupervisorErrorHandling:
         mock_runner = Mock()
         mock_runner.run_async.return_value = mock_events_iterator([final_event])
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
-            # Act & Assert - UI failure should propagate (based on "Be Tolerant" rule for UI)
+        with (
+            patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner),
+            # Act & Assert - UI failure should propagate
             # However, since this is internal workflow logic, it might follow fail-fast
-            with pytest.raises(Exception, match="UI dispatch failed"):
-                await shallow_supervisor.run_async(prompt)
+            pytest.raises(Exception, match="UI dispatch failed"),
+        ):
+            await shallow_supervisor.run_async(prompt)
 
     @pytest.mark.asyncio
     async def test_post_process_failure(
@@ -173,10 +178,12 @@ class TestSupervisorErrorHandling:
         mock_runner = Mock()
         mock_runner.run_async.return_value = mock_events_iterator([final_event])
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with (
+            patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner),
             # Act & Assert - Exception should propagate (fail-fast for core components)
-            with pytest.raises(Exception, match="Post-process failed"):
-                await shallow_supervisor.run_async(prompt)
+            pytest.raises(Exception, match="Post-process failed"),
+        ):
+            await shallow_supervisor.run_async(prompt)
 
         # Assert that execution proceeded normally until post_process
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
@@ -216,10 +223,12 @@ class TestSupervisorErrorHandling:
         mock_runner = Mock()
         mock_runner.run_async.return_value = mock_events_iterator([final_event])
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with (
+            patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner),
             # Act & Assert - Exception should propagate (fail-fast for core components)
-            with pytest.raises(Exception, match="Agent cleanup failed"):
-                await shallow_supervisor.run_async(prompt)
+            pytest.raises(Exception, match="Agent cleanup failed"),
+        ):
+            await shallow_supervisor.run_async(prompt)
 
     @pytest.mark.asyncio
     async def test_runner_initialization_failure(
@@ -238,13 +247,15 @@ class TestSupervisorErrorHandling:
         # Mock Runner initialization failure
         from unittest.mock import patch
 
-        with patch(
-            "streetrace.workflow.supervisor.Runner",
-            side_effect=Exception("Runner init failed"),
-        ):
+        with (
+            patch(
+                "streetrace.workflow.supervisor.Runner",
+                side_effect=Exception("Runner init failed"),
+            ),
             # Act & Assert - Exception should propagate (fail-fast for core components)
-            with pytest.raises(Exception, match="Runner init failed"):
-                await shallow_supervisor.run_async(prompt)
+            pytest.raises(Exception, match="Runner init failed"),
+        ):
+            await shallow_supervisor.run_async(prompt)
 
         # Assert session and agent were created
         shallow_supervisor.session_manager.get_or_create_session.assert_called_once()

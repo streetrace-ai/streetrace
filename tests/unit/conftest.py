@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 from google.adk.sessions import Session
@@ -49,7 +49,7 @@ def fake_model_name() -> str:
 
 
 @pytest.fixture
-def app_state(fake_model_name) -> Args:
+def app_state(fake_model_name) -> AppState:
     return AppState(current_model=fake_model_name)
 
 
@@ -493,3 +493,11 @@ def shallow_app(  # noqa: PLR0913
         workflow_supervisor=mock_supervisor,
         state=app_state,
     )
+
+
+@pytest.fixture
+def patch_litellm_modify_params():
+    def patcher():
+        patch("litellm.modify_params", True)  # noqa: FBT003
+
+    return patcher

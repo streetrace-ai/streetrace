@@ -32,7 +32,7 @@ def cleanup_sys_modules():
 def mock_street_race_agent_base():
     """Create a mock StreetRaceAgent base class for testing inheritance detection."""
     # Create a fake version of StreetRaceAgent for testing _get_streetrace_agent_class
-    # We need this because the real detection uses string checks to avoid circular imports
+    # Avoid circular imports due to string checks in real detection
     mock_base = MagicMock(spec=type)
     mock_base.__name__ = "StreetRaceAgent"
     mock_base.__module__ = "streetrace.agents.street_race_agent"
@@ -43,7 +43,7 @@ def mock_street_race_agent_base():
 def create_agent_module():
     """Fixture to create a mock agent module with custom classes."""
 
-    def _create_module(name="test_agent_module", include_agent=True):
+    def _create_module(name="test_agent_module", include_agent=True):  # noqa: FBT002
         """Create a module with optional agent class.
 
         Args:
@@ -77,7 +77,7 @@ def create_agent_module():
                         version="1.0.0",
                     )
 
-                async def create_agent(self, _model_factory, _tools):
+                async def create_agent(self, model_factory, tools):  # noqa: ARG002
                     """Create the agent."""
                     return MagicMock()
 

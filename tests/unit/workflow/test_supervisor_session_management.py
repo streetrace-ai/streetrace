@@ -69,12 +69,12 @@ class TestSupervisorSessionManagement:
         with patch(
             "streetrace.workflow.supervisor.Runner",
             return_value=mock_runner,
-        ) as MockRunner:
+        ) as mock_runner_patch:
             # Act
             await shallow_supervisor.run_async(prompt)
 
         # Assert Runner was initialized with correct session properties
-        MockRunner.assert_called_once_with(
+        mock_runner_patch.assert_called_once_with(
             app_name="custom_app",
             session_service=shallow_supervisor.session_manager.session_service,
             agent=shallow_supervisor.agent_manager.create_agent.return_value.__aenter__.return_value,
@@ -194,12 +194,12 @@ class TestSupervisorSessionManagement:
         with patch(
             "streetrace.workflow.supervisor.Runner",
             return_value=mock_adk_runner(),
-        ) as MockRunner:
+        ) as mock_runner_patch:
             # Act
             await shallow_supervisor.run_async(prompt)
 
         # Assert Runner was initialized with the session service
-        MockRunner.assert_called_once_with(
+        mock_runner_patch.assert_called_once_with(
             app_name=mock_session.app_name,
             session_service=shallow_supervisor.session_manager.session_service,
             agent=shallow_supervisor.agent_manager.create_agent.return_value.__aenter__.return_value,

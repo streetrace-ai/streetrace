@@ -12,7 +12,7 @@ from streetrace.agents.agent_manager import AgentManager
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
-from streetrace.tools.tool_provider import ToolProvider
+from streetrace.tools.tool_provider import AnyTool, ToolProvider
 
 
 class MockAgent(StreetRaceAgent):
@@ -34,14 +34,14 @@ class MockAgent(StreetRaceAgent):
             version="1.0.0",
         )
 
-    async def get_required_tools(self) -> list[str]:
+    async def get_required_tools(self) -> list[AnyTool | str]:
         """Return list of required tools."""
         return ["test_tool_1", "test_tool_2"]
 
     async def create_agent(
         self,
-        model_factory: ModelFactory,
-        tools: list,
+        model_factory: ModelFactory,  # noqa: ARG002
+        tools: list,  # noqa: ARG002
     ) -> BaseAgent:
         """Create a mock BaseAgent."""
         mock_agent = MagicMock(spec=BaseAgent)
@@ -362,11 +362,12 @@ class TestAgentManager:
         mock_get_available_agents.return_value = [mock_agent_info]
         mock_agent_class = MockAgent
         mock_get_agent_impl.return_value = mock_agent_class
+        err_msg = "Simulated error"
 
         # Act & Assert
         with pytest.raises(RuntimeError, match="Simulated error"):
             async with agent_manager.create_agent("Test Agent"):
-                raise RuntimeError("Simulated error")
+                raise RuntimeError(err_msg)
 
         # Assert that __aexit__ was still called for cleanup
         agent_manager.tool_provider.get_tools.return_value.__aexit__.assert_called_once()

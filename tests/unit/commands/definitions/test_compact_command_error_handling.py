@@ -4,7 +4,7 @@ This module tests how CompactCommand handles various error conditions including
 LLM failures, malformed responses, and other exception scenarios.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from google.adk.events import Event
@@ -79,6 +79,7 @@ class TestCompactCommandErrorHandling:
         compact_command: CompactCommand,
         mock_dependencies: dict,
         sample_events_with_content: list[Mock],
+        patch_litellm_modify_params,
     ) -> None:
         """Test behavior when LLM returns empty or None summary."""
         # Arrange
@@ -100,7 +101,7 @@ class TestCompactCommandErrorHandling:
         )
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
-        with patch("litellm.modify_params", True):
+        with patch_litellm_modify_params():
             # Act
             await compact_command.execute_async()
 
@@ -126,6 +127,7 @@ class TestCompactCommandErrorHandling:
         compact_command: CompactCommand,
         mock_dependencies: dict,
         sample_events_with_content: list[Mock],
+        patch_litellm_modify_params,
     ) -> None:
         """Test behavior when LLM response has no content."""
         # Arrange
@@ -144,7 +146,7 @@ class TestCompactCommandErrorHandling:
         )
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
-        with patch("litellm.modify_params", True):
+        with patch_litellm_modify_params():
             # Act
             await compact_command.execute_async()
 
@@ -170,6 +172,7 @@ class TestCompactCommandErrorHandling:
         compact_command: CompactCommand,
         mock_dependencies: dict,
         sample_events_with_content: list[Mock],
+        patch_litellm_modify_params,
     ) -> None:
         """Test behavior when LLM response content has no parts."""
         # Arrange
@@ -190,7 +193,7 @@ class TestCompactCommandErrorHandling:
         )
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
-        with patch("litellm.modify_params", True):
+        with patch_litellm_modify_params():
             # Act
             await compact_command.execute_async()
 
@@ -216,6 +219,7 @@ class TestCompactCommandErrorHandling:
         compact_command: CompactCommand,
         mock_dependencies: dict,
         sample_events_with_content: list[Mock],
+        patch_litellm_modify_params,
     ) -> None:
         """LLM exceptions are properly propagated (fail-fast for core components)."""
         # Arrange
@@ -235,7 +239,7 @@ class TestCompactCommandErrorHandling:
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
         with (
-            patch("litellm.modify_params", True),  # noqa: FBT003
+            patch_litellm_modify_params(),
             # Act & Assert - Exception should propagate (fail-fast for core components)
             pytest.raises(Exception, match="LLM connection failed"),
         ):

@@ -58,9 +58,11 @@ def mock_agent_instance(mock_agent_card):
 
 def test_import_agent_module_file_not_found(mock_agent_dir):
     """Test importing an agent module when the file is not found."""
-    with patch("pathlib.Path.exists", return_value=False):
-        with pytest.raises(FileNotFoundError):
-            _import_agent_module(mock_agent_dir)
+    with (
+        patch("pathlib.Path.exists", return_value=False),
+        pytest.raises(FileNotFoundError),
+    ):
+        _import_agent_module(mock_agent_dir)
 
 
 def test_import_agent_module_not_file(mock_agent_dir):
@@ -68,9 +70,9 @@ def test_import_agent_module_not_file(mock_agent_dir):
     with (
         patch("pathlib.Path.exists", return_value=True),
         patch("pathlib.Path.is_file", return_value=False),
+        pytest.raises(FileNotFoundError),
     ):
-        with pytest.raises(FileNotFoundError):
-            _import_agent_module(mock_agent_dir)
+        _import_agent_module(mock_agent_dir)
 
 
 def test_import_agent_module_spec_creation_failure(mock_agent_dir):
@@ -93,14 +95,16 @@ def test_import_agent_module_import_error(mock_agent_dir):
         mock_loader = MagicMock()
         mock_spec.loader = mock_loader
 
-        with patch("importlib.util.spec_from_file_location", return_value=mock_spec):
-            with patch("importlib.util.module_from_spec") as mock_module_from_spec:
-                mock_module_from_spec.side_effect = ImportError("Import failed")
+        with (
+            patch("importlib.util.spec_from_file_location", return_value=mock_spec),
+            patch("importlib.util.module_from_spec") as mock_module_from_spec,
+        ):
+            mock_module_from_spec.side_effect = ImportError("Import failed")
 
-                with pytest.raises(ValueError) as excinfo:
-                    _import_agent_module(mock_agent_dir)
+            with pytest.raises(ValueError) as excinfo:
+                _import_agent_module(mock_agent_dir)
 
-                assert "Import failed" in str(excinfo.value)
+            assert "Import failed" in str(excinfo.value)
 
 
 def test_import_agent_module_success(mock_agent_dir):
@@ -142,7 +146,7 @@ def test_get_streetrace_agent_class_no_matching_class(mock_agent_module):
     """Test getting a StreetRaceAgent class when no matching class exists."""
 
     # Mock getattr to return non-class attributes
-    def mock_getattr(obj, name):
+    def mock_getattr(_obj, name):
         if name == "some_value":
             return "not a class"
         if name == "OtherClass":
@@ -163,7 +167,7 @@ def test_get_streetrace_agent_class_no_matching_class(mock_agent_module):
         patch("streetrace.agents.agent_loader.getattr", mock_getattr),
         patch(
             "streetrace.agents.agent_loader.isinstance",
-            side_effect=lambda obj, cls: isinstance(obj, type),
+            side_effect=lambda obj, _cls: isinstance(obj, type),
         ),
     ):
         result = _get_streetrace_agent_class(mock_agent_module)
@@ -291,23 +295,23 @@ def test_get_available_agents_validation_error(mock_validate_impl):
     with (
         patch("pathlib.Path.exists", return_value=True),
         patch("pathlib.Path.is_dir", return_value=True),
-    ):
         # Mock iterdir to return two agent directories
-        with patch(
+        patch(
             "pathlib.Path.iterdir",
             return_value=[mock_agent_dir1, mock_agent_dir2],
-        ):
-            # First agent fails validation, second succeeds
-            mock_validate_impl.side_effect = [
-                ValueError("Invalid agent"),
-                MagicMock(spec=AgentInfo),
-            ]
+        ),
+    ):
+        # First agent fails validation, second succeeds
+        mock_validate_impl.side_effect = [
+            ValueError("Invalid agent"),
+            MagicMock(spec=AgentInfo),
+        ]
 
-            result = get_available_agents([mock_base_dir])
+        result = get_available_agents([mock_base_dir])
 
-            # Should only include the successful agent
-            assert len(result) == 1
-            assert isinstance(result[0], AgentInfo)
+        # Should only include the successful agent
+        assert len(result) == 1
+        assert isinstance(result[0], AgentInfo)
 
 
 @patch("streetrace.agents.agent_loader._validate_impl")
@@ -335,20 +339,20 @@ def test_get_available_agents_success(
     with (
         patch("pathlib.Path.exists", return_value=True),
         patch("pathlib.Path.is_dir", return_value=True),
-    ):
-        # Mock iterdir to return two agent directories
-        with patch(
+        patch(
             "pathlib.Path.iterdir",
             return_value=[mock_agent_dir1, mock_agent_dir2],
-        ):
-            # Both agents validate successfully
-            mock_validate_impl.side_effect = [mock_agent_info1, mock_agent_info2]
+        ),
+    ):
+        # Mock iterdir to return two agent directories
+        # Both agents validate successfully
+        mock_validate_impl.side_effect = [mock_agent_info1, mock_agent_info2]
 
-            result = get_available_agents([mock_base_dir])
+        result = get_available_agents([mock_base_dir])
 
-            assert len(result) == 2
-            assert result[0] == mock_agent_info1
-            assert result[1] == mock_agent_info2
+        assert len(result) == 2
+        assert result[0] == mock_agent_info1
+        assert result[1] == mock_agent_info2
 
 
 # ===== Test get_agent_impl function =====

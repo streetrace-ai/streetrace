@@ -76,7 +76,8 @@ class TestSupervisorPromptProcessing:
             # Act
             await shallow_supervisor.run_async(prompt)
 
-        # Assert - Verify the runner was called with content containing both prompt and mentions
+        # Assert - Verify the runner was called with content containing both prompt
+        # and mentions
         mock_runner.run_async.assert_called_once()
         call_args = mock_runner.run_async.call_args
 

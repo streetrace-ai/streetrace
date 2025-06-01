@@ -4,7 +4,7 @@ This module tests the complete successful execution path where the command has h
 to compact, successfully gets LLM summary, and replaces session events.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from google.adk.events import Event
@@ -43,7 +43,7 @@ class TestCompactCommandSuccessfulFlow:
     @pytest.fixture
     def sample_events(self) -> list[Mock]:
         """Create sample mock events for testing."""
-        # Create mock events instead of real Event objects to avoid Pydantic restrictions
+        # Create mock events instead to avoid Pydantic restrictions
         user_event = Mock(spec=Event)
         user_event.author = "user"
         user_event.content = genai_types.Content(
@@ -90,6 +90,7 @@ class TestCompactCommandSuccessfulFlow:
         compact_command: CompactCommand,
         mock_dependencies: dict,
         sample_events: list[Mock],
+        patch_litellm_modify_params,
     ) -> None:
         """Test successful compaction flow when there are tail events to summarize."""
         # Arrange
@@ -112,7 +113,7 @@ class TestCompactCommandSuccessfulFlow:
         )
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
-        with patch("litellm.modify_params", True):
+        with patch_litellm_modify_params():
             # Act
             await compact_command.execute_async()
 
@@ -157,6 +158,7 @@ class TestCompactCommandSuccessfulFlow:
         self,
         compact_command: CompactCommand,
         mock_dependencies: dict,
+        patch_litellm_modify_params,
     ) -> None:
         """Test behavior when events exist but have no content to summarize."""
         # Arrange
@@ -178,7 +180,7 @@ class TestCompactCommandSuccessfulFlow:
         session.events = events_without_content
         mock_dependencies["session_manager"].get_current_session.return_value = session
 
-        with patch("litellm.modify_params", True):
+        with patch_litellm_modify_params():
             # Act
             await compact_command.execute_async()
 

@@ -1,10 +1,10 @@
 """Test CompactCommand history cleanup scenarios.
 
-This module tests scenarios where CompactCommand cleans up history without summarization,
-such as when there are no tail events requiring LLM processing.
+This module tests scenarios where CompactCommand cleans up history without
+summarization, such as when there are no tail events requiring LLM processing.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 from google.adk.events import Event
@@ -50,6 +50,7 @@ class TestCompactCommandHistoryCleanup:
         self,
         compact_command: CompactCommand,
         mock_dependencies: dict,
+        patch_litellm_modify_params,
     ) -> None:
         """Test cleanup when all events are final (no tail events to summarize)."""
         # Arrange - Create mock events that are all final
@@ -86,7 +87,7 @@ class TestCompactCommandHistoryCleanup:
         session.events = final_events
         mock_dependencies["session_manager"].get_current_session.return_value = session
 
-        with patch("litellm.modify_params", True):
+        with patch_litellm_modify_params():
             # Act
             await compact_command.execute_async()
 
@@ -127,8 +128,9 @@ class TestCompactCommandHistoryCleanup:
         self,
         compact_command: CompactCommand,
         mock_dependencies: dict,
+        patch_litellm_modify_params,
     ) -> None:
-        """Test cleanup when there are mixed final and non-final events but no tail events."""
+        """Test cleanup when there are mixed events but no tail events."""
         # Arrange - Mix of final and non-final events, but no tail events
         event1 = Mock(spec=Event)
         event1.author = "user"
@@ -163,7 +165,7 @@ class TestCompactCommandHistoryCleanup:
         session.events = mixed_events
         mock_dependencies["session_manager"].get_current_session.return_value = session
 
-        with patch("litellm.modify_params", True):
+        with patch_litellm_modify_params():
             # Act
             await compact_command.execute_async()
 
@@ -197,6 +199,7 @@ class TestCompactCommandHistoryCleanup:
         self,
         compact_command: CompactCommand,
         mock_dependencies: dict,
+        patch_litellm_modify_params,
     ) -> None:
         """Test that cleanup preserves the order of final events."""
         # Arrange - Events with specific content to test ordering
@@ -242,7 +245,7 @@ class TestCompactCommandHistoryCleanup:
         session.events = ordered_events
         mock_dependencies["session_manager"].get_current_session.return_value = session
 
-        with patch("litellm.modify_params", True):
+        with patch_litellm_modify_params():
             # Act
             await compact_command.execute_async()
 

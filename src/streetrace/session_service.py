@@ -117,7 +117,7 @@ class JSONSessionSerializer:
             return None
         try:
             return Session.model_validate_json(path.read_text())
-        except (OSError, UnicodeDecodeError):  # pragma: no cover
+        except (OSError, UnicodeDecodeError):
             logger.exception("Cannot read session at %s", path)
             return None
 
@@ -151,16 +151,16 @@ class JSONSessionSerializer:
         if path.is_file():
             try:
                 path.unlink()
-            except OSError:  # pragma: no cover
+            except OSError:
                 logger.exception("Error deleting session file %s", path)
             else:
                 try:
                     path.parent.rmdir()
                     path.parent.parent.rmdir()
-                except OSError:  # pragma: no cover
+                except OSError:
                     pass
 
-        elif path.is_dir():  # pragma: no cover
+        elif path.is_dir():
             msg = f"Incorrect data storage structure, '{path}' is a directory."
             logger.error(msg)
 
@@ -175,18 +175,18 @@ class JSONSessionSerializer:
         if not root_path.is_dir():
             return
         for path in root_path.rglob("*.json"):
-            if not path.is_file():  # pragma: no cover
+            if not path.is_file():
                 continue
             try:
                 session = Session.model_validate_json(path.read_text())
-            except (OSError, UnicodeDecodeError):  # pragma: no cover
+            except (OSError, UnicodeDecodeError):
                 logger.exception(
                     "Could not read session file %s for listing, skipping...",
                     path,
                 )
                 continue
             else:
-                if not session:  # pragma: no cover
+                if not session:
                     logger.warning(
                         "Failed to read/parse session file %s for listing, skipping.",
                         path,
@@ -273,9 +273,9 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
             user_id,
         )
 
-        if app_name not in self.sessions:  # pragma: no cover
+        if app_name not in self.sessions:
             self.sessions[app_name] = {}
-        if user_id not in self.sessions[app_name]:  # pragma: no cover
+        if user_id not in self.sessions[app_name]:
             self.sessions[app_name][user_id] = {}
 
         in_memory_session = copy.deepcopy(session)

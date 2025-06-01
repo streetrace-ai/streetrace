@@ -131,6 +131,7 @@ class ConsoleUI:
             multiline=True,  # Allow multiline input with Esc+Enter
         )
         self.ui_bus = ui_bus
+        self.spinner: StatusSpinner | None = None  # Initialize spinner attribute
 
         ui_bus.on_ui_update_requested(self.display)
         ui_bus.on_prompt_token_count_estimate(self._update_rprompt)
