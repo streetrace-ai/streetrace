@@ -65,13 +65,29 @@ local Ollama models.
 
 ### Usage
 
-`streetrace` is a CLI, and it can be installed as your dev dependency, pipx, or your
-preferred way. You don't need it as a regular dependency in your project.
+`streetrace` is a CLI, and it can be installed as your dev dependency. It runs in the
+current directory, keeping all file reading and modifications in the current directory.
+
+You can optionally supply a `--path` argument to provide a different working directory
+path.
 
 ```bash
-$ streetrace
+$ streetrace --model=$YOUR_FAVORITE_MODEL
 You: Type your prompt
 ```
+
+#### Try in your environment
+
+Currently, StreetRace includes one coding agent with a model of your choise. This agent
+is a capable software engineering agent that can work with your technology stack.
+
+You can add more context to your prompts in two ways:
+
+1. Using @-mentions, autocomplete will suggest local files that you can add to the
+   prompt.
+2. Any other project context can be added in a `.streetrace` folder:
+   - `SYSTEM.md` is used as your system instruction.
+   - Any other files under `.streetrace` are added as initial conversation messages.
 
 ### Command Line Arguments
 
