@@ -1,44 +1,40 @@
-# .github/workflows/quality-checks.yml
-
-name: Python Code Quality Checks
+name: Code Quality Checks
 
 on:
   push:
-    branches: [ ] # Adjust branches as needed
+    branches: [] # Adjust branches as needed
   pull_request:
-    branches: [ main ] # Adjust branches as needed
+    branches: [main] # Adjust branches as needed
 
 jobs:
   quality-checks:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12' # Or your target Python version
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12" # Or your target Python version
 
-    - name: Run image
-      uses: abatilo/actions-poetry@v3
-      with:
-        poetry-version: "latest"
+      - name: Run image
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: "latest"
 
-    - name: Create poetry environment
-      run: |
-        poetry config virtualenvs.create true --local
-        poetry config virtualenvs.in-project true --local
+      - name: Create poetry environment
+        run: |
+          poetry config virtualenvs.create true --local
+          poetry config virtualenvs.in-project true --local
 
-    - name: Install the project dependencies
-      run: poetry install
+      - name: Install the project dependencies
+        run: |
+          poetry lock
+          poetry install
 
-    - name: Run tests
-      run: |
-        make test
-        make coverage
-        make report
-
-    - name: Run static checks w/o fixes
-      run: make check
+      - name: Run tests
+        run: |
+          make check
+          make coverage

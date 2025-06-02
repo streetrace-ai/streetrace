@@ -1,7 +1,7 @@
-.PHONY: lint typed security depcheck unusedcode quickcheck check test coverage publishpatch
+.PHONY: lint typed security depcheck unusedcode test coverage check publishpatch
 
 lint:
-	poetry run ruff check src tests --ignore=FIX002 --fix
+	poetry run ruff check src tests --ignore=FIX002
 
 typed:
 	poetry run mypy src
@@ -22,8 +22,6 @@ coverage:
 	poetry run coverage run --source=./src/streetrace -m pytest tests
 	poetry run coverage report --show-missing
 	poetry run coverage html
-
-quickcheck: lint
 
 check: test lint typed security depcheck unusedcode
 
