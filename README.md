@@ -1,8 +1,8 @@
-StreetRace🚗💨 is an open-source platform for engineering-native AI agents that
+StreetRace is an open-source platform for engineering-native AI agents that
 integrate with your tools, automate your workflows, and evolve with your development
 process.
 
-StreetRace🚗💨 is a new kind of teammate: one that runs linters, generates modules,
+StreetRace is a new kind of teammate: one that runs linters, generates modules,
 monitors builds, or triages bugs the way you taught it.
 
 We believe the future of development is peer-to-peer: engineer + agent. And we’re
@@ -13,23 +13,23 @@ platform - GitHub’s open. Jump in, clone it, and make agents your own.
 
 # StreetRace🚗💨
 
-Unlike generic agent frameworks or black-box AI engineers, StreetRace🚗💨 is:
+Unlike generic agent frameworks or black-box AI engineers, StreetRace is:
 
 ## 🔧 Built for Developers, by Developers
 
-StreetRace🚗💨 integrates directly with your tools like the CLI and code editor
+StreetRace integrates directly with your tools like the CLI and code editor
 (Dockerized environments will follow). Agents can operate in the same terminal and shell
 as their human counterparts, enabling seamless, trusted collaboration.
 
 ## 🤝 Engineering Peer, Not Replacement
 
-Where Devin and other agents aim to replace engineers, StreetRace🚗💨 empowers
+Where Devin and other agents aim to replace engineers, StreetRace empowers
 engineers. Your agent isn't a shadow coder, it’s a co-worker you can inspect, guide, and
 evolve.
 
 ## 🧩 Opinionated, Yet Extensible
 
-Unlike CrewAI’s generic orchestration layer, StreetRace🚗💨 comes powered by ADK,
+Unlike CrewAI’s generic orchestration layer, StreetRace comes powered by ADK,
 provides built-in A2A publishing, and integrates with any MCP tools. It comes with
 battle-tested patterns and tools for building high-performing agents. Developers can
 publish reusable agents to automate routine tasks like onboarding codebases, responding
@@ -37,7 +37,7 @@ to CI failures, or generating service templates.
 
 ## 🛠 Open, Flexible, and Secure
 
-Model-agnostic and open-source, StreetRace🚗💨 supports everything from local Ollama
+Model-agnostic and open-source, StreetRace supports everything from local Ollama
 models to cloud APIs. Agents run in the local environment, with controlled APIs (A2A
 endpoints), giving teams full control, observability, and security.
 
@@ -86,7 +86,7 @@ You: Type your prompt
 
 #### Try in your environment
 
-Currently, StreetRace🚗💨 includes one coding agent with a model of your choise. This
+Currently, StreetRace includes one coding agent with a model of your choise. This
 agent is a capable software engineering agent that can work with your technology stack.
 
 You can add more context to your prompts in two ways:
@@ -102,7 +102,7 @@ You can add more context to your prompts in two ways:
 
 #### Session Management
 
-StreetRace🚗💨 supports persistence of conversations through sessions. You can specify:
+StreetRace supports persistence of conversations through sessions. You can specify:
 
 - `--app-name` - Application name for the session (defaults to the current working
   directory name)
@@ -124,7 +124,7 @@ $ streetrace --session-id my-project-refactoring
 $ streetrace --app-name my-project --user-id john.doe --session-id feature-x
 ```
 
-If no session arguments are provided, StreetRace🚗💨 will:
+If no session arguments are provided, StreetRace will:
 
 1. Use the current working directory name as the app name
 2. Use your detected user identity as the user ID
@@ -159,7 +159,7 @@ your current directory.
 
 ### Interactive Mode
 
-When run without `--prompt`, StreetRace🚗💨 enters interactive mode.
+When run without `--prompt`, StreetRace enters interactive mode.
 
 #### Autocompletion
 
@@ -183,7 +183,7 @@ For detailed information about the `/compact` command, see
 
 ### Non-interactive Mode
 
-You can use the `--prompt` argument to run StreetRace🚗💨 in non-interactive mode:
+You can use the `--prompt` argument to run StreetRace in non-interactive mode:
 
 ```bash
 $ streetrace --prompt "List all Python files in the current directory"
@@ -194,7 +194,7 @@ commands.
 
 ### CLI Command Safety
 
-StreetRace🚗💨 includes an experimental safety mechanism for CLI command execution.
+StreetRace includes an experimental safety mechanism for CLI command execution.
 Each command requested by the AI is analyzed and categorized into one of three safety
 levels:
 
@@ -213,12 +213,12 @@ for:
 - Use of absolute vs. relative paths
 - Directory traversal attempts (using `..` to move outside the working directory)
 
-This helps ensure that StreetRace🚗💨 operates within the intended working directory and
+This helps ensure that StreetRace operates within the intended working directory and
 with known-safe commands.
 
 ### Agent System
 
-StreetRace🚗💨 includes a modular agent system that allows for specialized agents to be
+StreetRace includes a modular agent system that allows for specialized agents to be
 discovered and used.
 
 #### Agent Discovery
@@ -231,7 +231,7 @@ Agents are searched for in the following locations:
 
 #### Creating Custom Agents
 
-StreetRace🚗💨 supports two ways to create custom agents:
+StreetRace supports two ways to create custom agents:
 
 ##### Option 1: Using the StreetRaceAgent Interface (Recommended)
 
@@ -302,7 +302,7 @@ run_agent(
 )
 ```
 
-This enables a hierarchical agent system where the primary StreetRace🚗💨 assistant can
+This enables a hierarchical agent system where the primary StreetRace assistant can
 delegate tasks to specialized agents.
 
 #### Tool Configuration
