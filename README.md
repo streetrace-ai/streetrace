@@ -1,37 +1,45 @@
+StreetRace🚗💨 is an open-source platform for engineering-native AI agents that
+integrate with your tools, automate your workflows, and evolve with your development
+process.
+
+StreetRace🚗💨 is a new kind of teammate: one that runs linters, generates modules,
+monitors builds, or triages bugs the way you taught it.
+
+We believe the future of development is peer-to-peer: engineer + agent. And we’re
+building the rails.
+
+If you want to help define that future - contribute code, build agents, or shape the
+platform - GitHub’s open. Jump in, clone it, and make agents your own.
+
 # StreetRace🚗💨
 
-Today, StreetRace🚗💨 is a CLI-based assistant that can run agentic workflows, maintain
-your conversation histories, allowing full customization, and using any model supported
-by [BerriAI/litellm](https://github.com/BerriAI/litellm), including self-hosted ollama
-models.
+Unlike generic agent frameworks or black-box AI engineers, StreetRace🚗💨 is:
 
-The goal is to enable:
+## 🔧 Built for Developers, by Developers
 
-1. Creating and using agents in your day-to-day SWE/SRE workflows.
-2. Publishing and running your agents and other code to cloud envs.
-3. Debugging, code generation, and diagnostics from CLI.
+StreetRace🚗💨 integrates directly with your tools like the CLI and code editor
+(Dockerized environments will follow). Agents can operate in the same terminal and shell
+as their human counterparts, enabling seamless, trusted collaboration.
 
-Here is a workflow that describes what StreetRace🚗💨 aims to be in v.1:
+## 🤝 Engineering Peer, Not Replacement
 
-```bash
-> streetrace
-You: Create an agent that takes issues from our tracker API (documented in
-..... @apis/my_issue_tracker.yaml), takes the latest issue with the highest priority,
-..... and implements it. When complete and the implementation fully satisfies the
-..... described requirements, publishes a PR on GitHub.
-StreetRace: Working...
-StreetRace: Your agent is created as "IssueFixer".
-You: Deploy @IssueFixer and run it in a loop.
-StreetRace: Working...
-StreetRace: Deploying IssueFixer to yourk8shost.foo.bar...
-StreetRace: IssueFixer is started and available at A2A endpoint issuefixer-001.foo.bar.
-IssueFixer: There are 39 unresolved issues. Taking issue ISS007.
-IssueFixer: Based on the issue description, I need to fix the app so it works.
-IssueFixer: Looking for a solution...
-IssueFixer: ...
-IssueFixer: ISS007 is fixed, taking ISS042 now...
-...
-```
+Where Devin and other agents aim to replace engineers, StreetRace🚗💨 empowers
+engineers. Your agent isn't a shadow coder, it’s a co-worker you can inspect, guide, and
+evolve.
+
+## 🧩 Opinionated, Yet Extensible
+
+Unlike CrewAI’s generic orchestration layer, StreetRace🚗💨 comes powered by ADK,
+provides built-in A2A publishing, and integrates with any MCP tools. It comes with
+battle-tested patterns and tools for building high-performing agents. Developers can
+publish reusable agents to automate routine tasks like onboarding codebases, responding
+to CI failures, or generating service templates.
+
+## 🛠 Open, Flexible, and Secure
+
+Model-agnostic and open-source, StreetRace🚗💨 supports everything from local Ollama
+models to cloud APIs. Agents run in the local environment, with controlled APIs (A2A
+endpoints), giving teams full control, observability, and security.
 
 ## Installation and usage
 
@@ -78,14 +86,15 @@ You: Type your prompt
 
 #### Try in your environment
 
-Currently, StreetRace includes one coding agent with a model of your choise. This agent
-is a capable software engineering agent that can work with your technology stack.
+Currently, StreetRace🚗💨 includes one coding agent with a model of your choise. This
+agent is a capable software engineering agent that can work with your technology stack.
 
 You can add more context to your prompts in two ways:
 
-1. Using @-mentions, autocomplete will suggest local files that you can add to the
+1. Use @-mentions, autocomplete will suggest local files that you can add to the
    prompt.
-2. Any other project context can be added in a `.streetrace` folder:
+2. Add project context and instructions in the `.streetrace` folder in your project's
+   directory:
    - `SYSTEM.md` is used as your system instruction.
    - Any other files under `.streetrace` are added as initial conversation messages.
 
@@ -209,7 +218,8 @@ with known-safe commands.
 
 ### Agent System
 
-StreetRace🚗💨 includes a modular agent system that allows for specialized agents to be discovered and used.
+StreetRace🚗💨 includes a modular agent system that allows for specialized agents to be
+discovered and used.
 
 #### Agent Discovery
 
@@ -221,16 +231,20 @@ Agents are searched for in the following locations:
 
 #### Creating Custom Agents
 
-StreetRace supports two ways to create custom agents:
+StreetRace🚗💨 supports two ways to create custom agents:
 
 ##### Option 1: Using the StreetRaceAgent Interface (Recommended)
 
-1. Create a directory for your agent in the `./agents/` folder (e.g., `./agents/my_agent/`)
-2. Create an `agent.py` file with a class that inherits from `StreetRaceAgent` and implements:
+1. Create a directory for your agent in the `./agents/` folder (e.g.,
+   `./agents/my_agent/`)
+2. Create an `agent.py` file with a class that inherits from `StreetRaceAgent` and
+   implements:
 
-   - `get_agent_card()` - Returns metadata about the agent (name, description, capabilities)
+   - `get_agent_card()` - Returns metadata about the agent (name, description,
+     capabilities)
    - `get_required_tools()` - Returns a list of tools the agent needs
-   - `create_agent()` - Creates the actual agent instance with the provided model and tools
+   - `create_agent()` - Creates the actual agent instance with the provided model and
+     tools
 
 3. Add a `README.md` file with documentation for your agent
 
@@ -267,7 +281,8 @@ class MyAgent(StreetRaceAgent):
 
 ##### Option 2: Legacy Approach (Basic Functions)
 
-1. Create a directory for your agent in the `./agents/` folder (e.g., `./agents/my_agent/`)
+1. Create a directory for your agent in the `./agents/` folder (e.g.,
+   `./agents/my_agent/`)
 2. Create an `agent.py` file with these required functions:
 
    - `get_agent_metadata()` - Returns a dictionary with `name` and `description` keys
@@ -287,11 +302,13 @@ run_agent(
 )
 ```
 
-This enables a hierarchical agent system where the primary StreetRace assistant can delegate tasks to specialized agents.
+This enables a hierarchical agent system where the primary StreetRace🚗💨 assistant can
+delegate tasks to specialized agents.
 
 #### Tool Configuration
 
-Tools available to agents are defined in the `./tools/tools.yaml` configuration file. This file specifies:
+Tools available to agents are defined in the `./tools/tools.yaml` configuration file.
+This file specifies:
 
 - Tool name and description
 - Source type (e.g., 'local' for Python modules or 'mcp' for external services)
@@ -302,8 +319,9 @@ The configuration makes it easy to add, modify, or disable tools without changin
 
 #### Tool Discovery
 
-The `list_tools` tool provides information about available tools that can be provided to agents.
-This helps the assistant understand what capabilities are available in the system.
+The `list_tools` tool provides information about available tools that can be provided to
+agents. This helps the assistant understand what capabilities are available in the
+system.
 
 The tool returns a list of available tools with:
 
