@@ -7,7 +7,7 @@ from streetrace.args import Args, bind_and_run
 from streetrace.log import get_logger, init_logging
 
 
-def main(args: Args) -> None:
+def run(args: Args) -> None:
     """Configure and run the Application."""
     init_logging(args)
     logger = get_logger(__name__)
@@ -30,10 +30,10 @@ def main(args: Args) -> None:
             raise
 
 
-def cli() -> None:
+def main() -> None:
     """Entry point for the CLI."""
-    bind_and_run(main)
+    bind_and_run(run)
 
 
 if __name__ == "__main__":
-    cli()
+    main()

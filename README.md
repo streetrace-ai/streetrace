@@ -43,7 +43,15 @@ endpoints), giving teams full control, observability, and security.
 
 ## Installation and usage
 
-### Install from pip
+### Install from PyPI
+
+Using pipx (follow [pipx installation instructions here](https://pipx.pypa.io/stable/installation/).)
+
+```bash
+$ pipx install streetrace
+```
+
+Or using pip to install as project dependency:
 
 ```bash
 $ pip install streetrace
