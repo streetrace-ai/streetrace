@@ -16,6 +16,9 @@ license = {file = "LICENSE"}
 [project.scripts]
 streetrace = "streetrace.main:main"
 
+[tool.poetry.scripts]
+streetrace = "streetrace.main:main"
+
 [tool.ruff]
 line-length = 88
 fix = true
@@ -61,7 +64,7 @@ pythonpath = ["src"] # Make src importable directly
 asyncio_mode = "auto"
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["anthropic", "ollama", "openai", "boto3"]
+DEP002 = ["anthropic", "ollama", "openai", "boto3", "deprecated"]
 
 [tool.poetry.group.dev.dependencies]
 deptry = "^0.23.0"
@@ -100,7 +103,4 @@ bashlex = "^0.18"
 a2a-sdk = "^0.2.4"
 boto3 = "^1.28.57"
 tzlocal = "^5.3.1"
-
-
-[tool.poetry.scripts]
-streetrace = 'streetrace.main:cli'
+deprecated = "^1.2.18"
