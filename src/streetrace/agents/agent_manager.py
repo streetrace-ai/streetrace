@@ -60,7 +60,7 @@ class AgentManager:
             # ./agents/ (relative to working directory)
             self.work_dir / "agents",
             # /agents/ (relative to repo root)
-            Path(__file__).parent / "../../../agents",
+            Path(__file__).parent,
         ]
 
         return get_available_agents(base_dirs)

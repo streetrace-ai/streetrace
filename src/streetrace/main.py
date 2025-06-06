@@ -1,6 +1,9 @@
 """StreetRace🚗💨 CLI entry point."""
 
 import asyncio
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 from streetrace.app import create_app
 from streetrace.args import Args, bind_and_run
@@ -9,6 +12,14 @@ from streetrace.log import get_logger, init_logging
 
 def run(args: Args) -> None:
     """Configure and run the Application."""
+    cwd = Path.cwd()
+    if not cwd.is_dir():
+        msg = f"Current working directory is not a directory: {cwd}"
+        raise NotADirectoryError(msg)
+    load_dotenv(
+        dotenv_path=cwd / ".env",
+        override=True,
+    )  # Load environment variables from .env file in the current directory
     init_logging(args)
     logger = get_logger(__name__)
 
