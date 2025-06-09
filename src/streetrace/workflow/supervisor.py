@@ -82,6 +82,13 @@ class Supervisor:
             ):
                 self.ui_bus.dispatch_ui_update(event)
 
+                # TODO(krmrn42): Handle wrong tool calls. How to detect the root cause
+                # is an attempt to store a large file? E.g.:
+                # Tool signature doesn't match
+                #   -> Parameters missing
+                #       -> tool name is "write_file"
+                #           -> missing parameter name is "content"
+
                 # Check if this is the final response from the agent
                 if event.is_final_response():
                     if event.content and event.content.parts:

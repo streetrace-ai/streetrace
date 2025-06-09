@@ -17,8 +17,8 @@ def _trim_text(text: str, max_length: int = 200, max_lines: int = 1) -> str:
     lines = text.splitlines()
     lines_count = len(lines)
     if lines_count > max_lines:
-        lines = lines[: max_lines - 1] + [
-            f"({lines_count - max_lines + 1} lines trimmed)...",
+        lines = lines[:max_lines] + [
+            f"({lines_count - max_lines} lines trimmed)...",
         ]
     trimmed_lines = []
     for line in lines:
