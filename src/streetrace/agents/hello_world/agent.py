@@ -9,6 +9,7 @@ from google.adk.agents import Agent, BaseAgent
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
+from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import AnyTool
 
 
@@ -64,12 +65,14 @@ class HelloWorldAgent(StreetRaceAgent):
         self,
         model_factory: ModelFactory,
         tools: list[AnyTool],
+        system_context: SystemContext,
     ) -> BaseAgent:
         """Create the Hello World agent.
 
         Args:
             model_factory: Factory for creating and managing LLM models
             tools: List of tools to provide to the agent
+            system_context: System context containing project-level instructions
 
         Returns:
             The created agent
@@ -81,6 +84,7 @@ class HelloWorldAgent(StreetRaceAgent):
             name="Hello World",
             model=model,
             description="A simple example agent that greets the user and lists files.",
+            global_instruction=system_context.get_system_message(),
             instruction="""You are the Hello World agent.
 
 Your main purpose is to:
