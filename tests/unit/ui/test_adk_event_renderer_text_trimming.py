@@ -68,7 +68,7 @@ class TestTextTrimming:
     def test_trim_text_with_single_line_limit(self):
         """Test default behavior with single line limit."""
         text = "Line 1\nLine 2\nLine 3\nLine 4"
-        result = _trim_text(text)  # Default max_lines=1
+        result = _trim_text(text, max_lines=1)
 
         # With 4 lines and max_lines=1, we keep 0 lines and trim 4
         assert result == "(4 lines trimmed)..."
@@ -109,7 +109,7 @@ class TestTextTrimming:
         text = "Line 1\nLine 2"
         result = _trim_text(text, max_lines=0)
 
-        assert result == "Line 1\n(3 lines trimmed)..."
+        assert result == ""
 
     def test_trim_text_with_exact_length_match(self):
         """Test text that exactly matches the maximum length."""

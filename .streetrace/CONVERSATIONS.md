@@ -1650,3 +1650,47 @@ I created tests covering the following core user scenarios:
 
 The implementation provides comprehensive test coverage for the ADK event renderer, ensuring reliable rendering of AI agent interactions across different content types, response formats, and error conditions. The tests validate both normal operation and edge cases, providing confidence in the rendering functionality that users see when interacting with StreetRace.
 
+
+# Tue Jun 10 10:41:11 2025 -0700
+
+## User
+
+Try running the tests now, I've fixed a couple of issues
+
+## Assistant
+
+Perfect! All tests are passing. Let's summarize what we've accomplished:
+
+## Summary of Changes
+
+1. **Created a New Test File**: `tests/unit/agents/test_system_context_agent.py`
+   - This file contains a test to verify that the `AgentManager.create_agent` method correctly passes the system_context to the agent's `create_agent` method.
+   - The test uses a custom `SystemContextCapturingAgent` class that captures the system_context it receives.
+
+2. **Test Implementation Details**:
+   - Created a class-level variable in the `SystemContextCapturingAgent` to track the system_context.
+   - Set up proper mocking for the async context manager used by the tool provider.
+   - Verified that the system_context passed to the agent is the same as the one provided to the AgentManager.
+
+3. **Test Results**:
+   - All tests now pass, including our new test for system context passing.
+   - The existing tests in `test_agent_manager.py` continue to pass, ensuring we didn't break any functionality.
+
+## User Scenarios Addressed
+
+This test addresses an important user scenario: ensuring that system context (which contains project-level instructions) is correctly passed from the AgentManager to the individual agents. This is crucial because:
+
+1. The system context contains critical information that influences how agents generate responses.
+2. Agents need this context to understand project-specific instructions and constraints.
+3. Without the correct system context, agents might provide responses that don't align with the user's expectations or project requirements.
+
+## Implementation Details
+
+The test uses a class-based approach to track the system_context across method calls. This works well because:
+
+1. The agent classes are instantiated within the `create_agent` method.
+2. Using a class variable allows us to access the captured system_context after the agent instance has been created.
+3. It provides a clean way to verify that the correct system_context is being passed without modifying the production code.
+
+This test provides strong verification that the system context flow is working as expected in the AgentManager implementation.
+

@@ -21,7 +21,7 @@ class TestFunctionCallRendering:
         """Test rendering a basic function call event."""
         render_event(function_call_event, mock_console)
 
-        expected_author = f"[bold]{sample_author}:[/bold]"
+        expected_author = f"[bold]{sample_author}:[/bold]\n"
         mock_console.print.assert_called_once()
 
         call_args = mock_console.print.call_args
@@ -211,7 +211,7 @@ class TestFunctionCallRendering:
         # Should have 2 print calls, one for each function call
         assert mock_console.print.call_count == 2
 
-        expected_author = f"[bold]{sample_author}:[/bold]"
+        expected_author = f"[bold]{sample_author}:[/bold]\n"
         for call_args in mock_console.print.call_args_list:
             assert call_args[0][0] == expected_author
             assert isinstance(call_args[0][1], Syntax)

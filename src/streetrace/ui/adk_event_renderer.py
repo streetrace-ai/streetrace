@@ -9,16 +9,18 @@ from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import register_renderer
 
 
-def _trim_text(text: str, max_length: int = 200, max_lines: int = 1) -> str:
+def _trim_text(text: str, max_length: int = 200, max_lines: int = 2) -> str:
     if text:
         text = text.strip()
     if not text:
         return text
+    if max_lines == 0:
+        return ""
     lines = text.splitlines()
     lines_count = len(lines)
     if lines_count > max_lines:
-        lines = lines[:max_lines] + [
-            f"({lines_count - max_lines} lines trimmed)...",
+        lines = lines[: max_lines - 1] + [
+            f"({lines_count - max_lines + 1} lines trimmed)...",
         ]
     trimmed_lines = []
     for line in lines:
@@ -34,7 +36,7 @@ def _trim_text(text: str, max_length: int = 200, max_lines: int = 1) -> str:
 @register_renderer
 def render_event(obj: Event, console: Console) -> None:
     """Render the provided google.adk.events.Event to rich.console."""
-    author = f"[bold]{obj.author}:[/bold]"
+    author = f"[bold]{obj.author}:[/bold]\n"
     if obj.is_final_response() and obj.actions and obj.actions.escalate:
         # Handle potential errors/escalations
         console.print(

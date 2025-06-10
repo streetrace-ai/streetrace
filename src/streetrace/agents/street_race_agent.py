@@ -7,6 +7,7 @@ from google.adk.agents import BaseAgent
 
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
+from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import AnyTool
 
 
@@ -41,12 +42,14 @@ class StreetRaceAgent(ABC):
         self,
         model_factory: ModelFactory,
         tools: list[AnyTool],
+        system_context: SystemContext,
     ) -> BaseAgent:
         """Create the agent Run the Hello World agent with the provided input.
 
         Args:
             model_factory: Interface to access configured models.
             tools: Tools requested by the agent.
+            system_context: System context for the agent.
 
         Returns:
             The root ADK agent.

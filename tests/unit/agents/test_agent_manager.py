@@ -13,6 +13,7 @@ from streetrace.agents.agent_manager import AgentManager
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
+from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import AnyTool, ToolProvider
 
 
@@ -43,6 +44,7 @@ class MockAgent(StreetRaceAgent):
         self,
         model_factory: ModelFactory,  # noqa: ARG002
         tools: list[AnyTool],  # noqa: ARG002
+        system_context: SystemContext,  # noqa: ARG002
     ) -> BaseAgent:
         """Create a mock BaseAgent."""
         mock_agent = MagicMock(spec=BaseAgent)
@@ -78,12 +80,14 @@ def work_dir() -> Path:
 def agent_manager(
     mock_model_factory: ModelFactory,
     mock_tool_provider: ToolProvider,
+    mock_system_context: SystemContext,
     work_dir: Path,
 ) -> AgentManager:
     """Create an AgentManager instance for testing."""
     return AgentManager(
         model_factory=mock_model_factory,
         tool_provider=mock_tool_provider,
+        system_context=mock_system_context,
         work_dir=work_dir,
     )
 
@@ -111,12 +115,14 @@ class TestAgentManager:
         self,
         mock_model_factory: ModelFactory,
         mock_tool_provider: ToolProvider,
+        mock_system_context: SystemContext,
         work_dir: Path,
     ) -> None:
         """Test AgentManager initialization."""
         manager = AgentManager(
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
             work_dir=work_dir,
         )
 
@@ -226,7 +232,7 @@ class TestAgentManager:
         self,
         mock_get_agent_impl: MagicMock,
         mock_get_available_agents: MagicMock,
-        agent_manager: AgentManager,
+        agent_manager: MagicMock,
         mock_agent_info: AgentInfo,
     ) -> None:
         """Test that agent creation properly integrates with tool provider."""
@@ -267,7 +273,12 @@ class TestAgentManager:
             async def get_required_tools(self) -> list[AnyTool | str]:
                 raise RuntimeError(self.msg)
 
-            async def create_agent(self, model_factory, tools) -> BaseAgent:  # noqa: ARG002
+            async def create_agent(
+                self,
+                model_factory,  # noqa: ARG002
+                tools,  # noqa: ARG002
+                system_context,  # noqa: ARG002
+            ) -> BaseAgent:
                 raise RuntimeError(self.msg)
 
         mock_get_agent_impl.return_value = FailingAgent
@@ -334,7 +345,7 @@ class TestAgentManager:
         self,
         mock_get_agent_impl: MagicMock,
         mock_get_available_agents: MagicMock,
-        agent_manager: AgentManager,
+        agent_manager: MagicMock,
         mock_agent_info: AgentInfo,
     ) -> None:
         """Test that resources are properly cleaned up when exiting context."""
@@ -356,7 +367,7 @@ class TestAgentManager:
         self,
         mock_get_agent_impl: MagicMock,
         mock_get_available_agents: MagicMock,
-        agent_manager: AgentManager,
+        agent_manager: MagicMock,
         mock_agent_info: AgentInfo,
     ) -> None:
         """Test that resources are cleaned up even when exception occurs in context."""

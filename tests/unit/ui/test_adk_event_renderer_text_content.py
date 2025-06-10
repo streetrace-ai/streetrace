@@ -36,7 +36,7 @@ class TestTextContentRendering:
         render_event(event, mock_console)
 
         # Verify author and markdown content are printed with correct style
-        expected_author = f"[bold]{sample_author}:[/bold]"
+        expected_author = f"[bold]{sample_author}:[/bold]\n"
         # Should have 2 calls: one for text, one for function call
         assert mock_console.print.call_count == 2
 
@@ -56,7 +56,7 @@ class TestTextContentRendering:
         """Test rendering a final response event uses different styling."""
         render_event(final_response_event, mock_console)
 
-        expected_author = f"[bold]{sample_author}:[/bold]"
+        expected_author = f"[bold]{sample_author}:[/bold]\n"
         mock_console.print.assert_called_once()
 
         call_args = mock_console.print.call_args
@@ -110,7 +110,7 @@ class TestTextContentRendering:
         # Should have 3 print calls, one for each text part
         assert mock_console.print.call_count == 3
 
-        expected_author = f"[bold]{sample_author}:[/bold]"
+        expected_author = f"[bold]{sample_author}:[/bold]\n"
         for call_args in mock_console.print.call_args_list:
             assert call_args[0][0] == expected_author
             assert isinstance(call_args[0][1], Markdown)
@@ -218,7 +218,7 @@ class TestTextContentRendering:
         render_event(basic_event, mock_console)
 
         call_args = mock_console.print.call_args
-        expected_author = "[bold]Agent-1_Test:[/bold]"
+        expected_author = "[bold]Agent-1_Test:[/bold]\n"
         assert call_args[0][0] == expected_author
 
     def test_render_text_with_whitespace_handling(self, mock_console, sample_author):
