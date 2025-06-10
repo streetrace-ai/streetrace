@@ -25,7 +25,7 @@ class TestEscalationRendering:
 
         # First call should be for escalation
         escalation_call = mock_console.print.call_args_list[0]
-        expected_author = f"[bold]{sample_author}:[/bold]"
+        expected_author = f"[bold]{sample_author}:[/bold]\n"
         assert escalation_call[0][0] == expected_author
         assert "Agent escalated: Something went wrong" in escalation_call[0][1]
         assert escalation_call[1]["style"] == Styles.RICH_ERROR
@@ -44,7 +44,7 @@ class TestEscalationRendering:
 
         # First call should be for escalation with default message
         escalation_call = mock_console.print.call_args_list[0]
-        expected_author = f"[bold]{sample_author}:[/bold]"
+        expected_author = f"[bold]{sample_author}:[/bold]\n"
         assert escalation_call[0][0] == expected_author
         assert "Agent escalated: No specific message." in escalation_call[0][1]
         assert escalation_call[1]["style"] == Styles.RICH_ERROR
@@ -307,7 +307,7 @@ class TestEscalationRendering:
         render_event(escalation_event, mock_console)
 
         escalation_call = mock_console.print.call_args_list[0]
-        expected_author = f"[bold]{sample_author}:[/bold]"
+        expected_author = f"[bold]{sample_author}:[/bold]\n"
         assert escalation_call[0][0] == expected_author
 
     def test_render_escalation_with_long_error_message(
