@@ -16,7 +16,7 @@ from streetrace.tools.tool_provider import AnyTool
 
 
 class SystemContextCapturingAgent(StreetRaceAgent):
-    """Mock agent implementation that captures the system_context passed to create_agent."""
+    """Mock agent implementation that captures the system_context in create_agent."""
 
     # Class variable to store the received system_context
     received_system_context = None
