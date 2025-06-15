@@ -1,8 +1,9 @@
 from pathlib import Path
 from typing import Any
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from google.adk.models.base_llm import BaseLlm
 from google.adk.sessions import Session
 from prompt_toolkit import PromptSession
 from rich.console import Console
@@ -21,6 +22,7 @@ from streetrace.commands.definitions import (
 )
 
 # Import specific command classes
+from streetrace.llm.llm_interface import AdkLiteLlmInterface
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.session_service import (
@@ -288,16 +290,50 @@ def shallow_session_manager(
 
 
 @pytest.fixture
-def mock_model_factory(mock_ui_bus, fake_model_name) -> ModelFactory:
+def mock_adk_base_llm() -> BaseLlm:
+    base_llm = Mock(spec=BaseLlm)
+    base_llm.generate_content_async = AsyncMock()
+    return base_llm
+
+
+@pytest.fixture
+def mock_adk_llm_interface(
+    mock_ui_bus,
+    fake_model_name,
+    mock_adk_base_llm,
+) -> AdkLiteLlmInterface:
+    adk_llm_interface = Mock(spec=AdkLiteLlmInterface)
+    adk_llm_interface.model = fake_model_name
+    adk_llm_interface.ui_bus = mock_ui_bus
+    adk_llm_interface.get_adk_llm.return_value = mock_adk_base_llm
+    return adk_llm_interface
+
+
+@pytest.fixture
+def mock_model_factory(
+    mock_ui_bus,
+    fake_model_name,
+    mock_adk_llm_interface,
+    mock_adk_base_llm,
+) -> ModelFactory:
     model_factory = Mock(spec=ModelFactory)
     model_factory.ui_bus = mock_ui_bus
     model_factory.current_model_name = fake_model_name
+    model_factory.get_llm_interface.return_value = mock_adk_llm_interface
+    model_factory.get_current_model.return_value = mock_adk_base_llm
     return model_factory
 
 
 @pytest.fixture
-def shallow_model_factory(mock_ui_bus, fake_model_name) -> ModelFactory:
-    return ModelFactory(fake_model_name, mock_ui_bus)
+def shallow_model_factory(
+    mock_ui_bus,
+    fake_model_name,
+    mock_adk_llm_interface,
+) -> ModelFactory:
+    model_factory = ModelFactory(fake_model_name, mock_ui_bus)
+    model_factory.get_llm_interface = Mock()
+    model_factory.get_llm_interface.return_value = mock_adk_llm_interface
+    return model_factory
 
 
 @pytest.fixture
@@ -317,11 +353,13 @@ def mock_agent_manager(
 def shallow_agent_manager(
     mock_model_factory,
     mock_tool_provider,
+    mock_system_context,
     work_dir,
 ) -> AgentManager:
     return AgentManager(
         model_factory=mock_model_factory,
         tool_provider=mock_tool_provider,
+        system_context=mock_system_context,
         work_dir=work_dir,
     )
 

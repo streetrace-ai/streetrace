@@ -145,7 +145,7 @@ class TestCompactCommandSuccessfulFlow:
         ].replace_current_session_events.call_args[0][0]
 
         # Should have the final events plus the summary event
-        assert len(replaced_events) == 3  # 2 final events + 1 summary event
+        assert len(replaced_events) == 2  # 1 user's message + 1 summary event
 
         # Verify LLM was called with correct parameters
         mock_model.generate_content_async.assert_called_once()
@@ -186,12 +186,12 @@ class TestCompactCommandSuccessfulFlow:
 
         # Assert
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
-        assert len(ui_calls) >= 2
+        assert len(ui_calls) == 1
 
-        # Should show "Nothing to compact" message
+        # Should show "No history available to compact" message
         nothing_to_compact_found = any(
             isinstance(call[0][0], ui_events.Info)
-            and "nothing to compact" in call[0][0].lower()
+            and "no history available to compact" in call[0][0].lower()
             for call in ui_calls
         )
         assert nothing_to_compact_found
