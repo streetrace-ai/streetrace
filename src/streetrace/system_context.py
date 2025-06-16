@@ -35,6 +35,18 @@ _CONVERSATIONS_MD_TEMPLATE = """
 _CONVERSATION_HEADER_DATE_FORMAT = "%a %b %d %H:%M:%S %Y %z"
 
 
+def _find_file_case_insensitive(path: Path) -> Path | None:
+    """Return the actual file path that matches the given path, ignoring case."""
+    if not path.parent.exists():
+        return None
+
+    for entry in path.parent.iterdir():
+        if entry.name.lower() == path.name.lower():
+            return entry.resolve()
+
+    return None
+
+
 class SystemContext:
     """Handle loading and providing system and project context for AI interactions.
 
@@ -61,10 +73,10 @@ class SystemContext:
             The loaded system message or a default message if none is found.
 
         """
-        system_message_path = self.config_dir / _SYSTEM_MD
-        if not system_message_path.exists():
-            system_message_path = self.config_dir / _SYSTEM_MD.lower()
-        if system_message_path.exists():
+        system_message_path = _find_file_case_insensitive(self.config_dir / _SYSTEM_MD)
+        if not system_message_path or not system_message_path.exists():
+            logger.debug("System message file not found, using default.")
+        else:
             try:
                 logger.debug("Reading system message from: %s", system_message_path)
                 return system_message_path.read_text(encoding="utf-8")
@@ -74,8 +86,6 @@ class SystemContext:
                 )
                 logger.exception(log_msg)
                 self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
-        else:
-            logger.debug("System message file not found, using default.")
 
         # Default system message
         return messages.SYSTEM
@@ -88,26 +98,28 @@ class SystemContext:
             A string containing the combined content of all context files.
 
         """
-        combined_context: list[str] = []
         if not self.config_dir.exists() or not self.config_dir.is_dir():
             logger.info("Context directory '%s' not found.", self.config_dir)
-            return combined_context
+            return []
 
         try:
             context_files = [
                 f
                 for f in self.config_dir.iterdir()
-                if f.is_file() and f.name not in [_SYSTEM_MD, _CONVERSATIONS_MD]
+                if f.is_file()
+                and f.name[0] != "."
+                and f.name.lower()
+                not in [_SYSTEM_MD.lower(), _CONVERSATIONS_MD.lower()]
             ]
         except Exception as e:
             log_msg = f"Error listing context directory '{self.config_dir}': {e}"
             logger.exception(log_msg)
             self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
-            return combined_context
+            return []
 
         if not context_files:
             logger.info("No additional context files found in '%s'.", self.config_dir)
-            return combined_context
+            return []
 
         logger.info(
             "Reading project context files: %s",
@@ -121,6 +133,7 @@ class SystemContext:
                 ),
             )
 
+        combined_context: list[str] = []
         for file_path in context_files:
             try:
                 content = file_path.read_text(encoding="utf-8")

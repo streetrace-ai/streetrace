@@ -600,58 +600,45 @@ class SessionManager:
     def _squash_turn_events(
         self,
         session: Session,
-        previous_events_count: int,
     ) -> str:
-        """Keep only assistant's final response in instead of the full ReAct loop.
+        """Keep only final messages in the session.
 
-        Perhaps we will need to investigate other approaches to maintain the
-        conversation lenth, e.g. Recursively Summarizing as discussed in
-        https://arxiv.org/abs/2308.15022.
+        Perhaps we can do Recursively Summarizing as discussed in
+        https://arxiv.org/abs/2308.15022 or similar here.
 
-        Processes the session "in-place."
+        Persists the modified session in store.
 
         Any type of conversation history tampering is experimental, so we'll need to
         figure out what works and what doesn't.
 
         Args:
             session: The current session.
-            previous_events_count: Number of events to keep as-is in the beginning of
-                the session.
 
         """
-        if len(session.events) <= previous_events_count + 1:
-            msg = "Cannot post-process, session does not contain extra messages."
-            raise ValueError(msg)
-        last_event = session.events[-1]
-        if last_event.author == "user":
-            msg = "Cannot post-process, the last session event is user's message."
-            raise ValueError(msg)
-        if not last_event.content or not last_event.content.parts:
-            msg = "Cannot post-process, the last session event is empty."
-            raise ValueError(msg)
-        tools = [
-            part.function_call or part.function_response
-            for part in last_event.content.parts
-            if part.function_call or part.function_response
+        # squash will keep only final events in the history
+        # the easiest way to do that resolvign all issues is to rewrite entire history
+        # because event events in the previous turns can be non-final here if
+        # the user interrupted the process (Ctrl+C), e.g. multiple times.
+        keep_events: list[Event] = [
+            event
+            for event in session.events
+            if event.is_final_response() and event.content and event.content.parts
         ]
-        if tools:
-            msg = (
-                "Cannot post-process, the last message has tool data which "
-                "indicates that the loop is not complete"
+        assistant_final_response = ""
+        last_event = keep_events[-1]
+        if (
+            last_event.author != "user"
+            and last_event.content
+            and last_event.content.parts
+        ):
+            assistant_final_response = "".join(
+                [part.text for part in last_event.content.parts if part.text],
             )
-            raise ValueError(msg)
-        text = "".join(
-            [part.text for part in last_event.content.parts if part.text],
-        ).strip()
-        if not text:
-            msg = "Cannot post-process, the last session event has no text parts."
-            raise ValueError(msg)
         self.session_service.replace_events(
             session=session,
-            new_events=[last_event],
-            start_at=previous_events_count,
+            new_events=keep_events,
         )
-        return text
+        return assistant_final_response
 
     def _add_project_context(
         self,
@@ -698,12 +685,8 @@ class SessionManager:
         Args:
             processed_prompt: The input to the last agent interaction
             original_session: The original session.
-            previous_events_count: Number of events to keep as-is in the beginning of
-                the session.
 
         """
-        previous_events_count = len(original_session.events)
-
         # TODO(krmrn42): Somewhere in this process we lose user's message
         session = self.session_service.get_session(
             app_name=original_session.app_name,
@@ -713,7 +696,9 @@ class SessionManager:
         if not session:
             msg = "Session not found."
             raise ValueError(msg)
-        assistant_response = self._squash_turn_events(session, previous_events_count)
+
+        assistant_response = self._squash_turn_events(session)
+
         self._add_project_context(
             processed_prompt=processed_prompt,
             assistant_response=assistant_response,
