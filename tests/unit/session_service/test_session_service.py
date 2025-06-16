@@ -1,3 +1,5 @@
+"""Tests for session_service module."""
+
 import inspect
 import shutil
 import tempfile
@@ -98,6 +100,7 @@ class TestSessionSerializer:
             session_id="1",
         )
 
+        assert saved_session
         assert saved_session.state
         assert "another key" in saved_session.state
         assert saved_session.state["another key"] == {"eg": 1}
@@ -212,12 +215,16 @@ class TestSessionService:
             patch.object(mock_serializer, "write", wraps=original_write) as mock_write,
             patch.object(mock_serializer, "read", wraps=original_read) as mock_read,
         ):
-            s_info = {"app_name": "custom", "user_id": "ser", "session_id": "s1"}
-            created_session = service_with_mock.create_session(**s_info)
+            s_info = {
+                "app_name": "custom",
+                "user_id": "ser",
+                "session_id": "s1",
+            }
+            created_session = service_with_mock.create_session(**s_info, state=None)
             mock_write.assert_called_once_with(session=created_session)
 
             service_with_mock.sessions.clear()
-            service_with_mock.get_session(**s_info)
+            service_with_mock.get_session(**s_info, config=None)
             mock_read.assert_called_once_with(
                 app_name=s_info["app_name"],
                 user_id=s_info["user_id"],
@@ -259,6 +266,8 @@ class TestSessionService:
             session=retrieved_session,
             event=event1,
         )
+        assert appended_event1.content is not None
+        assert appended_event1.content.parts is not None
         assert appended_event1.content.parts[0].text == "Hello"
         assert len(retrieved_session.events) == 1
 
@@ -271,6 +280,8 @@ class TestSessionService:
         )
         assert retrieved_session_after_append is not None
         assert len(retrieved_session_after_append.events) == 1
+        assert retrieved_session_after_append.events[0].content is not None
+        assert retrieved_session_after_append.events[0].content.parts is not None
         assert retrieved_session_after_append.events[0].content.parts[0].text == "Hello"
         assert retrieved_session_after_append.events[0].author == "user"
         assert retrieved_session_after_append.events[0].timestamp == pytest.approx(

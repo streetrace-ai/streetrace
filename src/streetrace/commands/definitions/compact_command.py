@@ -106,9 +106,22 @@ class CompactCommand(Command):
         # TODO(krmrn42): Find a workaround as importing litellm directly takes time.
         litellm.modify_params = True
 
-        logger.info("Executing compact command.")
         current_session = self.session_manager.get_current_session()
-        if not current_session or not current_session.events:
+        compacted_session_events: list[Event] = []
+        contents_to_compact: list[genai_types.Content] = []
+        assistant_author_name: str | None = None
+        if current_session and current_session.events:
+            for event in current_session.events:
+                if not event.content or not event.content.parts:
+                    continue
+                contents_to_compact.append(event.content)
+                if assistant_author_name is None:
+                    if event.author == "user":
+                        compacted_session_events.append(event.model_copy())
+                    else:
+                        assistant_author_name = event.author
+
+        if not contents_to_compact:
             self.ui_bus.dispatch_ui_update(
                 ui_events.Info("No history available to compact."),
             )
@@ -118,59 +131,31 @@ class CompactCommand(Command):
             ui_events.Info("Compacting conversation history..."),
         )
 
-        last_non_user_author: str | None = None
-        compact_session_events: list[Event] = []
-        # tail_events accumulates the tail non-final events
-        tail_events: list[Event] = []
-        for event in current_session.events:
-            if event.author != "user":
-                last_non_user_author = event.author
-            if event.author == "user" or event.is_final_response():
-                tail_events.clear()
-                compact_session_events.append(event.model_copy())
-            else:
-                tail_events.append(event.model_copy())
+        role, summary_message = await self._summarize_contents(contents_to_compact)
+        if summary_message:
+            self.ui_bus.dispatch_ui_update(ui_events.Markdown(summary_message))
 
-        if tail_events:
-            contents = [
-                event.content for event in current_session.events if event.content
-            ]
-            if not contents:
-                self.ui_bus.dispatch_ui_update(
-                    ui_events.Info("Nothing to compact."),
-                )
-                return
-            role, summary_message = await self._summarize_contents(contents)
-            # TODO(krmrn42): Somewhere in this process we lose user's message
-            if summary_message:
-                # TODO(krmrn42): Compact result is still not displayed as markdown.
-                self.ui_bus.dispatch_ui_update(ui_events.Markdown(summary_message))
-
-                compact_session_events.append(
-                    Event(
-                        author=last_non_user_author or "assistant",
-                        content=genai_types.Content(
-                            role=role,
-                            parts=[genai_types.Part.from_text(text=summary_message)],
-                        ),
+            compacted_session_events.append(
+                Event(
+                    author=assistant_author_name or "assistant",
+                    content=genai_types.Content(
+                        role=role,
+                        parts=[genai_types.Part.from_text(text=summary_message)],
                     ),
-                )
-            else:
-                self.ui_bus.dispatch_ui_update(
-                    ui_events.Warn(
-                        "The session could not be compacted, see logs for details. "
-                        "Please report or fix in code if that's not right.",
-                    ),
-                )
-                logger.error("LLM response was not in the expected format for summary.")
-                logger.debug("History sent for compact: \n%s", contents)
-                return
+                ),
+            )
         else:
             self.ui_bus.dispatch_ui_update(
-                ui_events.Warn("History was cleaned up, non-final responses removed."),
+                ui_events.Warn(
+                    "The session could not be compacted, see logs for details. "
+                    "Please report or fix in code if that's not right.",
+                ),
             )
+            logger.error("LLM response was not in the expected format for summary.")
+            logger.debug("History sent for compact: \n%s", contents_to_compact)
+            return
 
-        self.session_manager.replace_current_session_events(compact_session_events)
+        self.session_manager.replace_current_session_events(compacted_session_events)
 
         self.ui_bus.dispatch_ui_update(
             ui_events.Info("Session compacted successfully."),
