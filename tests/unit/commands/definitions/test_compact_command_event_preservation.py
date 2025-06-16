@@ -208,7 +208,7 @@ class TestCompactCommandEventPreservation:
         # Assert
         # LLM should be called with only content from events that have content
         llm_request = mock_model.generate_content_async.call_args[1]["llm_request"]
-        # Should have 2 contents: user + assistant (event without content skipped) + COMPACT
+        # Should have 3 contents: user + assistant + COMPACT
         assert len(llm_request.contents) == 3
 
         # Session replacement should only include user event with content + summary

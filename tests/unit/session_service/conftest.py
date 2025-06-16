@@ -172,3 +172,122 @@ def tool_event() -> Event:
 def sample_processed_prompt() -> ProcessedPrompt:
     """Create a sample processed prompt."""
     return ProcessedPrompt(prompt="Test prompt")
+
+
+# Session validation specific fixtures
+@pytest.fixture
+def function_call_event() -> Event:
+    """Create an event with a function call."""
+    return Event(
+        author="assistant",
+        content=genai_types.Content(
+            role="assistant",
+            parts=[
+                genai_types.Part(
+                    function_call=genai_types.FunctionCall(
+                        name="test_function",
+                        args={"param": "value"},
+                    ),
+                ),
+            ],
+        ),
+    )
+
+
+@pytest.fixture
+def function_response_event() -> Event:
+    """Create an event with a function response."""
+    return Event(
+        author="function",
+        content=genai_types.Content(
+            role="function",
+            parts=[
+                genai_types.Part(
+                    function_response=genai_types.FunctionResponse(
+                        name="test_function",
+                        response={"result": "success"},
+                    ),
+                ),
+            ],
+        ),
+    )
+
+
+@pytest.fixture
+def text_only_event() -> Event:
+    """Create an event with only text content."""
+    return Event(
+        author="assistant",
+        content=genai_types.Content(
+            role="assistant",
+            parts=[genai_types.Part.from_text(text="This is a text response")],
+        ),
+    )
+
+
+@pytest.fixture
+def empty_content_event() -> Event:
+    """Create an event with empty content."""
+    return Event(
+        author="assistant",
+        content=None,
+    )
+
+
+@pytest.fixture
+def empty_parts_event() -> Event:
+    """Create an event with empty parts."""
+    return Event(
+        author="assistant",
+        content=genai_types.Content(
+            role="assistant",
+            parts=[],
+        ),
+    )
+
+
+@pytest.fixture
+def mixed_content_event() -> Event:
+    """Create an event with both text and function call."""
+    return Event(
+        author="assistant",
+        content=genai_types.Content(
+            role="assistant",
+            parts=[
+                genai_types.Part.from_text(text="I'll call this function:"),
+                genai_types.Part(
+                    function_call=genai_types.FunctionCall(
+                        name="mixed_function",
+                        args={},
+                    ),
+                ),
+            ],
+        ),
+    )
+
+
+@pytest.fixture
+def valid_session_no_functions(sample_session, text_only_event, user_event) -> Session:
+    """Create a valid session with no function calls."""
+    session = sample_session.model_copy(deep=True)
+    session.events = [user_event, text_only_event]
+    return session
+
+
+@pytest.fixture
+def valid_session_with_functions(
+    sample_session,
+    user_event,
+    function_call_event,
+    function_response_event,
+    text_only_event,
+) -> Session:
+    """Create a valid session with proper function call/response pairs."""
+    session = sample_session.model_copy(deep=True)
+    session.events = [
+        user_event,
+        function_call_event,
+        function_response_event,
+        text_only_event,
+    ]
+    return session

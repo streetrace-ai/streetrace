@@ -242,7 +242,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
                 app_name,
                 user_id,
             )
-            return session
+            return self.validate(session)
 
         logger.debug(
             "Session %s not in memory, trying storage for %s/%s.",
@@ -273,6 +273,8 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
             user_id,
         )
 
+        session = self.validate(session)
+
         if app_name not in self.sessions:
             self.sessions[app_name] = {}
         if user_id not in self.sessions[app_name]:
@@ -281,6 +283,66 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         in_memory_session = copy.deepcopy(session)
         self.sessions[app_name][user_id][session_id] = in_memory_session
         return self._merge_state(app_name, user_id, copy.deepcopy(session))
+
+    def validate(self, session: Session) -> Session:
+        """Validate session fixing issues that are known to cause LLM call failure.
+
+        Currently:
+        - Remove function calls that don't have matching function responses.
+        - Remove function responses that don't have matching function calls.
+        """
+        new_events: list[Event] = []
+        tool_call_event: Event | None = None
+        errors_found = 0
+
+        for event in session.events:
+            if not event.content or not event.content.parts:
+                new_events.append(event)
+                continue
+
+            # Check for function responses
+            tool_result = [
+                part for part in event.content.parts if part.function_response
+            ]
+
+            # Check for function calls
+            tool_call = [part for part in event.content.parts if part.function_call]
+
+            if tool_result:
+                # This event has a function response
+                if tool_call_event:
+                    # We have a pending function call - this is a valid pair
+                    new_events.append(tool_call_event)
+                    new_events.append(event)
+                    tool_call_event = None
+                    errors_found -= 1
+                else:
+                    # Orphaned function response - skip it
+                    errors_found += 1
+            elif tool_call:
+                # This event has a function call
+                if tool_call_event:
+                    # We have a previous orphaned function call - skip it
+                    errors_found += 1
+                tool_call_event = event
+                errors_found += 1
+            else:
+                # Regular event (no function call or response)
+                if tool_call_event:
+                    # We have an orphaned function call - skip it
+                    errors_found += 1
+                    tool_call_event = None
+                new_events.append(event)
+
+        # If we end with an orphaned function call, it's already counted in errors_found
+
+        if errors_found == 0:
+            return session
+
+        return self.replace_events(
+            session=session,
+            new_events=new_events,
+        )
 
     @override
     def create_session(  # type: ignore[misc]
@@ -605,26 +667,16 @@ class SessionManager:
         if processed_prompt and processed_prompt.prompt:
             user_prompt = processed_prompt.prompt
         else:
-            # if the user_prompt is empty, we try to get the last user_prompt, because
-            # that's what assistant will base its answer on.
-            last_user_event = next(
-                (
-                    event
-                    for event in reversed(session.events)
-                    if event.author == "user"
-                    and event.content is not None
-                    and event.content.parts is not None
-                ),
-                None,
-            )
-            if (
-                last_user_event
-                and last_user_event.content
-                and last_user_event.content.parts
-            ):
-                user_prompt = "".join(
-                    [part.text for part in last_user_event.content.parts if part.text],
-                )
+            user_prompt_parts = []
+            for event in session.events:
+                if event.author != "user":
+                    continue
+                if event.content is None or not event.content.parts:
+                    continue
+                text_parts = [part.text for part in event.content.parts if part.text]
+                if text_parts:
+                    user_prompt_parts.extend(text_parts)
+            user_prompt = "\n".join(user_prompt_parts)
         self.system_context.add_context_from_turn(
             user_prompt,
             assistant_response,

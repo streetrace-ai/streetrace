@@ -94,7 +94,7 @@ class TestCompactCommandLlmFailures:
 
         mock_model = Mock()
         mock_model.generate_content_async.return_value = self._async_iter_responses(
-            [mock_response]
+            [mock_response],
         )
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
@@ -139,7 +139,7 @@ class TestCompactCommandLlmFailures:
 
         mock_model = Mock()
         mock_model.generate_content_async.return_value = self._async_iter_responses(
-            [mock_response]
+            [mock_response],
         )
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
@@ -186,7 +186,7 @@ class TestCompactCommandLlmFailures:
 
         mock_model = Mock()
         mock_model.generate_content_async.return_value = self._async_iter_responses(
-            [mock_response]
+            [mock_response],
         )
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
@@ -241,7 +241,7 @@ class TestCompactCommandLlmFailures:
 
         mock_model = Mock()
         mock_model.generate_content_async.return_value = self._async_iter_responses(
-            [partial_response1, partial_response2]
+            [partial_response1, partial_response2],
         )
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
@@ -296,7 +296,7 @@ class TestCompactCommandLlmFailures:
 
         mock_model = Mock()
         mock_model.generate_content_async.return_value = self._async_iter_responses(
-            [partial_response, final_response]
+            [partial_response, final_response],
         )
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
@@ -359,7 +359,7 @@ class TestCompactCommandLlmFailures:
 
         mock_model = Mock()
         mock_model.generate_content_async.return_value = self._async_iter_responses(
-            [final_response1, final_response2]
+            [final_response1, final_response2],
         )
         mock_dependencies["model_factory"].get_current_model.return_value = mock_model
 
