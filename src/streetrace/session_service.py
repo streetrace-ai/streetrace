@@ -220,7 +220,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         )
 
     @override
-    def get_session(  # type: ignore[misc]
+    def get_session(
         self,
         *,
         app_name: str,
@@ -345,7 +345,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         )
 
     @override
-    def create_session(  # type: ignore[misc]
+    def create_session(
         self,
         *,
         app_name: str,
@@ -411,7 +411,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         return new_session
 
     @override
-    def list_sessions(  # type: ignore[misc]
+    def list_sessions(
         self,
         *,
         app_name: str,
@@ -423,7 +423,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         return ListSessionsResponse(sessions=list(sessions_iter))
 
     @override
-    def delete_session(  # type: ignore[misc]
+    def delete_session(
         self,
         *,
         app_name: str,
@@ -449,7 +449,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         )
 
     @override
-    def append_event(  # type: ignore[misc]
+    def append_event(
         self,
         session: Session,
         event: Event,

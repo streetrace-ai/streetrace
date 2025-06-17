@@ -201,7 +201,7 @@ class RetryingLiteLlm(LiteLlm):  # type: ignore[misc]
         logger.debug("Initialized RetryingLiteLlm with model: %s", model)
 
     @override
-    async def generate_content_async(  # type: ignore[misc]
+    async def generate_content_async(
         self,
         llm_request: LlmRequest,
         stream: bool = False,
