@@ -4,6 +4,7 @@ This module tests the prompt-related functionality including prompt_async,
 rprompt updates, and prompt session configuration.
 """
 
+import asyncio
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -259,7 +260,6 @@ class TestConsoleUIPromptFunctionality:
                 assert result == expected
 
             # Run the async test
-            import asyncio
 
             asyncio.run(test_continuation())
 
@@ -289,6 +289,4 @@ class TestConsoleUIPromptFunctionality:
                 assert app_state.current_model in str(result)
 
             # Run the async test
-            import asyncio
-
             asyncio.run(test_toolbar())

@@ -4,6 +4,8 @@ This module tests the rendering of events that contain function responses,
 including the formatting of response data, text trimming, and syntax highlighting.
 """
 
+from google.adk.events import Event
+from google.genai.types import Content, FunctionCall, FunctionResponse, Part
 from rich.syntax import Syntax
 
 from streetrace.ui.adk_event_renderer import render_event
@@ -65,9 +67,6 @@ class TestFunctionResponseRendering:
         sample_author,
     ):
         """Test rendering function response with simple response data."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionResponse, Part
-
         function_response = FunctionResponse(
             id="call_simple",
             name="simple_function",
@@ -99,9 +98,6 @@ class TestFunctionResponseRendering:
         sample_author,
     ):
         """Test rendering function response with complex nested data."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionResponse, Part
-
         complex_response = {
             "nested_dict": {"inner_key": "inner_value"},
             "list_data": [1, 2, {"item": "value"}],
@@ -138,9 +134,6 @@ class TestFunctionResponseRendering:
         sample_author,
     ):
         """Test rendering function response with None/empty response data."""
-        from google.adk.events import Event
-        from google.genai.types import Content
-
         content = Content(parts=[empty_function_response_part], role="assistant")
         event = Event(
             author=sample_author,
@@ -160,9 +153,6 @@ class TestFunctionResponseRendering:
         sample_author,
     ):
         """Test that long response values are trimmed using _trim_text."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionResponse, Part
-
         long_text = "A" * 300  # Exceeds default trimming limit
         function_response = FunctionResponse(
             id="call_long",
@@ -194,9 +184,6 @@ class TestFunctionResponseRendering:
         sample_author,
     ):
         """Test that multiline response values are trimmed properly."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionResponse, Part
-
         multiline_text = "\n".join([f"Line {i}" for i in range(1, 6)])  # 5 lines
         function_response = FunctionResponse(
             id="call_multiline",
@@ -223,9 +210,6 @@ class TestFunctionResponseRendering:
 
     def test_render_multiple_function_responses(self, mock_console, sample_author):
         """Test rendering event with multiple function response parts."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionResponse, Part
-
         response_1 = FunctionResponse(
             id="call_1",
             name="function_1",
@@ -263,9 +247,6 @@ class TestFunctionResponseRendering:
         sample_author,
     ):
         """Test rendering event with text, function call, and function response."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, FunctionResponse, Part
-
         text_part = Part(text="Calling function and got response:")
         call_part = Part(
             function_call=FunctionCall(
@@ -302,9 +283,6 @@ class TestFunctionResponseRendering:
         sample_author,
     ):
         """Test rendering function response with special characters in values."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionResponse, Part
-
         function_response = FunctionResponse(
             id="call_special",
             name="special_function",
@@ -340,9 +318,6 @@ class TestFunctionResponseRendering:
         sample_author,
     ):
         """Test that response data types are preserved in rendered output."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionResponse, Part
-
         typed_response = {
             "string_val": "text",
             "int_val": 42,
@@ -382,9 +357,6 @@ class TestFunctionResponseRendering:
         sample_author,
     ):
         """Test rendering function response with empty dictionary."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionResponse, Part
-
         function_response = FunctionResponse(
             id="call_empty_dict",
             name="empty_dict_function",

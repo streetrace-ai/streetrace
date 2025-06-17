@@ -5,6 +5,8 @@ including regular messages, markdown content, and different response types
 (intermediate vs final responses).
 """
 
+from google.adk.events import Event
+from google.genai.types import Content, FunctionCall, Part
 from rich.markdown import Markdown
 
 from streetrace.ui.adk_event_renderer import render_event
@@ -16,9 +18,6 @@ class TestTextContentRendering:
 
     def test_render_basic_text_event(self, mock_console, sample_author):
         """Test rendering a basic event with simple text content."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, Part
-
         # Create event that is NOT a final response
         # (has function calls makes it non-final)
         text_part = Part(text="Sample text content")
@@ -69,9 +68,6 @@ class TestTextContentRendering:
 
     def test_render_markdown_content(self, mock_console, sample_author, markdown_part):
         """Test rendering of markdown content with formatting."""
-        from google.adk.events import Event
-        from google.genai.types import Content
-
         content = Content(parts=[markdown_part], role="assistant")
         event = Event(
             author=sample_author,
@@ -89,9 +85,6 @@ class TestTextContentRendering:
 
     def test_render_event_with_multiple_text_parts(self, mock_console, sample_author):
         """Test rendering event with multiple text parts."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         parts = [
             Part(text="First text part"),
             Part(text="Second text part"),
@@ -121,9 +114,6 @@ class TestTextContentRendering:
 
     def test_render_event_with_empty_text_part(self, mock_console, sample_author):
         """Test rendering event where text part has empty content."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         parts = [
             Part(text=""),  # Empty text
             Part(text="Valid text"),
@@ -146,9 +136,6 @@ class TestTextContentRendering:
 
     def test_render_event_with_none_text_part(self, mock_console, sample_author):
         """Test rendering event where text part has None content."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         parts = [
             Part(text=None),  # None text
             Part(text="Valid text"),
@@ -185,9 +172,6 @@ class TestTextContentRendering:
 
     def test_render_preserves_markdown_formatting(self, mock_console, sample_author):
         """Test that markdown formatting is preserved in rendering."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         markdown_text = (
             "# Header\n\n"
             "**Bold text** and *italic text*\n\n"
@@ -223,9 +207,6 @@ class TestTextContentRendering:
 
     def test_render_text_with_whitespace_handling(self, mock_console, sample_author):
         """Test rendering of text with various whitespace patterns."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         text_with_whitespace = "  Text with leading spaces\n\nText with empty lines\n  "
         part = Part(text=text_with_whitespace)
         content = Content(parts=[part], role="assistant")
@@ -247,9 +228,6 @@ class TestTextContentRendering:
 
     def test_render_non_final_response_style(self, mock_console, sample_author):
         """Test that non-final responses use RICH_INFO style."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, Part
-
         # Create event with function call to make it non-final
         text_part = Part(text="Some text")
         function_part = Part(function_call=FunctionCall(name="test", args={}, id="1"))
@@ -272,9 +250,6 @@ class TestTextContentRendering:
 
     def test_render_final_response_style(self, mock_console, sample_author):
         """Test that final responses use RICH_MODEL style."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         # Create event with only text (no function calls/responses) to make it final
         text_part = Part(text="Final response text")
         content = Content(parts=[text_part], role="assistant")

@@ -50,7 +50,7 @@ class TestSessionSerializer:
     def teardown_class(cls):
         shutil.rmtree(cls.temp_dir_path)
 
-    def test_read_write_sessions(self, example_session: Session):
+    async def test_read_write_sessions(self, example_session: Session):
         session_path = self.serializer.write(example_session)
 
         assert session_path.is_file()
@@ -80,7 +80,7 @@ class TestSessionSerializer:
         assert len(all_sessions[0].events) == 0
         assert len(all_sessions[0].state) == 0
 
-    def test_write_json_state(self):
+    async def test_write_json_state(self):
         """Test writing a session with JSON state and verify output."""
         state_obj = {"another key": {"eg": 1}}
         session = Session(
@@ -105,7 +105,7 @@ class TestSessionSerializer:
         assert "another key" in saved_session.state
         assert saved_session.state["another key"] == {"eg": 1}
 
-    def test_delete_session(self, example_session: Session):
+    async def test_delete_session(self, example_session: Session):
         """Test deleting a session file."""
         session_to_delete = example_session.model_copy(deep=True)
         session_to_delete.id = "test-delete-session"
@@ -145,7 +145,7 @@ class TestSessionService:
         shutil.rmtree(cls.temp_dir_path)
         cls.logger_patcher.stop()
 
-    def test_list_delete_session(self):
+    async def test_list_delete_session(self):
         """Test listing and deleting sessions through the service."""
         s_info1 = {
             "app_name": "listdel_app",
@@ -157,10 +157,10 @@ class TestSessionService:
             "user_id": "listdel_user",
             "session_id": "s2",
         }
-        self.service.create_session(**s_info1, state={"key": "val1"})
-        self.service.create_session(**s_info2, state={"key": "val2"})
+        await self.service.create_session(**s_info1, state={"key": "val1"})
+        await self.service.create_session(**s_info2, state={"key": "val2"})
 
-        listed = self.service.list_sessions(
+        listed = await self.service.list_sessions(
             app_name=s_info1["app_name"],
             user_id=s_info1["user_id"],
         )
@@ -172,8 +172,8 @@ class TestSessionService:
             assert not s.state
             assert not s.events
 
-        self.service.delete_session(**s_info1)
-        listed_after_del = self.service.list_sessions(
+        await self.service.delete_session(**s_info1)
+        listed_after_del = await self.service.list_sessions(
             app_name=s_info1["app_name"],
             user_id=s_info1["user_id"],
         )
@@ -188,16 +188,16 @@ class TestSessionService:
         )
         assert not md_path_s1.is_file()
 
-    def test_get_non_existent_session(self):
+    async def test_get_non_existent_session(self):
         """Test getting a session that does not exist in memory or disk."""
-        session = self.service.get_session(
+        session = await self.service.get_session(
             app_name="no_app",
             user_id="no_user",
             session_id="no_session",
         )
         assert session is None
 
-    def test_md_session_service_uses_custom_serializer(self):
+    async def test_md_session_service_uses_custom_serializer(self):
         """Test that JSONSessionService uses the provided serializer instance."""
         mock_serializer_path = self.temp_dir_path / "custom_serialize_path"
         mock_serializer_path.mkdir(exist_ok=True)
@@ -220,11 +220,14 @@ class TestSessionService:
                 "user_id": "ser",
                 "session_id": "s1",
             }
-            created_session = service_with_mock.create_session(**s_info, state=None)
+            created_session = await service_with_mock.create_session(
+                **s_info,
+                state=None,
+            )
             mock_write.assert_called_once_with(session=created_session)
 
             service_with_mock.sessions.clear()
-            service_with_mock.get_session(**s_info, config=None)
+            await service_with_mock.get_session(**s_info, config=None)
             mock_read.assert_called_once_with(
                 app_name=s_info["app_name"],
                 user_id=s_info["user_id"],
@@ -232,13 +235,13 @@ class TestSessionService:
                 config=None,
             )
 
-    def test_create_get_append_session_roundtrip(self):
+    async def test_create_get_append_session_roundtrip(self):
         """Test create, get, and append operations with persistence."""
         app_name = "roundtrip_app"
         user_id = "roundtrip_user"
         session_id = "rt_session1"
 
-        created_session = self.service.create_session(
+        created_session = await self.service.create_session(
             app_name=app_name,
             user_id=user_id,
             session_id=session_id,
@@ -249,7 +252,7 @@ class TestSessionService:
 
         self.service.sessions.clear()
 
-        retrieved_session = self.service.get_session(
+        retrieved_session = await self.service.get_session(
             app_name=app_name,
             user_id=user_id,
             session_id=session_id,
@@ -262,7 +265,7 @@ class TestSessionService:
         event1_content = genai_types.Content(parts=[genai_types.Part(text="Hello")])
         event1 = Event(author="user", timestamp=1700000000, content=event1_content)
 
-        appended_event1 = self.service.append_event(
+        appended_event1 = await self.service.append_event(
             session=retrieved_session,
             event=event1,
         )
@@ -273,7 +276,7 @@ class TestSessionService:
 
         self.service.sessions.clear()
 
-        retrieved_session_after_append = self.service.get_session(
+        retrieved_session_after_append = await self.service.get_session(
             app_name=app_name,
             user_id=user_id,
             session_id=session_id,

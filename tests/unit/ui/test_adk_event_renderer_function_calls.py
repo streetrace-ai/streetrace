@@ -4,6 +4,9 @@ This module tests the rendering of events that contain function calls,
 including the formatting of function names, arguments, and syntax highlighting.
 """
 
+from google.adk.events import Event
+from google.genai.types import Content, FunctionCall, Part
+from rich.markdown import Markdown
 from rich.syntax import Syntax
 
 from streetrace.ui.adk_event_renderer import render_event
@@ -65,9 +68,6 @@ class TestFunctionCallRendering:
 
     def test_render_function_call_with_simple_args(self, mock_console, sample_author):
         """Test rendering function call with simple argument types."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, Part
-
         function_call = FunctionCall(
             name="simple_function",
             args={"string_arg": "hello", "number_arg": 42, "bool_arg": True},
@@ -93,9 +93,6 @@ class TestFunctionCallRendering:
 
     def test_render_function_call_with_complex_args(self, mock_console, sample_author):
         """Test rendering function call with complex nested arguments."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, Part
-
         complex_args = {
             "nested_dict": {"key1": "value1", "key2": {"nested": "value"}},
             "list_arg": [1, 2, "three"],
@@ -126,9 +123,6 @@ class TestFunctionCallRendering:
 
     def test_render_function_call_with_empty_args(self, mock_console, sample_author):
         """Test rendering function call with no arguments."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, Part
-
         function_call = FunctionCall(
             name="no_args_function",
             args={},
@@ -153,9 +147,6 @@ class TestFunctionCallRendering:
 
     def test_render_function_call_with_none_args(self, mock_console, sample_author):
         """Test rendering function call with None arguments."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, Part
-
         function_call = FunctionCall(
             name="none_args_function",
             args=None,
@@ -180,9 +171,6 @@ class TestFunctionCallRendering:
 
     def test_render_multiple_function_calls(self, mock_console, sample_author):
         """Test rendering event with multiple function calls."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, Part
-
         function_call_1 = FunctionCall(
             name="function_1",
             args={"arg": "value1"},
@@ -219,10 +207,6 @@ class TestFunctionCallRendering:
 
     def test_render_mixed_content_with_function_call(self, mock_console, sample_author):
         """Test rendering event with both text and function call parts."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, Part
-        from rich.markdown import Markdown
-
         text_part = Part(text="About to call a function:")
         function_call = FunctionCall(
             name="test_function",
@@ -261,9 +245,6 @@ class TestFunctionCallRendering:
         sample_author,
     ):
         """Test rendering function call with special characters in name and args."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, Part
-
         function_call = FunctionCall(
             name="special_function_with_underscores",
             args={"special_chars": "quotes'and\"backslashes\\", "unicode": "🚗💨"},
@@ -293,9 +274,6 @@ class TestFunctionCallRendering:
         sample_author,
     ):
         """Test that argument types are preserved in the rendered output."""
-        from google.adk.events import Event
-        from google.genai.types import Content, FunctionCall, Part
-
         # Test various Python types
         args_with_types = {
             "string": "text",

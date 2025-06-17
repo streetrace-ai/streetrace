@@ -19,7 +19,8 @@ def _trim_text(text: str, max_length: int = 200, max_lines: int = 2) -> str:
     lines = text.splitlines()
     lines_count = len(lines)
     if lines_count > max_lines:
-        lines = lines[: max_lines - 1] + [
+        lines = [
+            *lines[: max_lines - 1],
             f"({lines_count - max_lines + 1} lines trimmed)...",
         ]
     trimmed_lines = []
@@ -59,11 +60,10 @@ def render_event(obj: Event, console: Console) -> None:
                 )
 
             if part.function_call:
-                fn = part.function_call
                 console.print(
                     author,
                     Syntax(
-                        code=f"{fn.name}({fn.args})",
+                        code=f"{part.function_call.name}({part.function_call.args})",
                         lexer="python",
                         theme=Styles.RICH_TOOL_CALL,
                         line_numbers=False,
@@ -73,14 +73,14 @@ def render_event(obj: Event, console: Console) -> None:
                 )
 
             if part.function_response:
-                fn = part.function_response
-                if fn.response:
+                resp = part.function_response
+                if resp.response:
                     console.print(
                         Syntax(
                             code="\n".join(
                                 [
-                                    f"  ↳ {key}: {_trim_text(str(fn.response[key]))}"
-                                    for key in fn.response
+                                    f"  ↳ {key}: {_trim_text(str(resp.response[key]))}"
+                                    for key in resp.response
                                 ],
                             ),
                             lexer="python",

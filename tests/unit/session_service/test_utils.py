@@ -3,9 +3,15 @@
 from unittest.mock import Mock, patch
 
 import pytest
+from google.adk.sessions import Session
+from google.adk.sessions.base_session_service import ListSessionsResponse
 from rich.console import Console
 
-from streetrace.session_service import DisplaySessionsList, _session_id
+from streetrace.session_service import (
+    DisplaySessionsList,
+    _session_id,
+    render_list_of_sessions,
+)
 
 
 def test_session_id_with_user_provided_id():
@@ -39,8 +45,6 @@ class TestDisplaySessionsList:
     @pytest.fixture
     def empty_sessions_list(self):
         """Create an empty sessions list."""
-        from google.adk.sessions.base_session_service import ListSessionsResponse
-
         return DisplaySessionsList(
             app_name="test-app",
             user_id="test-user",
@@ -50,9 +54,6 @@ class TestDisplaySessionsList:
     @pytest.fixture
     def populated_sessions_list(self):
         """Create a populated sessions list."""
-        from google.adk.sessions import Session
-        from google.adk.sessions.base_session_service import ListSessionsResponse
-
         sessions = [
             Session(
                 id="session1",
@@ -76,8 +77,6 @@ class TestDisplaySessionsList:
 
     def test_render_list_of_sessions_empty(self, empty_sessions_list, mock_console):
         """Test rendering an empty sessions list."""
-        from streetrace.session_service import render_list_of_sessions
-
         # Use a patch to check what's being printed without actually printing
         with patch.object(mock_console, "print") as mock_print:
             render_list_of_sessions(empty_sessions_list, mock_console)
@@ -95,8 +94,6 @@ class TestDisplaySessionsList:
         mock_console,
     ):
         """Test rendering a populated sessions list."""
-        from streetrace.session_service import render_list_of_sessions
-
         # Use a patch to check what's being printed without actually printing
         with patch.object(mock_console, "print") as mock_print:
             render_list_of_sessions(populated_sessions_list, mock_console)

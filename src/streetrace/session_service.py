@@ -203,7 +203,7 @@ class JSONSessionSerializer:
 
 
 # TODO(krmrn42): composition instead of inheritance
-class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
+class JSONSessionService(InMemorySessionService):
     """ADK Session Service that combines in-memory and json storage."""
 
     def __init__(
@@ -212,7 +212,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         serializer: JSONSessionSerializer | None = None,
     ) -> None:
         """Initialize a new instance of JSONSessionService."""
-        super().__init__()
+        super().__init__()  # type: ignore[no-untyped-call]
         self.serializer = serializer or JSONSessionSerializer(storage_path=storage_path)
         logger.info(
             "JSONSessionService initialized with storage path: %s",
@@ -220,7 +220,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         )
 
     @override
-    def get_session(
+    async def get_session(
         self,
         *,
         app_name: str,
@@ -229,7 +229,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         config: GetSessionConfig | None = None,
     ) -> Session | None:
         """Get a session, trying memory first, then falling back to storage."""
-        session = super().get_session(
+        session = await super().get_session(
             app_name=app_name,
             user_id=user_id,
             session_id=session_id,
@@ -242,7 +242,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
                 app_name,
                 user_id,
             )
-            return self.validate(session)
+            return await self.validate(session)
 
         logger.debug(
             "Session %s not in memory, trying storage for %s/%s.",
@@ -273,7 +273,11 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
             user_id,
         )
 
-        session = self.validate(session)
+        session = await self.validate(session)
+
+        if session is None:
+            msg = "Session not found (this is unexpected)."
+            raise ValueError(msg)
 
         if app_name not in self.sessions:
             self.sessions[app_name] = {}
@@ -284,7 +288,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         self.sessions[app_name][user_id][session_id] = in_memory_session
         return self._merge_state(app_name, user_id, copy.deepcopy(session))
 
-    def validate(self, session: Session) -> Session:
+    async def validate(self, session: Session) -> Session | None:
         """Validate session fixing issues that are known to cause LLM call failure.
 
         Currently:
@@ -339,13 +343,13 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         if errors_found == 0:
             return session
 
-        return self.replace_events(
+        return await self.replace_events(
             session=session,
             new_events=new_events,
         )
 
     @override
-    def create_session(
+    async def create_session(
         self,
         *,
         app_name: str,
@@ -354,7 +358,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         session_id: str | None = None,
     ) -> Session:
         """Create a session in memory and writes it to storage."""
-        session = super().create_session(
+        session = await super().create_session(
             app_name=app_name,
             user_id=user_id,
             state=state,
@@ -369,13 +373,13 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         self.serializer.write(session=session)
         return session
 
-    def replace_events(
+    async def replace_events(
         self,
         *,
         session: Session,
         new_events: list[Event],
         start_at: int = 0,
-    ) -> Session:
+    ) -> Session | None:
         """Replace events in this session starting at `start_at`.
 
         Create a new session overwriting the existing session. The new session contains
@@ -390,28 +394,33 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
             The new session object.
 
         """
-        new_session = super().create_session(
+        new_session = await super().create_session(
             app_name=session.app_name,
             user_id=session.user_id,
             session_id=session.id,
             state=session.state,
         )
         for i in range(start_at):
-            super().append_event(new_session, session.events[i])
+            await super().append_event(new_session, session.events[i])
         for event in new_events:
-            super().append_event(new_session, event)
-        new_session = super().get_session(
+            await super().append_event(new_session, event)
+        updated_session = await super().get_session(
             app_name=session.app_name,
             user_id=session.user_id,
             session_id=session.id,
         )
+        if not updated_session:
+            msg = "The session has been created above, and now missing"
+            raise AssertionError(msg)
+        new_session = updated_session
         # TODO(krmrn42): Restore session in try..except
         #   (easier to do if we compose instead of inherit).
-        self.serializer.write(new_session)
+        if new_session is not None:
+            self.serializer.write(new_session)
         return new_session
 
     @override
-    def list_sessions(
+    async def list_sessions(
         self,
         *,
         app_name: str,
@@ -423,7 +432,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         return ListSessionsResponse(sessions=list(sessions_iter))
 
     @override
-    def delete_session(
+    async def delete_session(
         self,
         *,
         app_name: str,
@@ -431,7 +440,7 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         session_id: str,
     ) -> None:
         """Delete a session from memory and storage."""
-        super().delete_session(
+        await super().delete_session(
             app_name=app_name,
             user_id=user_id,
             session_id=session_id,
@@ -449,13 +458,13 @@ class JSONSessionService(InMemorySessionService):  # type: ignore[misc]
         )
 
     @override
-    def append_event(
+    async def append_event(
         self,
         session: Session,
         event: Event,
     ) -> Event:
         """Append an event to a session in memory and updates the storage."""
-        evt = super().append_event(
+        evt = await super().append_event(
             session=session,
             event=event,
         )
@@ -518,24 +527,24 @@ class SessionManager:
         """
         self.current_session_id = _session_id(new_id)
 
-    def get_current_session(self) -> Session | None:
+    async def get_current_session(self) -> Session | None:
         """Create the ADK agent session with empty state or get existing session."""
-        return self.session_service.get_session(
+        return await self.session_service.get_session(
             app_name=self.app_name,
             user_id=self.user_id,
             session_id=self.current_session_id,
         )
 
-    def get_or_create_session(self) -> Session:
+    async def get_or_create_session(self) -> Session:
         """Create the ADK agent session with empty state or get existing session."""
         session_id = self.current_session_id
-        session = self.session_service.get_session(
+        session = await self.session_service.get_session(
             app_name=self.app_name,
             user_id=self.user_id,
             session_id=session_id,
         )
         if not session:
-            session = self.session_service.create_session(
+            session = await self.session_service.create_session(
                 app_name=self.app_name,
                 user_id=self.user_id,
                 session_id=session_id,
@@ -552,8 +561,8 @@ class SessionManager:
                     ],
                 ),
             )
-            self.session_service.append_event(session, context_event)
-            session = self.session_service.get_session(
+            await self.session_service.append_event(session, context_event)
+            session = await self.session_service.get_session(
                 app_name=self.app_name,
                 user_id=self.user_id,
                 session_id=session_id,
@@ -565,10 +574,10 @@ class SessionManager:
         self.current_session = session
         return session
 
-    def replace_current_session_events(self, new_events: list[Event]) -> None:
+    async def replace_current_session_events(self, new_events: list[Event]) -> None:
         """Replace events in the current session re-creating context events."""
         session_id = self.current_session_id
-        current_session = self.session_service.get_session(
+        current_session = await self.session_service.get_session(
             app_name=self.app_name,
             user_id=self.user_id,
             session_id=session_id,
@@ -577,14 +586,14 @@ class SessionManager:
             msg = "Current session is missing."
             raise ValueError(msg)
 
-        self.session_service.replace_events(
+        await self.session_service.replace_events(
             session=current_session,
             new_events=new_events,
         )
 
-    def display_sessions(self) -> None:
+    async def display_sessions(self) -> None:
         """List all available sessions for the current user and app."""
-        sessions_response = self.session_service.list_sessions(
+        sessions_response = await self.session_service.list_sessions(
             app_name=self.app_name,
             user_id=self.user_id,
         )
@@ -597,7 +606,7 @@ class SessionManager:
 
         self.ui_bus.dispatch_ui_update(display_list)
 
-    def _squash_turn_events(
+    async def _squash_turn_events(
         self,
         session: Session,
     ) -> str:
@@ -634,7 +643,7 @@ class SessionManager:
             assistant_final_response = "".join(
                 [part.text for part in last_event.content.parts if part.text],
             )
-        self.session_service.replace_events(
+        await self.session_service.replace_events(
             session=session,
             new_events=keep_events,
         )
@@ -669,7 +678,7 @@ class SessionManager:
             assistant_response,
         )
 
-    def post_process(
+    async def post_process(
         self,
         processed_prompt: ProcessedPrompt | None,
         original_session: Session,
@@ -687,8 +696,7 @@ class SessionManager:
             original_session: The original session.
 
         """
-        # TODO(krmrn42): Somewhere in this process we lose user's message
-        session = self.session_service.get_session(
+        session = await self.session_service.get_session(
             app_name=original_session.app_name,
             user_id=original_session.user_id,
             session_id=original_session.id,
@@ -697,7 +705,7 @@ class SessionManager:
             msg = "Session not found."
             raise ValueError(msg)
 
-        assistant_response = self._squash_turn_events(session)
+        assistant_response = await self._squash_turn_events(session)
 
         self._add_project_context(
             processed_prompt=processed_prompt,

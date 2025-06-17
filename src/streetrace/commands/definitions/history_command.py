@@ -95,12 +95,12 @@ def _render_message_content(msg: Event) -> Group:
 
             # Handle function calls
             if part.function_call:
-                fn = part.function_call
+                call = part.function_call
                 # Truncate function arguments to improve readability
-                truncated_args = _truncate_value(fn.args, _MAX_FUNCTION_ARG_LENGTH)
+                truncated_args = _truncate_value(call.args, _MAX_FUNCTION_ARG_LENGTH)
                 group.renderables.append(
                     Syntax(
-                        code=f"{fn.name}({truncated_args})",
+                        code=f"{call.name}({truncated_args})",
                         lexer="python",
                         theme=Styles.RICH_TOOL_CALL,
                         line_numbers=False,
@@ -110,12 +110,12 @@ def _render_message_content(msg: Event) -> Group:
 
             # Handle function responses
             if part.function_response:
-                fn = part.function_response
-                if fn.response:
+                resp = part.function_response
+                if resp.response:
                     response_lines = []
-                    for key in fn.response:
+                    for key in resp.response:
                         value = _truncate_value(
-                            fn.response[key],
+                            resp.response[key],
                             _MAX_RESPONSE_VALUE_LENGTH,
                         )
                         response_lines.append(f"  ↳ {key}: {value}")
@@ -214,7 +214,7 @@ class HistoryCommand(Command):
         logger.info("Executing history command.")
         system = self.system_context.get_system_message()
         context = self.system_context.get_project_context()
-        session = self.session_manager.get_current_session()
+        session = await self.session_manager.get_current_session()
         if session:
             self.ui_bus.dispatch_ui_update(
                 _DisplayHistory(

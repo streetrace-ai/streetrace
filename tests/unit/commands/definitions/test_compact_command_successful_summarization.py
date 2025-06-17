@@ -4,7 +4,7 @@ This module tests the successful path where CompactCommand has history to summar
 successfully gets LLM summary, and properly replaces session events.
 """
 
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from google.adk.events import Event
@@ -86,7 +86,9 @@ class TestCompactCommandSuccessfulSummarization:
 
         session = Mock(spec=Session)
         session.events = events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock successful LLM response
         mock_response = Mock()
@@ -171,7 +173,9 @@ class TestCompactCommandSuccessfulSummarization:
 
         session = Mock(spec=Session)
         session.events = events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock successful LLM response
         mock_response = Mock()
@@ -229,7 +233,9 @@ class TestCompactCommandSuccessfulSummarization:
 
         session = Mock(spec=Session)
         session.events = events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock successful LLM response
         mock_response = Mock()
@@ -279,7 +285,9 @@ class TestCompactCommandSuccessfulSummarization:
 
         session = Mock(spec=Session)
         session.events = events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock successful LLM response
         mock_response = Mock()
@@ -335,7 +343,9 @@ class TestCompactCommandSuccessfulSummarization:
 
         session = Mock(spec=Session)
         session.events = events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock successful LLM response
         mock_response = Mock()

@@ -96,7 +96,7 @@ class Application:
         """Start the application execution based on provided arguments."""
         # If only listing sessions, we don't need to run the input loop
         if self.args.list_sessions:
-            self.session_manager.display_sessions()
+            await self.session_manager.display_sessions()
             raise SystemExit
 
         if self.args.prompt or self.args.arbitrary_prompt:

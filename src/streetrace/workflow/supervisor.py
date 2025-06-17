@@ -63,9 +63,9 @@ class Supervisor:
 
         content = genai_types.Content(role="user", parts=parts) if parts else None
 
-        final_response_text = "Agent did not produce a final response."  # Default
+        final_response_text: str | None = "Agent did not produce a final response."
 
-        session = self.session_manager.get_or_create_session()
+        session = await self.session_manager.get_or_create_session()
         async with self.agent_manager.create_agent("default") as root_agent:
             runner = Runner(
                 app_name=session.app_name,
@@ -78,7 +78,7 @@ class Supervisor:
             async for event in runner.run_async(
                 user_id=session.user_id,
                 session_id=session.id,
-                new_message=content,  # type: ignore[unused-ignore]
+                new_message=content,  # type: ignore[arg-type] # base lacks precision
             ):
                 self.ui_bus.dispatch_ui_update(event)
 
@@ -104,7 +104,7 @@ class Supervisor:
 
         # Add the agent's final message to the history
         if final_response_text:
-            self.session_manager.post_process(
+            await self.session_manager.post_process(
                 processed_prompt=payload,
                 original_session=session,
             )

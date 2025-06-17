@@ -21,7 +21,7 @@ from streetrace.session_service import JSONSessionService
 class TestSessionValidation:
     """Test the validate method behavior."""
 
-    def test_validate_returns_same_instance_for_valid_sessions(
+    async def test_validate_returns_same_instance_for_valid_sessions(
         self,
         json_session_service: JSONSessionService,
         sample_session: Session,
@@ -32,16 +32,16 @@ class TestSessionValidation:
         # Test with empty session
         empty_session = sample_session.model_copy(deep=True)
         empty_session.events = []
-        result = json_session_service.validate(empty_session)
+        result = await json_session_service.validate(empty_session)
         assert result is empty_session
 
         # Test with text-only events
         text_session = sample_session.model_copy(deep=True)
         text_session.events = [user_event, text_only_event]
-        result = json_session_service.validate(text_session)
+        result = await json_session_service.validate(text_session)
         assert result is text_session
 
-    def test_validate_returns_same_instance_for_valid_function_pairs(  # noqa: PLR0913
+    async def test_validate_returns_same_instance_for_valid_function_pairs(  # noqa: PLR0913
         self,
         json_session_service: JSONSessionService,
         sample_session: Session,
@@ -60,10 +60,10 @@ class TestSessionValidation:
             text_only_event,
         ]
 
-        result = json_session_service.validate(session)
+        result = await json_session_service.validate(session)
         assert result is session
 
-    def test_validate_returns_corrected_copy_for_orphaned_function_call(
+    async def test_validate_returns_corrected_copy_for_orphaned_function_call(
         self,
         json_session_service: JSONSessionService,
         sample_session: Session,
@@ -89,7 +89,7 @@ class TestSessionValidation:
             "replace_events",
             return_value=corrected_session,
         ) as mock_replace:
-            result = json_session_service.validate(session)
+            result = await json_session_service.validate(session)
 
             # Should call replace_events
             mock_replace.assert_called_once()
@@ -98,7 +98,7 @@ class TestSessionValidation:
             assert result is corrected_session
             assert result is not session
 
-    def test_validate_returns_corrected_copy_for_orphaned_function_response(
+    async def test_validate_returns_corrected_copy_for_orphaned_function_response(
         self,
         json_session_service: JSONSessionService,
         sample_session: Session,
@@ -124,7 +124,7 @@ class TestSessionValidation:
             "replace_events",
             return_value=corrected_session,
         ) as mock_replace:
-            result = json_session_service.validate(session)
+            result = await json_session_service.validate(session)
 
             # Should call replace_events
             mock_replace.assert_called_once()
@@ -133,7 +133,7 @@ class TestSessionValidation:
             assert result is corrected_session
             assert result is not session
 
-    def test_validate_returns_corrected_copy_for_separated_call_response(  # noqa: PLR0913
+    async def test_validate_returns_corrected_copy_for_separated_call_response(  # noqa: PLR0913
         self,
         json_session_service: JSONSessionService,
         sample_session: Session,
@@ -161,7 +161,7 @@ class TestSessionValidation:
             "replace_events",
             return_value=corrected_session,
         ) as mock_replace:
-            result = json_session_service.validate(session)
+            result = await json_session_service.validate(session)
 
             # Should call replace_events
             mock_replace.assert_called_once()
@@ -170,7 +170,7 @@ class TestSessionValidation:
             assert result is corrected_session
             assert result is not session
 
-    def test_validate_handles_mixed_content_events(  # noqa: PLR0913
+    async def test_validate_handles_mixed_content_events(  # noqa: PLR0913
         self,
         json_session_service: JSONSessionService,
         sample_session: Session,
@@ -189,10 +189,10 @@ class TestSessionValidation:
             text_only_event,
         ]
 
-        result = json_session_service.validate(session)
+        result = await json_session_service.validate(session)
         assert result is session  # Should be valid
 
-    def test_validate_handles_empty_content_events(
+    async def test_validate_handles_empty_content_events(
         self,
         json_session_service: JSONSessionService,
         sample_session: Session,
@@ -210,10 +210,10 @@ class TestSessionValidation:
             empty_content_event,
         ]
 
-        result = json_session_service.validate(session)
+        result = await json_session_service.validate(session)
         assert result is session  # Should be valid (no function calls to validate)
 
-    def test_validate_complex_scenario_with_multiple_errors(  # noqa: PLR0913
+    async def test_validate_complex_scenario_with_multiple_errors(  # noqa: PLR0913
         self,
         json_session_service: JSONSessionService,
         sample_session: Session,
@@ -265,7 +265,7 @@ class TestSessionValidation:
             "replace_events",
             return_value=corrected_session,
         ) as mock_replace:
-            result = json_session_service.validate(session)
+            result = await json_session_service.validate(session)
 
             # Should call replace_events
             mock_replace.assert_called_once()

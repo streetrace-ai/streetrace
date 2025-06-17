@@ -19,7 +19,7 @@ class RendererFn(Protocol[T_Protocol_contra]):
 _display_renderers_registry: dict[type, RendererFn[Any]] = {}
 
 
-def register_renderer(
+def register_renderer[T_Protocol_contra](
     protocol: RendererFn[T_Protocol_contra],
 ) -> RendererFn[T_Protocol_contra]:
     """Add a renderer to registry so it can be used in ConsoleUI."""

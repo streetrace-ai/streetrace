@@ -43,7 +43,7 @@ def mock_street_race_agent_base():
 def create_agent_module():
     """Fixture to create a mock agent module with custom classes."""
 
-    def _create_module(name="test_agent_module", include_agent=True):  # noqa: FBT002
+    def _create_module(name="test_agent_module", include_agent=True):
         """Create a module with optional agent class.
 
         Args:
@@ -77,7 +77,7 @@ def create_agent_module():
                         version="1.0.0",
                     )
 
-                async def create_agent(self, model_factory, tools):  # noqa: ARG002
+                async def create_agent(self, model_factory, tools, system_context):  # noqa: ARG002
                     """Create the agent."""
                     return MagicMock()
 
@@ -85,7 +85,7 @@ def create_agent_module():
             TestAgent.__module__ = name
 
             # Add the class to the module
-            module.TestAgent = TestAgent
+            module.TestAgent = TestAgent  # type: ignore[attr-defined]
 
         return module
 

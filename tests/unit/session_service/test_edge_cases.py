@@ -1,6 +1,6 @@
 """Tests for edge cases and uncovered lines in session_service.py."""
 
-from unittest.mock import ANY, Mock, patch
+from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import pytest
 from google.adk.events import Event
@@ -13,7 +13,7 @@ from streetrace.session_service import JSONSessionSerializer
 class TestJSONSessionSerializerEdgeCases:
     """Tests for edge cases in JSONSessionSerializer."""
 
-    def test_list_saved_empty_session(self, session_storage_dir):
+    async def test_list_saved_empty_session(self, session_storage_dir):
         """Test list_saved when a session is None."""
         serializer = JSONSessionSerializer(storage_path=session_storage_dir)
 
@@ -45,7 +45,7 @@ class TestJSONSessionSerializerEdgeCases:
                 ANY,
             )
 
-    def test_list_saved_with_non_file(self, session_storage_dir):
+    async def test_list_saved_with_non_file(self, session_storage_dir):
         """Test list_saved with a non-file in the directory."""
         serializer = JSONSessionSerializer(storage_path=session_storage_dir)
 
@@ -67,7 +67,7 @@ class TestJSONSessionSerializerEdgeCases:
         # Verify no sessions were returned
         assert len(sessions) == 0
 
-    def test_list_saved_empty_dir(self, session_storage_dir):
+    async def test_list_saved_empty_dir(self, session_storage_dir):
         """Test list_saved with a directory that doesn't exist."""
         serializer = JSONSessionSerializer(storage_path=session_storage_dir)
 
@@ -86,7 +86,7 @@ class TestJSONSessionSerializerEdgeCases:
 class TestSessionManagerEdgeCases:
     """Tests for edge cases in SessionManager."""
 
-    def test_get_or_create_session_assertion_error(
+    async def test_get_or_create_session_assertion_error(
         self,
         session_manager,
         json_session_service,
@@ -95,23 +95,23 @@ class TestSessionManagerEdgeCases:
         """Test get_or_create_session when session is None after creation."""
         # Setup mocks to simulate creating a session but then getting None when
         # retrieving it
-        json_session_service.get_session = Mock(side_effect=[None, None])
-        json_session_service.create_session = Mock(return_value=Mock(spec=Session))
-        json_session_service.append_event = Mock()
+        json_session_service.get_session = AsyncMock(side_effect=[None, None])
+        json_session_service.create_session = AsyncMock(return_value=Mock(spec=Session))
+        json_session_service.append_event = AsyncMock()
 
         # Mock system context
         system_context.get_project_context.return_value = ["Test project context"]
 
         # Test the assertion error case
         with pytest.raises(AssertionError, match="session is None"):
-            session_manager.get_or_create_session()
+            await session_manager.get_or_create_session()
 
         # Verify the methods were called correctly
         json_session_service.create_session.assert_called_once()
         json_session_service.append_event.assert_called_once()
         assert json_session_service.get_session.call_count == 2
 
-    def test_squash_turn_events_no_tools(
+    async def test_squash_turn_events_no_tools(
         self,
         session_manager,
         json_session_service,
@@ -145,10 +145,10 @@ class TestSessionManagerEdgeCases:
         session_with_events.events = [user_event, assistant_event]
 
         # Mock replace_events
-        json_session_service.replace_events = Mock()
+        json_session_service.replace_events = AsyncMock()
 
         # Call _squash_turn_events - this should not raise an exception
-        result = session_manager._squash_turn_events(session_with_events)  # noqa: SLF001
+        result = await session_manager._squash_turn_events(session_with_events)  # noqa: SLF001
 
         # Verify replace_events was called and the text was extracted correctly
         json_session_service.replace_events.assert_called_once_with(
