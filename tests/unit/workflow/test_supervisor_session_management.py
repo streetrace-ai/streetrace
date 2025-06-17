@@ -16,7 +16,7 @@ class TestSupervisorSessionManagement:
     """Test Supervisor session management scenarios."""
 
     @pytest.mark.asyncio
-    async def test_get_or_create_session_called(
+    async def test_get_or_create_session_called_once(
         self,
         mock_session_manager,
         shallow_supervisor: Supervisor,
@@ -44,6 +44,34 @@ class TestSupervisorSessionManagement:
         shallow_supervisor.session_manager.get_or_create_session.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_validate_session_called_once(
+        self,
+        mock_session_manager,
+        shallow_supervisor: Supervisor,
+        mock_session,
+        mock_adk_runner,
+    ) -> None:
+        """Test that get_or_create_session is properly called."""
+        # Arrange
+        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+
+        shallow_supervisor.session_manager.validate_session = AsyncMock(
+            return_value=mock_session,
+        )
+
+        with patch(
+            "streetrace.workflow.supervisor.Runner",
+            return_value=mock_adk_runner(),
+        ):
+            # Act
+            await shallow_supervisor.run_async(prompt)
+
+        # Assert
+        shallow_supervisor.session_manager.validate_session.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_session_properties_used_in_runner(
         self,
         mock_session_manager,
@@ -65,7 +93,7 @@ class TestSupervisorSessionManagement:
         custom_session.user_id = "custom_user"
         custom_session.id = "custom_session_123"
 
-        shallow_supervisor.session_manager.get_or_create_session = AsyncMock(
+        shallow_supervisor.session_manager.validate_session = AsyncMock(
             return_value=custom_session,
         )
 
@@ -108,9 +136,7 @@ class TestSupervisorSessionManagement:
 
         shallow_supervisor.session_manager = mock_session_manager
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
             "streetrace.workflow.supervisor.Runner",
@@ -140,9 +166,7 @@ class TestSupervisorSessionManagement:
 
         shallow_supervisor.session_manager = mock_session_manager
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         # Mock escalation event
         events = [events_mocker(escalate=True, content="Escalation needed")]
@@ -174,9 +198,7 @@ class TestSupervisorSessionManagement:
 
         shallow_supervisor.session_manager = mock_session_manager
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         # Mock only non-final events
         events = [events_mocker(is_final_response=False)]
@@ -209,9 +231,7 @@ class TestSupervisorSessionManagement:
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
             "streetrace.workflow.supervisor.Runner",
@@ -238,9 +258,7 @@ class TestSupervisorSessionManagement:
         """Test that post_process handles None payload correctly."""
         shallow_supervisor.session_manager = mock_session_manager
         # Arrange
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
             "streetrace.workflow.supervisor.Runner",

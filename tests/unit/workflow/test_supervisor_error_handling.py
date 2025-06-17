@@ -116,7 +116,7 @@ class TestSupervisorErrorHandling:
         assert not shallow_supervisor.session_manager.post_process.called
 
     @pytest.mark.asyncio
-    async def test_ui_dispatch_failure_does_not_stop_processing(  # noqa: PLR0913
+    async def test_ui_dispatch_failure_does_not_stop_processing(
         self,
         mock_ui_bus,
         mock_session_manager,
@@ -162,7 +162,7 @@ class TestSupervisorErrorHandling:
             await shallow_supervisor.run_async(prompt)
 
     @pytest.mark.asyncio
-    async def test_post_process_failure(  # noqa: PLR0913
+    async def test_post_process_failure(
         self,
         mock_session_manager,
         mock_agent_manager,
@@ -287,7 +287,7 @@ class TestSupervisorErrorHandling:
         shallow_supervisor.agent_manager.create_agent.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_event_processing_with_missing_attributes(  # noqa: PLR0913
+    async def test_event_processing_with_missing_attributes(
         self,
         mock_session_manager,
         mock_agent_manager,

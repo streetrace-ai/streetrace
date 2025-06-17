@@ -19,6 +19,8 @@ class TestSupervisorAgentInteraction:
     @pytest.mark.asyncio
     async def test_agent_creation_and_cleanup(
         self,
+        mock_session_manager,
+        mock_agent_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -27,9 +29,10 @@ class TestSupervisorAgentInteraction:
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
             "streetrace.workflow.supervisor.Runner",
@@ -48,6 +51,8 @@ class TestSupervisorAgentInteraction:
     @pytest.mark.asyncio
     async def test_runner_initialization_and_execution(
         self,
+        mock_session_manager,
+        mock_agent_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -56,9 +61,10 @@ class TestSupervisorAgentInteraction:
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         mock_runner = mock_adk_runner()
 
@@ -82,6 +88,9 @@ class TestSupervisorAgentInteraction:
     @pytest.mark.asyncio
     async def test_multiple_events_before_final_response(
         self,
+        mock_session_manager,
+        mock_agent_manager,
+        mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -90,6 +99,10 @@ class TestSupervisorAgentInteraction:
         """Test processing multiple events before reaching final response."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Complex request", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -121,6 +134,9 @@ class TestSupervisorAgentInteraction:
     @pytest.mark.asyncio
     async def test_agent_escalation_handling(
         self,
+        mock_session_manager,
+        mock_agent_manager,
+        mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -129,6 +145,10 @@ class TestSupervisorAgentInteraction:
         """Test handling agent escalation responses."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Problematic request", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -152,6 +172,9 @@ class TestSupervisorAgentInteraction:
     @pytest.mark.asyncio
     async def test_agent_no_final_response(
         self,
+        mock_session_manager,
+        mock_agent_manager,
+        mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -160,6 +183,10 @@ class TestSupervisorAgentInteraction:
         """Test handling when agent produces no final response."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Request without response", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -186,6 +213,9 @@ class TestSupervisorAgentInteraction:
     @pytest.mark.asyncio
     async def test_final_response_with_no_content_parts(
         self,
+        mock_session_manager,
+        mock_agent_manager,
+        mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -194,6 +224,10 @@ class TestSupervisorAgentInteraction:
         """Test handling final response with content but no parts."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Test request", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session

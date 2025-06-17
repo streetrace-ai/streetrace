@@ -9,13 +9,11 @@ Key scenarios tested:
 2. Invalid sessions return a corrected copy via replace_events
 """
 
-from unittest.mock import patch
-
 from google.adk.events import Event
 from google.adk.sessions import Session
 from google.genai import types as genai_types
 
-from streetrace.session_service import JSONSessionService
+from streetrace.session_service import SessionManager
 
 
 class TestSessionValidation:
@@ -23,7 +21,7 @@ class TestSessionValidation:
 
     async def test_validate_returns_same_instance_for_valid_sessions(
         self,
-        json_session_service: JSONSessionService,
+        shallow_session_manager: SessionManager,
         sample_session: Session,
         user_event: Event,
         text_only_event: Event,
@@ -32,18 +30,18 @@ class TestSessionValidation:
         # Test with empty session
         empty_session = sample_session.model_copy(deep=True)
         empty_session.events = []
-        result = await json_session_service.validate(empty_session)
+        result = await shallow_session_manager.validate_session(empty_session)
         assert result is empty_session
 
         # Test with text-only events
         text_session = sample_session.model_copy(deep=True)
         text_session.events = [user_event, text_only_event]
-        result = await json_session_service.validate(text_session)
+        result = await shallow_session_manager.validate_session(text_session)
         assert result is text_session
 
-    async def test_validate_returns_same_instance_for_valid_function_pairs(  # noqa: PLR0913
+    async def test_validate_returns_same_instance_for_valid_function_pairs(
         self,
-        json_session_service: JSONSessionService,
+        shallow_session_manager: SessionManager,
         sample_session: Session,
         user_event: Event,
         function_call_event: Event,
@@ -60,12 +58,13 @@ class TestSessionValidation:
             text_only_event,
         ]
 
-        result = await json_session_service.validate(session)
+        result = await shallow_session_manager.validate_session(session)
         assert result is session
 
     async def test_validate_returns_corrected_copy_for_orphaned_function_call(
         self,
-        json_session_service: JSONSessionService,
+        shallow_session_manager: SessionManager,
+        mock_json_session_service,
         sample_session: Session,
         user_event: Event,
         function_call_event: Event,
@@ -84,23 +83,20 @@ class TestSessionValidation:
         corrected_session = sample_session.model_copy(deep=True)
         corrected_session.events = [user_event, text_only_event]
 
-        with patch.object(
-            json_session_service,
-            "replace_events",
-            return_value=corrected_session,
-        ) as mock_replace:
-            result = await json_session_service.validate(session)
+        mock_json_session_service.replace_events.return_value = corrected_session
+        result = await shallow_session_manager.validate_session(session)
 
-            # Should call replace_events
-            mock_replace.assert_called_once()
+        # Should call replace_events
+        mock_json_session_service.replace_events.assert_called_once()
 
-            # Should return corrected session, not original
-            assert result is corrected_session
-            assert result is not session
+        # Should return corrected session, not original
+        assert result is corrected_session
+        assert result is not session
 
     async def test_validate_returns_corrected_copy_for_orphaned_function_response(
         self,
-        json_session_service: JSONSessionService,
+        shallow_session_manager: SessionManager,
+        mock_json_session_service,
         sample_session: Session,
         user_event: Event,
         function_response_event: Event,
@@ -119,23 +115,20 @@ class TestSessionValidation:
         corrected_session = sample_session.model_copy(deep=True)
         corrected_session.events = [user_event, text_only_event]
 
-        with patch.object(
-            json_session_service,
-            "replace_events",
-            return_value=corrected_session,
-        ) as mock_replace:
-            result = await json_session_service.validate(session)
+        mock_json_session_service.replace_events.return_value = corrected_session
+        result = await shallow_session_manager.validate_session(session)
 
-            # Should call replace_events
-            mock_replace.assert_called_once()
+        # Should call replace_events
+        mock_json_session_service.replace_events.assert_called_once()
 
-            # Should return corrected session, not original
-            assert result is corrected_session
-            assert result is not session
+        # Should return corrected session, not original
+        assert result is corrected_session
+        assert result is not session
 
-    async def test_validate_returns_corrected_copy_for_separated_call_response(  # noqa: PLR0913
+    async def test_validate_returns_corrected_copy_for_separated_call_response(
         self,
-        json_session_service: JSONSessionService,
+        shallow_session_manager: SessionManager,
+        mock_json_session_service,
         sample_session: Session,
         user_event: Event,
         function_call_event: Event,
@@ -156,23 +149,19 @@ class TestSessionValidation:
         corrected_session = sample_session.model_copy(deep=True)
         corrected_session.events = [user_event, text_only_event]
 
-        with patch.object(
-            json_session_service,
-            "replace_events",
-            return_value=corrected_session,
-        ) as mock_replace:
-            result = await json_session_service.validate(session)
+        mock_json_session_service.replace_events.return_value = corrected_session
+        result = await shallow_session_manager.validate_session(session)
 
-            # Should call replace_events
-            mock_replace.assert_called_once()
+        # Should call replace_events
+        mock_json_session_service.replace_events.assert_called_once()
 
-            # Should return corrected session, not original
-            assert result is corrected_session
-            assert result is not session
+        # Should return corrected session, not original
+        assert result is corrected_session
+        assert result is not session
 
-    async def test_validate_handles_mixed_content_events(  # noqa: PLR0913
+    async def test_validate_handles_mixed_content_events(
         self,
-        json_session_service: JSONSessionService,
+        shallow_session_manager: SessionManager,
         sample_session: Session,
         user_event: Event,
         mixed_content_event: Event,
@@ -189,12 +178,12 @@ class TestSessionValidation:
             text_only_event,
         ]
 
-        result = await json_session_service.validate(session)
+        result = await shallow_session_manager.validate_session(session)
         assert result is session  # Should be valid
 
     async def test_validate_handles_empty_content_events(
         self,
-        json_session_service: JSONSessionService,
+        shallow_session_manager: SessionManager,
         sample_session: Session,
         user_event: Event,
         empty_content_event: Event,
@@ -210,12 +199,13 @@ class TestSessionValidation:
             empty_content_event,
         ]
 
-        result = await json_session_service.validate(session)
+        result = await shallow_session_manager.validate_session(session)
         assert result is session  # Should be valid (no function calls to validate)
 
-    async def test_validate_complex_scenario_with_multiple_errors(  # noqa: PLR0913
+    async def test_validate_complex_scenario_with_multiple_errors(
         self,
-        json_session_service: JSONSessionService,
+        shallow_session_manager: SessionManager,
+        mock_json_session_service,
         sample_session: Session,
         user_event: Event,
         function_call_event: Event,
@@ -260,16 +250,12 @@ class TestSessionValidation:
             text_only_event,
         ]
 
-        with patch.object(
-            json_session_service,
-            "replace_events",
-            return_value=corrected_session,
-        ) as mock_replace:
-            result = await json_session_service.validate(session)
+        mock_json_session_service.replace_events.return_value = corrected_session
+        result = await shallow_session_manager.validate_session(session)
 
-            # Should call replace_events
-            mock_replace.assert_called_once()
+        # Should call replace_events
+        mock_json_session_service.replace_events.assert_called_once()
 
-            # Should return corrected session, not original
-            assert result is corrected_session
-            assert result is not session
+        # Should return corrected session, not original
+        assert result is corrected_session
+        assert result is not session

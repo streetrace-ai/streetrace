@@ -66,6 +66,7 @@ class Supervisor:
         final_response_text: str | None = "Agent did not produce a final response."
 
         session = await self.session_manager.get_or_create_session()
+        session = await self.session_manager.validate_session(session)
         async with self.agent_manager.create_agent("default") as root_agent:
             runner = Runner(
                 app_name=session.app_name,
@@ -81,7 +82,6 @@ class Supervisor:
                 new_message=content,  # type: ignore[arg-type] # base lacks precision
             ):
                 self.ui_bus.dispatch_ui_update(event)
-
                 await self.session_manager.manage_current_session()
 
                 # TODO(krmrn42): Handle wrong tool calls. How to detect the root cause

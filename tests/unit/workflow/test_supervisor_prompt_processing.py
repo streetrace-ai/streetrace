@@ -19,6 +19,9 @@ class TestSupervisorPromptProcessing:
     @pytest.mark.asyncio
     async def test_run_async_with_simple_prompt(
         self,
+        mock_session_manager,
+        mock_agent_manager,
+        mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -27,9 +30,11 @@ class TestSupervisorPromptProcessing:
         # Arrange
         prompt = ProcessedPrompt(prompt="Hello, world!", mentions=[])
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.ui_bus = mock_ui_bus
+
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
             "streetrace.workflow.supervisor.Runner",
@@ -52,6 +57,7 @@ class TestSupervisorPromptProcessing:
     @pytest.mark.asyncio
     async def test_run_async_with_file_mentions(
         self,
+        mock_session_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -63,6 +69,8 @@ class TestSupervisorPromptProcessing:
             (Path("file2.py"), "print('Hello from file 2')"),
         ]
         prompt = ProcessedPrompt(prompt="Analyze these files", mentions=mentions)
+
+        shallow_supervisor.session_manager = mock_session_manager
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -96,11 +104,13 @@ class TestSupervisorPromptProcessing:
     @pytest.mark.asyncio
     async def test_run_async_with_none_payload(
         self,
+        mock_session_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
     ) -> None:
         """Test running with None payload."""
+        shallow_supervisor.session_manager = mock_session_manager
         # Arrange
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -128,6 +138,7 @@ class TestSupervisorPromptProcessing:
     @pytest.mark.asyncio
     async def test_run_async_with_empty_prompt(
         self,
+        mock_session_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -135,6 +146,8 @@ class TestSupervisorPromptProcessing:
         """Test running with empty prompt text."""
         # Arrange
         prompt = ProcessedPrompt(prompt="", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -158,6 +171,7 @@ class TestSupervisorPromptProcessing:
     @pytest.mark.asyncio
     async def test_run_async_with_mentions_only(
         self,
+        mock_session_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -166,6 +180,8 @@ class TestSupervisorPromptProcessing:
         # Arrange
         mentions = [(Path("config.json"), '{"setting": "value"}')]
         prompt = ProcessedPrompt(prompt="", mentions=mentions)
+
+        shallow_supervisor.session_manager = mock_session_manager
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session

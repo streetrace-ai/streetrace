@@ -242,7 +242,7 @@ class JSONSessionService(InMemorySessionService):
                 app_name,
                 user_id,
             )
-            return await self.validate(session)
+            return session
 
         logger.debug(
             "Session %s not in memory, trying storage for %s/%s.",
@@ -273,8 +273,6 @@ class JSONSessionService(InMemorySessionService):
             user_id,
         )
 
-        session = await self.validate(session)
-
         if session is None:
             msg = "Session not found (this is unexpected)."
             raise ValueError(msg)
@@ -287,66 +285,6 @@ class JSONSessionService(InMemorySessionService):
         in_memory_session = copy.deepcopy(session)
         self.sessions[app_name][user_id][session_id] = in_memory_session
         return self._merge_state(app_name, user_id, copy.deepcopy(session))
-
-    async def validate(self, session: Session) -> Session | None:
-        """Validate session fixing issues that are known to cause LLM call failure.
-
-        Currently:
-        - Remove function calls that don't have matching function responses.
-        - Remove function responses that don't have matching function calls.
-        """
-        new_events: list[Event] = []
-        tool_call_event: Event | None = None
-        errors_found = 0
-
-        for event in session.events:
-            if not event.content or not event.content.parts:
-                new_events.append(event)
-                continue
-
-            # Check for function responses
-            tool_result = [
-                part for part in event.content.parts if part.function_response
-            ]
-
-            # Check for function calls
-            tool_call = [part for part in event.content.parts if part.function_call]
-
-            if tool_result:
-                # This event has a function response
-                if tool_call_event:
-                    # We have a pending function call - this is a valid pair
-                    new_events.append(tool_call_event)
-                    new_events.append(event)
-                    tool_call_event = None
-                    errors_found -= 1
-                else:
-                    # Orphaned function response - skip it
-                    errors_found += 1
-            elif tool_call:
-                # This event has a function call
-                if tool_call_event:
-                    # We have a previous orphaned function call - skip it
-                    errors_found += 1
-                tool_call_event = event
-                errors_found += 1
-            else:
-                # Regular event (no function call or response)
-                if tool_call_event:
-                    # We have an orphaned function call - skip it
-                    errors_found += 1
-                    tool_call_event = None
-                new_events.append(event)
-
-        # If we end with an orphaned function call, it's already counted in errors_found
-
-        if errors_found == 0:
-            return session
-
-        return await self.replace_events(
-            session=session,
-            new_events=new_events,
-        )
 
     @override
     async def create_session(
@@ -463,7 +401,7 @@ class JSONSessionService(InMemorySessionService):
         session: Session,
         event: Event,
     ) -> Event:
-        """Append an event to a session in memory and updates the storage."""
+        """Append an event to a session in memory and update the storage."""
         evt = await super().append_event(
             session=session,
             event=event,
@@ -575,6 +513,70 @@ class SessionManager:
 
         self.current_session = session
         return session
+
+    async def validate_session(self, session: Session) -> Session:
+        """Validate session fixing issues that are known to cause LLM call failure.
+
+        Currently:
+        - Remove function calls that don't have matching function responses.
+        - Remove function responses that don't have matching function calls.
+        """
+        new_events: list[Event] = []
+        tool_call_event: Event | None = None
+        errors_found = 0
+
+        for event in session.events:
+            if not event.content or not event.content.parts:
+                new_events.append(event)
+                continue
+
+            # Check for function responses
+            tool_result = [
+                part for part in event.content.parts if part.function_response
+            ]
+
+            # Check for function calls
+            tool_call = [part for part in event.content.parts if part.function_call]
+
+            if tool_result:
+                # This event has a function response
+                if tool_call_event:
+                    # We have a pending function call - this is a valid pair
+                    new_events.append(tool_call_event)
+                    new_events.append(event)
+                    tool_call_event = None
+                    errors_found -= 1
+                else:
+                    # Orphaned function response - skip it
+                    errors_found += 1
+            elif tool_call:
+                # This event has a function call
+                if tool_call_event:
+                    # We have a previous orphaned function call - skip it
+                    errors_found += 1
+                tool_call_event = event
+                errors_found += 1
+            else:
+                # Regular event (no function call or response)
+                if tool_call_event:
+                    # We have an orphaned function call - skip it
+                    errors_found += 1
+                    tool_call_event = None
+                new_events.append(event)
+
+        # If we end with an orphaned function call, it's already counted in errors_found
+
+        if errors_found == 0:
+            return session
+
+        new_session = await self.session_service.replace_events(
+            session=session,
+            new_events=new_events,
+        )
+        if new_session is None:
+            msg = "new_session is None (this is unexpected)"
+            raise AssertionError(msg)
+        return new_session
 
     async def replace_current_session_events(self, new_events: list[Event]) -> None:
         """Replace events in the current session re-creating context events."""

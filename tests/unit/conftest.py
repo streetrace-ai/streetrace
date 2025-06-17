@@ -488,7 +488,7 @@ def shallow_reset_command(mock_ui_bus, mock_session_manager) -> ResetSessionComm
 
 
 @pytest.fixture
-def mock_app(  # noqa: PLR0913
+def mock_app(
     mock_args,
     mock_console_ui,
     mock_ui_bus,
@@ -511,7 +511,7 @@ def mock_app(  # noqa: PLR0913
 
 
 @pytest.fixture
-def shallow_app(  # noqa: PLR0913
+def shallow_app(
     mock_args,
     mock_console_ui,
     mock_ui_bus,

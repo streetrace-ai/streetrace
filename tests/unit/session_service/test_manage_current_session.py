@@ -178,7 +178,7 @@ class TestManageCurrentSession:
             new_events[-1].content.parts[0].function_response.name == "test_function_24"
         )
 
-    async def test_mixed_content_with_function_calls(  # noqa: PLR0913
+    async def test_mixed_content_with_function_calls(
         self,
         session_manager,
         json_session_service,

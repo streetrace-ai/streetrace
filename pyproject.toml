@@ -48,9 +48,10 @@ allow-star-arg-any = true
     "ANN204", # allow missing return types annotations in tests.
     "ANN206", # allow missing return types annotations in tests.
     "PLR2004", # allow magic values in tests.
-    "PT011", # allow broad assert raise checks in tests.
+    "PT011",  # allow broad assert raise checks in tests.
     "FBT001", # boolean positional args are used in fixture helpers
-    "FBT002"  # booleans with defaults are used in fixture helpers
+    "FBT002", # booleans with defaults are used in fixture helpers
+    "PLR0913", # Too many arguments in function definition
 ]
 
 # If using pytest
