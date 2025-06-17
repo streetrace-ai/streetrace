@@ -82,6 +82,8 @@ class Supervisor:
             ):
                 self.ui_bus.dispatch_ui_update(event)
 
+                await self.session_manager.manage_current_session()
+
                 # TODO(krmrn42): Handle wrong tool calls. How to detect the root cause
                 # is an attempt to store a large file? E.g.:
                 # Tool signature doesn't match

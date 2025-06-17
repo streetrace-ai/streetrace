@@ -483,6 +483,8 @@ class JSONSessionService(InMemorySessionService):
 class SessionManager:
     """Manages conversation sessions."""
 
+    MAX_TOOL_CALLS_IN_SESSION = 20
+
     current_session: Session | None = None
 
     def __init__(
@@ -605,6 +607,85 @@ class SessionManager:
         )
 
         self.ui_bus.dispatch_ui_update(display_list)
+
+    async def manage_current_session(self) -> None:  # noqa: C901, PLR0912
+        """Trim function call/response pairs to keep only last 20 pairs."""
+        session = await self.get_current_session()
+        if not session:
+            msg = "Session not found."
+            raise ValueError(msg)
+
+        # Find all function response events
+        function_response_indices = []
+        for i, event in enumerate(session.events):
+            if (
+                event.content
+                and event.content.parts
+                and any(part.function_response for part in event.content.parts)
+            ):
+                function_response_indices.append(i)
+
+        # If 20 or fewer function responses, no trimming needed
+        if len(function_response_indices) <= self.MAX_TOOL_CALLS_IN_SESSION:
+            return
+
+        # Keep only last 20 function response events and their corresponding call events
+        keep_indices = set()
+        for i in function_response_indices[-self.MAX_TOOL_CALLS_IN_SESSION :]:
+            # Add function response event
+            keep_indices.add(i)
+            # Add corresponding function call event
+            if i > 0:
+                call_event = session.events[i - 1]
+                response_event = session.events[i]
+
+                if (
+                    not call_event.content
+                    or not call_event.content.parts
+                    or not response_event.content
+                    or not response_event.content.parts
+                ):
+                    msg = (
+                        f"Missing content or parts in events at indices {i - 1} and {i}"
+                    )
+                    raise ValueError(msg)
+
+                call_name = None
+                response_name = None
+                for part in call_event.content.parts:
+                    if part.function_call:
+                        call_name = part.function_call.name
+                for part in response_event.content.parts:
+                    if part.function_response:
+                        response_name = part.function_response.name
+
+                if not call_name or not response_name or call_name != response_name:
+                    msg = f"Mismatched call/response pair at indices {i - 1} and {i}"
+                    raise ValueError(msg)
+
+                keep_indices.add(i - 1)
+            else:
+                msg = "Found function response with no preceding function call"
+                raise ValueError(msg)
+
+        # Keep all non-function events and last 20 function pairs
+        new_events = []
+        for i, event in enumerate(session.events):
+            if i in keep_indices or not (
+                event.content
+                and event.content.parts
+                and (
+                    any(part.function_call for part in event.content.parts)
+                    or any(part.function_response for part in event.content.parts)
+                )
+            ):
+                new_events.append(event)
+
+        # Replace events in session
+        await self.session_service.replace_events(
+            session=session,
+            new_events=new_events,
+        )
 
     async def _squash_turn_events(
         self,
