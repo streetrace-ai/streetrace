@@ -1,6 +1,7 @@
 """Rendering wrapper for google.adk.events.Event."""
 
 from google.adk.events import Event
+from mcp.types import CallToolResult
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.syntax import Syntax
@@ -75,12 +76,19 @@ def render_event(obj: Event, console: Console) -> None:
             if part.function_response:
                 resp = part.function_response
                 if resp.response:
+                    display_dict = resp.response
+                    if len(resp.response) == 1:
+                        val = next(iter(resp.response.values()))
+                        if isinstance(val, CallToolResult):
+                            display_dict = val.model_dump()
+                        elif isinstance(val, dict):
+                            display_dict = val
                     console.print(
                         Syntax(
                             code="\n".join(
                                 [
-                                    f"  ↳ {key}: {_trim_text(str(resp.response[key]))}"
-                                    for key in resp.response
+                                    f"  ↳ {key}: {_trim_text(str(display_dict[key]))}"
+                                    for key in display_dict
                                 ],
                             ),
                             lexer="python",
