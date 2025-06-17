@@ -264,13 +264,12 @@ class TestSessionManager:
         json_session_service.replace_events = Mock()
 
         # Call _squash_turn_events
-        result = session_manager._squash_turn_events(session_with_events, 1)  # noqa: SLF001
+        result = session_manager._squash_turn_events(session_with_events)  # noqa: SLF001
 
         # Verify replace_events was called correctly
         json_session_service.replace_events.assert_called_once_with(
             session=session_with_events,
-            new_events=[assistant_event],
-            start_at=1,
+            new_events=[context_event, user_event, assistant_event],
         )
 
         # Verify the result is the assistant's message text
@@ -288,29 +287,17 @@ class TestSessionManager:
         session = sample_session.model_copy(deep=True)
         session.events = [user_event]
 
-        with pytest.raises(
-            ValueError,
-            match="Cannot post-process, session does not contain extra messages",
-        ):
-            session_manager._squash_turn_events(session, 0)  # noqa: SLF001
+        assert session_manager._squash_turn_events(session) == ""  # noqa: SLF001
 
         # Test with last event being user's message
         session.events = [user_event, user_event]
 
-        with pytest.raises(
-            ValueError,
-            match="Cannot post-process, the last session event is user's message",
-        ):
-            session_manager._squash_turn_events(session, 0)  # noqa: SLF001
+        assert session_manager._squash_turn_events(session) == ""  # noqa: SLF001
 
         # Test with last event having tool calls
         session.events = [user_event, tool_event]
 
-        with pytest.raises(
-            ValueError,
-            match="Cannot post-process, the last message has tool data",
-        ):
-            session_manager._squash_turn_events(session, 0)  # noqa: SLF001
+        assert session_manager._squash_turn_events(session) == ""  # noqa: SLF001
 
         # Test with last event having no text
         empty_event = Event(
@@ -322,11 +309,7 @@ class TestSessionManager:
         )
         session.events = [user_event, empty_event]
 
-        with pytest.raises(
-            ValueError,
-            match="Cannot post-process, the last session event has no text parts",
-        ):
-            session_manager._squash_turn_events(session, 0)  # noqa: SLF001
+        assert session_manager._squash_turn_events(session) == ""  # noqa: SLF001
 
     def test_add_project_context(
         self,
@@ -429,7 +412,7 @@ class TestSessionManager:
                 session_id=sample_session.id,
             )
 
-            mock_squash.assert_called_once_with(session, 0)
+            mock_squash.assert_called_once_with(session)
 
             mock_add_context.assert_called_once_with(
                 processed_prompt=processed_prompt,

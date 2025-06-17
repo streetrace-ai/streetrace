@@ -111,110 +111,6 @@ class TestSessionManagerEdgeCases:
         json_session_service.append_event.assert_called_once()
         assert json_session_service.get_session.call_count == 2
 
-    def test_squash_turn_events_tool_detection(
-        self,
-        session_manager,
-        sample_session,
-    ):
-        """Test _squash_turn_events tool detection in the last message."""
-        # Setup session with user event and an assistant event with tool calls
-        session_with_events = sample_session.model_copy(deep=True)
-        user_event = Event(
-            author="user",
-            content=genai_types.Content(
-                role="user",
-                parts=[genai_types.Part.from_text(text="User message")],
-            ),
-        )
-
-        # Create an assistant event with function calls
-        assistant_event = Event(
-            author="assistant",
-            content=genai_types.Content(
-                role="assistant",
-                parts=[
-                    genai_types.Part(
-                        function_call=genai_types.FunctionCall(name="test_function"),
-                    ),
-                ],
-            ),
-        )
-
-        session_with_events.events = [user_event, assistant_event]
-
-        # Test _squash_turn_events with a message containing tool calls
-        with pytest.raises(
-            ValueError,
-            match="Cannot post-process, the last message has tool data",
-        ):
-            session_manager._squash_turn_events(session_with_events, 0)  # noqa: SLF001
-
-        # Now test with function_response
-        assistant_event_with_response = Event(
-            author="assistant",
-            content=genai_types.Content(
-                role="assistant",
-                parts=[
-                    genai_types.Part(
-                        function_response=genai_types.FunctionResponse(
-                            name="test_function",
-                        ),
-                    ),
-                ],
-            ),
-        )
-
-        session_with_events.events = [user_event, assistant_event_with_response]
-
-        # Test _squash_turn_events with a message containing tool responses
-        with pytest.raises(
-            ValueError,
-            match="Cannot post-process, the last message has tool data",
-        ):
-            session_manager._squash_turn_events(session_with_events, 0)  # noqa: SLF001
-
-    def test_squash_turn_events_tool_detection_complex(
-        self,
-        session_manager,
-        sample_session,
-    ):
-        """Test _squash_turn_events with mixed content in the assistant event."""
-        # Setup session with user event and an assistant event with mixed content
-        session_with_events = sample_session.model_copy(deep=True)
-        user_event = Event(
-            author="user",
-            content=genai_types.Content(
-                role="user",
-                parts=[genai_types.Part.from_text(text="User message")],
-            ),
-        )
-
-        # Create an assistant event with mixed content including text and tool calls
-        assistant_event = Event(
-            author="assistant",
-            content=genai_types.Content(
-                role="assistant",
-                parts=[
-                    # Text part
-                    genai_types.Part.from_text(text="Assistant response"),
-                    # Function call part
-                    genai_types.Part(
-                        function_call=genai_types.FunctionCall(name="test_function"),
-                    ),
-                ],
-            ),
-        )
-
-        session_with_events.events = [user_event, assistant_event]
-
-        # Test _squash_turn_events with a message containing both text and tool calls
-        # This should still raise an exception because of the tool call
-        with pytest.raises(
-            ValueError,
-            match="Cannot post-process, the last message has tool data",
-        ):
-            session_manager._squash_turn_events(session_with_events, 0)  # noqa: SLF001
-
     def test_squash_turn_events_no_tools(
         self,
         session_manager,
@@ -252,13 +148,12 @@ class TestSessionManagerEdgeCases:
         json_session_service.replace_events = Mock()
 
         # Call _squash_turn_events - this should not raise an exception
-        result = session_manager._squash_turn_events(session_with_events, 0)  # noqa: SLF001
+        result = session_manager._squash_turn_events(session_with_events)  # noqa: SLF001
 
         # Verify replace_events was called and the text was extracted correctly
         json_session_service.replace_events.assert_called_once_with(
             session=session_with_events,
-            new_events=[assistant_event],
-            start_at=0,
+            new_events=[user_event, assistant_event],
         )
 
         assert result == "Part 1 of responsePart 2 of response"

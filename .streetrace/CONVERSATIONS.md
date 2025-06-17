@@ -1835,3 +1835,345 @@ The key changes:
 
 This ensures that the session validation removes any function-related events that don't have proper call/response pairs, preventing LLM call failures.
 
+
+# Mon Jun 16 07:23:46 2025 -0700
+
+## User
+
+Summarize the @README.md
+
+## Assistant
+
+Thank you for providing the README.md! Let me summarize the key aspects of the StreetRace project:
+
+## StreetRace🚗💨 Summary
+
+**Core Vision**: StreetRace is an open-source platform for engineering-native AI agents designed as peer programming partners rather than replacements. It follows a "peer-to-peer: engineer + agent" philosophy.
+
+### Key Differentiators
+
+1. **Developer-Centric**: Integrates directly with CLI and code editors, operating in the same terminal environment as human developers
+2. **Peer Collaboration Model**: Empowers engineers rather than replacing them - agents are inspectable, guidable co-workers
+3. **Opinionated Yet Extensible**: Built-in patterns with ADK, A2A publishing, MCP tool integration
+4. **Security & Control**: Model-agnostic, runs locally with controlled APIs, full observability
+
+### Core Functionality
+
+- **Multi-Model Support**: Works with Anthropic, Gemini, OpenAI, and local Ollama models via LiteLLM
+- **File System Integration**: Read/write files, directory listing, text search with glob patterns
+- **CLI Command Execution**: Interactive command execution with safety mechanisms
+- **Session Management**: Persistent conversations across runs with app/user/session organization
+- **Agent System**: Modular agent discovery and execution framework
+
+### Key Features
+
+- **Interactive & Non-Interactive Modes**: Chat interface or single-prompt execution
+- **File Autocompletion**: `@` mentions for file paths
+- **Internal Commands**: `/help`, `/exit`, `/history`, `/compact`, `/reset`
+- **Safety Mechanisms**: CLI command analysis with safe/ambiguous/risky categorization
+- **Custom Agent Support**: Two approaches - StreetRaceAgent interface or legacy functions
+- **Tool Configuration**: YAML-based tool discovery and configuration
+
+### Installation & Usage
+
+- Available via PyPI (`pipx install streetrace` or `pip install streetrace`)
+- Source installation via Poetry
+- Configurable working directory with `--path`
+- Session persistence with `--session-id`, `--app-name`, `--user-id`
+- Project context via `.streetrace/` folder with `SYSTEM.md` and other files
+
+The project positions itself as infrastructure for building AI coding assistants that work alongside developers in their existing workflows, emphasizing transparency, control, and extensibility over black-box automation.
+
+
+# Mon Jun 16 07:32:57 2025 -0700
+
+## User
+
+Summarize the @README.md
+
+## Assistant
+
+# StreetRace🚗💨 README Summary
+
+## **Project Purpose**
+StreetRace is an open-source platform for engineering-native AI agents that integrate with developer tools, automate workflows, and serve as coding partners rather than replacements. It's designed as a peer-to-peer collaboration platform where engineers work alongside AI agents.
+
+## **Key Differentiators**
+
+### 🔧 **Developer-Centric Design**
+- Direct integration with CLI and code editors
+- Agents operate in the same terminal environment as developers
+- Seamless, trusted collaboration model
+
+### 🤝 **Engineering Peer Philosophy**
+- Empowers rather than replaces engineers
+- Inspectable, guideable, and evolvable agents
+- Co-worker model instead of shadow coding
+
+### 🧩 **Opinionated Yet Extensible**
+- Powered by ADK (Agent Development Kit)
+- Built-in A2A (Agent-to-Agent) publishing
+- MCP tools integration
+- Battle-tested patterns and reusable agent publishing
+
+### 🛠 **Open and Secure**
+- Model-agnostic (supports Ollama to cloud APIs)
+- Local execution with controlled APIs
+- Full observability and security control
+
+## **Core Capabilities**
+
+### **Installation & Usage**
+- Install via `pipx install streetrace` or `pip install streetrace`
+- Source installation via Poetry
+- CLI-based interface with interactive and non-interactive modes
+
+### **Session Management**
+- Persistent conversation contexts
+- Session IDs for continuing work across runs
+- User and app-specific session organization
+- List and manage existing sessions
+
+### **File System Integration**
+- Work with files in current directory or specify `--path`
+- @-mention autocomplete for local files
+- Project context through `.streetrace` folder configuration
+
+### **Interactive Features**
+- Rich terminal UI with syntax highlighting
+- Command autocompletion for files and internal commands
+- Internal commands: `/help`, `/exit`, `/history`, `/compact`, `/reset`
+- Keyboard shortcuts and multiline input support
+
+### **Safety & Security**
+- CLI command safety analysis (Safe/Ambiguous/Risky classification)
+- Bashlex parsing for command structure analysis
+- Path validation and directory traversal prevention
+- Controlled execution within working directory
+
+### **Agent System**
+- Modular agent discovery and execution
+- Two agent creation approaches:
+  1. **StreetRaceAgent Interface** (recommended)
+  2. **Legacy function-based approach**
+- Agent capabilities defined in `tools.yaml`
+- Hierarchical agent delegation system
+
+### **Tool Configuration**
+- YAML-based tool configuration
+- Local Python modules and external MCP services
+- Agent capability requirements
+- Tool discovery and listing
+
+## **Architecture Overview**
+Based on the COMPONENTS.md, the system follows clean architecture principles with:
+
+- **UI Layer**: Console-based interface with rich formatting
+- **Workflow Layer**: Supervisor orchestrating agent interactions
+- **Agent Layer**: Modular agent management and discovery
+- **LLM Layer**: Model factory with provider abstraction
+- **Tools Layer**: File system, CLI, and agent management tools
+- **Utilities**: User ID resolution, argument hiding, safety checks
+
+## **Development Environment**
+- Python with Poetry for dependency management
+- Type annotations and comprehensive testing
+- Makefile for static analysis workflows
+- Support for multiple LLM providers (Anthropic, OpenAI, Gemini, Ollama)
+
+## **Target Use Cases**
+- Code generation and modification
+- Project exploration and understanding
+- Code search and refactoring
+- Script execution and debugging
+- Documentation generation
+- Workflow automation through custom agents
+
+StreetRace positions itself as a collaborative coding partner that enhances developer productivity while maintaining security, observability, and extensibility for enterprise-grade development workflows.
+
+
+# Mon Jun 16 09:27:58 2025 -0700
+
+## User
+
+Only use README.md
+
+## Assistant
+
+Based on the README.md file, here's a comprehensive description of the StreetRace🚗💨 project:
+
+# StreetRace🚗💨 Project Description
+
+## Project Vision
+
+StreetRace is an **open-source platform for engineering-native AI agents** that integrate with your tools, automate your workflows, and evolve with your development process. It represents a new paradigm of development: **peer-to-peer collaboration between engineer and agent**, rather than replacement.
+
+## Core Philosophy
+
+StreetRace is fundamentally different from other AI coding solutions:
+
+### 🔧 Built for Developers, by Developers
+- **Direct Integration**: Works seamlessly with CLI and code editors in your existing environment
+- **Trusted Collaboration**: Agents operate in the same terminal and shell as human developers
+- **Future-Ready**: Dockerized environments are planned for enhanced isolation
+
+### 🤝 Engineering Peer, Not Replacement
+- **Empowerment Over Replacement**: Unlike Devin and similar tools that aim to replace engineers, StreetRace empowers them
+- **Transparent Partnership**: Your agent is a co-worker you can inspect, guide, and evolve
+- **Collaborative Workflow**: Designed for human-AI collaboration rather than automation
+
+### 🧠 Opinionated, Yet Extensible
+- **Battle-Tested Patterns**: Comes with proven tools and patterns for high-performing agents
+- **ADK Integration**: Powered by ADK (Agent Development Kit) with built-in A2A publishing
+- **MCP Compatibility**: Integrates with any MCP (Model Context Protocol) tools
+- **Agent Publishing**: Developers can publish reusable agents for common tasks like:
+  - Onboarding codebases
+  - Responding to CI failures
+  - Generating service templates
+
+### 🛠 Open, Flexible, and Secure
+- **Model Agnostic**: Supports everything from local Ollama models to cloud APIs
+- **Local Execution**: Agents run in your local environment with controlled APIs
+- **Full Control**: Teams maintain complete control, observability, and security
+- **A2A Endpoints**: Controlled API access for secure agent interactions
+
+## Key Features
+
+### Multi-Provider AI Support
+Supports multiple AI backends through LiteLLM:
+- **Anthropic** (via `ANTHROPIC_API_KEY`)
+- **Google Gemini** (via `GEMINI_API_KEY`) 
+- **OpenAI** models (via `OPENAI_API_KEY`)
+- **Local Models** via Ollama (`OLLAMA_API_URL`)
+
+### Session Management
+- **Persistent Conversations**: Maintains context across multiple runs
+- **Multi-Project Support**: Separate sessions for different projects
+- **User Identity**: Automatic user detection via GitHub/Git/OS username
+- **Session Control**: Create, list, and manage specific sessions
+
+### Interactive Experience
+- **Autocompletion**: File path completion with `@` mentions
+- **Command Interface**: Internal commands with `/` prefix
+- **Rich Terminal UI**: Formatted output with colors and structured layouts
+- **Real-time Feedback**: Token usage tracking and cost estimates
+
+### Safety & Security
+- **CLI Command Safety**: Experimental safety mechanism that analyzes and categorizes commands
+- **Working Directory Containment**: All operations restricted to specified directory
+- **Command Classification**: Safe/Ambiguous/Risky categorization with blocking of dangerous operations
+- **Path Validation**: Prevents directory traversal and absolute path usage
+
+### Modular Agent System
+- **Agent Discovery**: Automatic discovery of custom agents
+- **Two Development Approaches**:
+  1. **Modern**: Using `StreetRaceAgent` interface (recommended)
+  2. **Legacy**: Function-based approach for backward compatibility
+- **Hierarchical Architecture**: Primary assistant can delegate to specialized agents
+- **Tool Configuration**: YAML-based tool configuration for easy management
+
+## Installation & Usage
+
+### Installation Options
+```bash
+# Via pipx (recommended)
+pipx install streetrace
+
+# Via pip (as project dependency)
+pip install streetrace
+
+# From source
+git clone git@github.com:krmrn42/street-race.git
+cd street-race
+poetry install
+```
+
+### Basic Usage
+```bash
+# Interactive mode with your preferred model
+streetrace --model=$YOUR_FAVORITE_MODEL
+
+# Non-interactive mode
+streetrace --prompt "List all Python files in the current directory"
+
+# Work in different directory
+streetrace --path /path/to/your/project
+
+# Session management
+streetrace --session-id my-project-refactoring
+streetrace --list-sessions
+```
+
+### Context Enhancement
+Two ways to add project context:
+1. **@-mentions**: Autocomplete suggests local files for prompt inclusion
+2. **`.streetrace` folder**: 
+   - `SYSTEM.md` for system instructions
+   - Other files become initial conversation messages
+
+## Technical Architecture
+
+### Tool System
+- **File Operations**: Read, write, list directories, search within files
+- **CLI Integration**: Execute commands with safety analysis
+- **Agent Management**: Discover, list, and run specialized agents
+- **YAML Configuration**: Flexible tool definition and management
+
+### Command Interface
+Built-in commands accessible via `/` prefix:
+- `/help`: Display available commands
+- `/exit`, `/quit`: Exit the session
+- `/history`: Show conversation history
+- `/compact`: Summarize history to reduce token usage
+- `/reset`: Clear current session
+
+### Safety Features
+- **Command Analysis**: Uses `bashlex` to parse and analyze commands
+- **Safe Command List**: Pre-configured list of approved commands
+- **Path Restrictions**: Blocks absolute paths and directory traversal
+- **Risk Assessment**: Three-tier safety classification system
+
+## Use Cases
+
+StreetRace excels at:
+- **Code Generation & Modification**: AI-assisted coding with full file system access
+- **Project Exploration**: Understanding and navigating codebases
+- **Code Search & Refactoring**: Finding and modifying code patterns
+- **Script Execution & Debugging**: Running and troubleshooting code
+- **Documentation Generation**: Creating and maintaining project documentation
+- **Workflow Automation**: Building reusable agents for common development tasks
+
+## Future Vision
+
+StreetRace aims to define the future of AI-assisted development by creating a platform where:
+- Engineers and agents work as true peers
+- Specialized agents can be shared and reused across teams
+- Development workflows are enhanced, not replaced
+- AI assistance is transparent, controllable, and secure
+
+The project invites developers to contribute code, build agents, and shape the platform's evolution, emphasizing community-driven development of the AI-assisted coding ecosystem.
+
+
+# Mon Jun 16 17:26:48 2025 -0700
+
+## User
+
+Describe this project based on README.md
+
+## Assistant
+
+This is a documentation for the StreetRace project, which appears to be a framework for building conversational AI assistants. The document covers various aspects of the system, including its architecture, tools, and agents.
+
+Here are some key points that can be extracted from the document:
+
+1. **Agent System**: StreetRace includes a modular agent system that allows for specialized agents to be discovered and used.
+2. **Tool Configuration**: Tools available to agents are defined in the `./tools/tools.yaml` configuration file.
+3. **Tool Discovery**: The `list_tools` tool provides information about available tools that can be provided to agents.
+4. **Agent Creation**: Agents can be created using two approaches: Option 1 (recommended) uses the StreetRaceAgent interface, and Option 2 (legacy approach) requires basic functions like get_agent_metadata() and run_agent(input_text).
+5. **Agent Running**: The `run_agent` tool allows the primary assistant to execute specialized agents.
+6. **Tool Requirements**: Tools can have requirements for agent capabilities, which are specified in the configuration file.
+
+Overall, this document provides a comprehensive overview of the StreetRace framework and its various components, making it easier for developers to understand and contribute to the project.
+
+If you'd like me to help with anything specific related to this document or the StreetRace project, feel free to ask!
+

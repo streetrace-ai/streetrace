@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug with Poetry",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/streetrace/main.py", // or whatever entry point
+      "console": "integratedTerminal",
+      "envFile": "${workspaceFolder}/.env",
+      "args": [
+        "--model",
+        "ollama_chat/llama3.1:8b",
+        "--verbose",
+        "--prompt",
+        "List most popular apple cultivars you know in a file named APPLES.md"
+      ],
+      "justMyCode": false
+    }
+  ]
+}

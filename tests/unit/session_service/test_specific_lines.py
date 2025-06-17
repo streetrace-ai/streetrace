@@ -2,7 +2,6 @@
 
 from unittest.mock import Mock
 
-import pytest
 from google.adk.events import Event
 from google.adk.sessions import Session
 from google.genai import types as genai_types
@@ -106,9 +105,4 @@ def test_squash_turn_events_tool_detection_explicit():
         state={},
     )
 
-    # Try to squash events - this should raise an exception
-    with pytest.raises(
-        ValueError,
-        match="Cannot post-process, the last message has tool data",
-    ):
-        session_manager._squash_turn_events(session, 0)  # noqa: SLF001
+    assert session_manager._squash_turn_events(session) == ""  # noqa: SLF001
