@@ -124,7 +124,6 @@ def read_file(
     Args:
         path (str): The path to the file to read, relative to the working directory.
         work_dir (str): The working directory.
-        encoding (str): Text encoding to use.
 
     Returns:
         dict[str,Any]:
