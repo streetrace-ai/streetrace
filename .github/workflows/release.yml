@@ -3,7 +3,10 @@ name: Release
 on:
   push:
     tags:
-      - "v*" # Matches tags like v1.2.3
+      - "v*.*.*" # Matches tags like v1.2.3
+
+permissions:
+  contents: write
 
 jobs:
   release:
