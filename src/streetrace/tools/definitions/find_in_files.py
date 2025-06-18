@@ -3,7 +3,11 @@
 from pathlib import Path
 from typing import TypedDict
 
-from streetrace.tools.definitions.path_utils import normalize_and_validate_path
+from streetrace.tools.definitions.path_utils import (
+    is_ignored,
+    load_gitignore_for_directory,
+    normalize_and_validate_path,
+)
 from streetrace.tools.definitions.result import OpResult, OpResultCode
 
 
@@ -21,7 +25,7 @@ class FindInFilesResult(OpResult):
     output: list[SearchResult] | None  # type: ignore[misc]
 
 
-# TODO(krmrn42): Honor .gitignore
+
 
 
 def find_in_files(
@@ -33,7 +37,7 @@ def find_in_files(
 
     Searches through all subdirectories from the starting path. The search
     is case-insensitive and matches partial names. Great for finding keywords
-    and code symbols in files.
+    and code symbols in files. Honors .gitignore rules.
 
     Args:
         pattern (str): Glob pattern to match files within the working directory.
@@ -62,6 +66,15 @@ def find_in_files(
         try:
             abs_filepath = normalize_and_validate_path(file_path, work_dir)
             if abs_filepath.is_dir():
+                continue
+
+            # Load gitignore patterns for the file's directory
+            # This ensures nested .gitignore files are properly respected
+            file_dir = abs_filepath.parent
+            gitignore_spec = load_gitignore_for_directory(file_dir)
+
+            # Skip files that are ignored by .gitignore
+            if is_ignored(abs_filepath, work_dir, gitignore_spec):
                 continue
 
             with abs_filepath.open(encoding="utf-8") as f:

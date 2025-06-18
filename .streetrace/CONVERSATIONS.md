@@ -3089,3 +3089,81 @@ Fix the asyncio cancellation scope error that occurred when typing prompts, spec
 
 This implementation follows the codebase's architectural principles of fail-fast for core components while being tolerant in the UI layer, ensuring robust operation in production environments where external MCP services may be unreliable.
 
+
+# Wed Jun 18 15:37:34 2025 -0700
+
+## User
+
+Take a look at @src/streetrace/tools/definitions/find_in_files.py. Let's make sure it only returns files that are not gitignored. We should make sure to address .gitignore files starting from current folder and down the file tree. Overall, find_in_files should never return files that are gitignored.
+
+Please implement this change and add relevant tests.
+
+
+## Assistant
+
+## Summary
+
+I have successfully implemented gitignore support in the `find_in_files` tool. Here's a summary of the changes:
+
+### Goal of the Change
+The goal was to ensure that `find_in_files` respects `.gitignore` files and never returns files that should be ignored by Git, improving the tool's behavior to match standard developer expectations.
+
+### User Scenarios Addressed
+1. **Basic gitignore support**: Files matching patterns in `.gitignore` are excluded from search results
+2. **Nested gitignore files**: Child directories can have their own `.gitignore` files that override or extend parent patterns
+3. **Gitignore negation patterns**: Files can be un-ignored using `!pattern` syntax
+4. **Complex glob patterns**: Recursive searches (`**/*`) properly respect gitignore rules at all directory levels
+5. **Graceful error handling**: Invalid or unreadable `.gitignore` files don't crash the application
+
+### Implementation Details
+
+#### Files Changed:
+
+**1. `src/streetrace/tools/definitions/path_utils.py`**
+- Added `pathspec` import
+- Added `load_gitignore_for_directory()` function that walks up the directory tree to collect all `.gitignore` files and compiles them into a single PathSpec
+- Added `is_ignored()` function that checks if a file/directory should be ignored based on gitignore patterns
+- Both functions handle edge cases like unreadable files and complex gitignore patterns
+
+**2. `src/streetrace/tools/definitions/find_in_files.py`**
+- Updated imports to include gitignore utilities from `path_utils`
+- Removed the TODO comment about honoring `.gitignore`
+- Modified the main search loop to:
+  - Load gitignore patterns for each file's directory (enabling proper nested gitignore support)
+  - Skip files that are ignored by gitignore patterns
+  - Maintain the same error handling and user experience
+- Updated function docstring to mention gitignore support
+
+**3. `src/streetrace/tools/definitions/list_directory.py`**
+- Refactored to use the shared gitignore utilities from `path_utils` instead of duplicate code
+- Removed duplicate `load_gitignore_for_directory()` and `is_ignored()` functions
+- Updated imports to use the shared utilities
+- Functionality remains identical for backward compatibility
+
+**4. `tests/unit/tools/definitions/test_path_utils_gitignore.py`** (new)
+- Comprehensive tests for gitignore loading functionality
+- Tests for nested gitignore files
+- Tests for pattern matching, negation patterns, and edge cases
+- Tests for error handling with unreadable files
+
+**5. `tests/unit/tools/definitions/test_find_in_files.py`** (new)
+- Comprehensive tests for find_in_files with gitignore support
+- Tests for basic functionality, gitignore exclusion, nested gitignore files
+- Tests for gitignore negation patterns and edge cases
+- Tests for binary files, unreadable files, and error conditions
+- Tests for various glob patterns and recursive searches
+
+### Key Design Decisions
+
+1. **Shared Utilities Approach**: Extracted gitignore functionality to `path_utils.py` to eliminate code duplication and ensure consistent behavior across tools.
+
+2. **Per-File Directory Loading**: The implementation loads gitignore patterns based on each file's directory rather than just the working directory. This ensures that nested `.gitignore` files are properly respected.
+
+3. **Fail-Safe Design**: Following the project's guidelines, the gitignore functionality gracefully handles errors (unreadable files, invalid patterns) without crashing the application.
+
+4. **Backward Compatibility**: All existing functionality remains unchanged - the gitignore support is purely additive.
+
+5. **Standard Git Behavior**: The implementation uses the `pathspec` library with `gitwildmatch` patterns to ensure compatibility with standard Git gitignore behavior.
+
+The implementation provides robust, well-tested gitignore support that integrates seamlessly with the existing codebase while maintaining high code quality and comprehensive test coverage.
+
