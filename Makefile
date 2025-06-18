@@ -26,6 +26,19 @@ coverage:
 check: test lint typed security depcheck unusedcode
 
 publishpatch:
+	@if [ "$$(git rev-parse --abbrev-ref HEAD)" != "main" ]; then \
+		echo "❌ You must be on 'main' to publish."; \
+		exit 1; \
+	fi
+	@if [ "$$(git status --porcelain)" != "" ]; then \
+		echo "❌ Working directory not clean."; \
+		exit 1; \
+	fi
+	make check
 	poetry version patch
 	poetry build
-	dotenv run poetry publish --username __token__ --password $$POETRY_PYPI_TOKEN
+	@git add pyproject.toml
+	@git commit -m "Release v$$(poetry version -s)"
+	@git tag v$$(poetry version -s)
+	@git push origin HEAD
+	@git push origin v$$(poetry version -s)
