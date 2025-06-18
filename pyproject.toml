@@ -7,7 +7,7 @@ build-backend = "poetry.core.masonry.api"
 [project]
 name = "streetrace"
 # Update with the actual version
-version = "0.1.13"
+version = "0.1.14"
 description = "StreetRace is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software."
 readme = "README.md"
 requires-python = ">=3.12,<4.0" # Updated minimum Python version
