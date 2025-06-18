@@ -108,6 +108,27 @@ You can add more context to your prompts in two ways:
 
 ### Command Line Arguments
 
+#### Help Information
+
+You can view all available command-line arguments and their descriptions:
+
+```bash
+$ streetrace --help
+# or
+$ streetrace -h
+```
+
+This displays the complete usage information, including all available options and their descriptions.
+
+#### Version Information
+
+You can check the installed version of StreetRace:
+
+```bash
+$ streetrace --version
+StreetRace🚗💨 0.1.13
+```
+
 #### Session Management
 
 StreetRace supports persistence of conversations through sessions. You can specify:
