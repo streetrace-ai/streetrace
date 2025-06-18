@@ -2,7 +2,7 @@
 
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from a2a.types import AgentCapabilities
@@ -359,3 +359,194 @@ class TestAgentManager:
             # Second path should be relative to the repo root
             assert call_args[1].name == "agents"
             assert "src/streetrace/agents" in str(call_args[1])
+
+
+class TestAgentManagerResourceManagement:
+    """Test cases for AgentManager resource management functionality."""
+
+    @pytest.fixture
+    def mock_tool_provider(self, mock_tool_provider) -> ToolProvider:
+        """Create a mock ToolProvider with proper release_tools method."""
+        mock_tools = [MagicMock(), MagicMock()]
+        mock_tool_provider.get_tools = AsyncMock(return_value=mock_tools)
+        return mock_tool_provider
+
+    @pytest.fixture
+    def mock_agent_manager(
+        self,
+        mock_model_factory: ModelFactory,
+        mock_tool_provider: ToolProvider,
+        mock_system_context: SystemContext,
+        work_dir: Path,
+    ) -> AgentManager:
+        """Create an AgentManager instance with proper resource management."""
+        return AgentManager(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            work_dir=work_dir,
+        )
+
+    @patch("streetrace.agents.agent_manager.get_available_agents")
+    @patch("streetrace.agents.agent_manager.get_agent_impl")
+    async def test_create_agent_calls_release_tools_on_success(
+        self,
+        mock_get_agent_impl: MagicMock,
+        mock_get_available_agents: MagicMock,
+        mock_tool_provider: Mock,
+        mock_agent_manager: AgentManager,
+        mock_agent_info: AgentInfo,
+    ) -> None:
+        """Test that release_tools is called when agent creation succeeds."""
+        # Arrange
+        mock_get_available_agents.return_value = [mock_agent_info]
+        mock_agent_class = MockAgent
+        mock_get_agent_impl.return_value = mock_agent_class
+        mock_agent_manager.tool_provider = mock_tool_provider
+
+        # Act
+        async with mock_agent_manager.create_agent("Test Agent") as agent:
+            assert agent is not None
+
+        # Assert
+        mock_agent_manager.tool_provider.get_tools.assert_awaited_once_with(
+            ["test_tool_1", "test_tool_2"],
+        )
+        mock_agent_manager.tool_provider.release_tools.assert_awaited_once()
+
+    @patch("streetrace.agents.agent_manager.get_available_agents")
+    @patch("streetrace.agents.agent_manager.get_agent_impl")
+    async def test_create_agent_calls_release_tools_on_exception(
+        self,
+        mock_get_agent_impl: MagicMock,
+        mock_get_available_agents: MagicMock,
+        mock_tool_provider: Mock,
+        mock_agent_manager: AgentManager,
+        mock_agent_info: AgentInfo,
+    ) -> None:
+        """Test that release_tools is called even when agent creation fails."""
+        # Arrange
+        mock_get_available_agents.return_value = [mock_agent_info]
+        mock_agent_manager.tool_provider = mock_tool_provider
+
+        # Mock agent that raises exception during agent creation
+        class FailingAgent(StreetRaceAgent):
+            def get_agent_card(self) -> StreetRaceAgentCard:
+                return StreetRaceAgentCard(
+                    name="Failing Agent",
+                    description="Agent that fails",
+                    capabilities=AgentCapabilities(streaming=False),
+                    skills=[],
+                    defaultInputModes=["text"],
+                    defaultOutputModes=["text"],
+                    version="1.0.0",
+                )
+
+            async def get_required_tools(self) -> list[AnyTool | str]:
+                return ["test_tool_1", "test_tool_2"]
+
+            async def create_agent(
+                self,
+                model_factory,  # noqa: ARG002
+                tools,  # noqa: ARG002
+                system_context,  # noqa: ARG002
+            ) -> BaseAgent:
+                raise RuntimeError("Agent creation failed")
+
+        mock_get_agent_impl.return_value = FailingAgent
+
+        # Act & Assert
+        with pytest.raises(RuntimeError, match="Agent creation failed"):
+            async with mock_agent_manager.create_agent("Test Agent"):
+                pass
+
+        # Verify that tools were still released despite the exception
+        mock_agent_manager.tool_provider.get_tools.assert_awaited_once_with(
+            ["test_tool_1", "test_tool_2"],
+        )
+        mock_agent_manager.tool_provider.release_tools.assert_awaited_once()
+
+    @patch("streetrace.agents.agent_manager.get_available_agents")
+    @patch("streetrace.agents.agent_manager.get_agent_impl")
+    async def test_create_agent_calls_release_tools_on_context_exit_exception(
+        self,
+        mock_get_agent_impl: MagicMock,
+        mock_get_available_agents: MagicMock,
+        mock_tool_provider: Mock,
+        mock_agent_manager: AgentManager,
+        mock_agent_info: AgentInfo,
+    ) -> None:
+        """Test that release_tools is called when exception occurs in context."""
+        # Arrange
+        mock_get_available_agents.return_value = [mock_agent_info]
+        mock_agent_class = MockAgent
+        mock_get_agent_impl.return_value = mock_agent_class
+        mock_agent_manager.tool_provider = mock_tool_provider
+
+        # Act & Assert
+        with pytest.raises(ValueError, match="Test exception"):
+            async with mock_agent_manager.create_agent("Test Agent"):
+                raise ValueError("Test exception")
+
+        # Verify that tools were still released despite the exception
+        mock_agent_manager.tool_provider.release_tools.assert_awaited_once()
+
+    @patch("streetrace.agents.agent_manager.get_available_agents")
+    @patch("streetrace.agents.agent_manager.get_agent_impl")
+    async def test_create_agent_release_tools_receives_correct_tools(
+        self,
+        mock_get_agent_impl: MagicMock,
+        mock_get_available_agents: MagicMock,
+        mock_tool_provider: Mock,
+        mock_agent_manager: AgentManager,
+        mock_agent_info: AgentInfo,
+    ) -> None:
+        """Test that release_tools receives the same tools returned by get_tools."""
+        # Arrange
+        mock_get_available_agents.return_value = [mock_agent_info]
+        mock_agent_class = MockAgent
+        mock_get_agent_impl.return_value = mock_agent_class
+        mock_agent_manager.tool_provider = mock_tool_provider
+
+        # Capture the tools returned by get_tools
+        expected_tools = [MagicMock(), MagicMock()]
+        mock_agent_manager.tool_provider.get_tools.return_value = expected_tools
+
+        # Act
+        async with mock_agent_manager.create_agent("Test Agent"):
+            pass
+
+        # Assert that release_tools was called with the same tools
+        mock_agent_manager.tool_provider.release_tools.assert_awaited_once_with(
+            expected_tools,
+        )
+
+    @patch("streetrace.agents.agent_manager.get_available_agents")
+    @patch("streetrace.agents.agent_manager.get_agent_impl")
+    async def test_create_agent_release_tools_exception_does_not_mask_original(
+        self,
+        mock_get_agent_impl: MagicMock,
+        mock_get_available_agents: MagicMock,
+        mock_tool_provider: Mock,
+        mock_agent_manager: AgentManager,
+        mock_agent_info: AgentInfo,
+    ) -> None:
+        """Test that exceptions in release_tools don't mask original exceptions."""
+        # Arrange
+        mock_get_available_agents.return_value = [mock_agent_info]
+        mock_agent_class = MockAgent
+        mock_get_agent_impl.return_value = mock_agent_class
+        mock_agent_manager.tool_provider = mock_tool_provider
+
+        # Configure release_tools to raise an exception
+        mock_agent_manager.tool_provider.release_tools.side_effect = Exception(
+            "Release failed",
+        )
+
+        # Act & Assert - Original exception from user code should be preserved
+        with pytest.raises(ValueError, match="Original exception"):
+            async with mock_agent_manager.create_agent("Test Agent"):
+                raise ValueError("Original exception")
+
+        # Verify release_tools was still called
+        mock_agent_manager.tool_provider.release_tools.assert_awaited_once()

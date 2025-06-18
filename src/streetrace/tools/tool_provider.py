@@ -44,6 +44,12 @@ class ToolProvider:
         """Initialize ToolProvider."""
         self.work_dir = work_dir
 
+    async def release_tools(self, tools: list[AnyTool]) -> None:
+        """Release all tools."""
+        for tool in tools:
+            if isinstance(tool, MCPToolset):
+                await tool.close()
+
     async def get_tools(
         self,
         tool_refs: list[str | AnyTool],
