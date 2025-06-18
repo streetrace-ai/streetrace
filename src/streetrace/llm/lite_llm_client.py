@@ -83,7 +83,7 @@ def _try_extract_cost(
     )
 
 
-class LiteLLMClientWithUsage(LiteLLMClient):  # type: ignore[misc]
+class LiteLLMClientWithUsage(LiteLLMClient):
     """Provides acompletion method (for better testability)."""
 
     def __init__(self, ui_bus: UiBus) -> None:
@@ -150,7 +150,7 @@ class LiteLLMClientWithUsage(LiteLLMClient):  # type: ignore[misc]
         """
         response = await super().acompletion(model, messages, tools, **kwargs)
         self._process_usage_and_cost(model, messages, response)
-        return response  # type: ignore[no-any-return]
+        return response
 
     def completion(  # type: ignore[no-untyped-def]
         self,
@@ -176,10 +176,10 @@ class LiteLLMClientWithUsage(LiteLLMClient):  # type: ignore[misc]
         response = super().completion(model, messages, tools, stream, **kwargs)
         if not stream:
             self._process_usage_and_cost(model, messages, response)
-        return response  # type: ignore[no-any-return]
+        return response
 
 
-class RetryingLiteLlm(LiteLlm):  # type: ignore[misc]
+class RetryingLiteLlm(LiteLlm):
     """LiteLlm with built-in retry capabilities for generate_content_async.
 
     This implementation adds tenacity-based retries to the original LiteLlm

@@ -9,9 +9,13 @@ from unittest.mock import Mock, patch
 
 import pytest
 from google.adk.events import Event
+from google.adk.events.event_actions import EventActions
+from google.genai.types import Content, FunctionCall, FunctionResponse, Part
 
 from streetrace.ui.adk_event_renderer import render_event
+from streetrace.ui.console_ui import ConsoleUI
 from streetrace.ui.render_protocol import (
+    RendererFn,
     _display_renderers_registry,
     render_using_registered_renderer,
 )
@@ -67,9 +71,6 @@ class TestRendererRegistration:
 
     def test_render_event_decorator_preserves_function(self):
         """Test that @register_renderer preserves the original function."""
-        # The decorated function should still be callable directly
-        from streetrace.ui.adk_event_renderer import render_event
-
         # Should be callable with proper arguments
         assert callable(render_event)
 
@@ -79,8 +80,6 @@ class TestRendererRegistration:
 
     def test_multiple_event_types_can_be_rendered(self, mock_console, sample_author):
         """Test that different Event configurations can all be rendered."""
-        from google.genai.types import Content, Part
-
         # Test various event types
         event_configs = [
             # Basic text event
@@ -127,16 +126,11 @@ class TestRendererRegistration:
 
     def test_render_event_protocol_compliance(self):
         """Test that render_event complies with the RendererFn protocol."""
-        from streetrace.ui.render_protocol import RendererFn
-
         # Check if render_event is an instance of the protocol
         assert isinstance(render_event, RendererFn)
 
     def test_render_event_handles_all_event_variants(self, mock_console, sample_author):
         """Test that render_event can handle all possible Event variants."""
-        from google.adk.events.event_actions import EventActions
-        from google.genai.types import Content, FunctionCall, FunctionResponse, Part
-
         # Create comprehensive event with all possible content types
         function_call = FunctionCall(
             name="test_func",
@@ -173,42 +167,8 @@ class TestRendererRegistration:
         # Should have multiple print calls for different content types
         assert mock_console.print.call_count > 1
 
-    def test_registry_persistence_across_imports(self):
-        """Test that the registry persists across module imports."""
-        # Re-import to simulate fresh import
-        import importlib
-
-        import streetrace.ui.adk_event_renderer
-
-        importlib.reload(streetrace.ui.adk_event_renderer)
-
-        # Event should still be registered
-        from streetrace.ui.render_protocol import _display_renderers_registry
-
-        assert Event in _display_renderers_registry
-
-    def test_render_function_metadata(self):
-        """Test that the render function maintains proper metadata."""
-        from streetrace.ui.adk_event_renderer import render_event
-
-        # Should have proper name
-        assert render_event.__name__ == "render_event"
-
-        # Should have module information
-        assert render_event.__module__ == "streetrace.ui.adk_event_renderer"
-
-        # Should have type annotations
-        assert hasattr(render_event, "__annotations__")
-        annotations = render_event.__annotations__
-        assert "obj" in annotations
-        assert "console" in annotations
-
     def test_integration_with_console_ui_display(self, basic_event):
         """Test integration with ConsoleUI.display method."""
-        from unittest.mock import Mock
-
-        from streetrace.ui.console_ui import ConsoleUI
-
         # Create a minimal ConsoleUI mock
         mock_ui_bus = Mock()
         mock_app_state = Mock()

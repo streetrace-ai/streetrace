@@ -29,7 +29,7 @@ class DummyCommand(Command):
         name: str = _TEST_CMD_NAME,
         description: str = _TEST_CMD_DESC,
         execute_returns: int | Any = 0,  # noqa: ANN401 matching Popen.returncode
-        raise_exception: bool = False,  # noqa: FBT001, FBT002
+        raise_exception: bool = False,
     ) -> None:
         super().__init__()
         self._name = name

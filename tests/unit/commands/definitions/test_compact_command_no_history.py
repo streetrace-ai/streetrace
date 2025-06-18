@@ -4,7 +4,7 @@ This module tests how CompactCommand handles scenarios where there is no current
 or the session has no events to compact.
 """
 
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from google.adk.sessions import Session
@@ -45,7 +45,9 @@ class TestCompactCommandNoHistory:
     ) -> None:
         """Test behavior when session_manager returns no current session."""
         # Arrange
-        mock_dependencies["session_manager"].get_current_session.return_value = None
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=None,
+        )
 
         # Act
         await compact_command.execute_async()

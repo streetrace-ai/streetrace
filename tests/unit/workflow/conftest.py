@@ -51,7 +51,7 @@ def events_mocker():
     def _mock_event(
         content: str | list[str] | None = None,
         author: str = "user",
-        is_final_response: bool | None = True,  # noqa: FBT002
+        is_final_response: bool | None = True,
         escalate: bool | None = None,
     ) -> Event:
         event = Mock(spec=Event)

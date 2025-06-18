@@ -10,7 +10,7 @@ from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import register_renderer
 
 # skipping a bunch of checks here due to redundancy
-# ruff: noqa: ANN204,D101,D103,D107,E701
+# ruff: noqa: D101, D103
 
 
 class _Str(str):

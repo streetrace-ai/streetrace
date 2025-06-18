@@ -4,7 +4,7 @@ This module tests how the Supervisor handles session creation, retrieval, and
 post-processing of completed agent interactions.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -16,8 +16,9 @@ class TestSupervisorSessionManagement:
     """Test Supervisor session management scenarios."""
 
     @pytest.mark.asyncio
-    async def test_get_or_create_session_called(
+    async def test_get_or_create_session_called_once(
         self,
+        mock_session_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -26,8 +27,10 @@ class TestSupervisorSessionManagement:
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
+        shallow_supervisor.session_manager = mock_session_manager
+
+        shallow_supervisor.session_manager.get_or_create_session = AsyncMock(
+            return_value=mock_session,
         )
 
         with patch(
@@ -41,8 +44,38 @@ class TestSupervisorSessionManagement:
         shallow_supervisor.session_manager.get_or_create_session.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_validate_session_called_once(
+        self,
+        mock_session_manager,
+        shallow_supervisor: Supervisor,
+        mock_session,
+        mock_adk_runner,
+    ) -> None:
+        """Test that get_or_create_session is properly called."""
+        # Arrange
+        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+
+        shallow_supervisor.session_manager.validate_session = AsyncMock(
+            return_value=mock_session,
+        )
+
+        with patch(
+            "streetrace.workflow.supervisor.Runner",
+            return_value=mock_adk_runner(),
+        ):
+            # Act
+            await shallow_supervisor.run_async(prompt)
+
+        # Assert
+        shallow_supervisor.session_manager.validate_session.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_session_properties_used_in_runner(
         self,
+        mock_session_manager,
+        mock_agent_manager,
         shallow_supervisor: Supervisor,
         mock_adk_runner,
         events_mocker,
@@ -51,14 +84,17 @@ class TestSupervisorSessionManagement:
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
 
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+
         # Create custom session with specific properties
         custom_session = Mock()
         custom_session.app_name = "custom_app"
         custom_session.user_id = "custom_user"
         custom_session.id = "custom_session_123"
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            custom_session
+        shallow_supervisor.session_manager.validate_session = AsyncMock(
+            return_value=custom_session,
         )
 
         # Create custom event
@@ -89,6 +125,7 @@ class TestSupervisorSessionManagement:
     @pytest.mark.asyncio
     async def test_post_process_called_with_correct_parameters(
         self,
+        mock_session_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -97,9 +134,9 @@ class TestSupervisorSessionManagement:
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager = mock_session_manager
+
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
             "streetrace.workflow.supervisor.Runner",
@@ -117,6 +154,7 @@ class TestSupervisorSessionManagement:
     @pytest.mark.asyncio
     async def test_post_process_called_even_with_escalation(
         self,
+        mock_session_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -126,9 +164,9 @@ class TestSupervisorSessionManagement:
         # Arrange
         prompt = ProcessedPrompt(prompt="Problematic request", mentions=[])
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager = mock_session_manager
+
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         # Mock escalation event
         events = [events_mocker(escalate=True, content="Escalation needed")]
@@ -148,6 +186,7 @@ class TestSupervisorSessionManagement:
     @pytest.mark.asyncio
     async def test_post_process_called_with_no_final_response(
         self,
+        mock_session_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -157,9 +196,9 @@ class TestSupervisorSessionManagement:
         # Arrange
         prompt = ProcessedPrompt(prompt="Request without response", mentions=[])
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager = mock_session_manager
+
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         # Mock only non-final events
         events = [events_mocker(is_final_response=False)]
@@ -179,6 +218,8 @@ class TestSupervisorSessionManagement:
     @pytest.mark.asyncio
     async def test_session_service_passed_to_runner(
         self,
+        mock_session_manager,
+        mock_agent_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
@@ -187,9 +228,10 @@ class TestSupervisorSessionManagement:
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
 
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
             "streetrace.workflow.supervisor.Runner",
@@ -208,15 +250,15 @@ class TestSupervisorSessionManagement:
     @pytest.mark.asyncio
     async def test_post_process_with_none_payload(
         self,
+        mock_session_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_adk_runner,
     ) -> None:
         """Test that post_process handles None payload correctly."""
+        shallow_supervisor.session_manager = mock_session_manager
         # Arrange
-        shallow_supervisor.session_manager.get_or_create_session.return_value = (
-            mock_session
-        )
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
             "streetrace.workflow.supervisor.Runner",

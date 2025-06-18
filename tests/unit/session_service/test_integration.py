@@ -35,7 +35,7 @@ def real_args() -> Args:
 class TestSessionServiceIntegration:
     """Integration tests for session_service module."""
 
-    def test_full_session_lifecycle(self, real_args, ui_bus, system_context):
+    async def test_full_session_lifecycle(self, real_args, ui_bus, system_context):
         """Test the complete session lifecycle from creation to deletion."""
         # Create a temporary directory for session storage
         with tempfile.TemporaryDirectory() as temp_dir_path:
@@ -67,7 +67,7 @@ class TestSessionServiceIntegration:
                 assert session_manager.current_session_id == test_session_id
 
                 # Create a new session
-                session = session_manager.get_or_create_session()
+                session = await session_manager.get_or_create_session()
                 assert session is not None
                 assert session.id == test_session_id
                 assert session.app_name == real_args.effective_app_name
@@ -77,7 +77,7 @@ class TestSessionServiceIntegration:
                 assert len(session.events) > 0
 
                 # Get the existing session
-                existing_session = session_manager.get_current_session()
+                existing_session = await session_manager.get_current_session()
                 assert existing_session is not None
                 assert existing_session.id == test_session_id
 
@@ -85,7 +85,7 @@ class TestSessionServiceIntegration:
                 json_session_service.sessions.clear()
 
                 # Get the session again to force reading from disk
-                disk_session = session_manager.get_current_session()
+                disk_session = await session_manager.get_current_session()
                 assert disk_session is not None
                 assert disk_session.id == test_session_id
 
@@ -97,7 +97,7 @@ class TestSessionServiceIntegration:
                         parts=[genai_types.Part.from_text(text="Test user message")],
                     ),
                 )
-                json_session_service.append_event(disk_session, user_event)
+                await json_session_service.append_event(disk_session, user_event)
 
                 # Add an assistant event
                 assistant_event = Event(
@@ -109,17 +109,17 @@ class TestSessionServiceIntegration:
                         ],
                     ),
                 )
-                json_session_service.append_event(disk_session, assistant_event)
+                await json_session_service.append_event(disk_session, assistant_event)
 
                 # Clear memory cache again
                 json_session_service.sessions.clear()
 
                 # Get session again for post-processing
-                current_session = session_manager.get_current_session()
+                current_session = await session_manager.get_current_session()
                 assert current_session is not None
 
                 # List all sessions
-                session_manager.display_sessions()
+                await session_manager.display_sessions()
 
                 # Reset the session with a new ID
                 new_session_id = "new-session"
@@ -131,20 +131,20 @@ class TestSessionServiceIntegration:
                     assert session_manager.current_session_id == new_session_id
 
                 # Create a new session with the new ID
-                new_session = session_manager.get_or_create_session()
+                new_session = await session_manager.get_or_create_session()
                 assert new_session.id == new_session_id
 
                 # List all sessions again
-                session_manager.display_sessions()
+                await session_manager.display_sessions()
 
                 # Clean up - delete sessions
-                json_session_service.delete_session(
+                await json_session_service.delete_session(
                     app_name=real_args.effective_app_name,
                     user_id=real_args.effective_user_id,
                     session_id=test_session_id,
                 )
 
-                json_session_service.delete_session(
+                await json_session_service.delete_session(
                     app_name=real_args.effective_app_name,
                     user_id=real_args.effective_user_id,
                     session_id=new_session_id,

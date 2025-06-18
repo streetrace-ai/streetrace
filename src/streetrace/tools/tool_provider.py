@@ -1,20 +1,19 @@
 """Provide tools to agents."""
 
-import contextlib
 import importlib
-from collections.abc import AsyncGenerator, Callable, Iterator
-from contextlib import asynccontextmanager
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
 from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.base_toolset import BaseToolset
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from mcp import StdioServerParameters
 
 from streetrace.tools.definitions.fake_tools import get_current_time, get_weather
 from streetrace.utils.hide_args import hide_args
 
-type AnyTool = Callable[..., Any] | BaseTool
+type AnyTool = Callable[..., Any] | BaseTool | BaseToolset
 
 _MCP_TOOLS_PREFIX = "mcp:"
 _STREETRACE_TOOLS_PREFIX = "streetrace:"
@@ -28,11 +27,10 @@ class ToolProvider:
         """Initialize ToolProvider."""
         self.work_dir = work_dir
 
-    @asynccontextmanager
     async def get_tools(
         self,
         tool_refs: list[str | AnyTool],
-    ) -> AsyncGenerator[list[AnyTool], None]:
+    ) -> list[AnyTool]:
         """Yield a full list of tool implementations as a context-managed resource.
 
         Args:
@@ -63,27 +61,15 @@ class ToolProvider:
         # Get MCP servers and their tools
         mcp_servers = self._get_mcp_servers_and_tools(tool_names)
 
-        # Use nested async context managers to handle all servers
-        async with self._create_mcp_toolsets(mcp_servers) as server_toolsets:
-            # Process tools from all MCP servers
-            for toolset, requested_tools in server_toolsets:
-                mcp_tools = await toolset.load_tools()
-                # Add only the tools that were requested
-                tools.extend(
-                    [
-                        mcp_tool
-                        for mcp_tool in mcp_tools
-                        if mcp_tool.name in requested_tools
-                    ],
-                )
+        mcp_toolsets = self._create_mcp_toolsets(mcp_servers)
+        tools.extend(mcp_toolsets)
 
-            yield tools  # ✅ SINGLE yield here
+        return tools
 
-    @asynccontextmanager
-    async def _create_mcp_toolsets(
+    def _create_mcp_toolsets(
         self,
         mcp_servers: dict[str, set[str]],
-    ) -> AsyncGenerator[list[tuple[MCPToolset, set[str]]], None]:
+    ) -> list[MCPToolset]:
         """Create and yield a dictionary of MCPToolsets for all requested servers.
 
         Args:
@@ -93,30 +79,23 @@ class ToolProvider:
             Dictionary mapping server names to tuples of (toolset, tool_names).
 
         """
-        toolsets: list[tuple[MCPToolset, set[str]]] = []
+        toolsets: list[MCPToolset] = []
 
         # Create all toolsets
         for server_name, tool_names in mcp_servers.items():
+            tool_filter: list[str] | None = None
+            if len(tool_names.intersection(["all", "*"])) == 0:
+                tool_filter = list(tool_names)
             toolset = MCPToolset(
                 connection_params=StdioServerParameters(
                     command="npx",
                     args=["-y", server_name, str(self.work_dir)],
                 ),
+                tool_filter=tool_filter,
             )
-            toolsets.append((toolset, tool_names))
+            toolsets.append(toolset)
 
-        # Enter all context managers
-        try:
-            for toolset, _ in toolsets:
-                await toolset.__aenter__()
-
-            yield toolsets
-
-        # Exit all context managers
-        finally:
-            for toolset, _ in toolsets:
-                with contextlib.suppress(Exception):
-                    await toolset.__aexit__(None, None, None)
+        return toolsets
 
     def _get_streetrace_tools(
         self,

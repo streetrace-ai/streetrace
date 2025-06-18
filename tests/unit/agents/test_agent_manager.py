@@ -339,52 +339,6 @@ class TestAgentManager:
         assert len(agents) == 2
         assert agents == expected_agents
 
-    @patch("streetrace.agents.agent_manager.get_available_agents")
-    @patch("streetrace.agents.agent_manager.get_agent_impl")
-    async def test_create_agent_resource_cleanup(
-        self,
-        mock_get_agent_impl: MagicMock,
-        mock_get_available_agents: MagicMock,
-        agent_manager: MagicMock,
-        mock_agent_info: AgentInfo,
-    ) -> None:
-        """Test that resources are properly cleaned up when exiting context."""
-        # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
-        mock_agent_class = MockAgent
-        mock_get_agent_impl.return_value = mock_agent_class
-
-        # Act
-        async with agent_manager.create_agent("Test Agent"):
-            pass
-
-        # Assert that __aexit__ was called on the tool provider's context manager
-        agent_manager.tool_provider.get_tools.return_value.__aexit__.assert_called_once()
-
-    @patch("streetrace.agents.agent_manager.get_available_agents")
-    @patch("streetrace.agents.agent_manager.get_agent_impl")
-    async def test_create_agent_with_exception_in_context(
-        self,
-        mock_get_agent_impl: MagicMock,
-        mock_get_available_agents: MagicMock,
-        agent_manager: MagicMock,
-        mock_agent_info: AgentInfo,
-    ) -> None:
-        """Test that resources are cleaned up even when exception occurs in context."""
-        # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
-        mock_agent_class = MockAgent
-        mock_get_agent_impl.return_value = mock_agent_class
-        err_msg = "Simulated error"
-
-        # Act & Assert
-        with pytest.raises(RuntimeError, match="Simulated error"):
-            async with agent_manager.create_agent("Test Agent"):
-                raise RuntimeError(err_msg)
-
-        # Assert that __aexit__ was still called for cleanup
-        agent_manager.tool_provider.get_tools.return_value.__aexit__.assert_called_once()
-
     def test_agent_manager_paths_configuration(
         self,
         agent_manager: AgentManager,

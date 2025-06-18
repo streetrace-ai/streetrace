@@ -1,6 +1,8 @@
 """StreetRace🚗💨 CLI entry point."""
 
 import asyncio
+import sys
+from importlib.metadata import version
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -10,8 +12,22 @@ from streetrace.args import Args, bind_and_run
 from streetrace.log import get_logger, init_logging
 
 
+def show_version() -> None:
+    """Display the application version and exit."""
+    try:
+        app_version = version("streetrace")
+        print(f"StreetRace🚗💨 {app_version}")  # noqa: T201
+    except Exception:  # noqa: BLE001
+        # Broad exception handling is acceptable here as we want to gracefully
+        # handle any version lookup failures (missing package, corrupted metadata, etc.)
+        print("StreetRace🚗💨 (version unknown)")  # noqa: T201
+    sys.exit(0)
+
+
 def run(args: Args) -> None:
     """Configure and run the Application."""
+    if args.version:
+        show_version()
     cwd = Path.cwd()
     if not cwd.is_dir():
         msg = f"Current working directory is not a directory: {cwd}"

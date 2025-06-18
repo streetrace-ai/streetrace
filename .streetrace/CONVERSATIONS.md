@@ -2177,3 +2177,349 @@ Overall, this document provides a comprehensive overview of the StreetRace frame
 
 If you'd like me to help with anything specific related to this document or the StreetRace project, feel free to ask!
 
+
+# Tue Jun 17 13:45:07 2025 -0700
+
+## User
+
+Can you describe this project based only on README.md?
+
+## Assistant
+
+Based on the README.md file, I can provide a comprehensive description of the StreetRace🚗💨 project:
+
+## StreetRace🚗💨 Project Description
+
+**StreetRace** is an open-source platform for engineering-native AI agents that integrate with developer tools, automate workflows, and evolve with the development process. It's designed as a peer-to-peer collaboration tool between engineers and AI agents, rather than a replacement for human developers.
+
+### Core Philosophy
+
+The project is built on four key principles:
+
+1. **🔧 Built for Developers, by Developers** - Integrates directly with CLI and code editors, allowing agents to operate in the same terminal and shell environment as human developers
+
+2. **🤝 Engineering Peer, Not Replacement** - Unlike other AI coding assistants that aim to replace engineers, StreetRace empowers engineers by providing a co-worker that can be inspected, guided, and evolved
+
+3. **🧩 Opinionated, Yet Extensible** - Comes with battle-tested patterns and tools, includes built-in A2A (Agent-to-Agent) publishing, and integrates with MCP (Model Context Protocol) tools
+
+4. **🛠 Open, Flexible, and Secure** - Model-agnostic, open-source, supports everything from local Ollama models to cloud APIs, with agents running in controlled local environments
+
+### Key Features
+
+- **CLI-based Interface**: Command-line tool that operates within the current directory
+- **Multi-Model Support**: Works with Anthropic, Gemini, OpenAI, and local Ollama models via LiteLLM
+- **Session Management**: Persistent conversations with customizable app names, user IDs, and session IDs
+- **File System Integration**: Tools for reading, writing, listing directories, and searching files
+- **Safety Mechanisms**: CLI command safety checker that categorizes commands as safe, ambiguous, or risky
+- **Agent System**: Modular system for discovering and running specialized agents
+- **Interactive Features**: Autocompletion for files and internal commands like `/help`, `/exit`, `/history`, `/compact`, `/reset`
+
+### Architecture
+
+- **Tool Configuration**: YAML-based tool configuration system
+- **Agent Discovery**: Automatic discovery of custom agents in `./agents/` directories
+- **Context Management**: Support for project-specific context via `.streetrace` folder with `SYSTEM.md` and other context files
+- **Working Directory Control**: Ability to specify different working directories via `--path` argument
+
+### Usage Scenarios
+
+- Code generation and modification
+- Project exploration and understanding
+- Automated workflows (linting, building, bug triage)
+- Service template generation
+- CI/CD integration
+- Onboarding assistance
+
+### Installation & Setup
+
+Available via PyPI (`pip install streetrace` or `pipx install streetrace`) or from source using Poetry. Requires appropriate API keys for chosen AI providers or Ollama setup for local models.
+
+StreetRace represents a vision where AI agents become trusted teammates in the development process, providing intelligent assistance while maintaining developer control, security, and transparency.
+
+
+# Tue Jun 17 13:49:42 2025 -0700
+
+## User
+
+Can you describe this project based only on README.md?
+
+
+## Assistant
+
+Based on the README.md file, here's what I can describe about the StreetRace project:
+
+## Project Description
+
+**StreetRace** is an open-source platform for creating engineering-native AI agents that integrate directly with developer tools and workflows. It positions itself as a "peer-to-peer" development solution where engineers work alongside AI agents rather than being replaced by them.
+
+## Key Differentiators
+
+### 🔧 Built for Developers, by Developers
+- Integrates directly with CLI and code editors
+- Agents operate in the same terminal/shell as humans
+- Enables seamless, trusted collaboration
+
+### 🤝 Engineering Peer, Not Replacement
+- Empowers engineers rather than replacing them
+- Agents are inspectable, guidable, and evolvable co-workers
+- Focuses on augmenting human capabilities
+
+### 🧩 Opinionated, Yet Extensible
+- Powered by ADK (Application Development Kit)
+- Built-in A2A (Agent-to-Agent) publishing
+- Integrates with MCP (Model Context Protocol) tools
+- Provides battle-tested patterns for high-performing agents
+- Supports publishing reusable agents for common tasks
+
+### 🛠 Open, Flexible, and Secure
+- Model-agnostic (supports local Ollama to cloud APIs)
+- Runs in local environment with controlled APIs
+- Full control, observability, and security
+
+## Core Functionality
+
+### Installation Options
+- PyPI installation via `pipx` or `pip`
+- Source installation via Poetry
+- Supports multiple AI providers (Anthropic, Gemini, OpenAI, Ollama)
+
+### CLI Interface
+- Interactive and non-interactive modes
+- File path autocompletion with `@` prefix
+- Internal commands with `/` prefix (`/help`, `/exit`, `/quit`, `/history`, `/compact`, `/reset`)
+- Session management with persistence
+- Working directory specification via `--path`
+
+### Safety Features
+- CLI command safety analysis (Safe/Ambiguous/Risky classification)
+- Blocks risky commands by default
+- Uses `bashlex` for command parsing and analysis
+- Prevents operations outside working directory
+
+### Agent System
+- Modular agent discovery system
+- Two approaches for creating custom agents:
+  1. **Recommended**: Using `StreetRaceAgent` interface with proper OOP structure
+  2. **Legacy**: Basic function-based approach
+- Hierarchical agent execution (primary assistant can delegate to specialized agents)
+- Tool configuration via YAML files
+- Tool discovery system
+
+### Session Management
+- Persistent conversations across runs
+- Configurable app names, user IDs, and session IDs
+- Automatic identity detection (GitHub/Git/OS username)
+- Session listing and continuation capabilities
+
+### Context Enhancement
+- `.streetrace` folder for project-specific configuration
+- `SYSTEM.md` for system instructions
+- Additional context files for conversation history
+
+## Target Use Cases
+- Code generation and modification
+- Project exploration and understanding
+- Automated workflows (linting, building, bug triage)
+- Service template generation
+- CI failure response
+- Codebase onboarding
+
+StreetRace essentially creates a framework where AI agents become integrated development teammates that can perform engineering tasks while maintaining transparency, control, and security for the human developers.
+
+
+# Tue Jun 17 13:57:39 2025 -0700
+
+## User
+
+Can you describe this project based only on README.md?
+
+## Assistant
+
+Based on the README.md file, here's a comprehensive description of the StreetRace project:
+
+## StreetRace🚗💨 - An Engineering-Native AI Agent Platform
+
+**StreetRace** is an open-source platform designed for creating AI agents that integrate directly with developer tools and workflows. It's positioned as a "peer-to-peer" collaboration tool where engineers work alongside AI agents, rather than being replaced by them.
+
+### Core Philosophy
+
+The project follows a **"peer-to-peer: engineer + agent"** philosophy, emphasizing:
+- **Engineering Peer, Not Replacement**: Agents are co-workers that can be inspected, guided, and evolved
+- **Built for Developers, by Developers**: Direct integration with CLI, code editors, and development environments
+- **Opinionated, Yet Extensible**: Comes with battle-tested patterns while supporting customization
+
+### Key Features
+
+1. **Direct Tool Integration**: Agents can operate in the same terminal and shell as developers
+2. **Model Agnostic**: Supports various AI providers (Anthropic, OpenAI, Gemini, local Ollama models) through LiteLLM
+3. **Session Management**: Persistent conversations with session IDs for different projects/tasks
+4. **File System Operations**: Agents can read, write, and manipulate files within controlled boundaries
+5. **Safety Mechanisms**: CLI command safety checking to prevent dangerous operations
+6. **Agent System**: Modular architecture for creating specialized agents
+
+### Installation & Usage
+
+- **Install via PyPI**: `pipx install streetrace` or `pip install streetrace`
+- **From Source**: Uses Poetry for dependency management
+- **Environment Setup**: Configure API keys for chosen AI providers
+- **CLI Interface**: `streetrace --model=$YOUR_FAVORITE_MODEL`
+
+### Core Functionality
+
+1. **Interactive Mode**: 
+   - File autocompletion with `@` prefix
+   - Internal commands (`/help`, `/exit`, `/history`, `/compact`, `/reset`)
+   - Persistent conversation sessions
+
+2. **Non-Interactive Mode**: Single command execution with `--prompt` argument
+
+3. **File Operations**: Works within specified directory boundaries with `--path` option
+
+4. **Agent Discovery & Execution**: 
+   - Modular agent system with discovery capabilities
+   - Support for both modern `StreetRaceAgent` interface and legacy function-based agents
+   - Tool configuration through YAML files
+
+### Safety & Security
+
+- **CLI Command Analysis**: Categorizes commands as Safe, Ambiguous, or Risky
+- **Working Directory Constraints**: Operations limited to specified directories
+- **Path Validation**: Prevents directory traversal attacks
+
+### Architecture Highlights
+
+- **Tool System**: Configurable tools via `./tools/tools.yaml`
+- **Agent Cards**: Metadata system for agent discovery and capabilities
+- **Session Persistence**: Maintains context across multiple runs
+- **Context Management**: Support for project-specific instructions via `.streetrace` folder
+
+This project essentially creates a controlled environment where AI agents can assist with development tasks while maintaining security boundaries and providing transparency into their operations. It's designed for teams that want AI assistance without giving up control or visibility into what the AI is doing.
+
+
+# Tue Jun 17 17:02:32 2025 -0700
+
+## User
+
+Please add a --version argument that prints the current app version and exits. See @src/streetrace/args.py and @src/streetrace/main.py for arguments management.
+
+## Assistant
+
+Perfect! Everything is working as expected.
+
+## Summary
+
+I have successfully implemented the `--version` argument for the StreetRace🚗💨 application. Here's a summary of the changes:
+
+### Goal of the Change
+Add a `--version` command-line argument that prints the current application version and exits, following standard CLI conventions.
+
+### User Scenarios Addressed
+1. **Version checking**: Users can quickly check which version of StreetRace they have installed
+2. **Debugging and support**: Users can provide version information when reporting issues
+3. **CI/CD integration**: Scripts can programmatically check the version
+4. **Package management**: Helps users verify successful upgrades or installations
+
+### Implementation Details
+
+**Files Modified:**
+
+1. **`src/streetrace/args.py`**:
+   - Added `version: bool = tap.arg(help="Show version and exit", default=False)` to the Args class
+   - Follows the established pattern of other boolean flags in the application
+
+2. **`src/streetrace/main.py`**:
+   - Added necessary imports for version handling (`sys`, `importlib.metadata.version`)
+   - Added `show_version()` function that:
+     - Retrieves version from package metadata using `importlib.metadata.version`
+     - Gracefully handles cases where version cannot be determined
+     - Uses appropriate `print` statements with lint suppressions (acceptable for utility functions)
+     - Exits with code 0 (success)
+   - Modified `main()` function to check for version flag before normal application initialization
+   - Added inner function `run_with_version_check()` to handle version checking logic
+
+3. **`tests/unit/test_version.py`**:
+   - Created comprehensive unit tests covering:
+     - Normal version display functionality
+     - Error handling when package metadata is unavailable
+     - Proper exit code (0) verification
+   - Tests use proper mocking to isolate functionality
+   - Follows the project's testing conventions
+
+4. **`README.md`**:
+   - Added new "Version Information" section under "Command Line Arguments"
+   - Included usage example showing the expected output format
+   - Maintains consistency with existing documentation style
+
+### Technical Approach
+- **Fail-fast design**: Follows the project's core component principle by using `sys.exit(0)` to terminate immediately
+- **Graceful degradation**: Handles missing package metadata gracefully with fallback message
+- **Standard conventions**: Uses `importlib.metadata` (Python 3.8+) for version retrieval
+- **Clean separation**: Version checking happens before other application initialization to avoid unnecessary overhead
+- **Lint compliance**: All code passes the project's linting rules with appropriate suppressions for print statements
+
+The implementation is production-ready, follows the project's coding standards, and provides a reliable way for users to check their StreetRace version.
+
+
+# Tue Jun 17 17:29:58 2025 -0700
+
+## User
+
+Let's add a --help argument as well to show all command line arguments with docs and exit
+
+## Assistant
+
+Excellent! Everything is working correctly.
+
+## Summary
+
+I have successfully documented and tested the existing `--help` functionality for the StreetRace🚗💨 application. Here's a summary of what was accomplished:
+
+### Goal of the Change
+Document and test the existing `--help` command-line argument functionality that shows all available command-line arguments with their descriptions and exits cleanly.
+
+### User Scenarios Addressed
+1. **Help Discovery**: Users can discover all available command-line options with `-h` or `--help`
+2. **Documentation Access**: Users can access argument descriptions directly from the command line
+3. **Self-Service Support**: Users can understand argument usage without referring to external documentation
+4. **Script Integration**: Scripts can programmatically access help information
+5. **Onboarding**: New users can quickly learn about available options
+
+### Technical Findings
+The application already had robust help functionality built into the `typed_argparse` library:
+
+- **Automatic Help Generation**: The `tap.Parser(Args)` automatically provides `-h` and `--help` flags
+- **Built-in Exit Behavior**: Help display automatically exits with code 0 after showing help
+- **Comprehensive Documentation**: All argument descriptions from the `Args` class are automatically included
+- **Proper Formatting**: Standard argparse formatting with usage, positional arguments, and options sections
+
+### Implementation Details
+
+**Files Modified:**
+
+1. **`README.md`**:
+   - Added new "Help Information" section under "Command Line Arguments"
+   - Included usage examples for both `-h` and `--help` flags
+   - Placed before the "Version Information" section following standard CLI convention
+   - Maintains consistency with existing documentation style
+
+2. **`tests/unit/test_help.py`** (New File):
+   - Created comprehensive unit tests covering:
+     - Long form `--help` functionality and exit code verification
+     - Short form `-h` functionality and exit code verification  
+     - Verification that all expected arguments are documented in help output
+     - Verification that meaningful descriptions are present for key arguments
+     - Verification of proper help format with sections (usage, positional arguments, options)
+   - Tests use subprocess to simulate real CLI usage
+   - Proper error handling and timeout protection
+   - Follows project testing conventions with descriptive test names and clear assertions
+   - All linting issues resolved with appropriate `# noqa: S603` suppressions for subprocess calls
+
+### Technical Approach
+- **Discovery over Implementation**: Recognized that `typed_argparse` already provided excellent help functionality
+- **Documentation Enhancement**: Focused on documenting the existing capability rather than reinventing
+- **Comprehensive Testing**: Created thorough tests to ensure the help functionality works correctly and remains stable
+- **Standards Compliance**: Help output follows standard Unix/CLI conventions with proper formatting and exit codes
+- **User Experience**: Both short (`-h`) and long (`--help`) forms work as users expect
+
+The help functionality is production-ready, follows CLI best practices, and provides users with comprehensive information about all available command-line options. The implementation leverages the robust capabilities of the `typed_argparse` library while ensuring proper documentation and test coverage.
+

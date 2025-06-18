@@ -5,7 +5,7 @@ agent creation failures, runner exceptions, and other exceptional scenarios.
 """
 
 from collections.abc import AsyncGenerator
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -19,12 +19,17 @@ class TestSupervisorErrorHandling:
     @pytest.mark.asyncio
     async def test_agent_creation_failure(
         self,
+        mock_session_manager,
+        mock_agent_manager,
         shallow_supervisor: Supervisor,
         mock_session,
     ) -> None:
         """Test handling when agent creation fails."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -46,11 +51,16 @@ class TestSupervisorErrorHandling:
     @pytest.mark.asyncio
     async def test_session_creation_failure(
         self,
+        mock_session_manager,
+        mock_agent_manager,
         shallow_supervisor: Supervisor,
     ) -> None:
         """Test handling when session creation/retrieval fails."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
 
         # Mock session creation failure
         shallow_supervisor.session_manager.get_or_create_session.side_effect = (
@@ -67,12 +77,17 @@ class TestSupervisorErrorHandling:
     @pytest.mark.asyncio
     async def test_runner_execution_failure(
         self,
+        mock_session_manager,
+        mock_agent_manager,
         shallow_supervisor: Supervisor,
         mock_session,
     ) -> None:
         """Test handling when runner execution fails."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -84,9 +99,6 @@ class TestSupervisorErrorHandling:
                 yield
             msg = "Runner execution failed"
             raise Exception(msg)  # noqa: TRY002
-
-        # Mock runner
-        from unittest.mock import patch
 
         mock_runner = Mock()
         mock_runner.run_async.return_value = _failing_async_iter()
@@ -106,6 +118,9 @@ class TestSupervisorErrorHandling:
     @pytest.mark.asyncio
     async def test_ui_dispatch_failure_does_not_stop_processing(
         self,
+        mock_ui_bus,
+        mock_session_manager,
+        mock_agent_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_events_iterator,
@@ -113,6 +128,10 @@ class TestSupervisorErrorHandling:
         """Test that UI dispatch failures don't stop the workflow."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -131,9 +150,6 @@ class TestSupervisorErrorHandling:
         final_event.content.parts[0].text = "Response"
         final_event.actions = None
 
-        # Mock runner
-        from unittest.mock import patch
-
         mock_runner = Mock()
         mock_runner.run_async.return_value = mock_events_iterator([final_event])
 
@@ -148,6 +164,9 @@ class TestSupervisorErrorHandling:
     @pytest.mark.asyncio
     async def test_post_process_failure(
         self,
+        mock_session_manager,
+        mock_agent_manager,
+        mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_events_iterator,
@@ -155,6 +174,10 @@ class TestSupervisorErrorHandling:
         """Test handling when post_process fails."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -172,9 +195,6 @@ class TestSupervisorErrorHandling:
         final_event.content.parts = [Mock()]
         final_event.content.parts[0].text = "Response"
         final_event.actions = None
-
-        # Mock runner
-        from unittest.mock import patch
 
         mock_runner = Mock()
         mock_runner.run_async.return_value = mock_events_iterator([final_event])
@@ -194,6 +214,8 @@ class TestSupervisorErrorHandling:
     @pytest.mark.asyncio
     async def test_agent_context_manager_exit_failure(
         self,
+        mock_session_manager,
+        mock_agent_manager,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_events_iterator,
@@ -201,6 +223,9 @@ class TestSupervisorErrorHandling:
         """Test handling when agent context manager exit fails."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -218,9 +243,6 @@ class TestSupervisorErrorHandling:
         context_manager = shallow_supervisor.agent_manager.create_agent.return_value
         context_manager.__aexit__.side_effect = Exception("Agent cleanup failed")
 
-        # Mock runner
-        from unittest.mock import patch
-
         mock_runner = Mock()
         mock_runner.run_async.return_value = mock_events_iterator([final_event])
 
@@ -234,6 +256,8 @@ class TestSupervisorErrorHandling:
     @pytest.mark.asyncio
     async def test_runner_initialization_failure(
         self,
+        mock_session_manager,
+        mock_agent_manager,
         shallow_supervisor: Supervisor,
         mock_session,
     ) -> None:
@@ -241,12 +265,12 @@ class TestSupervisorErrorHandling:
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
 
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
         )
-
-        # Mock Runner initialization failure
-        from unittest.mock import patch
 
         with (
             patch(
@@ -265,6 +289,9 @@ class TestSupervisorErrorHandling:
     @pytest.mark.asyncio
     async def test_event_processing_with_missing_attributes(
         self,
+        mock_session_manager,
+        mock_agent_manager,
+        mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
         mock_events_iterator,
@@ -272,6 +299,10 @@ class TestSupervisorErrorHandling:
         """Test handling events with missing or None attributes."""
         # Arrange
         prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
             mock_session
@@ -284,7 +315,6 @@ class TestSupervisorErrorHandling:
         problematic_event.actions = None  # Missing actions
 
         # Mock runner
-        from unittest.mock import patch
 
         mock_runner = Mock()
         mock_runner.run_async.return_value = mock_events_iterator([problematic_event])

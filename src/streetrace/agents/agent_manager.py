@@ -98,9 +98,9 @@ class AgentManager:
         agent_type = get_agent_impl(agent_info)
         agent_definition = agent_type()
         required_tools = await agent_definition.get_required_tools()
-        async with self.tool_provider.get_tools(required_tools) as tools:
-            yield await agent_definition.create_agent(
-                self.model_factory,
-                tools,
-                self.system_context,
-            )
+        tools = await self.tool_provider.get_tools(required_tools)
+        yield await agent_definition.create_agent(
+            self.model_factory,
+            tools,
+            self.system_context,
+        )

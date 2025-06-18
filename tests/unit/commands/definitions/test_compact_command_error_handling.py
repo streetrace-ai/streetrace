@@ -5,7 +5,7 @@ LLM failures, malformed responses, and other exception scenarios.
 """
 
 from collections.abc import AsyncGenerator
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from google.adk.events import Event
@@ -86,7 +86,9 @@ class TestCompactCommandErrorHandling:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events_with_content
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM response with empty summary
         mock_response = Mock()
@@ -134,7 +136,9 @@ class TestCompactCommandErrorHandling:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events_with_content
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM response with no content
         mock_response = Mock()
@@ -179,7 +183,9 @@ class TestCompactCommandErrorHandling:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events_with_content
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM response with content but no parts
         mock_response = Mock()
@@ -226,7 +232,9 @@ class TestCompactCommandErrorHandling:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events_with_content
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM to raise an exception
         async def _async_exception() -> AsyncGenerator[Mock, None]:

@@ -10,7 +10,7 @@
       "envFile": "${workspaceFolder}/.env",
       "args": [
         "--model",
-        "ollama_chat/llama3.1:8b",
+        "anthropic/claude-sonnet-4-20250514",
         "--verbose",
         "--prompt",
         "List most popular apple cultivars you know in a file named APPLES.md"

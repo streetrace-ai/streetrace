@@ -15,7 +15,7 @@ from typing import Any, TypeVar
 TReturn = TypeVar("TReturn")
 
 
-def hide_args(
+def hide_args[TReturn](
     fn: Callable[..., TReturn],
     **injected_kwargs: Any,
 ) -> Callable[..., TReturn]:

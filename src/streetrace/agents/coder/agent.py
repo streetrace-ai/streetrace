@@ -114,11 +114,15 @@ class CoderAgent(StreetRaceAgent):
         Optional. If not implemented, create_agent will be called without tools.
         """
         return [
-            "streetrace:fs_tool::create_directory",
-            "streetrace:fs_tool::find_in_files",
-            "streetrace:fs_tool::list_directory",
             "streetrace:fs_tool::read_file",
-            "streetrace:fs_tool::write_file",
+            "streetrace:fs_tool::create_directory",
+            "streetrace:fs_tool::write_file",  # better due to python ast check
+            "streetrace:fs_tool::list_directory",  # honor .gitignore
+            "streetrace:fs_tool::find_in_files",  # honor .gitignore
+            "mcp:@modelcontextprotocol/server-filesystem::edit_file",  # large files
+            "mcp:@modelcontextprotocol/server-filesystem::move_file",  # less tokens
+            "mcp:@modelcontextprotocol/server-filesystem::get_file_info",
+            "mcp:@modelcontextprotocol/server-filesystem::list_allowed_directories",
             "streetrace:cli_tool::execute_cli_command",
         ]
 

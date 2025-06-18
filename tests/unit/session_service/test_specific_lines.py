@@ -1,24 +1,12 @@
 """Tests for specific lines in session_service.py."""
 
-from unittest.mock import Mock
-
 from google.adk.events import Event
 from google.adk.sessions import Session
 from google.genai import types as genai_types
 
-from streetrace.session_service import SessionManager
 
-
-def test_squash_turn_events_tool_detection_explicit():
+async def test_squash_turn_events_tool_detection_explicit(shallow_session_manager):
     """Explicitly test the list comprehension in _squash_turn_events."""
-    # Create a minimal session manager
-    session_manager = SessionManager(
-        args=Mock(),
-        session_service=Mock(),
-        system_context=Mock(),
-        ui_bus=Mock(),
-    )
-
     # We'll create a direct test for the code at lines 568-569
     # by extracting the list comprehension logic into a function we can test
 
@@ -105,4 +93,4 @@ def test_squash_turn_events_tool_detection_explicit():
         state={},
     )
 
-    assert session_manager._squash_turn_events(session) == ""  # noqa: SLF001
+    assert await shallow_session_manager._squash_turn_events(session) == ""  # noqa: SLF001

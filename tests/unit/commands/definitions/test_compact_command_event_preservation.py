@@ -4,7 +4,7 @@ This module tests how CompactCommand properly preserves user events and handles
 event replacement during the summarization process.
 """
 
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from google.adk.events import Event
@@ -117,7 +117,9 @@ class TestCompactCommandEventPreservation:
 
         session = Mock(spec=Session)
         session.events = events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock successful LLM response
         mock_model = Mock()
@@ -192,7 +194,9 @@ class TestCompactCommandEventPreservation:
 
         session = Mock(spec=Session)
         session.events = events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock successful LLM response
         mock_model = Mock()
@@ -248,7 +252,9 @@ class TestCompactCommandEventPreservation:
 
         session = Mock(spec=Session)
         session.events = events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock successful LLM response
         mock_model = Mock()
@@ -300,7 +306,9 @@ class TestCompactCommandEventPreservation:
 
         session = Mock(spec=Session)
         session.events = events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock successful LLM response
         mock_model = Mock()
@@ -354,7 +362,9 @@ class TestCompactCommandEventPreservation:
 
         session = Mock(spec=Session)
         session.events = events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM response with specific role
         mock_response = Mock()

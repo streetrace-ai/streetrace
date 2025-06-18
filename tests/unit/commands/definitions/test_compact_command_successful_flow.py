@@ -4,7 +4,7 @@ This module tests the complete successful execution path where the command has h
 to compact, successfully gets LLM summary, and replaces session events.
 """
 
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from google.adk.events import Event
@@ -96,7 +96,9 @@ class TestCompactCommandSuccessfulFlow:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock the LLM response
         mock_response = Mock()
@@ -178,7 +180,9 @@ class TestCompactCommandSuccessfulFlow:
 
         session = Mock(spec=Session)
         session.events = events_without_content
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         with patch_litellm_modify_params():
             # Act

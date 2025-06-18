@@ -1,6 +1,6 @@
 """Tests for verifying SystemContext is passed correctly to agents."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from a2a.types import AgentCapabilities
@@ -67,26 +67,10 @@ class SystemContextCapturingAgent(StreetRaceAgent):
         return mock_agent
 
 
-@pytest.fixture
-def mock_tool_provider_for_async() -> MagicMock:
-    """Create a mock ToolProvider with proper async context manager support."""
-    mock_provider = MagicMock()
-
-    # Set up the context manager behavior
-    mock_cm = MagicMock()
-    mock_cm.__aenter__ = AsyncMock(return_value=[])
-    mock_cm.__aexit__ = AsyncMock(return_value=None)
-
-    # Make get_tools return our mock context manager
-    mock_provider.get_tools.return_value = mock_cm
-
-    return mock_provider
-
-
 @pytest.mark.asyncio
 async def test_create_agent_passes_system_context(
     mock_model_factory: ModelFactory,
-    mock_tool_provider_for_async: MagicMock,
+    mock_tool_provider: MagicMock,
     mock_system_context: SystemContext,
     work_dir,
 ):
@@ -97,7 +81,7 @@ async def test_create_agent_passes_system_context(
     # Arrange
     agent_manager = AgentManager(
         model_factory=mock_model_factory,
-        tool_provider=mock_tool_provider_for_async,
+        tool_provider=mock_tool_provider,
         system_context=mock_system_context,
         work_dir=work_dir,
     )

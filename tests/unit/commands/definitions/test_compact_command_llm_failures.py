@@ -4,7 +4,7 @@ This module tests how CompactCommand handles various LLM failure scenarios,
 including no response, empty response, and partial responses.
 """
 
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from google.adk.events import Event
@@ -82,7 +82,9 @@ class TestCompactCommandLlmFailures:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM response with no text
         mock_response = Mock()
@@ -130,7 +132,9 @@ class TestCompactCommandLlmFailures:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM response with no content
         mock_response = Mock()
@@ -175,7 +179,9 @@ class TestCompactCommandLlmFailures:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM response with no parts
         mock_response = Mock()
@@ -222,7 +228,9 @@ class TestCompactCommandLlmFailures:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM response with only partial responses
         partial_response1 = Mock()
@@ -277,7 +285,9 @@ class TestCompactCommandLlmFailures:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM response with partial and final
         partial_response = Mock()
@@ -340,7 +350,9 @@ class TestCompactCommandLlmFailures:
         # Arrange
         session = Mock(spec=Session)
         session.events = sample_events
-        mock_dependencies["session_manager"].get_current_session.return_value = session
+        mock_dependencies["session_manager"].get_current_session = AsyncMock(
+            return_value=session,
+        )
 
         # Mock LLM response with multiple final responses
         final_response1 = Mock()

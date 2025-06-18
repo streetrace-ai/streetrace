@@ -4,6 +4,9 @@ This module tests the rendering of events that contain escalations,
 including error messages, escalation indicators, and proper styling.
 """
 
+from google.adk.events import Event
+from google.genai.types import Content, Part
+
 from streetrace.ui.adk_event_renderer import render_event
 from streetrace.ui.colors import Styles
 
@@ -56,9 +59,6 @@ class TestEscalationRendering:
         escalation_actions,
     ):
         """Test that escalation only renders for final response events."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         # Create non-final response event with escalation actions
         # (partial=True makes it non-final)
         text_part = Part(text="Some content")
@@ -88,9 +88,6 @@ class TestEscalationRendering:
         non_escalation_actions,
     ):
         """Test that escalation doesn't render when escalate=False."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         text_part = Part(text="Some content")
         content = Content(parts=[text_part], role="assistant")
         final_non_escalation_event = Event(
@@ -113,9 +110,6 @@ class TestEscalationRendering:
 
     def test_render_escalation_requires_actions(self, mock_console, sample_author):
         """Test that escalation doesn't render when actions has escalate=None."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         text_part = Part(text="Some content")
         content = Content(parts=[text_part], role="assistant")
         final_no_actions_event = Event(
@@ -143,9 +137,6 @@ class TestEscalationRendering:
         escalation_actions,
     ):
         """Test rendering escalation with empty string error message."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         text_part = Part(text="Some content")
         content = Content(parts=[text_part], role="assistant")
         empty_message_event = Event(
@@ -170,9 +161,6 @@ class TestEscalationRendering:
         escalation_actions,
     ):
         """Test rendering escalation with whitespace-only error message."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         text_part = Part(text="Some content")
         content = Content(parts=[text_part], role="assistant")
         whitespace_message_event = Event(
@@ -197,9 +185,6 @@ class TestEscalationRendering:
         escalation_actions,
     ):
         """Test rendering escalation with multiline error message."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         text_part = Part(text="Some content")
         content = Content(parts=[text_part], role="assistant")
         multiline_error = (
@@ -227,9 +212,6 @@ class TestEscalationRendering:
         escalation_actions,
     ):
         """Test rendering escalation with special characters in error message."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         text_part = Part(text="Some content")
         content = Content(parts=[text_part], role="assistant")
         special_error = "Error with 'quotes' and \"double quotes\" and 🚗💨 emojis"
@@ -277,8 +259,6 @@ class TestEscalationRendering:
         escalation_actions,
     ):
         """Test rendering escalation event with no content."""
-        from google.adk.events import Event
-
         escalation_only_event = Event(
             author=sample_author,
             content=None,  # No content
@@ -317,9 +297,6 @@ class TestEscalationRendering:
         escalation_actions,
     ):
         """Test rendering escalation with very long error message."""
-        from google.adk.events import Event
-        from google.genai.types import Content, Part
-
         text_part = Part(text="Some content")
         content = Content(parts=[text_part], role="assistant")
         long_error = "A" * 1000  # Very long error message

@@ -7,6 +7,7 @@ the current conversation history to reduce token usage while maintaining context
 # Import Application for type hint only
 from typing import override
 
+import litellm
 from google.adk.events import Event
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types as genai_types
@@ -100,13 +101,11 @@ class CompactCommand(Command):
             app_instance: The main Application instance.
 
         """
-        import litellm
-
         # allow ADK to feed a fake tool to model in case it needs one
         # TODO(krmrn42): Find a workaround as importing litellm directly takes time.
         litellm.modify_params = True
 
-        current_session = self.session_manager.get_current_session()
+        current_session = await self.session_manager.get_current_session()
         compacted_session_events: list[Event] = []
         contents_to_compact: list[genai_types.Content] = []
         assistant_author_name: str | None = None
@@ -155,7 +154,9 @@ class CompactCommand(Command):
             logger.debug("History sent for compact: \n%s", contents_to_compact)
             return
 
-        self.session_manager.replace_current_session_events(compacted_session_events)
+        await self.session_manager.replace_current_session_events(
+            compacted_session_events,
+        )
 
         self.ui_bus.dispatch_ui_update(
             ui_events.Info("Session compacted successfully."),

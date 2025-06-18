@@ -22,6 +22,7 @@
 - When you change files, run `ruff` on the changed files.
 - When raising exceptions, assign the message to a variable first.
 - Create small clearly isolated and testable modules with dependency injection.
+- Never add imports in method body, always add imports in the head of the file.
 
 ### Testing
 

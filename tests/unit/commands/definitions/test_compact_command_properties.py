@@ -9,6 +9,7 @@ from unittest.mock import Mock
 import pytest
 
 from streetrace.args import Args
+from streetrace.commands.base_command import Command
 from streetrace.commands.definitions.compact_command import CompactCommand
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.session_service import SessionManager
@@ -67,8 +68,6 @@ class TestCompactCommandProperties:
 
     def test_inherits_from_command_base(self, compact_command: CompactCommand) -> None:
         """Test that CompactCommand properly inherits from Command base class."""
-        from streetrace.commands.base_command import Command
-
         assert isinstance(compact_command, Command)
         # Verify it implements required abstract methods
         assert hasattr(compact_command, "names")

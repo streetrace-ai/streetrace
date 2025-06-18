@@ -25,7 +25,7 @@ def get_user_identity() -> str:
     # 1. Try GitHub CLI (`gh`)
     if shutil.which("gh"):
         try:
-            result = subprocess.run(  # noqa: S603
+            result = subprocess.run(
                 ["/usr/bin/gh", "api", "user", "--jq", ".login"],  # nosec B603 no user input
                 capture_output=True,
                 text=True,
@@ -40,7 +40,7 @@ def get_user_identity() -> str:
     # 2. Try git config user.name
     if shutil.which("git"):
         try:
-            result = subprocess.run(  # noqa: S603
+            result = subprocess.run(
                 ["/usr/bin/git", "config", "user.name"],  # nosec B603 no user input
                 capture_output=True,
                 text=True,
