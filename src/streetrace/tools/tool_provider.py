@@ -10,14 +10,31 @@ from google.adk.tools.base_toolset import BaseToolset
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 from mcp import StdioServerParameters
 
+from streetrace.log import get_logger
 from streetrace.tools.definitions.fake_tools import get_current_time, get_weather
 from streetrace.utils.hide_args import hide_args
 
 type AnyTool = Callable[..., Any] | BaseTool | BaseToolset
 
+logger = get_logger(__name__)
+
 _MCP_TOOLS_PREFIX = "mcp:"
 _STREETRACE_TOOLS_PREFIX = "streetrace:"
 _STREETRACE_TOOLS_MODULE = "streetrace.tools"
+
+
+def _log_retrieved_tools(tools: list[AnyTool]) -> None:
+    """Log the retrieved tools."""
+    retrieved_tools = []
+    for tool in tools:
+        if isinstance(tool, BaseToolset):
+            tool_names = "*" if not tool.tool_filter else tool.tool_filter
+            retrieved_tools.append(f"{tool.__class__.__name__}, {tool_names}")
+        elif isinstance(tool, BaseTool):
+            retrieved_tools.append(f"{tool.__class__.__name__}, {tool.name}")
+        elif callable(tool):
+            retrieved_tools.append(f"{tool.__class__.__name__}, {tool.__name__}")
+    logger.info("Retrieved tools:\n%s", retrieved_tools)
 
 
 class ToolProvider:
@@ -26,6 +43,12 @@ class ToolProvider:
     def __init__(self, work_dir: Path) -> None:
         """Initialize ToolProvider."""
         self.work_dir = work_dir
+
+    async def release_tools(self, tools: list[AnyTool]) -> None:
+        """Release all tools."""
+        for tool in tools:
+            if isinstance(tool, MCPToolset):
+                await tool.close()
 
     async def get_tools(
         self,
@@ -63,6 +86,8 @@ class ToolProvider:
 
         mcp_toolsets = self._create_mcp_toolsets(mcp_servers)
         tools.extend(mcp_toolsets)
+
+        _log_retrieved_tools(tools)
 
         return tools
 

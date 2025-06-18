@@ -14,7 +14,7 @@ from streetrace.agents.agent_loader import (
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
 from streetrace.system_context import SystemContext
-from streetrace.tools.tool_provider import ToolProvider
+from streetrace.tools.tool_provider import AnyTool, ToolProvider
 
 logger = get_logger(__name__)
 
@@ -98,9 +98,22 @@ class AgentManager:
         agent_type = get_agent_impl(agent_info)
         agent_definition = agent_type()
         required_tools = await agent_definition.get_required_tools()
-        tools = await self.tool_provider.get_tools(required_tools)
-        yield await agent_definition.create_agent(
-            self.model_factory,
-            tools,
-            self.system_context,
-        )
+        tools: list[AnyTool] = []
+        try:
+            tools = await self.tool_provider.get_tools(required_tools)
+            agent = await agent_definition.create_agent(
+                self.model_factory,
+                tools,
+                self.system_context,
+            )
+            yield agent
+        except:
+            if tools:
+                try:
+                    await self.tool_provider.release_tools(tools)
+                except:  # noqa: E722
+                    logger.exception("Failed to release tools after previous exception")
+            raise
+        else:
+            if tools:
+                await self.tool_provider.release_tools(tools)

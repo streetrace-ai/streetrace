@@ -52,6 +52,8 @@ allow-star-arg-any = true
     "FBT001", # boolean positional args are used in fixture helpers
     "FBT002", # booleans with defaults are used in fixture helpers
     "PLR0913", # Too many arguments in function definition
+    "EM101",   # Allow inline exception messages
+    "TRY003",  # Allow inline exception messages
 ]
 
 # If using pytest

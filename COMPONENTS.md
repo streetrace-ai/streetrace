@@ -105,7 +105,7 @@ This architecture makes the UI layer extensible and testable, as components comm
 
 ## ./ui/console_ui.py
 
-Provides the terminal-based user interface for StreetRace, handling all user input and formatted output display.
+Provides the terminal-based user interface for StreetRace, handling all user input and formatted output display with robust error handling.
 
 The ConsoleUI class manages the terminal interaction experience:
 
@@ -119,11 +119,16 @@ The ConsoleUI class manages the terminal interaction experience:
 
 5. **Keyboard Shortcuts**: Handles special key combinations for operations like multiline input (Esc+Enter) and cancellation (Ctrl+C).
 
+6. **Error Recovery**: Implements graceful handling of MCP-related cancellation errors, returning special commands to signal retry scenarios.
+
 The implementation carefully balances:
 
 - Interactive responsiveness with asynchronous operations
 - Rich visual feedback while maintaining clean terminal output
 - Command completion with contextual suggestions based on file paths and commands
+- Robust error handling that prevents application crashes from external service issues
+
+The error handling specifically addresses MCP (Model Context Protocol) cancellation scope issues that can occur when background tasks are cancelled in different async contexts, implementing a graceful recovery mechanism that allows users to retry their operations.
 
 This component integrates with UiBus to receive display requests from any part of the application, making it the single point of user interaction while remaining decoupled from business logic.
 
@@ -165,15 +170,18 @@ The CommandExecutor class serves as the command dispatcher for the application:
 
 4. **Command Metadata**: Exposes information about available commands for help documentation and auto-completion.
 
+5. **Error Recovery Support**: Includes specialized commands like RetryCommand for handling connection issues and providing user feedback.
+
 The implementation follows a command pattern design that:
 
 - Decouples command handling from the main application flow
 - Ensures command handlers are self-contained with clear responsibilities
 - Provides a consistent interface for error handling and execution status
+- Supports error recovery scenarios through specialized command handlers
 
 This component is instantiated early in the application lifecycle within `app.py` and forms the foundation for the command-line interface. It integrates with the ConsoleUI through the CommandCompleter for command auto-completion and with Application to process user commands before they are sent to the AI agent.
 
-The design allows new commands to be easily added by registering additional Command implementations, supporting extensibility without modifying the core execution logic.
+The design allows new commands to be easily added by registering additional Command implementations, supporting extensibility without modifying the core execution logic. This includes commands for error recovery scenarios, such as the RetryCommand that handles MCP connection issues gracefully.
 
 ## ./llm/llm_interface.py
 
@@ -218,6 +226,29 @@ The implementation carefully handles the complexities of:
 These components form the foundation of StreetRace's reliable AI interaction capabilities, ensuring consistent behavior even when third-party services experience issues.
 
 Dependencies include Google's ADK framework for the base LLM interface and litellm for standardized access to multiple LLM providers.
+
+## ./tools/tool_provider.py
+
+Centralizes tool discovery and provisioning for AI agents, including MCP (Model Context Protocol) integration and error handling.
+
+The ToolProvider class manages the entire tool ecosystem:
+
+1. **Tool Provisioning**: Collects and provides tools from multiple sources - static tools, StreetRace modules, and MCP servers.
+
+2. **MCP Integration**: Creates and manages MCPToolset instances for external tool servers, with robust error handling for connection issues.
+
+3. **Error Resilience**: Implements graceful degradation when MCP servers fail to connect, allowing the application to continue with available tools.
+
+4. **Tool Resolution**: Parses tool references and resolves them to actual implementations, supporting multiple naming schemes and sources.
+
+5. **Context Management**: Ensures tools receive necessary context (like working directory) while hiding implementation details from agents.
+
+The implementation includes comprehensive error handling for MCP-related issues:
+- Catches and logs MCP toolset creation failures
+- Continues operation with partial tool availability when some servers are unreachable
+- Provides detailed logging for debugging connection issues
+
+This component is critical for enabling agents to access external capabilities through the MCP protocol while maintaining system stability when external services are unavailable.
 
 ## ./tools/fs_tool.py
 
