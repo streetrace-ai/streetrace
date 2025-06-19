@@ -3,9 +3,9 @@
 from pathlib import Path
 from typing import TypedDict
 
-import pathspec
-
 from streetrace.tools.definitions.path_utils import (
+    is_ignored,
+    load_gitignore_for_directory,
     normalize_and_validate_path,
     validate_directory_exists,
 )
@@ -23,68 +23,6 @@ class ListDirResult(OpResult):
     """Dir listing result to sent to LLM."""
 
     output: ListDirItems | None  # type: ignore[misc]
-
-
-def load_gitignore_for_directory(path: Path) -> pathspec.PathSpec:
-    """Load and compile .gitignore patterns for a given directory.
-
-    Args:
-        path (Path): The directory path to load .gitignore patterns from.
-
-    Returns:
-        pathspec.PathSpec: A compiled PathSpec object containing the ignore patterns,
-        or None if no patterns are found.
-
-    """
-    gitignore_files: list[Path] = []
-    current_path = path.resolve()
-
-    # First, collect all gitignore paths from root to leaf
-    while True:
-        gitignore_path = current_path / ".gitignore"
-        if gitignore_path.exists() and gitignore_path.is_file():
-            gitignore_files.append(gitignore_path)
-        parent_path = current_path.parent
-        if current_path == parent_path:
-            break
-        current_path = parent_path
-
-    # Reverse to process from root to leaf (so leaf patterns can override root patterns)
-    gitignore_files.reverse()
-
-    # Now read patterns from all files
-    patterns = []
-    for gitignore_path in gitignore_files:
-        with gitignore_path.open() as f:
-            for file_line in f:
-                line = file_line.strip()
-                if line and not line.startswith("#"):
-                    patterns.append(line)
-
-    # Create a single PathSpec from all collected patterns
-    return pathspec.PathSpec.from_lines("gitwildmatch", patterns)
-
-
-# Check if file or directory is ignored with pre-loaded specs
-def is_ignored(path: Path, base_path: Path, spec: pathspec.PathSpec) -> bool:
-    """Check if a file or directory is ignored based on the provided PathSpec.
-
-    Args:
-        path (Path): The path to check.
-        base_path (Path): The base directory for relative path calculation.
-        spec (pathspec.PathSpec): The PathSpec object containing ignore patterns.
-
-    Returns:
-        bool: True if the path is ignored, False otherwise.
-
-    """
-    if path.is_absolute():
-        path = path.relative_to(base_path)
-    # Consider it a directory if it ends with '/' or if it exists and is a directory
-    str_path = str(path)
-    if base_path.joinpath(path).is_dir():
-        str_path += "/"
-    return spec.match_file(str_path) if spec else False
 
 
 # Custom tool: read current directory structure honoring .gitignore correctly
