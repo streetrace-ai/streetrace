@@ -6,9 +6,11 @@ and attribution capabilities.
 """
 
 import getpass
+from streetrace.log import get_logger
 import shutil
 import subprocess  # nosec B404 no user input
 
+logger = get_logger(__name__)
 
 def get_user_identity() -> str:
     """Get user's id from GitHub, Git, or OS.
@@ -34,6 +36,7 @@ def get_user_identity() -> str:
             )
             login = result.stdout.strip()
             if login:
+                logger.info("Using GitHub CLI for user identity: %s", login)
                 return login
         except subprocess.CalledProcessError:
             pass  # gh command failed
@@ -50,6 +53,7 @@ def get_user_identity() -> str:
             )
             username = result.stdout.strip()
             if username:
+                logger.info("Using Git config for user identity: %s", username)
                 return username
         except subprocess.CalledProcessError:
             pass  # git config failed
