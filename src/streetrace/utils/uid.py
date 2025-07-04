@@ -23,10 +23,11 @@ def get_user_identity() -> str:
 
     """
     # 1. Try GitHub CLI (`gh`)
-    if shutil.which("gh"):
+    gh_path = shutil.which("gh")
+    if gh_path:
         try:
             result = subprocess.run(
-                ["/usr/bin/gh", "api", "user", "--jq", ".login"],  # nosec B603 no user input
+                [gh_path, "api", "user", "--jq", ".login"],  # nosec B603 no user input
                 capture_output=True,
                 text=True,
                 check=True,
@@ -38,10 +39,11 @@ def get_user_identity() -> str:
             pass  # gh command failed
 
     # 2. Try git config user.name
-    if shutil.which("git"):
+    git_path = shutil.which("git")
+    if git_path:
         try:
             result = subprocess.run(
-                ["/usr/bin/git", "config", "user.name"],  # nosec B603 no user input
+                [git_path, "config", "user.name"],  # nosec B603 no user input
                 capture_output=True,
                 text=True,
                 check=True,
