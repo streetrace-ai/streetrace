@@ -192,18 +192,18 @@ import signal
 import subprocess
 import sys
 import threading
-import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, List, Optional
+from typing import Any
 
 from streetrace.log import get_logger
 
 
 class SessionStatus(Enum):
     """Status of a terminal session."""
-    
+
     IDLE = "idle"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -213,7 +213,7 @@ class SessionStatus(Enum):
 @dataclass
 class SessionData:
     """Data entry for a terminal session."""
-    
+
     timestamp: datetime
     source: str  # "user" or "command"
     content: str
@@ -222,46 +222,47 @@ class SessionData:
 @dataclass
 class SessionEvent:
     """Event containing session state and data."""
-    
+
     command: str
     status: SessionStatus
-    return_code: Optional[int] = None
-    session_data: List[SessionData] = field(default_factory=list)
-    error_message: Optional[str] = None
-    execution_time: Optional[float] = None
+    return_code: int | None = None
+    session_data: list[SessionData] = field(default_factory=list)
+    error_message: str | None = None
+    execution_time: float | None = None
 
 
 class TerminalSession:
     """Manages a terminal session with command execution and event callbacks."""
 
-    def __init__(self, 
-                 on_session_update: Optional[Callable[[SessionEvent], None]] = None,
-                 on_session_complete: Optional[Callable[[SessionEvent], None]] = None) -> None:
+    def __init__(self,
+                 on_session_update: Callable[[SessionEvent], None] | None = None,
+                 on_session_complete: Callable[[SessionEvent], None] | None = None) -> None:
         """Initialize the terminal session.
         
         Args:
             on_session_update: Callback for session updates (snapshots)
             on_session_complete: Callback for session completion
+
         """
         self.logger = get_logger(__name__)
         self.on_session_update = on_session_update
         self.on_session_complete = on_session_complete
-        
-        self.session_data: List[SessionData] = []
-        self.current_command: Optional[str] = None
-        self.command_start_time: Optional[datetime] = None
-        self.snapshot_timer: Optional[threading.Timer] = None
+
+        self.session_data: list[SessionData] = []
+        self.current_command: str | None = None
+        self.command_start_time: datetime | None = None
+        self.snapshot_timer: threading.Timer | None = None
         self.is_running: bool = False
         self.status: SessionStatus = SessionStatus.IDLE
         self._lock = threading.Lock()
-        
+
         # Terminal interaction state
-        self._master_fd: Optional[int] = None
-        self._process: Optional[subprocess.Popen] = None
-        self._input_queue: List[str] = []
+        self._master_fd: int | None = None
+        self._process: subprocess.Popen | None = None
+        self._input_queue: list[str] = []
         self._command_output_buffer: str = ""
-        self._last_error_message: Optional[str] = None
-        
+        self._last_error_message: str | None = None
+
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -279,6 +280,7 @@ class TerminalSession:
         Args:
             content: The content to log
             source: Source of the content (user/command)
+
         """
         with self._lock:
             self._add_session_data_unsafe(content, source)
@@ -289,11 +291,12 @@ class TerminalSession:
         Args:
             content: The content to log
             source: Source of the content (user/command)
+
         """
         self.session_data.append(SessionData(
             timestamp=datetime.now(),
             source=source,
-            content=content
+            content=content,
         ))
 
     def send_input(self, input_text: str, add_newline: bool = True) -> bool:
@@ -305,41 +308,42 @@ class TerminalSession:
             
         Returns:
             True if input was sent successfully, False otherwise
+
         """
         if not self.is_running or not self._master_fd or not self._process:
             self.logger.warning("Cannot send input: no active session")
             return False
-        
+
         # Check if process is still running
         if self._process.poll() is not None:
             self.logger.warning("Cannot send input: process has terminated")
             return False
-        
+
         try:
             # Prepare input with optional newline
-            if add_newline and not input_text.endswith('\n'):
-                input_text += '\n'
-            
+            if add_newline and not input_text.endswith("\n"):
+                input_text += "\n"
+
             # Send input to the process
             with self._lock:
-                os.write(self._master_fd, input_text.encode('utf-8'))
+                os.write(self._master_fd, input_text.encode("utf-8"))
                 # Log this automated input
-                clean_input = input_text.replace('\n', '').replace('\r', '')
+                clean_input = input_text.replace("\n", "").replace("\r", "")
                 if clean_input:
                     self._add_session_data_unsafe(clean_input, "automated")
-            
+
             self.logger.info(
-                "Sent automated input to process: %s", 
+                "Sent automated input to process: %s",
                 repr(input_text.strip()),
-                extra={"input": input_text.strip(), "command": self.current_command}
+                extra={"input": input_text.strip(), "command": self.current_command},
             )
             return True
-            
+
         except OSError as e:
             self.logger.error(
-                "Failed to send input to process: %s", 
+                "Failed to send input to process: %s",
                 str(e),
-                extra={"error": str(e), "input": input_text}
+                extra={"error": str(e), "input": input_text},
             )
             return False
 
@@ -348,15 +352,16 @@ class TerminalSession:
         
         Returns:
             True if a process is running, False otherwise
+
         """
-        return (self.is_running and 
-                self._process is not None and 
+        return (self.is_running and
+                self._process is not None and
                 self._process.poll() is None)
 
-    def _create_session_event(self, 
+    def _create_session_event(self,
                             status: SessionStatus,
-                            return_code: Optional[int] = None,
-                            error_message: Optional[str] = None) -> SessionEvent:
+                            return_code: int | None = None,
+                            error_message: str | None = None) -> SessionEvent:
         """Create a session event with current state.
         
         Args:
@@ -366,11 +371,12 @@ class TerminalSession:
             
         Returns:
             SessionEvent with current state
+
         """
         execution_time = None
         if self.command_start_time:
             execution_time = (datetime.now() - self.command_start_time).total_seconds()
-        
+
         with self._lock:
             return SessionEvent(
                 command=self.current_command or "",
@@ -378,7 +384,7 @@ class TerminalSession:
                 return_code=return_code,
                 session_data=self.session_data.copy(),
                 error_message=error_message,
-                execution_time=execution_time
+                execution_time=execution_time,
             )
 
     def _flush_command_output_buffer(self) -> None:
@@ -392,11 +398,11 @@ class TerminalSession:
         """Take a snapshot of the current session state."""
         # Flush any buffered output before taking snapshot
         self._flush_command_output_buffer()
-        
+
         if self.on_session_update:
             event = self._create_session_event(SessionStatus.RUNNING)
             self.on_session_update(event)
-        
+
         # Schedule next snapshot if command is still running
         if self.is_running and self.current_command:
             self.snapshot_timer = threading.Timer(20.0, self._take_snapshot)
@@ -410,48 +416,49 @@ class TerminalSession:
             
         Returns:
             Exit code of the command
+
         """
         master_fd, slave_fd = pty.openpty()
-        
+
         try:
             # Start the process
             process = subprocess.Popen(
-                ['/bin/sh', '-c', command],
+                ["/bin/sh", "-c", command],
                 stdin=slave_fd,
                 stdout=slave_fd,
                 stderr=slave_fd,
-                close_fds=True
+                close_fds=True,
             )
-            
+
             # Store process references for programmatic input
             self._master_fd = master_fd
             self._process = process
-            
+
             # Close slave fd in parent process
             os.close(slave_fd)
-            
+
             # Set up terminal for raw mode
-            import tty
             import termios
-            
+            import tty
+
             old_settings = termios.tcgetattr(sys.stdin)
             tty.setraw(sys.stdin.fileno())
-            
+
             # Buffer for collecting user input before logging
             user_input_buffer = ""
             # Reset command output buffer for new command
             with self._lock:
                 self._command_output_buffer = ""
-            
+
             try:
                 while True:
                     # Check if process is still running
                     if process.poll() is not None:
                         break
-                    
+
                     # Check for available data on multiple file descriptors
                     ready_fds, _, _ = select.select([master_fd, sys.stdin], [], [], 0.1)
-                    
+
                     for fd in ready_fds:
                         if fd == master_fd:
                             # Read from command output
@@ -462,13 +469,13 @@ class TerminalSession:
                                     sys.stdout.buffer.write(data)
                                     sys.stdout.buffer.flush()
                                     # Buffer the output
-                                    decoded_data = data.decode('utf-8', errors='replace')
+                                    decoded_data = data.decode("utf-8", errors="replace")
                                     with self._lock:
                                         self._command_output_buffer += decoded_data
-                                        
+
                                         # Log complete lines or significant chunks
-                                        if '\n' in self._command_output_buffer:
-                                            lines = self._command_output_buffer.split('\n')
+                                        if "\n" in self._command_output_buffer:
+                                            lines = self._command_output_buffer.split("\n")
                                             # Log all complete lines except the last (potentially incomplete) one
                                             for line in lines[:-1]:
                                                 if line.strip():  # Only log non-empty lines
@@ -485,32 +492,32 @@ class TerminalSession:
                                     # Write to master_fd
                                     os.write(master_fd, data)
                                     # Buffer the input
-                                    decoded_data = data.decode('utf-8', errors='replace')
+                                    decoded_data = data.decode("utf-8", errors="replace")
                                     user_input_buffer += decoded_data
-                                    
+
                                     # Log when user presses Enter (complete commands)
-                                    if '\r' in user_input_buffer or '\n' in user_input_buffer:
+                                    if "\r" in user_input_buffer or "\n" in user_input_buffer:
                                         # Clean up the input (remove control characters)
-                                        clean_input = user_input_buffer.replace('\r', '').replace('\n', '').strip()
+                                        clean_input = user_input_buffer.replace("\r", "").replace("\n", "").strip()
                                         if clean_input:  # Only log non-empty input
                                             with self._lock:
                                                 self._add_session_data_unsafe(clean_input, "user")
                                         user_input_buffer = ""
                             except OSError:
                                 break
-                
+
                 # Wait for process to complete and get return code
                 return_code = process.wait()
-                
+
                 # Log any remaining buffered data
                 if user_input_buffer.strip():
-                    clean_input = user_input_buffer.replace('\r', '').replace('\n', '').strip()
+                    clean_input = user_input_buffer.replace("\r", "").replace("\n", "").strip()
                     if clean_input:
                         self._add_session_data(clean_input, "user")
-                
+
                 # Flush any remaining command output buffer
                 self._flush_command_output_buffer()
-                
+
                 # Read any remaining output
                 try:
                     while True:
@@ -522,25 +529,25 @@ class TerminalSession:
                             break
                         sys.stdout.buffer.write(data)
                         sys.stdout.buffer.flush()
-                        decoded_data = data.decode('utf-8', errors='replace')
+                        decoded_data = data.decode("utf-8", errors="replace")
                         # Log final output immediately since process is done
                         if decoded_data.strip():
                             self._add_session_data(decoded_data.strip(), "command")
                 except OSError:
                     pass
-                
+
                 return return_code
-                
+
             finally:
                 # Restore terminal settings
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
-                
+
         except Exception as e:
             error_message = str(e)
             self.logger.error(
-                "Error executing command: %s", 
+                "Error executing command: %s",
                 error_message,
-                extra={"command": command, "error": error_message}
+                extra={"command": command, "error": error_message},
             )
             # Set error message for later use
             self._last_error_message = error_message
@@ -549,11 +556,11 @@ class TerminalSession:
             # Clean up process references
             self._master_fd = None
             self._process = None
-            
+
             # Reset command output buffer
             with self._lock:
                 self._command_output_buffer = ""
-            
+
             try:
                 os.close(master_fd)
             except OSError:
@@ -567,33 +574,34 @@ class TerminalSession:
             
         Returns:
             Exit code of the command
+
         """
         self.current_command = command
         self.command_start_time = datetime.now()
         self.status = SessionStatus.RUNNING
-        
+
         # Clear previous session data and error message
         with self._lock:
             self.session_data.clear()
             self._last_error_message = None
-        
+
         # Add command to session data
         self._add_session_data(command, "user")
-        
+
         self.logger.info(
-            "Starting command execution: %s", 
+            "Starting command execution: %s",
             command,
-            extra={"command": command}
+            extra={"command": command},
         )
-        
+
         # Start snapshot timer
         self.snapshot_timer = threading.Timer(20.0, self._take_snapshot)
         self.snapshot_timer.start()
-        
+
         try:
             # Execute command
             return_code = self._execute_command_with_pty(command)
-            
+
             # Update status based on return code
             if return_code == 0:
                 self.status = SessionStatus.COMPLETED
@@ -601,46 +609,46 @@ class TerminalSession:
             else:
                 self.status = SessionStatus.ERROR
                 error_message = self._last_error_message
-            
+
             # Log completion
             execution_time = datetime.now() - self.command_start_time
             self.logger.info(
-                "Command completed with exit code %d in %s", 
-                return_code, 
+                "Command completed with exit code %d in %s",
+                return_code,
                 execution_time,
                 extra={
-                    "command": command, 
+                    "command": command,
                     "return_code": return_code,
-                    "execution_time": str(execution_time)
-                }
+                    "execution_time": str(execution_time),
+                },
             )
-            
+
             # Flush any remaining buffered output before final event
             self._flush_command_output_buffer()
-            
+
             # Send final event
             if self.on_session_complete:
                 event = self._create_session_event(self.status, return_code, error_message)
                 self.on_session_complete(event)
-            
+
             return return_code
-            
+
         except Exception as e:
             self.status = SessionStatus.ERROR
             error_message = str(e)
-            
+
             self.logger.exception("Error executing command")
-            
+
             # Flush any remaining buffered output before error event
             self._flush_command_output_buffer()
-            
+
             # Send error event
             if self.on_session_complete:
                 event = self._create_session_event(self.status, 1, error_message)
                 self.on_session_complete(event)
-            
+
             return 1
-            
+
         finally:
             # Cancel snapshot timer
             if self.snapshot_timer:
@@ -659,4 +667,4 @@ class TerminalSession:
         self.is_running = False
         if self.snapshot_timer:
             self.snapshot_timer.cancel()
-        self.status = SessionStatus.IDLE 
+        self.status = SessionStatus.IDLE
