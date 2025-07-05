@@ -189,10 +189,12 @@ Session data sources:
 """
 
 import contextlib
+import fcntl
 import os
 import pty
 import select
 import signal
+import struct
 import subprocess
 import sys
 import termios
@@ -245,17 +247,26 @@ class TerminalSession:
         self,
         on_session_update: Callable[[SessionEvent], None] | None = None,
         on_session_complete: Callable[[SessionEvent], None] | None = None,
+        *,
+        terminal_width: int | None = None,
+        terminal_height: int | None = None,
     ) -> None:
         """Initialize the terminal session.
 
         Args:
             on_session_update: Callback for session updates (snapshots)
             on_session_complete: Callback for session completion
+            terminal_width: Terminal width in columns (defaults to parent terminal width)
+            terminal_height: Terminal height in rows (defaults to parent terminal height)
 
         """
         self.logger = get_logger(__name__)
         self.on_session_update = on_session_update
         self.on_session_complete = on_session_complete
+
+        # Terminal size configuration
+        self.terminal_width = terminal_width
+        self.terminal_height = terminal_height
 
         self.session_data: list[SessionData] = []
         self.current_command: str | None = None
@@ -286,6 +297,56 @@ class TerminalSession:
         self.is_running = False
         if self.snapshot_timer:
             self.snapshot_timer.cancel()
+
+    def _get_terminal_size(self) -> tuple[int, int]:
+        """Get the current terminal size.
+
+        Returns:
+            Tuple of (width, height) in characters
+
+        """
+        # Try to get size from current terminal
+        try:
+            # TIOCGWINSZ (get window size)
+            buf = b"\x00" * 8  # 8 bytes for winsize structure
+            buf = fcntl.ioctl(sys.stdout, termios.TIOCGWINSZ, buf)
+            rows, cols = struct.unpack("hh", buf[:4])
+            return cols, rows
+        except (OSError, AttributeError, TypeError):
+            # Fallback to environment variables
+            try:
+                cols = int(os.environ.get("COLUMNS", "80"))
+                rows = int(os.environ.get("LINES", "24"))
+                return cols, rows
+            except (ValueError, TypeError):
+                # Final fallback to common defaults
+                return 80, 24
+
+    def _set_pty_size(self, master_fd: int, width: int, height: int) -> None:
+        """Set the size of the pseudo-terminal.
+
+        Args:
+            master_fd: Master file descriptor of the PTY
+            width: Terminal width in columns
+            height: Terminal height in rows
+
+        """
+        try:
+            # Pack window size structure: rows, cols, x_pixels, y_pixels
+            winsize = struct.pack("HHHH", height, width, 0, 0)
+            # TIOCSWINSZ (set window size)
+            fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
+            self.logger.info(
+                "Set PTY size to %dx%d",
+                width,
+                height,
+                extra={"width": width, "height": height},
+            )
+        except (OSError, struct.error):
+            self.logger.exception(
+                "Failed to set PTY size",
+                extra={"width": width, "height": height},
+            )
 
     def _add_session_data(self, content: str, source: str) -> None:
         """Add session data with timestamp and source.
@@ -437,8 +498,20 @@ class TerminalSession:
 
         """
         master_fd, slave_fd = pty.openpty()
+        old_settings = None
 
         try:
+            # Get terminal size (use provided or detect from parent)
+            if self.terminal_width is not None and self.terminal_height is not None:
+                width, height = self.terminal_width, self.terminal_height
+            else:
+                parent_width, parent_height = self._get_terminal_size()
+                width = self.terminal_width or parent_width
+                height = self.terminal_height or parent_height
+
+            # Set the PTY size
+            self._set_pty_size(master_fd, width, height)
+
             # Start the process
             process = subprocess.Popen(
                 ["/bin/sh", "-c", command],
@@ -456,6 +529,7 @@ class TerminalSession:
             os.close(slave_fd)
             slave_fd = -1  # Mark as closed
 
+            # Save original terminal settings before making changes
             old_settings = termios.tcgetattr(sys.stdin)
             tty.setraw(sys.stdin.fileno())
 
@@ -510,7 +584,7 @@ class TerminalSession:
             return 1
         finally:
             # Restore terminal settings
-            if "old_settings" in locals():
+            if old_settings is not None:
                 termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
             # Clean up process references
