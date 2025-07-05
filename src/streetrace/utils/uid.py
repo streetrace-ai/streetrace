@@ -26,6 +26,9 @@ def get_user_identity() -> str:
     gh_path = shutil.which("gh")
     if gh_path:
         try:
+            from streetrace.log import get_logger # noqa
+            get_logger(__name__).info("GitHub CLI path: {gh_path}") # noqa
+
             result = subprocess.run(
                 [gh_path, "api", "user", "--jq", ".login"],  # nosec B603 no user input
                 capture_output=True,
@@ -34,8 +37,6 @@ def get_user_identity() -> str:
             )
             login = result.stdout.strip()
             if login:
-                from streetrace.log import get_logger
-                get_logger(__name__).info("Using GitHub CLI for user identity: %s", login)
                 return login
         except subprocess.CalledProcessError:
             pass  # gh command failed
@@ -44,6 +45,9 @@ def get_user_identity() -> str:
     git_path = shutil.which("git")
     if git_path:
         try:
+            from streetrace.log import get_logger # noqa
+            get_logger(__name__).info(f"Git CLI path: {git_path}") # noqa
+
             result = subprocess.run(
                 [git_path, "config", "user.name"],  # nosec B603 no user input
                 capture_output=True,
@@ -52,8 +56,6 @@ def get_user_identity() -> str:
             )
             username = result.stdout.strip()
             if username:
-                from streetrace.log import get_logger
-                get_logger(__name__).info("Using Git config for user identity: %s", username)
                 return username
         except subprocess.CalledProcessError:
             pass  # git config failed
