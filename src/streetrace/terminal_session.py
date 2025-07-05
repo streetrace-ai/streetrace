@@ -1,0 +1,662 @@
+"""Terminal session management with interactive command execution and automation.
+
+This module provides a comprehensive TerminalSession class that manages command execution
+in a pseudo-terminal environment with real-time monitoring, callback-based events, and
+programmatic input capabilities for building intelligent terminal automation.
+
+## Features
+
+- **Interactive Command Execution**: Full PTY support for running interactive commands 
+  like `python`, `vim`, `top`, etc. with proper terminal control sequences
+- **Real-time Session Monitoring**: Captures all user input and command output with 
+  timestamps and source tracking
+- **Callback-based Events**: Configurable callbacks for session updates (snapshots) 
+  and completion events
+- **Programmatic Input**: Send input to running processes programmatically for automation
+- **Session Status Tracking**: Monitor session state (idle, running, completed, error)
+- **Thread-safe Operation**: Proper locking and cleanup for concurrent access
+- **Signal Handling**: Graceful shutdown on SIGINT/SIGTERM
+
+## Basic Usage
+
+### Simple Command Execution with Monitoring
+
+```python
+from streetrace.terminal_session import TerminalSession, SessionEvent
+
+def on_update(event: SessionEvent) -> None:
+    print(f"Session update: {len(event.session_data)} data entries")
+
+def on_complete(event: SessionEvent) -> None:
+    print(f"Command '{event.command}' completed with code {event.return_code}")
+
+# Create session with callbacks
+session = TerminalSession(
+    on_session_update=on_update,
+    on_session_complete=on_complete
+)
+
+# Start session and execute commands
+session.start()
+session.execute_command("ls -la")
+session.execute_command("python --version")
+session.stop()
+```
+
+### Interactive Command with Programmatic Input
+
+```python
+import time
+import threading
+from streetrace.terminal_session import TerminalSession, SessionEvent, SessionStatus
+
+def monitor_and_automate(session: TerminalSession) -> None:
+    # Monitor session and provide automated input when needed
+    while session.is_process_running():
+        time.sleep(1)  # Check every second
+        # In real usage, you'd analyze the latest session data here
+
+session = TerminalSession()
+session.start()
+
+# Start monitoring in background
+monitor_thread = threading.Thread(target=monitor_and_automate, args=(session,))
+monitor_thread.daemon = True
+monitor_thread.start()
+
+# Execute interactive Python session
+session.execute_command("python")
+
+# Send programmatic input
+if session.is_process_running():
+    session.send_input("print('Hello from automation!')")
+    session.send_input("exit()")
+```
+
+### Automation Example: Auto-exit Python Help Mode
+
+```python
+from streetrace.terminal_session import TerminalSession, SessionEvent, SessionStatus
+
+class SmartTerminalSession:
+    def __init__(self):
+        self.session = TerminalSession(
+            on_session_update=self._on_session_update,
+            on_session_complete=self._on_session_complete
+        )
+        
+    def _on_session_update(self, event: SessionEvent) -> None:
+        # Monitor session updates and apply automation heuristics
+        if event.status != SessionStatus.RUNNING:
+            return
+            
+        # Get latest command output
+        latest_output = ""
+        for data in reversed(event.session_data):
+            if data.source == "command":
+                latest_output = data.content
+                break
+                
+        # Auto-exit Python help mode
+        if "help>" in latest_output.lower():
+            print("[AUTOMATED] Detected Python help prompt - auto-exiting...")
+            self.session.send_input("quit")
+            
+        # Auto-continue on prompts
+        elif any(prompt in latest_output.lower() for prompt in [
+            "press enter to continue",
+            "continue? (y/n)",
+            "[y/n]"
+        ]):
+            print("[AUTOMATED] Auto-continuing...")
+            self.session.send_input("y")
+    
+    def _on_session_complete(self, event: SessionEvent) -> None:
+        print(f"Session completed: {event.command}")
+    
+    def run_interactive_session(self):
+        self.session.start()
+        
+        # User starts Python and enters help mode
+        self.session.execute_command("python")
+        
+        # Simulation: after some time, user types help()
+        # The automation will detect "help>" prompt and auto-exit
+        import time
+        time.sleep(2)
+        if self.session.is_process_running():
+            self.session.send_input("help()")  # This will trigger auto-exit
+        
+        time.sleep(3)  # Give time for automation to work
+        
+        if self.session.is_process_running():
+            self.session.send_input("exit()")  # Exit Python
+            
+        self.session.stop()
+
+# Usage
+smart_session = SmartTerminalSession()
+smart_session.run_interactive_session()
+```
+
+### Advanced Event Handling
+
+```python
+from streetrace.terminal_session import TerminalSession, SessionEvent, SessionStatus, SessionData
+
+def detailed_event_handler(event: SessionEvent) -> None:
+    # Comprehensive event handler showing all available data
+    print(f"Command: {event.command}")
+    print(f"Status: {event.status.value}")
+    
+    if event.return_code is not None:
+        print(f"Return Code: {event.return_code}")
+    
+    if event.execution_time is not None:
+        print(f"Execution Time: {event.execution_time:.2f}s")
+    
+    if event.error_message:
+        print(f"Error: {event.error_message}")
+    
+    print(f"Session Data ({len(event.session_data)} entries):")
+    for i, data in enumerate(event.session_data[-5:]):  # Show last 5 entries
+        timestamp = data.timestamp.strftime("%H:%M:%S")
+        print(f"  [{timestamp}] {data.source}: {data.content[:50]}...")
+
+session = TerminalSession(
+    on_session_update=detailed_event_handler,
+    on_session_complete=detailed_event_handler
+)
+```
+
+## Session Data Structure
+
+Each session event contains:
+- `command`: The executed command
+- `status`: Current session status (SessionStatus enum)
+- `return_code`: Exit code when completed (None while running)
+- `session_data`: List of SessionData objects with timestamp, source, and content
+- `error_message`: Error details if status is ERROR
+- `execution_time`: Duration in seconds when completed
+
+Session data sources:
+- `"user"`: Input typed by the user
+- `"command"`: Output from the executed command  
+- `"automated"`: Input sent programmatically via send_input()
+"""
+
+import os
+import pty
+import select
+import signal
+import subprocess
+import sys
+import threading
+import time
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Any, Callable, List, Optional
+
+from streetrace.log import get_logger
+
+
+class SessionStatus(Enum):
+    """Status of a terminal session."""
+    
+    IDLE = "idle"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    ERROR = "error"
+
+
+@dataclass
+class SessionData:
+    """Data entry for a terminal session."""
+    
+    timestamp: datetime
+    source: str  # "user" or "command"
+    content: str
+
+
+@dataclass
+class SessionEvent:
+    """Event containing session state and data."""
+    
+    command: str
+    status: SessionStatus
+    return_code: Optional[int] = None
+    session_data: List[SessionData] = field(default_factory=list)
+    error_message: Optional[str] = None
+    execution_time: Optional[float] = None
+
+
+class TerminalSession:
+    """Manages a terminal session with command execution and event callbacks."""
+
+    def __init__(self, 
+                 on_session_update: Optional[Callable[[SessionEvent], None]] = None,
+                 on_session_complete: Optional[Callable[[SessionEvent], None]] = None) -> None:
+        """Initialize the terminal session.
+        
+        Args:
+            on_session_update: Callback for session updates (snapshots)
+            on_session_complete: Callback for session completion
+        """
+        self.logger = get_logger(__name__)
+        self.on_session_update = on_session_update
+        self.on_session_complete = on_session_complete
+        
+        self.session_data: List[SessionData] = []
+        self.current_command: Optional[str] = None
+        self.command_start_time: Optional[datetime] = None
+        self.snapshot_timer: Optional[threading.Timer] = None
+        self.is_running: bool = False
+        self.status: SessionStatus = SessionStatus.IDLE
+        self._lock = threading.Lock()
+        
+        # Terminal interaction state
+        self._master_fd: Optional[int] = None
+        self._process: Optional[subprocess.Popen] = None
+        self._input_queue: List[str] = []
+        self._command_output_buffer: str = ""
+        self._last_error_message: Optional[str] = None
+        
+        # Setup signal handlers for graceful shutdown
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+
+    def _signal_handler(self, signum: int, frame: Any) -> None:
+        """Handle shutdown signals gracefully."""
+        self.logger.info("Received signal %d, shutting down gracefully", signum)
+        self.is_running = False
+        if self.snapshot_timer:
+            self.snapshot_timer.cancel()
+
+    def _add_session_data(self, content: str, source: str) -> None:
+        """Add session data with timestamp and source.
+        
+        Args:
+            content: The content to log
+            source: Source of the content (user/command)
+        """
+        with self._lock:
+            self._add_session_data_unsafe(content, source)
+
+    def _add_session_data_unsafe(self, content: str, source: str) -> None:
+        """Add session data without acquiring lock - use when lock is already held.
+        
+        Args:
+            content: The content to log
+            source: Source of the content (user/command)
+        """
+        self.session_data.append(SessionData(
+            timestamp=datetime.now(),
+            source=source,
+            content=content
+        ))
+
+    def send_input(self, input_text: str, add_newline: bool = True) -> bool:
+        """Send input to the running interactive process.
+        
+        Args:
+            input_text: Text to send to the process
+            add_newline: Whether to add a newline at the end
+            
+        Returns:
+            True if input was sent successfully, False otherwise
+        """
+        if not self.is_running or not self._master_fd or not self._process:
+            self.logger.warning("Cannot send input: no active session")
+            return False
+        
+        # Check if process is still running
+        if self._process.poll() is not None:
+            self.logger.warning("Cannot send input: process has terminated")
+            return False
+        
+        try:
+            # Prepare input with optional newline
+            if add_newline and not input_text.endswith('\n'):
+                input_text += '\n'
+            
+            # Send input to the process
+            with self._lock:
+                os.write(self._master_fd, input_text.encode('utf-8'))
+                # Log this automated input
+                clean_input = input_text.replace('\n', '').replace('\r', '')
+                if clean_input:
+                    self._add_session_data_unsafe(clean_input, "automated")
+            
+            self.logger.info(
+                "Sent automated input to process: %s", 
+                repr(input_text.strip()),
+                extra={"input": input_text.strip(), "command": self.current_command}
+            )
+            return True
+            
+        except OSError as e:
+            self.logger.error(
+                "Failed to send input to process: %s", 
+                str(e),
+                extra={"error": str(e), "input": input_text}
+            )
+            return False
+
+    def is_process_running(self) -> bool:
+        """Check if there's a currently running process.
+        
+        Returns:
+            True if a process is running, False otherwise
+        """
+        return (self.is_running and 
+                self._process is not None and 
+                self._process.poll() is None)
+
+    def _create_session_event(self, 
+                            status: SessionStatus,
+                            return_code: Optional[int] = None,
+                            error_message: Optional[str] = None) -> SessionEvent:
+        """Create a session event with current state.
+        
+        Args:
+            status: Current session status
+            return_code: Return code if command completed
+            error_message: Error message if there was an error
+            
+        Returns:
+            SessionEvent with current state
+        """
+        execution_time = None
+        if self.command_start_time:
+            execution_time = (datetime.now() - self.command_start_time).total_seconds()
+        
+        with self._lock:
+            return SessionEvent(
+                command=self.current_command or "",
+                status=status,
+                return_code=return_code,
+                session_data=self.session_data.copy(),
+                error_message=error_message,
+                execution_time=execution_time
+            )
+
+    def _flush_command_output_buffer(self) -> None:
+        """Flush any buffered command output to session data."""
+        with self._lock:
+            if self._command_output_buffer.strip():
+                self._add_session_data_unsafe(self._command_output_buffer.strip(), "command")
+                self._command_output_buffer = ""
+
+    def _take_snapshot(self) -> None:
+        """Take a snapshot of the current session state."""
+        # Flush any buffered output before taking snapshot
+        self._flush_command_output_buffer()
+        
+        if self.on_session_update:
+            event = self._create_session_event(SessionStatus.RUNNING)
+            self.on_session_update(event)
+        
+        # Schedule next snapshot if command is still running
+        if self.is_running and self.current_command:
+            self.snapshot_timer = threading.Timer(20.0, self._take_snapshot)
+            self.snapshot_timer.start()
+
+    def _execute_command_with_pty(self, command: str) -> int:
+        """Execute a command using pseudo-terminal for interactive support.
+        
+        Args:
+            command: The command to execute
+            
+        Returns:
+            Exit code of the command
+        """
+        master_fd, slave_fd = pty.openpty()
+        
+        try:
+            # Start the process
+            process = subprocess.Popen(
+                ['/bin/sh', '-c', command],
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                close_fds=True
+            )
+            
+            # Store process references for programmatic input
+            self._master_fd = master_fd
+            self._process = process
+            
+            # Close slave fd in parent process
+            os.close(slave_fd)
+            
+            # Set up terminal for raw mode
+            import tty
+            import termios
+            
+            old_settings = termios.tcgetattr(sys.stdin)
+            tty.setraw(sys.stdin.fileno())
+            
+            # Buffer for collecting user input before logging
+            user_input_buffer = ""
+            # Reset command output buffer for new command
+            with self._lock:
+                self._command_output_buffer = ""
+            
+            try:
+                while True:
+                    # Check if process is still running
+                    if process.poll() is not None:
+                        break
+                    
+                    # Check for available data on multiple file descriptors
+                    ready_fds, _, _ = select.select([master_fd, sys.stdin], [], [], 0.1)
+                    
+                    for fd in ready_fds:
+                        if fd == master_fd:
+                            # Read from command output
+                            try:
+                                data = os.read(master_fd, 1024)
+                                if data:
+                                    # Write to stdout
+                                    sys.stdout.buffer.write(data)
+                                    sys.stdout.buffer.flush()
+                                    # Buffer the output
+                                    decoded_data = data.decode('utf-8', errors='replace')
+                                    with self._lock:
+                                        self._command_output_buffer += decoded_data
+                                        
+                                        # Log complete lines or significant chunks
+                                        if '\n' in self._command_output_buffer:
+                                            lines = self._command_output_buffer.split('\n')
+                                            # Log all complete lines except the last (potentially incomplete) one
+                                            for line in lines[:-1]:
+                                                if line.strip():  # Only log non-empty lines
+                                                    self._add_session_data_unsafe(line, "command")
+                                            # Keep the last line in buffer
+                                            self._command_output_buffer = lines[-1]
+                            except OSError:
+                                break
+                        elif fd == sys.stdin:
+                            # Read from user input
+                            try:
+                                data = os.read(sys.stdin.fileno(), 1024)
+                                if data:
+                                    # Write to master_fd
+                                    os.write(master_fd, data)
+                                    # Buffer the input
+                                    decoded_data = data.decode('utf-8', errors='replace')
+                                    user_input_buffer += decoded_data
+                                    
+                                    # Log when user presses Enter (complete commands)
+                                    if '\r' in user_input_buffer or '\n' in user_input_buffer:
+                                        # Clean up the input (remove control characters)
+                                        clean_input = user_input_buffer.replace('\r', '').replace('\n', '').strip()
+                                        if clean_input:  # Only log non-empty input
+                                            with self._lock:
+                                                self._add_session_data_unsafe(clean_input, "user")
+                                        user_input_buffer = ""
+                            except OSError:
+                                break
+                
+                # Wait for process to complete and get return code
+                return_code = process.wait()
+                
+                # Log any remaining buffered data
+                if user_input_buffer.strip():
+                    clean_input = user_input_buffer.replace('\r', '').replace('\n', '').strip()
+                    if clean_input:
+                        self._add_session_data(clean_input, "user")
+                
+                # Flush any remaining command output buffer
+                self._flush_command_output_buffer()
+                
+                # Read any remaining output
+                try:
+                    while True:
+                        ready_fds, _, _ = select.select([master_fd], [], [], 0.1)
+                        if not ready_fds:
+                            break
+                        data = os.read(master_fd, 1024)
+                        if not data:
+                            break
+                        sys.stdout.buffer.write(data)
+                        sys.stdout.buffer.flush()
+                        decoded_data = data.decode('utf-8', errors='replace')
+                        # Log final output immediately since process is done
+                        if decoded_data.strip():
+                            self._add_session_data(decoded_data.strip(), "command")
+                except OSError:
+                    pass
+                
+                return return_code
+                
+            finally:
+                # Restore terminal settings
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+                
+        except Exception as e:
+            error_message = str(e)
+            self.logger.error(
+                "Error executing command: %s", 
+                error_message,
+                extra={"command": command, "error": error_message}
+            )
+            # Set error message for later use
+            self._last_error_message = error_message
+            return 1
+        finally:
+            # Clean up process references
+            self._master_fd = None
+            self._process = None
+            
+            # Reset command output buffer
+            with self._lock:
+                self._command_output_buffer = ""
+            
+            try:
+                os.close(master_fd)
+            except OSError:
+                pass
+
+    def execute_command(self, command: str) -> int:
+        """Execute a shell command with event callbacks.
+        
+        Args:
+            command: The shell command to execute
+            
+        Returns:
+            Exit code of the command
+        """
+        self.current_command = command
+        self.command_start_time = datetime.now()
+        self.status = SessionStatus.RUNNING
+        
+        # Clear previous session data and error message
+        with self._lock:
+            self.session_data.clear()
+            self._last_error_message = None
+        
+        # Add command to session data
+        self._add_session_data(command, "user")
+        
+        self.logger.info(
+            "Starting command execution: %s", 
+            command,
+            extra={"command": command}
+        )
+        
+        # Start snapshot timer
+        self.snapshot_timer = threading.Timer(20.0, self._take_snapshot)
+        self.snapshot_timer.start()
+        
+        try:
+            # Execute command
+            return_code = self._execute_command_with_pty(command)
+            
+            # Update status based on return code
+            if return_code == 0:
+                self.status = SessionStatus.COMPLETED
+                error_message = None
+            else:
+                self.status = SessionStatus.ERROR
+                error_message = self._last_error_message
+            
+            # Log completion
+            execution_time = datetime.now() - self.command_start_time
+            self.logger.info(
+                "Command completed with exit code %d in %s", 
+                return_code, 
+                execution_time,
+                extra={
+                    "command": command, 
+                    "return_code": return_code,
+                    "execution_time": str(execution_time)
+                }
+            )
+            
+            # Flush any remaining buffered output before final event
+            self._flush_command_output_buffer()
+            
+            # Send final event
+            if self.on_session_complete:
+                event = self._create_session_event(self.status, return_code, error_message)
+                self.on_session_complete(event)
+            
+            return return_code
+            
+        except Exception as e:
+            self.status = SessionStatus.ERROR
+            error_message = str(e)
+            
+            self.logger.exception("Error executing command")
+            
+            # Flush any remaining buffered output before error event
+            self._flush_command_output_buffer()
+            
+            # Send error event
+            if self.on_session_complete:
+                event = self._create_session_event(self.status, 1, error_message)
+                self.on_session_complete(event)
+            
+            return 1
+            
+        finally:
+            # Cancel snapshot timer
+            if self.snapshot_timer:
+                self.snapshot_timer.cancel()
+            self.current_command = None
+            self.command_start_time = None
+            self._last_error_message = None
+
+    def start(self) -> None:
+        """Start the terminal session."""
+        self.is_running = True
+        self.status = SessionStatus.IDLE
+
+    def stop(self) -> None:
+        """Stop the terminal session."""
+        self.is_running = False
+        if self.snapshot_timer:
+            self.snapshot_timer.cancel()
+        self.status = SessionStatus.IDLE 
