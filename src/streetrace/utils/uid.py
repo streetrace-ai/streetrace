@@ -29,7 +29,7 @@ def get_user_identity() -> str:
             from streetrace.log import get_logger # noqa: PLC0415
             get_logger(__name__).info("GitHub CLI path: {gh_path}") # noqa: PLC0415
 
-            result = subprocess.run(
+            result = subprocess.run( # noqa: S603
                 [gh_path, "api", "user", "--jq", ".login"],  # nosec B603 no user input
                 capture_output=True,
                 text=True,
@@ -48,7 +48,7 @@ def get_user_identity() -> str:
             from streetrace.log import get_logger # noqa: PLC0415
             get_logger(__name__).info(f"Git CLI path: {git_path}") # noqa: PLC0415
 
-            result = subprocess.run(
+            result = subprocess.run( # noqa: S603
                 [git_path, "config", "user.name"],  # nosec B603 no user input
                 capture_output=True,
                 text=True,
