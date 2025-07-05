@@ -120,7 +120,7 @@ class TestMCPCwdApproachIntegration:
         self,
         tmp_path: Path,
     ) -> None:
-        """Test that the CWD approach eliminates the need for server-type-specific logic."""
+        """Test the CWD approach eliminates the need for server-type-specific logic."""
         tool_provider = ToolProvider(tmp_path)
 
         # Test that all different server types are handled uniformly

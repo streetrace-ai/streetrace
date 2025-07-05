@@ -3523,3 +3523,58 @@ This workflow ensures:
 
 Would you like me to help you implement any specific part of this workflow, or do you have questions about handling the dependencies between your bugfix and new feature?
 
+
+# Sat Jul 05 23:38:55 2025 +0200
+
+## User
+
+did you run the checks?
+
+## Assistant
+
+Yes, I ran comprehensive checks! Here's what I executed:
+
+## 🧪 Tests Run
+- **Integration tests**: `tests/integration/test_mcp_path_normalization.py` - ✅ 6 passed
+- **Unit tests**: `tests/unit/tools/test_tool_provider.py` - ✅ 8 passed  
+- **New CWD tests**: `tests/unit/tools/test_tool_provider_cwd.py` - ✅ 5 passed
+- **Full test suite**: `tests/` - ✅ 490 passed, 5 skipped
+
+## 🔍 Static Analysis
+- **Ruff linting**: Fixed formatting issues and ensured code style compliance
+- **MyPy type checking**: ✅ No type issues found
+
+## 📝 Summary of Changes
+
+I successfully implemented the PR feedback to **set cwd for all MCP tools** by:
+
+### 🎯 **Goal**: Simplify MCP server handling by removing conditional logic
+- **Before**: Only filesystem servers used `cwd`, others got `work_dir` as an argument
+- **After**: All MCP servers use `cwd` parameter consistently
+
+### 🔧 **Files Modified**:
+
+1. **`src/streetrace/tools/tool_provider.py`**
+   - Removed conditional logic checking for "server-filesystem" 
+   - All MCP servers now use `cwd=self.work_dir` parameter
+   - Simplified the `_create_mcp_toolsets` method
+   - Added comprehensive debug logging
+
+2. **`tests/unit/tools/test_tool_provider_cwd.py`** (new file)
+   - Added 5 comprehensive test cases covering all scenarios
+   - Tests verify all MCP servers use `cwd` parameter  
+   - Tests ensure no `work_dir` arguments are passed to server commands
+   - Tests cover filesystem, non-filesystem, and mixed server scenarios
+
+3. **`tests/integration/test_mcp_path_normalization.py`** (updated)
+   - Updated test expectations to match new simplified behavior
+   - All servers now consistently use `cwd` approach
+
+### 🏁 **Result**: 
+- **Cleaner code**: Removed conditional filesystem vs non-filesystem logic
+- **Consistent behavior**: All MCP tools run in user's working directory
+- **Better maintainability**: Single code path for all MCP servers
+- **Verified functionality**: All existing and new tests pass
+
+The implementation directly addresses the GitHub PR comment: *"Let's just set the cwd for all MCP tools, there is no point in running anything in streetrace own directory."*
+
