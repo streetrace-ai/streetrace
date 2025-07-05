@@ -112,41 +112,24 @@ class ToolProvider:
             if len(tool_names.intersection(["all", "*"])) == 0:
                 tool_filter = list(tool_names)
 
-            # For filesystem servers, set cwd and don't pass work_dir as argument
-            if "server-filesystem" in server_name:
-                toolset = MCPToolset(
-                    connection_params=StdioServerParameters(
-                        command="npx",
-                        args=["-y", server_name],
-                        cwd=self.work_dir,  # Set MCP server's working directory
-                    ),
-                    tool_filter=tool_filter,
-                )
-                logger.debug(
-                    "Created MCP filesystem toolset with cwd",
-                    extra={
-                        "server_name": server_name,
-                        "work_dir": str(self.work_dir),
-                        "tool_filter": tool_filter,
-                    },
-                )
-            else:
-                # For non-filesystem servers, use the original approach
-                toolset = MCPToolset(
-                    connection_params=StdioServerParameters(
-                        command="npx",
-                        args=["-y", server_name, str(self.work_dir)],
-                    ),
-                    tool_filter=tool_filter,
-                )
-                logger.debug(
-                    "Created MCP toolset with work_dir argument",
-                    extra={
-                        "server_name": server_name,
-                        "work_dir": str(self.work_dir),
-                        "tool_filter": tool_filter,
-                    },
-                )
+            # Set cwd for all MCP tools - there's no point in running anything
+            # in StreetRace's own directory
+            toolset = MCPToolset(
+                connection_params=StdioServerParameters(
+                    command="npx",
+                    args=["-y", server_name],
+                    cwd=self.work_dir,  # Set MCP server's working directory
+                ),
+                tool_filter=tool_filter,
+            )
+            logger.debug(
+                "Created MCP toolset with cwd",
+                extra={
+                    "server_name": server_name,
+                    "work_dir": str(self.work_dir),
+                    "tool_filter": tool_filter,
+                },
+            )
 
             toolsets.append(toolset)
 
