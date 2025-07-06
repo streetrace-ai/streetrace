@@ -95,13 +95,13 @@ class ToolProvider:
         self,
         mcp_servers: dict[str, set[str]],
     ) -> list[MCPToolset]:
-        """Create and yield a dictionary of MCPToolsets for all requested servers.
+        """Create and yield a list of MCPToolsets for all requested servers.
 
         Args:
             mcp_servers: Dictionary mapping server names to sets of tool names.
 
-        Yields:
-            Dictionary mapping server names to tuples of (toolset, tool_names).
+        Returns:
+            List of MCPToolset instances.
 
         """
         toolsets: list[MCPToolset] = []
@@ -111,13 +111,26 @@ class ToolProvider:
             tool_filter: list[str] | None = None
             if len(tool_names.intersection(["all", "*"])) == 0:
                 tool_filter = list(tool_names)
+
+            # Set cwd for all MCP tools - there's no point in running anything
+            # in StreetRace's own directory
             toolset = MCPToolset(
                 connection_params=StdioServerParameters(
                     command="npx",
                     args=["-y", server_name, str(self.work_dir)],
+                    cwd=self.work_dir,  # Set MCP server's working directory
                 ),
                 tool_filter=tool_filter,
             )
+            logger.debug(
+                "Created MCP toolset with cwd",
+                extra={
+                    "server_name": server_name,
+                    "work_dir": str(self.work_dir),
+                    "tool_filter": tool_filter,
+                },
+            )
+
             toolsets.append(toolset)
 
         return toolsets

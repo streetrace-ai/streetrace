@@ -25,9 +25,6 @@ class FindInFilesResult(OpResult):
     output: list[SearchResult] | None  # type: ignore[misc]
 
 
-
-
-
 def find_in_files(
     pattern: str,
     search_string: str,

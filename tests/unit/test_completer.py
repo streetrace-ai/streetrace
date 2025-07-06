@@ -249,7 +249,8 @@ class TestPromptCompleterComposition:
         assert completion_texts == ["cmd_comp", "path_comp"]
 
     def test_works_if_one_delegate_returns_nothing(
-        self, prompt_completer_setup,
+        self,
+        prompt_completer_setup,
     ) -> None:
         mock_path_completer = prompt_completer_setup["mock_path_completer"]
         mock_command_completer = prompt_completer_setup["mock_command_completer"]
@@ -268,7 +269,8 @@ class TestPromptCompleterComposition:
         assert completion_texts == ["path/comp1", "path/comp2"]
 
     def test_works_if_command_delegate_returns_nothing(
-        self, prompt_completer_setup,
+        self,
+        prompt_completer_setup,
     ) -> None:
         mock_path_completer = prompt_completer_setup["mock_path_completer"]
         mock_command_completer = prompt_completer_setup["mock_command_completer"]

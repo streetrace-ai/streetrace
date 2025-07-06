@@ -1,4 +1,5 @@
 """Test fixtures for CLI safety module tests."""
+
 from unittest.mock import patch
 
 import pytest
@@ -21,6 +22,7 @@ def mock_bashlex_parse():
 @pytest.fixture
 def simple_bashlex_node():
     """Fixture providing a simple bashlex AST node for a command."""
+
     # Create a simplified mock of a bashlex node structure
     class MockWord:
         def __init__(self, word_text):
@@ -41,6 +43,7 @@ def simple_bashlex_node():
 @pytest.fixture
 def complex_bashlex_node():
     """Fixture providing a complex bashlex AST node with nested commands."""
+
     # Create a more complex mock of a bashlex node structure with pipes/lists
     class MockWord:
         def __init__(self, word_text):
