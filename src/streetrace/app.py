@@ -27,7 +27,7 @@ from streetrace.log import get_logger
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.session_service import JSONSessionService, SessionManager
 from streetrace.system_context import SystemContext
-from streetrace.terminal_session import SessionEvent, TerminalSession
+from streetrace.terminal_session import SessionData, SessionEvent, TerminalSession
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui import ui_events
 from streetrace.ui.completer import CommandCompleter, PathCompleter, PromptCompleter
@@ -195,7 +195,7 @@ class Application:
     def _format_cli_output(
         self,
         command: str,
-        session_data: list,
+        session_data: list[SessionData],
         return_code: int,
         error_message: str | None = None,
     ) -> str:
@@ -223,9 +223,7 @@ class Application:
         if session_data:
             lines.append("Output:")
             lines.extend(
-                data.content
-                for data in session_data
-                if data.source == "command"
+                data.content for data in session_data if data.source == "command"
             )
         else:
             lines.append("Output: (no output)")

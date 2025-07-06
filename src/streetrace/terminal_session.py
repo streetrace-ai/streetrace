@@ -1,8 +1,9 @@
 """Terminal session management with interactive command execution and automation.
 
-This module provides a comprehensive TerminalSession class that manages command execution
-in a pseudo-terminal environment with real-time monitoring, callback-based events, and
-programmatic input capabilities for building intelligent terminal automation.
+This module provides a comprehensive TerminalSession class that manages command
+execution in a pseudo-terminal environment with real-time monitoring, callback-based
+events, and programmatic input capabilities for building intelligent terminal
+automation.
 
 ## Features
 
@@ -256,8 +257,8 @@ class TerminalSession:
         Args:
             on_session_update: Callback for session updates (snapshots)
             on_session_complete: Callback for session completion
-            terminal_width: Terminal width in columns (defaults to parent terminal width)
-            terminal_height: Terminal height in rows (defaults to parent terminal height)
+            terminal_width: Terminal width in columns (defaults to parent value)
+            terminal_height: Terminal height in rows (defaults to parent value)
 
         """
         self.logger = get_logger(__name__)
@@ -311,16 +312,18 @@ class TerminalSession:
             buf = b"\x00" * 8  # 8 bytes for winsize structure
             buf = fcntl.ioctl(sys.stdout, termios.TIOCGWINSZ, buf)
             rows, cols = struct.unpack("hh", buf[:4])
-            return cols, rows
         except (OSError, AttributeError, TypeError):
             # Fallback to environment variables
             try:
                 cols = int(os.environ.get("COLUMNS", "80"))
                 rows = int(os.environ.get("LINES", "24"))
-                return cols, rows
             except (ValueError, TypeError):
                 # Final fallback to common defaults
                 return 80, 24
+            else:
+                return cols, rows
+        else:
+            return cols, rows
 
     def _set_pty_size(self, master_fd: int, width: int, height: int) -> None:
         """Set the size of the pseudo-terminal.
@@ -488,7 +491,7 @@ class TerminalSession:
             self.snapshot_timer = threading.Timer(20.0, self._take_snapshot)
             self.snapshot_timer.start()
 
-    def _execute_command_with_pty(self, command: str) -> int:
+    def _execute_command_with_pty(self, command: str) -> int:  # noqa: C901, PLR0912, PLR0915
         """Execute a command using pseudo-terminal for interactive support.
 
         Args:
@@ -513,7 +516,7 @@ class TerminalSession:
             self._set_pty_size(master_fd, width, height)
 
             # Start the process
-            process = subprocess.Popen(
+            process = subprocess.Popen(  # noqa: S603 user's command on local machine
                 ["/bin/sh", "-c", command],
                 stdin=slave_fd,
                 stdout=slave_fd,
@@ -571,9 +574,8 @@ class TerminalSession:
             # Flush any remaining command output buffer
             self._flush_command_output_buffer()
             self._read_remaining_output(master_fd)
-            return return_code
 
-        except (OSError, select.error) as e:
+        except OSError as e:
             error_message = str(e)
             self.logger.exception(
                 "Error executing command",
@@ -582,6 +584,10 @@ class TerminalSession:
             # Set error message for later use
             self._last_error_message = error_message
             return 1
+
+        else:
+            return return_code
+
         finally:
             # Restore terminal settings
             if old_settings is not None:
@@ -740,9 +746,7 @@ class TerminalSession:
                 )
                 self.on_session_complete(event)
 
-            return return_code
-
-        except (OSError, select.error):
+        except OSError:
             self.status = SessionStatus.ERROR
             error_message = self._last_error_message or "Unknown execution error"
 
@@ -757,6 +761,9 @@ class TerminalSession:
                 self.on_session_complete(event)
 
             return 1
+
+        else:
+            return return_code
 
         finally:
             # Cancel snapshot timer
