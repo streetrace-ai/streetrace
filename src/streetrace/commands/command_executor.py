@@ -23,6 +23,7 @@ class CommandStatus(BaseModel):
 
     command_executed: bool
     error: str | None = None
+    output: str | None = None
 
 
 class CommandExecutor:
@@ -70,10 +71,6 @@ class CommandExecutor:
             ValueError: If the command name is empty or whitespace.
 
         """
-        if not isinstance(command_instance, Command):
-            msg = f"Object {command_instance} is not an instance of Command."
-            raise TypeError(msg)
-
         for name in command_instance.names:
             if not name.strip():
                 msg = (
@@ -119,9 +116,12 @@ class CommandExecutor:
                 the app to exit.
 
         """
-        # Remove leading '/' if present and make lowercase
         command_name = user_input.strip().lower()
-        if command_name.startswith("/"):
+        if command_name.startswith("!"):
+            # special case for bash commands
+            command_name = "!"
+        elif command_name.startswith("/"):
+            # Remove leading '/' if present and make lowercase
             command_name = command_name[1:]
         else:
             # If input doesn't start with '/', it's not a command for this executor
@@ -141,7 +141,7 @@ class CommandExecutor:
 
         logger.info("Executing command: '/%s'", command_name)
         try:
-            await command_instance.execute_async()
+            command_output = await command_instance.execute_async(user_input)
         except Exception as e:
             logger.exception(
                 "Error executing command '/%s'",
@@ -154,4 +154,4 @@ class CommandExecutor:
                 error=f"Error executing command '/{command_name}' ({e!s})",
             )
         else:
-            return CommandStatus(command_executed=True)
+            return CommandStatus(command_executed=True, output=command_output)

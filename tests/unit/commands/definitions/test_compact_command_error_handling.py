@@ -106,7 +106,7 @@ class TestCompactCommandErrorHandling:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async()
+            await compact_command.execute_async("")
 
         # Assert
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
@@ -153,7 +153,7 @@ class TestCompactCommandErrorHandling:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async()
+            await compact_command.execute_async("")
 
         # Assert
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
@@ -202,7 +202,7 @@ class TestCompactCommandErrorHandling:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async()
+            await compact_command.execute_async("")
 
         # Assert
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
@@ -252,4 +252,4 @@ class TestCompactCommandErrorHandling:
             # Act & Assert - Exception should propagate (fail-fast for core components)
             pytest.raises(Exception, match="LLM connection failed"),
         ):
-            await compact_command.execute_async()
+            await compact_command.execute_async("")

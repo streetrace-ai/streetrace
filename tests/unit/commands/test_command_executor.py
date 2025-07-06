@@ -94,14 +94,6 @@ def test_register_command_whitespace_name_raises_error(command_executor) -> None
         command_executor.register(DummyCommand(name="   "))
 
 
-def test_register_command_non_callable_action_raises_error(
-    command_executor,
-) -> None:
-    """Test that registering a non-callable action raises TypeError."""
-    with pytest.raises(TypeError, match="is not an instance of Command"):
-        command_executor.register("")
-
-
 def test_get_commands(command_executor) -> None:
     """Test retrieving the list of registered command names."""
     command_executor.register(DummyCommand(name="cmdb"))
