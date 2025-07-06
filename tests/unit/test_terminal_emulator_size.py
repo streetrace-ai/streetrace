@@ -7,7 +7,7 @@ from stdstd.py to ensure it properly passes size parameters to TerminalSession.
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from streetrace.stdstd import TerminalEmulator
+from tests.manual.stdstd import TerminalEmulator
 
 
 class TestTerminalEmulatorSizeIntegration:
@@ -17,7 +17,9 @@ class TestTerminalEmulatorSizeIntegration:
         """Test TerminalEmulator passes custom size to TerminalSession."""
         log_path = tmp_path / "test_terminal.log"
 
-        with patch("streetrace.stdstd.TerminalSession") as mock_terminal_session_class:
+        with patch(
+            "tests.manual.stdstd.TerminalSession",
+        ) as mock_terminal_session_class:
             mock_session_instance = Mock()
             mock_terminal_session_class.return_value = mock_session_instance
 
@@ -42,7 +44,9 @@ class TestTerminalEmulatorSizeIntegration:
         """Test TerminalEmulator passes partial size configuration."""
         log_path = tmp_path / "test_terminal.log"
 
-        with patch("streetrace.stdstd.TerminalSession") as mock_terminal_session_class:
+        with patch(
+            "tests.manual.stdstd.TerminalSession",
+        ) as mock_terminal_session_class:
             mock_session_instance = Mock()
             mock_terminal_session_class.return_value = mock_session_instance
 
@@ -66,7 +70,9 @@ class TestTerminalEmulatorSizeIntegration:
         """Test TerminalEmulator with default size (None values)."""
         log_path = tmp_path / "test_terminal.log"
 
-        with patch("streetrace.stdstd.TerminalSession") as mock_terminal_session_class:
+        with patch(
+            "tests.manual.stdstd.TerminalSession",
+        ) as mock_terminal_session_class:
             mock_session_instance = Mock()
             mock_terminal_session_class.return_value = mock_session_instance
 
@@ -87,8 +93,8 @@ class TestTerminalEmulatorSizeIntegration:
         log_path = tmp_path / "test_terminal.log"
 
         with (
-            patch("streetrace.stdstd.TerminalSession") as mock_terminal_session_class,
-            patch("streetrace.stdstd.SessionLogger") as mock_session_logger_class,
+            patch("tests.manual.stdstd.TerminalSession") as mock_terminal_session_class,
+            patch("tests.manual.stdstd.SessionLogger") as mock_session_logger_class,
         ):
             mock_session_instance = Mock()
             mock_terminal_session_class.return_value = mock_session_instance
@@ -123,8 +129,8 @@ class TestTerminalEmulatorSizeIntegration:
         log_path = tmp_path / "test_terminal.log"
 
         with (
-            patch("streetrace.stdstd.TerminalSession") as mock_terminal_session_class,
-            patch("streetrace.stdstd.print_formatted_text"),
+            patch("tests.manual.stdstd.TerminalSession") as mock_terminal_session_class,
+            patch("tests.manual.stdstd.print_formatted_text"),
         ):  # Mock to prevent actual printing
             mock_session_instance = Mock()
             mock_session_instance.send_input.return_value = True

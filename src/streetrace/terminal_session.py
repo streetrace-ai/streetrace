@@ -196,7 +196,7 @@ import pty
 import select
 import signal
 import struct
-import subprocess
+import subprocess  # nosec B404 user entered command
 import sys
 import termios
 import threading
@@ -280,7 +280,6 @@ class TerminalSession:
         # Terminal interaction state
         self._master_fd: int | None = None
         self._process: subprocess.Popen[bytes] | None = None
-        self._input_queue: list[str] = []
         self._command_output_buffer: str = ""
         self._last_error_message: str | None = None
 
@@ -516,7 +515,7 @@ class TerminalSession:
             self._set_pty_size(master_fd, width, height)
 
             # Start the process
-            process = subprocess.Popen(  # noqa: S603 user's command on local machine
+            process = subprocess.Popen(  # noqa: S603   # nosec B603 user's command
                 ["/bin/sh", "-c", command],
                 stdin=slave_fd,
                 stdout=slave_fd,
