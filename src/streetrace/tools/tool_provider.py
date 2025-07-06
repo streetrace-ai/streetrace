@@ -117,7 +117,7 @@ class ToolProvider:
             toolset = MCPToolset(
                 connection_params=StdioServerParameters(
                     command="npx",
-                    args=["-y", server_name],
+                    args=["-y", server_name, str(self.work_dir)],
                     cwd=self.work_dir,  # Set MCP server's working directory
                 ),
                 tool_filter=tool_filter,
