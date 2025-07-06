@@ -205,6 +205,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import Enum
+from pathlib import Path
 from types import FrameType
 from typing import Any
 
@@ -248,6 +249,7 @@ class TerminalSession:
         self,
         on_session_update: Callable[[SessionEvent], None] | None = None,
         on_session_complete: Callable[[SessionEvent], None] | None = None,
+        work_dir: Path | None = None,
         *,
         terminal_width: int | None = None,
         terminal_height: int | None = None,
@@ -257,6 +259,7 @@ class TerminalSession:
         Args:
             on_session_update: Callback for session updates (snapshots)
             on_session_complete: Callback for session completion
+            work_dir: Working directory for the session
             terminal_width: Terminal width in columns (defaults to parent value)
             terminal_height: Terminal height in rows (defaults to parent value)
 
@@ -264,6 +267,7 @@ class TerminalSession:
         self.logger = get_logger(__name__)
         self.on_session_update = on_session_update
         self.on_session_complete = on_session_complete
+        self.work_dir = work_dir or Path.cwd()
 
         # Terminal size configuration
         self.terminal_width = terminal_width
@@ -521,6 +525,7 @@ class TerminalSession:
                 stdout=slave_fd,
                 stderr=slave_fd,
                 close_fds=True,
+                cwd=self.work_dir,
             )
 
             # Store process references for programmatic input

@@ -4,6 +4,7 @@ This module defines the BashCommand class which allows users to run a bash comma
 in a terminal session.
 """
 
+from pathlib import Path
 from subprocess import SubprocessError  # nosec B404 used only for exception handling
 from typing import override
 
@@ -20,6 +21,15 @@ class BashCommand(Command):
     Handles special command syntax: any user input starting from ! is treated as a bash
     command.
     """
+
+    def __init__(self, work_dir: Path | None = None) -> None:
+        """Initialize the BashCommand.
+
+        Args:
+            work_dir: Working directory for the command.
+
+        """
+        self.work_dir = work_dir
 
     @property
     def names(self) -> list[str]:
@@ -63,6 +73,7 @@ class BashCommand(Command):
         # Create terminal session
         terminal_session = TerminalSession(
             on_session_complete=on_session_complete,
+            work_dir=self.work_dir,
         )
 
         try:

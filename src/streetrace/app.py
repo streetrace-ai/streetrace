@@ -246,7 +246,7 @@ def create_app(args: Args) -> Application:
     )
 
     # Register commands
-    cmd_executor.register(BashCommand())
+    cmd_executor.register(BashCommand(work_dir=args.working_dir))
     cmd_executor.register(ExitCommand())
     cmd_executor.register(
         HistoryCommand(
