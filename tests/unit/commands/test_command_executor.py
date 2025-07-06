@@ -45,7 +45,7 @@ class DummyCommand(Command):
     def description(self) -> str:
         return self._description
 
-    async def execute_async(self) -> None:
+    async def execute_async(self, user_input: str) -> None:  # noqa: ARG002
         if self._raise_exception:
             raise DummyCommandError
 

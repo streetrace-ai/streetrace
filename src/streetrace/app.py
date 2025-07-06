@@ -125,7 +125,8 @@ class Application:
                 extra_input,
             )
 
-        await self.workflow_supervisor.run_async(processed_prompt)
+        with self.ui.status():
+            await self.workflow_supervisor.run_async(processed_prompt)
 
     async def _run_non_interactive(self) -> None:
         """Handle non-interactive mode (single prompt execution)."""
@@ -171,8 +172,7 @@ class Application:
         while True:
             try:
                 user_input = await self.ui.prompt_async()
-                with self.ui.status():
-                    await self._process_input(user_input)
+                await self._process_input(user_input)
             except (EOFError, SystemExit):
                 self.ui_bus.dispatch_ui_update(ui_events.Info("\nLeaving..."))
                 raise

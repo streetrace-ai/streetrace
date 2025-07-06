@@ -4,7 +4,7 @@ This module defines the BashCommand class which allows users to run a bash comma
 in a terminal session.
 """
 
-import subprocess
+from subprocess import SubprocessError  # nosec B404 used only for exception handling
 from typing import override
 
 from streetrace.commands.base_command import Command
@@ -53,12 +53,10 @@ class BashCommand(Command):
         )
 
         # Collect command output
-        command_return_code = None
         command_error = None
 
         def on_session_complete(event: SessionEvent) -> None:
-            nonlocal command_return_code, command_error
-            command_return_code = event.return_code
+            nonlocal command_error
             if event.error_message:
                 command_error = event.error_message
 
@@ -82,7 +80,7 @@ class BashCommand(Command):
                 command_error,
             )
 
-        except (OSError, subprocess.SubprocessError) as e:
+        except (OSError, SubprocessError) as e:
             logger.exception(
                 "CLI command execution failed",
                 extra={"command": cli_command, "error": str(e)},
