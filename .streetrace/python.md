@@ -26,11 +26,13 @@
 
 ### Testing
 
+- Use pytest for testing.
 - When creating tests, break up up test files by user scenarios.
 - Create tests for the core user scenarios, and analyze coverage gaps.
 - Address the largest coverage gaps to achieve over 95% test coverage.
 - Use regular `assert` statement instead of unittest's assertion methods.
 - Keep tests small and easy to understand.
+- Check ./tests/conftest.py and other relevant conftest.py files for existing fixtures.
 - Create fixtures for all boilerblate code that is used in more than one test.
 - Look for existing conftest.py in the current and parent directories, and leverage
   shared fixtures as much as possible.
