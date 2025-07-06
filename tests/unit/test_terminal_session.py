@@ -10,7 +10,8 @@ This module tests all use cases described in the terminal_session.py docstring:
 
 import signal
 import threading
-from datetime import datetime, timezone
+from datetime import datetime
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from streetrace.terminal_session import (
@@ -25,7 +26,7 @@ TEST_MASTER_FD = 100
 TEST_SLAVE_FD = 101
 
 # Store the original os.close function before any mocking
-with open("/dev/null", "rb") as f:
+with Path("/dev/null").open("rb") as f:
     _original_os_close = f.close
 
 
@@ -51,28 +52,39 @@ class TestTerminalSessionBasicUsage:
             # For our test FDs, do nothing
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
-        ), patch(
-            "termios.tcgetattr",
-        ), patch(
-            "termios.tcsetattr",
-        ), patch(
-            "tty.setraw",
-        ), patch(
-            "streetrace.terminal_session.select.select",
-        ) as mock_select, patch(
-            "streetrace.terminal_session.os.read",
-        ) as mock_read, patch(
-            "streetrace.terminal_session.sys.stdout",
-        ), patch(
-            "streetrace.terminal_session.sys.stdin",
-        ) as mock_stdin:
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
+            patch(
+                "termios.tcgetattr",
+            ),
+            patch(
+                "termios.tcsetattr",
+            ),
+            patch(
+                "tty.setraw",
+            ),
+            patch(
+                "streetrace.terminal_session.select.select",
+            ) as mock_select,
+            patch(
+                "streetrace.terminal_session.os.read",
+            ) as mock_read,
+            patch(
+                "streetrace.terminal_session.sys.stdout",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdin",
+            ) as mock_stdin,
+        ):
             # Mock stdin to have a fileno method
             mock_stdin.fileno.return_value = 0
 
@@ -125,26 +137,36 @@ class TestTerminalSessionBasicUsage:
                 return _original_os_close(fd)
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
-        ), patch(
-            "termios.tcgetattr",
-        ), patch(
-            "termios.tcsetattr",
-        ), patch(
-            "tty.setraw",
-        ), patch(
-            "streetrace.terminal_session.select.select",
-        ) as mock_select, patch(
-            "streetrace.terminal_session.sys.stdout",
-        ), patch(
-            "streetrace.terminal_session.sys.stdin",
-        ) as mock_stdin:
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
+            patch(
+                "termios.tcgetattr",
+            ),
+            patch(
+                "termios.tcsetattr",
+            ),
+            patch(
+                "tty.setraw",
+            ),
+            patch(
+                "streetrace.terminal_session.select.select",
+            ) as mock_select,
+            patch(
+                "streetrace.terminal_session.sys.stdout",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdin",
+            ) as mock_stdin,
+        ):
             # Mock stdin to have a fileno method
             mock_stdin.fileno.return_value = 0
 
@@ -186,30 +208,42 @@ class TestTerminalSessionInteractiveCommands:
                 return _original_os_close(fd)
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
-        ), patch(
-            "termios.tcgetattr",
-        ), patch(
-            "termios.tcsetattr",
-        ), patch(
-            "tty.setraw",
-        ), patch(
-            "streetrace.terminal_session.select.select",
-        ) as mock_select, patch(
-            "streetrace.terminal_session.os.read",
-        ) as mock_read, patch(
-            "streetrace.terminal_session.os.write",
-        ) as mock_write, patch(
-            "streetrace.terminal_session.sys.stdout",
-        ), patch(
-            "streetrace.terminal_session.sys.stdin",
-        ) as mock_stdin:
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
+            patch(
+                "termios.tcgetattr",
+            ),
+            patch(
+                "termios.tcsetattr",
+            ),
+            patch(
+                "tty.setraw",
+            ),
+            patch(
+                "streetrace.terminal_session.select.select",
+            ) as mock_select,
+            patch(
+                "streetrace.terminal_session.os.read",
+            ) as mock_read,
+            patch(
+                "streetrace.terminal_session.os.write",
+            ) as mock_write,
+            patch(
+                "streetrace.terminal_session.sys.stdout",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdin",
+            ) as mock_stdin,
+        ):
             # Mock stdin to have a fileno method
             mock_stdin.fileno.return_value = 0
 
@@ -273,26 +307,36 @@ class TestTerminalSessionInteractiveCommands:
                 return _original_os_close(fd)
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
-        ), patch(
-            "termios.tcgetattr",
-        ), patch(
-            "termios.tcsetattr",
-        ), patch(
-            "tty.setraw",
-        ), patch(
-            "streetrace.terminal_session.select.select",
-        ) as mock_select, patch(
-            "streetrace.terminal_session.sys.stdout",
-        ), patch(
-            "streetrace.terminal_session.sys.stdin",
-        ) as mock_stdin:
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
+            patch(
+                "termios.tcgetattr",
+            ),
+            patch(
+                "termios.tcsetattr",
+            ),
+            patch(
+                "tty.setraw",
+            ),
+            patch(
+                "streetrace.terminal_session.select.select",
+            ) as mock_select,
+            patch(
+                "streetrace.terminal_session.sys.stdout",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdin",
+            ) as mock_stdin,
+        ):
             # Mock stdin to have a fileno method
             mock_stdin.fileno.return_value = 0
 
@@ -301,7 +345,7 @@ class TestTerminalSessionInteractiveCommands:
             mock_process.poll.side_effect = [None, None, 0]  # Running, then stopped
             mock_process.wait.return_value = 0
             mock_popen.return_value = mock_process
-            
+
             # Set up select.select to return proper 3-tuple - no ready file descriptors
             mock_select.return_value = ([], [], [])
 
@@ -326,7 +370,7 @@ class TestTerminalSessionInteractiveCommands:
 class TestTerminalSessionAutomation:
     """Test automation scenarios like auto-exit help mode."""
 
-    def test_automation_with_help_mode_detection(self):
+    def test_automation_with_help_mode_detection(self):  # noqa: C901
         """Test the complete automation example from the docstring."""
 
         class SmartTerminalSession:
@@ -377,30 +421,42 @@ class TestTerminalSessionAutomation:
                 return _original_os_close(fd)
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
-        ), patch(
-            "termios.tcgetattr",
-        ), patch(
-            "termios.tcsetattr",
-        ), patch(
-            "tty.setraw",
-        ), patch(
-            "streetrace.terminal_session.select.select",
-        ) as mock_select, patch(
-            "streetrace.terminal_session.os.read",
-        ) as mock_read, patch(
-            "streetrace.terminal_session.os.write",
-        ), patch(
-            "streetrace.terminal_session.sys.stdout",
-        ), patch(
-            "streetrace.terminal_session.sys.stdin",
-        ) as mock_stdin:
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
+            patch(
+                "termios.tcgetattr",
+            ),
+            patch(
+                "termios.tcsetattr",
+            ),
+            patch(
+                "tty.setraw",
+            ),
+            patch(
+                "streetrace.terminal_session.select.select",
+            ) as mock_select,
+            patch(
+                "streetrace.terminal_session.os.read",
+            ) as mock_read,
+            patch(
+                "streetrace.terminal_session.os.write",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdout",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdin",
+            ) as mock_stdin,
+        ):
             # Mock stdin to have a fileno method
             mock_stdin.fileno.return_value = 0
 
@@ -467,28 +523,39 @@ class TestTerminalSessionAutomation:
                 return _original_os_close(fd)
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
-        ), patch(
-            "termios.tcgetattr",
-        ), patch(
-            "termios.tcsetattr",
-        ), patch(
-            "tty.setraw",
-        ), patch(
-            "streetrace.terminal_session.select.select",
-        ) as mock_select, patch(
-            "streetrace.terminal_session.os.read",
-        ) as mock_read, patch(
-            "streetrace.terminal_session.sys.stdout",
-        ), patch(
-            "streetrace.terminal_session.sys.stdin",
-        ) as mock_stdin:
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
+            patch(
+                "termios.tcgetattr",
+            ),
+            patch(
+                "termios.tcsetattr",
+            ),
+            patch(
+                "tty.setraw",
+            ),
+            patch(
+                "streetrace.terminal_session.select.select",
+            ) as mock_select,
+            patch(
+                "streetrace.terminal_session.os.read",
+            ) as mock_read,
+            patch(
+                "streetrace.terminal_session.sys.stdout",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdin",
+            ) as mock_stdin,
+        ):
             # Mock stdin to have a fileno method
             mock_stdin.fileno.return_value = 0
 
@@ -544,28 +611,39 @@ class TestTerminalSessionAdvancedFeatures:
                 return _original_os_close(fd)
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
-        ), patch(
-            "termios.tcgetattr",
-        ), patch(
-            "termios.tcsetattr",
-        ), patch(
-            "tty.setraw",
-        ), patch(
-            "streetrace.terminal_session.select.select",
-        ) as mock_select, patch(
-            "streetrace.terminal_session.os.read",
-        ) as mock_read, patch(
-            "streetrace.terminal_session.sys.stdout",
-        ), patch(
-            "streetrace.terminal_session.sys.stdin",
-        ) as mock_stdin:
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
+            patch(
+                "termios.tcgetattr",
+            ),
+            patch(
+                "termios.tcsetattr",
+            ),
+            patch(
+                "tty.setraw",
+            ),
+            patch(
+                "streetrace.terminal_session.select.select",
+            ) as mock_select,
+            patch(
+                "streetrace.terminal_session.os.read",
+            ) as mock_read,
+            patch(
+                "streetrace.terminal_session.sys.stdout",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdin",
+            ) as mock_stdin,
+        ):
             # Mock stdin to have a fileno method
             mock_stdin.fileno.return_value = 0
 
@@ -612,28 +690,39 @@ class TestTerminalSessionAdvancedFeatures:
                 return _original_os_close(fd)
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
-        ), patch(
-            "termios.tcgetattr",
-        ), patch(
-            "termios.tcsetattr",
-        ), patch(
-            "tty.setraw",
-        ), patch(
-            "streetrace.terminal_session.select.select",
-        ) as mock_select, patch(
-            "streetrace.terminal_session.os.read",
-        ) as mock_read, patch(
-            "streetrace.terminal_session.sys.stdout",
-        ), patch(
-            "streetrace.terminal_session.sys.stdin",
-        ) as mock_stdin:
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
+            patch(
+                "termios.tcgetattr",
+            ),
+            patch(
+                "termios.tcsetattr",
+            ),
+            patch(
+                "tty.setraw",
+            ),
+            patch(
+                "streetrace.terminal_session.select.select",
+            ) as mock_select,
+            patch(
+                "streetrace.terminal_session.os.read",
+            ) as mock_read,
+            patch(
+                "streetrace.terminal_session.sys.stdout",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdin",
+            ) as mock_stdin,
+        ):
             # Mock stdin to have a fileno method
             mock_stdin.fileno.return_value = 0
 
@@ -685,28 +774,39 @@ class TestTerminalSessionAdvancedFeatures:
                 return _original_os_close(fd)
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
-        ), patch(
-            "termios.tcgetattr",
-        ), patch(
-            "termios.tcsetattr",
-        ), patch(
-            "tty.setraw",
-        ), patch(
-            "streetrace.terminal_session.select.select",
-        ) as mock_select, patch(
-            "streetrace.terminal_session.sys.stdout",
-        ), patch(
-            "streetrace.terminal_session.sys.stdin",
-        ) as mock_stdin, patch(
-            "streetrace.terminal_session.threading.Timer",
-        ) as mock_timer:
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
+            patch(
+                "termios.tcgetattr",
+            ),
+            patch(
+                "termios.tcsetattr",
+            ),
+            patch(
+                "tty.setraw",
+            ),
+            patch(
+                "streetrace.terminal_session.select.select",
+            ) as mock_select,
+            patch(
+                "streetrace.terminal_session.sys.stdout",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdin",
+            ) as mock_stdin,
+            patch(
+                "streetrace.terminal_session.threading.Timer",
+            ) as mock_timer,
+        ):
             # Mock stdin to have a fileno method
             mock_stdin.fileno.return_value = 0
 
@@ -771,13 +871,17 @@ class TestTerminalSessionErrorHandling:
                 return _original_os_close(fd)
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
         ):
             mock_openpty.return_value = (TEST_MASTER_FD, TEST_SLAVE_FD)
             mock_popen.side_effect = OSError("Failed to start process")
@@ -860,30 +964,42 @@ class TestTerminalSessionIntegration:
                 return _original_os_close(fd)
             return None
 
-        with patch(
-            "streetrace.terminal_session.pty.openpty",
-        ) as mock_openpty, patch(
-            "streetrace.terminal_session.subprocess.Popen",
-        ) as mock_popen, patch(
-            "streetrace.terminal_session.os.close",
-            side_effect=mock_close,
-        ), patch(
-            "termios.tcgetattr",
-        ), patch(
-            "termios.tcsetattr",
-        ), patch(
-            "tty.setraw",
-        ), patch(
-            "streetrace.terminal_session.select.select",
-        ) as mock_select, patch(
-            "streetrace.terminal_session.os.read",
-        ) as mock_read, patch(
-            "streetrace.terminal_session.os.write",
-        ), patch(
-            "streetrace.terminal_session.sys.stdout",
-        ), patch(
-            "streetrace.terminal_session.sys.stdin",
-        ) as mock_stdin:
+        with (
+            patch(
+                "streetrace.terminal_session.pty.openpty",
+            ) as mock_openpty,
+            patch(
+                "streetrace.terminal_session.subprocess.Popen",
+            ) as mock_popen,
+            patch(
+                "streetrace.terminal_session.os.close",
+                side_effect=mock_close,
+            ),
+            patch(
+                "termios.tcgetattr",
+            ),
+            patch(
+                "termios.tcsetattr",
+            ),
+            patch(
+                "tty.setraw",
+            ),
+            patch(
+                "streetrace.terminal_session.select.select",
+            ) as mock_select,
+            patch(
+                "streetrace.terminal_session.os.read",
+            ) as mock_read,
+            patch(
+                "streetrace.terminal_session.os.write",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdout",
+            ),
+            patch(
+                "streetrace.terminal_session.sys.stdin",
+            ) as mock_stdin,
+        ):
             # Mock stdin to have a fileno method
             mock_stdin.fileno.return_value = 0
 
