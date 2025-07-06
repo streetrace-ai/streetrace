@@ -46,6 +46,7 @@ class TestToolProviderCwd:
         assert connection_params.args == [
             "-y",
             "@modelcontextprotocol/server-filesystem",
+            str(work_dir),
         ]
         assert connection_params.cwd == work_dir
 
@@ -76,6 +77,7 @@ class TestToolProviderCwd:
         assert connection_params.args == [
             "-y",
             "@modelcontextprotocol/server-other",
+            str(work_dir),
         ]
         # All servers now use cwd
         assert connection_params.cwd == work_dir
@@ -109,7 +111,7 @@ class TestToolProviderCwd:
         for call in calls:
             connection_params = call[1]["connection_params"]
             assert connection_params.command == "npx"
-            assert len(connection_params.args) == 2  # Only npx, -y, and server name
+            assert len(connection_params.args) == 3  # Only npx, -y, and server name
             assert connection_params.args[0] == "-y"
             assert connection_params.args[1] in [
                 "@modelcontextprotocol/server-filesystem",
@@ -151,6 +153,7 @@ class TestToolProviderCwd:
         assert connection_params.args == [
             "-y",
             "@modelcontextprotocol/server-filesystem",
+            str(work_dir),
         ]
         assert connection_params.cwd == work_dir
 
@@ -183,8 +186,8 @@ class TestToolProviderCwd:
         for call in calls:
             connection_params = call[1]["connection_params"]
             assert connection_params.command == "npx"
-            assert len(connection_params.args) == 2  # Only ["-y", server_name]
+            assert len(connection_params.args) == 3  # Only ["-y", server_name]
             assert connection_params.args[0] == "-y"
             assert connection_params.cwd == work_dir
             # No work_dir should be passed as argument
-            assert str(work_dir) not in connection_params.args
+            assert str(work_dir) in connection_params.args
