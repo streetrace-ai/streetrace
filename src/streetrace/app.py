@@ -5,8 +5,6 @@ coordinator for the StreetRace🚗💨 application, handling the interaction bet
 components and managing the application lifecycle.
 """
 
-import subprocess
-
 # Core application components
 from streetrace.agents.agent_manager import AgentManager
 from streetrace.app_state import AppState
@@ -21,13 +19,13 @@ from streetrace.commands.definitions import (
     HistoryCommand,
     ResetSessionCommand,
 )
+from streetrace.commands.definitions.bash_command import BashCommand
 from streetrace.costs import UsageAndCost
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
-from streetrace.prompt_processor import PromptProcessor
+from streetrace.prompt_processor import ProcessedPrompt, PromptProcessor
 from streetrace.session_service import JSONSessionService, SessionManager
 from streetrace.system_context import SystemContext
-from streetrace.terminal_session import SessionData, SessionEvent, TerminalSession
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui import ui_events
 from streetrace.ui.completer import CommandCompleter, PathCompleter, PromptCompleter
@@ -69,9 +67,6 @@ class Application:
                 management.
 
         """
-        if not workflow_supervisor and not args.list_sessions:
-            msg = "workflow_supervisor was not created but required."
-            raise ValueError(msg)
         self.args = args
         self.ui = ui
         self.ui_bus = ui_bus
@@ -107,128 +102,30 @@ class Application:
             await self._run_interactive()
 
     async def _process_input(self, user_input: str) -> None:
-        # Check if this is a CLI command starting with "!"
-        if user_input.strip().startswith("!"):
-            cli_command = user_input.strip()[1:]  # Remove the "!" prefix
-            if cli_command:
-                await self._execute_cli_command(cli_command)
-            return
-
         command_status = await self.cmd_executor.execute_async(
             user_input,
         )
 
+        extra_input: str | None = None
+
         if command_status.command_executed:
             if command_status.error:
                 self.ui_bus.dispatch_ui_update(ui_events.Error(command_status.error))
-            return
+            if command_status.output:
+                extra_input = command_status.output
+            else:
+                # if no command output, we don't need to process it further
+                return
 
-        processed_prompt = None
-
-        # If not a command, process the input as a prompt
+        processed_prompt: ProcessedPrompt | None = None
 
         if user_input.strip():
-            # Extract mentions from this prompt
-            processed_prompt = self.prompt_processor.build_context(user_input)
+            processed_prompt = self.prompt_processor.build_context(
+                user_input,
+                extra_input,
+            )
 
-        # Process with InteractionManager using the persistent history
         await self.workflow_supervisor.run_async(processed_prompt)
-
-    async def _execute_cli_command(self, cli_command: str) -> None:
-        """Execute a CLI command using TerminalSession and send results to the model.
-
-        Args:
-            cli_command: The CLI command to execute (without the "!" prefix)
-
-        """
-        logger.info(
-            "Executing CLI command: %s",
-            cli_command,
-            extra={"command": cli_command},
-        )
-
-        # Collect command output
-        command_return_code = None
-        command_error = None
-
-        def on_session_complete(event: SessionEvent) -> None:
-            nonlocal command_return_code, command_error
-            command_return_code = event.return_code
-            if event.error_message:
-                command_error = event.error_message
-
-        # Create terminal session
-        terminal_session = TerminalSession(
-            on_session_complete=on_session_complete,
-        )
-
-        try:
-            # Start the terminal session
-            terminal_session.start()
-
-            # Execute the command
-            return_code = terminal_session.execute_command(cli_command)
-
-            # Format the output for the model
-            formatted_output = self._format_cli_output(
-                cli_command,
-                terminal_session.session_data,
-                return_code,
-                command_error,
-            )
-
-            # Send the formatted output to the model as user input
-            processed_prompt = self.prompt_processor.build_context(formatted_output)
-            await self.workflow_supervisor.run_async(processed_prompt)
-
-        except (OSError, subprocess.SubprocessError) as e:
-            error_msg = f"Error executing CLI command '{cli_command}': {e!s}"
-            logger.exception(
-                "CLI command execution failed",
-                extra={"command": cli_command, "error": str(e)},
-            )
-            self.ui_bus.dispatch_ui_update(ui_events.Error(error_msg))
-        finally:
-            # Clean up terminal session
-            terminal_session.stop()
-
-    def _format_cli_output(
-        self,
-        command: str,
-        session_data: list[SessionData],
-        return_code: int,
-        error_message: str | None = None,
-    ) -> str:
-        """Format CLI command output for the model.
-
-        Args:
-            command: The executed command
-            session_data: Session data from TerminalSession
-            return_code: Command return code
-            error_message: Error message if any
-
-        Returns:
-            Formatted string to send to the model
-
-        """
-        lines = [f"Command: {command}"]
-
-        if return_code is not None:
-            lines.append(f"Exit code: {return_code}")
-
-        if error_message:
-            lines.append(f"Error: {error_message}")
-
-        # Add session data output
-        if session_data:
-            lines.append("Output:")
-            lines.extend(
-                data.content for data in session_data if data.source == "command"
-            )
-        else:
-            lines.append("Output: (no output)")
-
-        return "\n".join(lines)
 
     async def _run_non_interactive(self) -> None:
         """Handle non-interactive mode (single prompt execution)."""
@@ -349,6 +246,7 @@ def create_app(args: Args) -> Application:
     )
 
     # Register commands
+    cmd_executor.register(BashCommand())
     cmd_executor.register(ExitCommand())
     cmd_executor.register(
         HistoryCommand(

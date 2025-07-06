@@ -94,11 +94,11 @@ class CompactCommand(Command):
         return role, summary_message
 
     @override
-    async def execute_async(self) -> None:
+    async def execute_async(self, user_input: str) -> str | None:
         """Execute the history compaction action using the HistoryManager.
 
         Args:
-            app_instance: The main Application instance.
+            user_input: The raw input string from the user (e.g., "/exit").
 
         """
         # allow ADK to feed a fake tool to model in case it needs one
@@ -124,7 +124,7 @@ class CompactCommand(Command):
             self.ui_bus.dispatch_ui_update(
                 ui_events.Info("No history available to compact."),
             )
-            return
+            return None
 
         self.ui_bus.dispatch_ui_update(
             ui_events.Info("Compacting conversation history..."),
@@ -152,7 +152,7 @@ class CompactCommand(Command):
             )
             logger.error("LLM response was not in the expected format for summary.")
             logger.debug("History sent for compact: \n%s", contents_to_compact)
-            return
+            return None
 
         await self.session_manager.replace_current_session_events(
             compacted_session_events,
@@ -161,3 +161,5 @@ class CompactCommand(Command):
         self.ui_bus.dispatch_ui_update(
             ui_events.Info("Session compacted successfully."),
         )
+
+        return None

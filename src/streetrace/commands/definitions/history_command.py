@@ -204,11 +204,11 @@ class HistoryCommand(Command):
         return "Display the conversation history."
 
     @override
-    async def execute_async(self) -> None:
+    async def execute_async(self, user_input: str) -> str | None:
         """Execute the history display action using the HistoryManager.
 
         Args:
-            app_instance: The main Application instance.
+            user_input: The raw input string from the user (e.g., "/exit").
 
         """
         logger.info("Executing history command.")
@@ -225,3 +225,5 @@ class HistoryCommand(Command):
             )
         else:
             self.ui_bus.dispatch_ui_update(ui_events.Info("No history available yet."))
+
+        return None

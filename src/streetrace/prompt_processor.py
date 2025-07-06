@@ -42,11 +42,16 @@ class PromptProcessor:
         self.ui_bus = ui_bus
         self.args = args
 
-    def build_context(self, prompt: str) -> ProcessedPrompt:
+    def build_context(
+        self,
+        prompt: str,
+        extra_input: str | None = None,
+    ) -> ProcessedPrompt:
         """Build the prompt context for a given raw prompt and working directory.
 
         Args:
             prompt: The unprocessed input string from the user.
+            extra_input: Extra input to add to the prompt as-is.
 
         Returns:
             A ProcessedPrompt object populated with parsed mentions.
@@ -59,7 +64,10 @@ class PromptProcessor:
             if prompt
             else []
         )
-        return ProcessedPrompt(prompt=prompt, mentions=mentions)
+        return ProcessedPrompt(
+            prompt=prompt + "\n\n" + extra_input if extra_input else prompt,
+            mentions=mentions,
+        )
 
     def parse_and_load_mentions(
         self,

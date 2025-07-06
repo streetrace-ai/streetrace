@@ -48,10 +48,14 @@ class HelpCommand(Command):
         """
         return "Displays a list of all available commands with their descriptions."
 
-    async def execute_async(self) -> None:
+    async def execute_async(self, user_input: str) -> str | None:  # noqa: ARG002
         """Execute the help command.
 
         Displays all registered commands with their descriptions.
+
+        Args:
+            user_input: The raw input string from the user (e.g., "/exit").
+
         """
         logger.info("Executing help command")
 
@@ -64,3 +68,5 @@ class HelpCommand(Command):
 
         # Display the help information
         self.ui_bus.dispatch_ui_update(ui_events.Info(help_text))
+
+        return None
