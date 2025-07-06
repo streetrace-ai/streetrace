@@ -1,0 +1,18 @@
+# Alternative docker-compose setup for devcontainer
+# This provides more flexibility for complex development setups
+version: '3.8'
+
+services:
+  streetrace-dev:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+      target: development
+    volumes:
+      - ..:/workspace:cached
+      - /var/run/docker.sock:/var/run/docker.sock  # For Docker-outside-of-Docker
+    command: /bin/bash -c "while sleep 1000; do :; done"
+    environment:
+      - PYTHONPATH=/workspace/src
+    working_dir: /workspace
+    user: devuser

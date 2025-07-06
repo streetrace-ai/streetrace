@@ -1,0 +1,85 @@
+{
+  "name": "StreetRace🚗💨 Development Environment",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "target": "development",
+  },
+  "workspaceFolder": "/workspace",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/.bash_history,target=/home/devuser/.bash_history,type=bind,consistency=cached",
+  ],
+  "features": {
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.mypy-type-checker",
+        "ms-python.black-formatter",
+        "charliermarsh.ruff",
+        "ms-python.pylint",
+        "ms-vscode.makefile-tools",
+        "eamodio.gitlens",
+        "ms-vscode.vscode-json",
+        "yzhang.markdown-all-in-one",
+        "davidanson.vscode-markdownlint",
+        "tamasfe.even-better-toml",
+        "ms-python.debugpy",
+        "ms-toolsai.jupyter",
+        "redhat.vscode-yaml",
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
+        "python.terminal.activateEnvironment": false,
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": false,
+        "python.linting.mypyEnabled": true,
+        "python.formatting.provider": "none",
+        "python.analysis.typeCheckingMode": "strict",
+        "python.analysis.autoSearchPaths": true,
+        "[python]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": true,
+          },
+          "editor.defaultFormatter": "charliermarsh.ruff",
+        },
+        "ruff.args": [
+          "--config=/workspace/pyproject.toml",
+        ],
+        "ruff.lint.args": [
+          "--config=/workspace/pyproject.toml",
+        ],
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/.pytest_cache": true,
+          "**/.mypy_cache": true,
+          "**/.ruff_cache": true,
+          "**/.coverage": true,
+          "**/htmlcov": true,
+          "**/.venv": true,
+        },
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash",
+          },
+        },
+        "git.autofetch": true,
+        "git.enableSmartCommit": true,
+        "editor.rulers": [88],
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "makefile.configureOnOpen": true,
+      },
+    },
+  },
+  "postCreateCommand": "poetry install && echo '✅ Development environment ready! Run `make check` to verify everything works.'",
+  "forwardPorts": [],
+  "remoteUser": "devuser",
+  "containerUser": "devuser",
+  "updateRemoteUserUID": true,
+}

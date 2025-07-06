@@ -41,7 +41,27 @@ Model-agnostic and open-source, StreetRace supports everything from local Ollama
 models to cloud APIs. Agents run in the local environment, with controlled APIs (A2A
 endpoints), giving teams full control, observability, and security.
 
-## Installation and usage
+## Getting Started
+
+### Development Environment
+
+**For the best development experience, use the VS Code Dev Container** which includes:
+
+- **Enhanced terminal** with persistent bash history and intelligent autocompletion
+- **Smart shell features** including Git branch display and developer-friendly aliases
+- **Tab completion** for Poetry, Git, Make, and file paths
+- **Command shortcuts** like `gs` (git status), `pi` (poetry install), `check` (make check)
+- **Quick navigation** with `root`, `src`, `tests` commands
+- **Development workflow** helpers like `dev-setup`, `dev-check`, `dev-test`
+
+To get started:
+
+1. Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+2. Open the project in VS Code
+3. Click "Reopen in Container" when prompted
+4. Type `help` in the terminal to see all available commands and aliases
+
+### Installation and usage
 
 ### Install from PyPI
 
