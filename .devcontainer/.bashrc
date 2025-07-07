@@ -137,50 +137,6 @@ if [ -f /usr/share/bash-completion/completions/make ]; then
     source /usr/share/bash-completion/completions/make
 fi
 
-# Custom aliases for development
-alias ll='ls -alF'
-alias la='ls -A'
-alias l='ls -CF'
-alias ..='cd ..'
-alias ...='cd ../..'
-alias ....='cd ../../..'
-alias grep='grep --color=auto'
-alias fgrep='fgrep --color=auto'
-alias egrep='egrep --color=auto'
-
-# Git aliases
-alias gs='git status'
-alias ga='git add'
-alias gc='git commit'
-alias gp='git push'
-alias gl='git pull'
-alias gd='git diff'
-alias gb='git branch'
-alias gco='git checkout'
-alias glog='git log --oneline --graph --decorate'
-
-# Poetry aliases
-alias pi='poetry install'
-alias pr='poetry run'
-alias ps='poetry shell'
-alias pa='poetry add'
-alias pad='poetry add --group dev'
-
-# Python aliases
-alias py='python'
-alias py3='python3'
-alias pip='python -m pip'
-
-# Development shortcuts'
-alias check='make check'
-alias test='make test'
-alias lint='make lint'
-alias format='make format'
-
-# Streetrace shortcuts
-alias sr-sonnet-4='poetry run streetrace --model="anthropic/claude-sonnet-4-20250514"'
-alias sr-gpt-4-1='poetry run streetrace --model="gpt-4.1"'
-
 # History search improvements
 bind '"\e[A": history-search-backward'
 bind '"\e[B": history-search-forward'
@@ -201,43 +157,6 @@ shopt -s cdspell
 # Save history after each command
 PROMPT_COMMAND="history -a; history -c; history -r; $PROMPT_COMMAND"
 
-# Custom functions
-function mkcd() {
-    mkdir -p "$1" && cd "$1"
-}
-
-function find_and_edit() {
-    local file
-    file=$(find . -name "*$1*" -type f | head -1)
-    if [ -n "$file" ]; then
-        $EDITOR "$file"
-    else
-        echo "No file found containing '$1'"
-    fi
-}
-
-# Better ls with tree-like output
-function ltree() {
-    find ${1:-.} -print | sed -e 's;[^/]*/;|____;g;s;____|; |;g'
-}
-
-# Quick git status
-function gst() {
-    git status --porcelain | while read status file; do
-        case "$status" in
-            M*) echo -e "\033[33m$status\033[0m $file";;
-            A*) echo -e "\033[32m$status\033[0m $file";;
-            D*) echo -e "\033[31m$status\033[0m $file";;
-            ??) echo -e "\033[36m$status\033[0m $file";;
-            *) echo "$status $file";;
-        esac
-    done
-}
-
-# Show current git branch in prompt
-function parse_git_branch() {
-    git branch 2> /dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ (\1)/'
-}
 
 # Enhanced prompt with git branch
 if [ "$color_prompt" = yes ]; then
@@ -255,5 +174,7 @@ echo "🚗💨 Welcome to StreetRace Development Environment!"
 echo "📁 Working directory: $(pwd)"
 echo "🐍 Python version: $(python --version)"
 echo "📦 Poetry version: $(poetry --version)"
-echo "🎯 Run 'make check' to verify everything works"
+echo "🎯 Run 'check' to verify everything works"
+echo "🔧 Use 'pi' to install dependencies with Poetry"
+echo "🔍 Use 'sr' or 'streetrace' to run the StreetRace CLI"
 echo "💡 Type 'help' for useful commands and aliases"
