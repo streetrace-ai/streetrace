@@ -12,34 +12,19 @@
     "source=${localWorkspaceFolder}/.devcontainer/.bashrc,target=/home/devuser/.bashrc,type=bind,consistency=cached",
     "source=${localWorkspaceFolder}/.devcontainer/.bash_aliases,target=/home/devuser/.bash_aliases,type=bind,consistency=cached"
   ],
-  "features": {
-    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
-  },
   "customizations": {
     "vscode": {
       "extensions": [
         "ms-python.python",
         "ms-python.mypy-type-checker",
-        "ms-python.black-formatter",
         "charliermarsh.ruff",
-        "ms-python.pylint",
-        "ms-vscode.makefile-tools",
-        "eamodio.gitlens",
         "ms-vscode.vscode-json",
-        "yzhang.markdown-all-in-one",
-        "davidanson.vscode-markdownlint",
         "tamasfe.even-better-toml",
-        "ms-python.debugpy",
-        "ms-toolsai.jupyter",
-        "redhat.vscode-yaml"
+        "DavidAnson.vscode-markdownlint"
       ],
       "settings": {
         "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
         "python.terminal.activateEnvironment": false,
-        "python.linting.enabled": true,
-        "python.linting.pylintEnabled": false,
-        "python.linting.mypyEnabled": true,
-        "python.formatting.provider": "none",
         "python.analysis.typeCheckingMode": "strict",
         "python.analysis.autoSearchPaths": true,
         "[python]": {
@@ -59,11 +44,6 @@
           "**/.venv": true
         },
         "terminal.integrated.defaultProfile.linux": "bash",
-        "terminal.integrated.profiles.linux": {
-          "bash": {
-            "path": "/bin/bash"
-          }
-        },
         "git.autofetch": true,
         "git.enableSmartCommit": true,
         "editor.rulers": [88],
