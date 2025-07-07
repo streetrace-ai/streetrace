@@ -106,7 +106,7 @@ class TestCompactCommandSuccessfulSummarization:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert UI updates
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
@@ -193,7 +193,7 @@ class TestCompactCommandSuccessfulSummarization:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         replaced_events = mock_dependencies[
@@ -253,7 +253,7 @@ class TestCompactCommandSuccessfulSummarization:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         replaced_events = mock_dependencies[
@@ -305,7 +305,7 @@ class TestCompactCommandSuccessfulSummarization:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert LLM was called with correct parameters
         mock_model.generate_content_async.assert_called_once()
@@ -363,7 +363,7 @@ class TestCompactCommandSuccessfulSummarization:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         llm_request = mock_model.generate_content_async.call_args[1]["llm_request"]

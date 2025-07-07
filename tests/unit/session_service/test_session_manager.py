@@ -8,8 +8,6 @@ from google.adk.sessions import Session
 from google.adk.sessions.base_session_service import ListSessionsResponse
 from google.genai import types as genai_types
 
-from streetrace.prompt_processor import ProcessedPrompt
-
 
 class TestSessionManager:
     """Tests for the SessionManager class."""
@@ -324,7 +322,7 @@ class TestSessionManager:
     ):
         """Test _add_project_context method."""
         # Setup
-        processed_prompt = ProcessedPrompt(prompt="Test prompt")
+        processed_prompt = "Test prompt"
         assistant_response = "Assistant response"
 
         # Set up a session with a user event
@@ -378,7 +376,7 @@ class TestSessionManager:
     ):
         """Test post_process method."""
         # Setup
-        processed_prompt = ProcessedPrompt(prompt="Test prompt")
+        user_input = "Test prompt"
 
         # Configure the session with events
         session = sample_session.model_copy(deep=True)
@@ -407,7 +405,7 @@ class TestSessionManager:
             ) as mock_add_context,
         ):
             # Call post_process
-            await session_manager.post_process(processed_prompt, sample_session)
+            await session_manager.post_process(user_input, sample_session)
 
             # Verify methods were called correctly
             json_session_service.get_session.assert_called_once_with(
@@ -419,7 +417,7 @@ class TestSessionManager:
             mock_squash.assert_called_once_with(session)
 
             mock_add_context.assert_called_once_with(
-                processed_prompt=processed_prompt,
+                user_input=user_input,
                 assistant_response="Assistant response",
                 session=session,
             )

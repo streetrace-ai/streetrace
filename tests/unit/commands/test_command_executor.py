@@ -1,11 +1,11 @@
 # tests/commands/test_command_executor.py
-from typing import Any
 
 import pytest
 
 # Use absolute import from the 'src' root
 from streetrace.commands.base_command import Command
 from streetrace.commands.command_executor import CommandExecutor
+from streetrace.input_handler import InputContext
 
 # Define the target logger name
 TARGET_LOGGER_NAME = "streetrace.commands.command_executor"
@@ -28,13 +28,11 @@ class DummyCommand(Command):
         self,
         name: str = _TEST_CMD_NAME,
         description: str = _TEST_CMD_DESC,
-        execute_returns: int | Any = 0,  # noqa: ANN401 matching Popen.returncode
         raise_exception: bool = False,
     ) -> None:
         super().__init__()
         self._name = name
         self._description = description
-        self._execute_returns = execute_returns
         self._raise_exception = raise_exception
 
     @property
@@ -45,7 +43,7 @@ class DummyCommand(Command):
     def description(self) -> str:
         return self._description
 
-    async def execute_async(self, user_input: str) -> None:  # noqa: ARG002
+    async def execute_async(self) -> None:
         if self._raise_exception:
             raise DummyCommandError
 
@@ -104,54 +102,46 @@ def test_get_commands(command_executor) -> None:
 
 async def test_execute_existing_command_continue(command_executor) -> None:
     """Test executing a command (no args) that signals continue."""
-    command_executor.register(DummyCommand(execute_returns=True))
-    status = await command_executor.execute_async(
-        f"/{_TEST_CMD_NAME}",
-    )
-    assert status.command_executed
-
-
-async def test_execute_existing_command_exit(command_executor) -> None:
-    """Test executing a command (no args) that signals exit."""
-    command_executor.register(DummyCommand(execute_returns=False))
-    status = await command_executor.execute_async(
-        f"/{_TEST_CMD_NAME}",
-    )
-    assert status.command_executed
+    command_executor.register(DummyCommand())
+    input_context = InputContext(user_input=f"/{_TEST_CMD_NAME}")
+    command_result = await command_executor.handle(input_context)
+    assert command_result.handled
+    assert not command_result.continue_
 
 
 async def test_execute_non_existent_command(command_executor) -> None:
     """Test executing a command (no args) that signals exit."""
-    command_executor.register(DummyCommand(execute_returns=False))
-    status = await command_executor.execute_async(
-        f"/{_TEST_CMD_NAME}1",
-    )
-    assert not status.command_executed
+    command_executor.register(DummyCommand())
+    input_context = InputContext(user_input=f"/{_TEST_CMD_NAME}1")
+    command_result = await command_executor.handle(input_context)
+    assert not command_result.handled
+    assert command_result.continue_
 
 
 async def test_execute_command_case_insensitivity(command_executor) -> None:
     """Test that execution matches commands case-insensitively."""
-    command_executor.register(DummyCommand(execute_returns=True))
-    status = await command_executor.execute_async(
-        f"/{_TEST_CMD_NAME.upper()}",
-    )
-    assert status.command_executed
+    command_executor.register(DummyCommand())
+    input_context = InputContext(user_input=f"/{_TEST_CMD_NAME.upper()}")
+    command_result = await command_executor.handle(input_context)
+    assert command_result.handled
+    assert not command_result.continue_
 
 
 async def test_execute_command_strips_whitespace(command_executor) -> None:
     """Test that execution handles input with leading/trailing whitespace."""
-    command_executor.register(DummyCommand(execute_returns=True))
-    status = await command_executor.execute_async(
-        f"/{_TEST_CMD_NAME}  ",
-    )
-    assert status.command_executed
+    command_executor.register(DummyCommand())
+    input_context = InputContext(user_input=f"/{_TEST_CMD_NAME}  ")
+    command_result = await command_executor.handle(input_context)
+    assert command_result.handled
+    assert not command_result.continue_
 
 
 async def test_execute_command_action_raises_exception(command_executor) -> None:
     """Test execution when the command's action raises an exception."""
     command_executor.register(DummyCommand(raise_exception=True))
-    status = await command_executor.execute_async(
-        f"/{_TEST_CMD_NAME}",
-    )
-    assert status.command_executed
-    assert f"Error executing command '/{_TEST_CMD_NAME}'" in status.error
+    input_context = InputContext(user_input=f"/{_TEST_CMD_NAME}")
+    command_result = await command_executor.handle(input_context)
+    assert command_result.handled
+    assert not command_result.continue_
+    assert input_context.error
+    assert f"Error executing command '/{_TEST_CMD_NAME}'" in input_context.error

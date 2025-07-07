@@ -8,10 +8,10 @@ This module tests all use cases described in the terminal_session.py docstring:
 - Session status tracking and error handling
 """
 
+import os
 import signal
 import threading
 from datetime import datetime
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 from streetrace.terminal_session import (
@@ -26,8 +26,8 @@ TEST_MASTER_FD = 100
 TEST_SLAVE_FD = 101
 
 # Store the original os.close function before any mocking
-with Path("/dev/null").open("rb") as f:
-    _original_os_close = f.close
+
+_original_os_close = os.close
 
 
 class TestTerminalSessionBasicUsage:
@@ -901,14 +901,134 @@ class TestTerminalSessionErrorHandling:
             assert "Failed to start process" in error_event.error_message
 
     def test_signal_handling(self):
-        """Test graceful shutdown on signals."""
+        """Test graceful shutdown on signals when a command is running."""
         session = TerminalSession()
         session.start()
 
-        # Simulate signal handling
+        # Set up state to simulate a running command
+        session.current_command = "test_command"
+        session.is_running = True
+
+        # Simulate signal handling during command execution
         session._signal_handler(signal.SIGINT, None)  # noqa: SLF001
 
+        # Should stop the session when a command is running
         assert session.is_running is False
+
+    def test_signal_handler_restoration(self):
+        """Test that signal handlers are properly saved and restored."""
+        # Get the original SIGINT handler
+        original_handler = signal.getsignal(signal.SIGINT)
+
+        session = TerminalSession()
+
+        # Handler should not change until start() is called
+        assert signal.getsignal(signal.SIGINT) == original_handler
+
+        # Start session - should save original and install custom handler
+        session.start()
+        current_handler = signal.getsignal(signal.SIGINT)
+        assert current_handler != original_handler
+        assert current_handler == session._signal_handler  # noqa: SLF001
+
+        # Stop session - should restore original handler
+        session.stop()
+        restored_handler = signal.getsignal(signal.SIGINT)
+        assert restored_handler == original_handler
+
+    def test_signal_delegation_when_no_command_running(self):
+        """Test that signals are delegated to original handler."""
+        # Create a mock original handler to test delegation
+        original_handler_called = []
+
+        def mock_original_handler(signum, frame):
+            original_handler_called.append((signum, frame))
+
+        # Set up our mock as the "original" handler
+        old_handler = signal.signal(signal.SIGINT, mock_original_handler)
+
+        try:
+            session = TerminalSession()
+            session.start()
+
+            # No command is running, so signal should be delegated
+            assert session.current_command is None
+
+            # Call signal handler directly
+            session._signal_handler(signal.SIGINT, None)  # noqa: SLF001
+
+            # Should have delegated to our mock handler
+            assert len(original_handler_called) == 1
+            assert original_handler_called[0] == (signal.SIGINT, None)
+
+            session.stop()
+
+        finally:
+            # Restore the original handler
+            signal.signal(signal.SIGINT, old_handler)
+
+    def test_signal_handler_with_default_handler(self):
+        """Test signal handling when original handler is SIG_DFL."""
+        # Set default handler
+        old_handler = signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+        try:
+            session = TerminalSession()
+            session.start()
+
+            # Should have saved SIG_DFL as original
+            assert session._original_sigint_handler == signal.SIG_DFL  # noqa: SLF001
+
+            # Mock os.kill to prevent actual signal sending
+            with patch("os.kill") as mock_kill:
+                session._signal_handler(signal.SIGINT, None)  # noqa: SLF001
+
+                # Should have restored default and sent signal to self
+                mock_kill.assert_called_once_with(os.getpid(), signal.SIGINT)
+
+            session.stop()
+
+        finally:
+            # Restore the original handler
+            signal.signal(signal.SIGINT, old_handler)
+
+    def test_multiple_session_start_stop_cycles(self):
+        """Test that signal handlers work correctly across multiple cycles."""
+        original_handler = signal.getsignal(signal.SIGINT)
+
+        session = TerminalSession()
+
+        # Multiple start/stop cycles
+        for _ in range(3):
+            session.start()
+            assert signal.getsignal(signal.SIGINT) == session._signal_handler  # noqa: SLF001
+
+            session.stop()
+            assert signal.getsignal(signal.SIGINT) == original_handler
+
+    def test_session_destructor_signal_cleanup(self):
+        """Test that __del__ properly cleans up signal handlers."""
+        original_handler = signal.getsignal(signal.SIGINT)
+
+        session = TerminalSession()
+        session.start()
+
+        # Verify handlers are installed
+        assert signal.getsignal(signal.SIGINT) == session._signal_handler  # noqa: SLF001
+
+        # Manually call __del__ to test cleanup behavior
+        # This is more reliable than relying on garbage collection
+        try:
+            session.__del__()
+            # If no exception is raised, the cleanup worked
+            cleanup_successful = True
+        except:  # noqa: E722
+            cleanup_successful = False
+
+        assert cleanup_successful
+
+        # Verify original handler is restored after manual __del__ call
+        assert signal.getsignal(signal.SIGINT) == original_handler
 
     def test_cleanup_on_session_stop(self):
         """Test proper cleanup when session is stopped."""

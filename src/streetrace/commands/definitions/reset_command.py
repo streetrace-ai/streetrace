@@ -38,13 +38,8 @@ class ResetSessionCommand(Command):
         )
 
     @override
-    async def execute_async(self, user_input: str) -> str | None:
-        """Execute the history clearing action using the HistoryManager.
-
-        Args:
-            user_input: The raw input string from the user (e.g., "/exit").
-
-        """
+    async def execute_async(self) -> None:
+        """Execute the history clearing action using the HistoryManager."""
         # Re-initialize history as if starting an interactive session
         self.session_manager.reset_session()
         logger.info("Session was reset on user's command.")
@@ -53,4 +48,3 @@ class ResetSessionCommand(Command):
                 "Session was reset. Start conversation to create a new session.",
             ),
         )
-        return None

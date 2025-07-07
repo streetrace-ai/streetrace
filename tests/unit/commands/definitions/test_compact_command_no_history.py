@@ -50,7 +50,7 @@ class TestCompactCommandNoHistory:
         )
 
         # Act
-        await compact_command.execute_async("")
+        await compact_command.execute_async()
 
         # Assert
         mock_dependencies["session_manager"].get_current_session.assert_called_once()
@@ -87,7 +87,7 @@ class TestCompactCommandNoHistory:
         ].get_current_session.return_value = empty_session
 
         # Act
-        await compact_command.execute_async("")
+        await compact_command.execute_async()
 
         # Assert
         mock_dependencies["session_manager"].get_current_session.assert_called_once()
@@ -124,7 +124,7 @@ class TestCompactCommandNoHistory:
         ].get_current_session.return_value = session_with_none_events
 
         # Act
-        await compact_command.execute_async("")
+        await compact_command.execute_async()
 
         # Assert
         mock_dependencies["session_manager"].get_current_session.assert_called_once()

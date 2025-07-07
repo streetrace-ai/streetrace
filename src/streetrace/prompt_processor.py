@@ -8,9 +8,14 @@ import os
 import re
 from pathlib import Path
 
-from pydantic import BaseModel, Field
-
 from streetrace.args import Args
+from streetrace.input_handler import (
+    HANDLED_CONT,
+    SKIP,
+    HandlerResult,
+    InputContext,
+    InputHandler,
+)
 from streetrace.log import get_logger
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
@@ -18,18 +23,8 @@ from streetrace.ui.ui_bus import UiBus
 logger = get_logger(__name__)
 
 
-class ProcessedPrompt(BaseModel):
-    """Holds the processed context components for the AI prompt."""
-
-    prompt: str
-    mentions: list[tuple[Path, str]] = Field(default_factory=list)
-
-
-class PromptProcessor:
-    """Handle processing user prompts with file mentions.
-
-    Processes user prompts (like parsing @mentions) to build a ProcessedPrompt object.
-    """
+class PromptProcessor(InputHandler):
+    """Enrich user's prompt if necessary."""
 
     def __init__(self, ui_bus: UiBus, args: Args) -> None:
         """Initialize the PromptProcessor.
@@ -42,32 +37,26 @@ class PromptProcessor:
         self.ui_bus = ui_bus
         self.args = args
 
-    def build_context(
+    async def handle(
         self,
-        prompt: str,
-        extra_input: str | None = None,
-    ) -> ProcessedPrompt:
+        ctx: InputContext,
+    ) -> HandlerResult:
         """Build the prompt context for a given raw prompt and working directory.
 
         Args:
-            prompt: The unprocessed input string from the user.
-            extra_input: Extra input to add to the prompt as-is.
+            ctx: User input processing context.
 
         Returns:
-            A ProcessedPrompt object populated with parsed mentions.
+            HandlerResult indicating handing result.
 
         """
-        mentions = (
-            self.parse_and_load_mentions(
-                prompt,
-            )
-            if prompt
-            else []
-        )
-        return ProcessedPrompt(
-            prompt=prompt + "\n\n" + extra_input if extra_input else prompt,
-            mentions=mentions,
-        )
+        if not ctx.user_input:
+            return SKIP
+
+        mentions = self.parse_and_load_mentions(ctx.user_input)
+        ctx.enrich_input = {str(path): content for path, content in mentions}
+
+        return HANDLED_CONT
 
     def parse_and_load_mentions(
         self,

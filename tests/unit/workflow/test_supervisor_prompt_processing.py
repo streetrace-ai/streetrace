@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
-from streetrace.prompt_processor import ProcessedPrompt
+from streetrace.input_handler import InputContext
 from streetrace.workflow.supervisor import Supervisor
 
 
@@ -28,7 +28,7 @@ class TestSupervisorPromptProcessing:
     ) -> None:
         """Test running with a simple text prompt."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Hello, world!", mentions=[])
+        input_context = InputContext(user_input="Hello, world!")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -41,7 +41,7 @@ class TestSupervisorPromptProcessing:
             return_value=mock_adk_runner(),
         ):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert
         shallow_supervisor.session_manager.get_or_create_session.assert_called_once()
@@ -50,7 +50,7 @@ class TestSupervisorPromptProcessing:
         )
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called()
         shallow_supervisor.session_manager.post_process.assert_called_once_with(
-            processed_prompt=prompt,
+            user_input=input_context.user_input,
             original_session=mock_session,
         )
 
@@ -68,7 +68,10 @@ class TestSupervisorPromptProcessing:
             (Path("file1.txt"), "Content of file 1"),
             (Path("file2.py"), "print('Hello from file 2')"),
         ]
-        prompt = ProcessedPrompt(prompt="Analyze these files", mentions=mentions)
+        input_context = InputContext(
+            user_input="Analyze these files",
+            enrich_input={str(path): content for path, content in mentions},
+        )
 
         shallow_supervisor.session_manager = mock_session_manager
 
@@ -82,7 +85,7 @@ class TestSupervisorPromptProcessing:
 
         with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert - Verify the runner was called with content containing both prompt
         # and mentions
@@ -110,6 +113,7 @@ class TestSupervisorPromptProcessing:
         mock_adk_runner,
     ) -> None:
         """Test running with None payload."""
+        input_context = InputContext()
         shallow_supervisor.session_manager = mock_session_manager
         # Arrange
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
@@ -125,7 +129,7 @@ class TestSupervisorPromptProcessing:
             return_value=mock_runner,
         ):
             # Act
-            await shallow_supervisor.run_async(None)
+            await shallow_supervisor.handle(input_context)
 
         # Assert
         mock_runner.run_async.assert_called_once()
@@ -145,7 +149,7 @@ class TestSupervisorPromptProcessing:
     ) -> None:
         """Test running with empty prompt text."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="", mentions=[])
+        input_context = InputContext(user_input="")
 
         shallow_supervisor.session_manager = mock_session_manager
 
@@ -158,7 +162,7 @@ class TestSupervisorPromptProcessing:
 
         with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert
         mock_runner.run_async.assert_called_once()
@@ -179,7 +183,10 @@ class TestSupervisorPromptProcessing:
         """Test running with only file mentions but no prompt text."""
         # Arrange
         mentions = [(Path("config.json"), '{"setting": "value"}')]
-        prompt = ProcessedPrompt(prompt="", mentions=mentions)
+        input_context = InputContext(
+            user_input="",
+            enrich_input={str(path): content for path, content in mentions},
+        )
 
         shallow_supervisor.session_manager = mock_session_manager
 
@@ -193,7 +200,7 @@ class TestSupervisorPromptProcessing:
 
         with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert
         mock_runner.run_async.assert_called_once()

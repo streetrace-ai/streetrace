@@ -8,14 +8,20 @@ from pathlib import Path
 from subprocess import SubprocessError  # nosec B404 used only for exception handling
 from typing import override
 
-from streetrace.commands.base_command import Command
+from streetrace.input_handler import (
+    HANDLED_CONT,
+    SKIP,
+    HandlerResult,
+    InputContext,
+    InputHandler,
+)
 from streetrace.log import get_logger
 from streetrace.terminal_session import SessionData, SessionEvent, TerminalSession
 
 logger = get_logger(__name__)
 
 
-class BashCommand(Command):
+class BashHandler(InputHandler):
     """Command to run a bash command in a virtual terminal.
 
     Handles special command syntax: any user input starting from ! is treated as a bash
@@ -31,30 +37,29 @@ class BashCommand(Command):
         """
         self.work_dir = work_dir
 
-    @property
-    def names(self) -> list[str]:
-        """Command invocation names."""
-        return ["!"]
-
-    @property
-    def description(self) -> str:
-        """Command description."""
-        return "Run a bash command in a virtual terminal."
-
     @override
-    async def execute_async(self, user_input: str) -> str | None:
-        """Signal the application to stop.
+    async def handle(self, ctx: InputContext) -> HandlerResult:
+        """Execute user input as a bash command.
 
         Args:
-            user_input: The raw input string from the user (e.g., "/exit").
+            ctx: User input processing context.
 
         Raises:
-            SystemExit to signal exit.
+            OSError: If the command fails to execute.
+            SubprocessError: If the command fails to execute.
+
+        Returns:
+            HandlerResult indicating handing result.
 
         """
-        cli_command = user_input.strip()
-        if cli_command[0] == "!":
-            cli_command = cli_command[1:]
+        if not ctx.user_input:
+            return SKIP
+
+        cli_command = ctx.user_input.strip()
+        if cli_command[0] != "!":
+            return SKIP
+
+        cli_command = cli_command[1:]
 
         logger.info(
             "Executing CLI command: %s",
@@ -84,7 +89,7 @@ class BashCommand(Command):
             return_code = terminal_session.execute_command(cli_command)
 
             # Format the output for the model
-            return self._format_cli_output(
+            ctx.bash_output = self._format_cli_output(
                 cli_command,
                 terminal_session.session_data,
                 return_code,
@@ -96,10 +101,12 @@ class BashCommand(Command):
                 "CLI command execution failed",
                 extra={"command": cli_command, "error": str(e)},
             )
-            raise
+            ctx.bash_output = str(e)
         finally:
             # Clean up terminal session
             terminal_session.stop()
+
+        return HANDLED_CONT
 
     def _format_cli_output(
         self,
