@@ -11,9 +11,7 @@ ENV PYTHONUNBUFFERED=1 \
     POETRY_HOME="/opt/poetry" \
     POETRY_CACHE_DIR=/tmp/poetry_cache \
     POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_CREATE=true \
-    POETRY_VIRTUALENVS_IN_PROJECT=true \
-    POETRY_VIRTUALENVS_PATH=/workspace/.venv
+    POETRY_VIRTUALENVS_CREATE=true
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -52,9 +50,6 @@ RUN useradd --create-home --shell /bin/bash --user-group --uid 1000 devuser \
 # Switch to non-root user
 USER devuser
 
-# Set PATH to include Poetry virtual environment
-ENV PATH="/workspace/.venv/bin:$PATH" \
-    PYTHONPATH=/workspace/src
 
 # Set default command
 CMD ["/bin/bash"]
