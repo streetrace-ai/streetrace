@@ -303,7 +303,7 @@ class TerminalSession:
                 signal.signal(signal.SIGINT, self._original_sigint_handler)
             if self._original_sigterm_handler is not None:
                 signal.signal(signal.SIGTERM, self._original_sigterm_handler)
-        except:  # noqa: E722, S110 Ignore any errors during cleanup
+        except:  # noqa: E722, S110  # nosec B110 Ignore any errors during cleanup
             pass
 
     def _signal_handler(self, signum: int, frame: FrameType | None) -> None:
