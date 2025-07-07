@@ -11,7 +11,6 @@ from google.adk.sessions import Session
 from google.genai import types as genai_types
 
 from streetrace.args import Args
-from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.session_service import (
     JSONSessionSerializer,
     JSONSessionService,
@@ -166,12 +165,6 @@ def tool_event() -> Event:
             ],
         ),
     )
-
-
-@pytest.fixture
-def sample_processed_prompt() -> ProcessedPrompt:
-    """Create a sample processed prompt."""
-    return ProcessedPrompt(prompt="Test prompt")
 
 
 # Session validation specific fixtures

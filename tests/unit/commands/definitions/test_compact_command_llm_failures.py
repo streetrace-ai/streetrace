@@ -102,7 +102,7 @@ class TestCompactCommandLlmFailures:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
@@ -149,7 +149,7 @@ class TestCompactCommandLlmFailures:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
@@ -198,7 +198,7 @@ class TestCompactCommandLlmFailures:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
@@ -255,7 +255,7 @@ class TestCompactCommandLlmFailures:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
@@ -312,7 +312,7 @@ class TestCompactCommandLlmFailures:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert successful compaction
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
@@ -377,7 +377,7 @@ class TestCompactCommandLlmFailures:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         replaced_events = mock_dependencies[

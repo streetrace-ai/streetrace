@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from streetrace.args import Args
+from streetrace.input_handler import InputContext
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.ui.ui_bus import UiBus
 
@@ -179,14 +180,15 @@ class TestMentions:
         ]
         assert len(result) == len(expected)
 
-    def test_build_context(self) -> None:
+    @pytest.mark.asyncio
+    async def test_build_context(self) -> None:
         """Test that build_context sets up the context object correctly."""
         prompt = "Check @file1.txt please"
-        context = self.prompt_processor.build_context(prompt)
-        assert context.prompt == prompt
-        assert len(context.mentions) == 1
-        assert context.mentions[0][0] == Path("file1.txt")
-        assert context.mentions[0][1] == "Content of file1"
+        context = InputContext(user_input=prompt)
+        await self.prompt_processor.handle(context)
+        assert context.enrich_input == {
+            "file1.txt": "Content of file1",
+        }
 
 
 if __name__ == "__main__":

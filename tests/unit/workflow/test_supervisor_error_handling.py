@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from streetrace.prompt_processor import ProcessedPrompt
+from streetrace.input_handler import InputContext
 from streetrace.workflow.supervisor import Supervisor
 
 
@@ -26,7 +26,7 @@ class TestSupervisorErrorHandling:
     ) -> None:
         """Test handling when agent creation fails."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -42,7 +42,7 @@ class TestSupervisorErrorHandling:
 
         # Act & Assert - Exception should propagate (fail-fast for core components)
         with pytest.raises(Exception, match="Agent creation failed"):
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert session was retrieved but post_process was not called due to failure
         shallow_supervisor.session_manager.get_or_create_session.assert_called_once()
@@ -57,7 +57,7 @@ class TestSupervisorErrorHandling:
     ) -> None:
         """Test handling when session creation/retrieval fails."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -69,7 +69,7 @@ class TestSupervisorErrorHandling:
 
         # Act & Assert - Exception should propagate (fail-fast for core components)
         with pytest.raises(Exception, match="Session creation failed"):
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert agent creation was not attempted
         assert not shallow_supervisor.agent_manager.create_agent.called
@@ -84,7 +84,7 @@ class TestSupervisorErrorHandling:
     ) -> None:
         """Test handling when runner execution fails."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -108,7 +108,7 @@ class TestSupervisorErrorHandling:
             # Act & Assert - Exception should propagate (fail-fast for core components)
             pytest.raises(Exception, match="Runner execution failed"),
         ):
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert session and agent were created but post_process was not called
         shallow_supervisor.session_manager.get_or_create_session.assert_called_once()
@@ -127,7 +127,7 @@ class TestSupervisorErrorHandling:
     ) -> None:
         """Test that UI dispatch failures don't stop the workflow."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -159,7 +159,7 @@ class TestSupervisorErrorHandling:
             # However, since this is internal workflow logic, it might follow fail-fast
             pytest.raises(Exception, match="UI dispatch failed"),
         ):
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
     @pytest.mark.asyncio
     async def test_post_process_failure(
@@ -173,7 +173,7 @@ class TestSupervisorErrorHandling:
     ) -> None:
         """Test handling when post_process fails."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -204,7 +204,7 @@ class TestSupervisorErrorHandling:
             # Act & Assert - Exception should propagate (fail-fast for core components)
             pytest.raises(Exception, match="Post-process failed"),
         ):
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert that execution proceeded normally until post_process
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
@@ -222,7 +222,7 @@ class TestSupervisorErrorHandling:
     ) -> None:
         """Test handling when agent context manager exit fails."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -251,7 +251,7 @@ class TestSupervisorErrorHandling:
             # Act & Assert - Exception should propagate (fail-fast for core components)
             pytest.raises(Exception, match="Agent cleanup failed"),
         ):
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
     @pytest.mark.asyncio
     async def test_runner_initialization_failure(
@@ -263,7 +263,7 @@ class TestSupervisorErrorHandling:
     ) -> None:
         """Test handling when Runner initialization fails."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -280,7 +280,7 @@ class TestSupervisorErrorHandling:
             # Act & Assert - Exception should propagate (fail-fast for core components)
             pytest.raises(Exception, match="Runner init failed"),
         ):
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert session and agent were created
         shallow_supervisor.session_manager.get_or_create_session.assert_called_once()
@@ -298,7 +298,7 @@ class TestSupervisorErrorHandling:
     ) -> None:
         """Test handling events with missing or None attributes."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -321,7 +321,7 @@ class TestSupervisorErrorHandling:
 
         with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
             # Act - Should handle gracefully
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert processing completed successfully
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(

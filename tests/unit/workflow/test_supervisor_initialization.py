@@ -42,13 +42,13 @@ class TestSupervisorInitialization:
         assert shallow_supervisor.session_manager is not None
         assert shallow_supervisor.ui_bus is not None
 
-    def test_supervisor_has_run_async_method(
+    def test_supervisor_has_handle_method(
         self,
         shallow_supervisor: Supervisor,
     ) -> None:
         """Test that Supervisor implements the required run_async method."""
-        assert hasattr(shallow_supervisor, "run_async")
-        assert callable(shallow_supervisor.run_async)
+        assert hasattr(shallow_supervisor, "handle")
+        assert callable(shallow_supervisor.handle)
 
     def test_supervisor_docstring_and_module_info(self) -> None:
         """Test that Supervisor has proper documentation."""

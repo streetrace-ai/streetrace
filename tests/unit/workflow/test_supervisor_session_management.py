@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from streetrace.prompt_processor import ProcessedPrompt
+from streetrace.input_handler import InputContext
 from streetrace.workflow.supervisor import Supervisor
 
 
@@ -25,7 +25,7 @@ class TestSupervisorSessionManagement:
     ) -> None:
         """Test that get_or_create_session is properly called."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
 
@@ -38,7 +38,7 @@ class TestSupervisorSessionManagement:
             return_value=mock_adk_runner(),
         ):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert
         shallow_supervisor.session_manager.get_or_create_session.assert_called_once()
@@ -53,7 +53,7 @@ class TestSupervisorSessionManagement:
     ) -> None:
         """Test that get_or_create_session is properly called."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
 
@@ -66,7 +66,7 @@ class TestSupervisorSessionManagement:
             return_value=mock_adk_runner(),
         ):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert
         shallow_supervisor.session_manager.validate_session.assert_called_once()
@@ -82,7 +82,7 @@ class TestSupervisorSessionManagement:
     ) -> None:
         """Test that session properties are correctly passed to Runner."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -107,7 +107,7 @@ class TestSupervisorSessionManagement:
             return_value=mock_runner,
         ) as mock_runner_patch:
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert Runner was initialized with correct session properties
         mock_runner_patch.assert_called_once_with(
@@ -132,7 +132,7 @@ class TestSupervisorSessionManagement:
     ) -> None:
         """Test that post_process is called with correct parameters."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
 
@@ -143,11 +143,11 @@ class TestSupervisorSessionManagement:
             return_value=mock_adk_runner(),
         ):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert post_process was called with correct parameters
         shallow_supervisor.session_manager.post_process.assert_called_once_with(
-            processed_prompt=prompt,
+            user_input=input_context.user_input,
             original_session=mock_session,
         )
 
@@ -162,7 +162,7 @@ class TestSupervisorSessionManagement:
     ) -> None:
         """Test that post_process is called even when agent escalates."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Problematic request", mentions=[])
+        input_context = InputContext(user_input="Problematic request")
 
         shallow_supervisor.session_manager = mock_session_manager
 
@@ -175,11 +175,11 @@ class TestSupervisorSessionManagement:
 
         with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert post_process was still called
         shallow_supervisor.session_manager.post_process.assert_called_once_with(
-            processed_prompt=prompt,
+            user_input=input_context.user_input,
             original_session=mock_session,
         )
 
@@ -194,7 +194,7 @@ class TestSupervisorSessionManagement:
     ) -> None:
         """Test that post_process is called even when no final response is received."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Request without response", mentions=[])
+        input_context = InputContext(user_input="Request without response")
 
         shallow_supervisor.session_manager = mock_session_manager
 
@@ -207,11 +207,11 @@ class TestSupervisorSessionManagement:
 
         with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert post_process was still called
         shallow_supervisor.session_manager.post_process.assert_called_once_with(
-            processed_prompt=prompt,
+            user_input=input_context.user_input,
             original_session=mock_session,
         )
 
@@ -226,7 +226,7 @@ class TestSupervisorSessionManagement:
     ) -> None:
         """Test that session service from session manager is passed to Runner."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -238,7 +238,7 @@ class TestSupervisorSessionManagement:
             return_value=mock_adk_runner(),
         ) as mock_runner_patch:
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert Runner was initialized with the session service
         mock_runner_patch.assert_called_once_with(
@@ -256,6 +256,7 @@ class TestSupervisorSessionManagement:
         mock_adk_runner,
     ) -> None:
         """Test that post_process handles None payload correctly."""
+        input_context = InputContext()
         shallow_supervisor.session_manager = mock_session_manager
         # Arrange
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
@@ -265,10 +266,10 @@ class TestSupervisorSessionManagement:
             return_value=mock_adk_runner(),
         ):
             # Act
-            await shallow_supervisor.run_async(None)
+            await shallow_supervisor.handle(input_context)
 
         # Assert post_process was called with None payload
         shallow_supervisor.session_manager.post_process.assert_called_once_with(
-            processed_prompt=None,
+            user_input=None,
             original_session=mock_session,
         )

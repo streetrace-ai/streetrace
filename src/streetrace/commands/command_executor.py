@@ -8,8 +8,13 @@ and asynchronous execution with proper error handling and status reporting.
 
 from collections.abc import Sequence
 
-from pydantic import BaseModel
-
+from streetrace.input_handler import (
+    HANDLED_STOP,
+    SKIP,
+    HandlerResult,
+    InputContext,
+    InputHandler,
+)
 from streetrace.log import get_logger
 
 from .base_command import Command  # Import the base class
@@ -18,15 +23,7 @@ from .base_command import Command  # Import the base class
 logger = get_logger(__name__)
 
 
-class CommandStatus(BaseModel):
-    """Indicates if a command was understood and executed."""
-
-    command_executed: bool
-    error: str | None = None
-    output: str | None = None
-
-
-class CommandExecutor:
+class CommandExecutor(InputHandler):
     """Manage and execute commands derived from the Command base class.
 
     Handles registration of Command objects and executes them based on user input,
@@ -102,30 +99,29 @@ class CommandExecutor:
             ",".join([f"/{name}" for name in command_instance.names]),
         )
 
-    async def execute_async(
+    async def handle(
         self,
-        user_input: str,
-    ) -> CommandStatus:
+        ctx: InputContext,
+    ) -> HandlerResult:
         """Attempt to execute a command based on the user input.
 
         Args:
-            user_input: The raw input string from the user (e.g., "/exit").
+            ctx: User input processing context.
 
         Returns:
-            CommandStatus indicating whether a command was executed, and if it requests
-                the app to exit.
+            HandlerResult indicating handing result.
 
         """
-        command_name = user_input.strip().lower()
-        if command_name.startswith("!"):
-            # special case for bash commands
-            command_name = "!"
-        elif command_name.startswith("/"):
+        if not ctx.user_input:
+            return SKIP
+
+        command_name = ctx.user_input.strip().lower()
+        if command_name.startswith("/"):
             # Remove leading '/' if present and make lowercase
             command_name = command_name[1:]
         else:
             # If input doesn't start with '/', it's not a command for this executor
-            return CommandStatus(command_executed=False)
+            return SKIP
 
         command_instance = self.get_command(command_name)
 
@@ -133,15 +129,15 @@ class CommandExecutor:
             # Input started with '/' but didn't match any registered command
             logger.debug(
                 "Input '%s' is not a valid command name.",
-                user_input,
+                ctx.user_input,
             )
             # Conventionally, unrecognized commands don't stop the app.
             # We return False because *this specific input* wasn't a known command.
-            return CommandStatus(command_executed=False)
+            return SKIP
 
         logger.info("Executing command: '/%s'", command_name)
         try:
-            command_output = await command_instance.execute_async(user_input)
+            await command_instance.execute_async()
         except Exception as e:
             logger.exception(
                 "Error executing command '/%s'",
@@ -149,9 +145,6 @@ class CommandExecutor:
             )
             # Command was found and attempted, but failed during execution.
             # Signal to continue the application loop.
-            return CommandStatus(
-                command_executed=True,
-                error=f"Error executing command '/{command_name}' ({e!s})",
-            )
-        else:
-            return CommandStatus(command_executed=True, output=command_output)
+            ctx.error = f"Error executing command '/{command_name}' ({e!s})"
+
+        return HANDLED_STOP

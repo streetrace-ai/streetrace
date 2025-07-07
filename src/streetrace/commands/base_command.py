@@ -32,16 +32,5 @@ class Command(ABC):
         """A short description of what the command does."""
 
     @abstractmethod
-    async def execute_async(self, user_input: str) -> str | None:
-        """Execute the command's action.
-
-        Args:
-            user_input: The raw input string from the user (e.g., "/exit").
-
-        Returns:
-            None or any output to send to the model.
-
-        Raises:
-            SystemExit: System exit requested by the command.
-
-        """
+    async def execute_async(self) -> None:
+        """Execute the command's action."""

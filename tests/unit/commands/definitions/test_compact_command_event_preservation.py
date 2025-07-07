@@ -130,7 +130,7 @@ class TestCompactCommandEventPreservation:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         replaced_events = mock_dependencies[
@@ -207,7 +207,7 @@ class TestCompactCommandEventPreservation:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         # LLM should be called with only content from events that have content
@@ -265,7 +265,7 @@ class TestCompactCommandEventPreservation:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         replaced_events = mock_dependencies[
@@ -319,7 +319,7 @@ class TestCompactCommandEventPreservation:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         # Verify model_copy was called on user event
@@ -382,7 +382,7 @@ class TestCompactCommandEventPreservation:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         replaced_events = mock_dependencies[

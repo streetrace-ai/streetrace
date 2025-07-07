@@ -117,7 +117,7 @@ class TestCompactCommandSuccessfulFlow:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert UI updates
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list
@@ -186,7 +186,7 @@ class TestCompactCommandSuccessfulFlow:
 
         with patch_litellm_modify_params():
             # Act
-            await compact_command.execute_async("")
+            await compact_command.execute_async()
 
         # Assert
         ui_calls = mock_dependencies["ui_bus"].dispatch_ui_update.call_args_list

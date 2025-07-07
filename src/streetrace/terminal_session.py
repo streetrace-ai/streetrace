@@ -287,9 +287,24 @@ class TerminalSession:
         self._command_output_buffer: str = ""
         self._last_error_message: str | None = None
 
-        # Setup signal handlers for graceful shutdown
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        # Save original signal handlers so we can restore them later
+        self._original_sigint_handler: (
+            Callable[[int, FrameType | None], Any] | int | None
+        ) = None
+        self._original_sigterm_handler: (
+            Callable[[int, FrameType | None], Any] | int | None
+        ) = None
+
+    def __del__(self) -> None:
+        """Ensure signal handlers are restored when object is destroyed."""
+        try:
+            # Restore signal handlers as a safety net
+            if self._original_sigint_handler is not None:
+                signal.signal(signal.SIGINT, self._original_sigint_handler)
+            if self._original_sigterm_handler is not None:
+                signal.signal(signal.SIGTERM, self._original_sigterm_handler)
+        except:  # noqa: E722, S110 Ignore any errors during cleanup
+            pass
 
     def _signal_handler(self, signum: int, frame: FrameType | None) -> None:
         """Handle shutdown signals gracefully."""
@@ -298,9 +313,28 @@ class TerminalSession:
             signum,
             extra={"signum": signum, "frame": frame},
         )
-        self.is_running = False
-        if self.snapshot_timer:
-            self.snapshot_timer.cancel()
+
+        # If we're actively running a command, just stop the session
+        if self.current_command is not None and self.is_running:
+            self.is_running = False
+            if self.snapshot_timer:
+                self.snapshot_timer.cancel()
+        # If no command is running, delegate to the original handler
+        # This ensures KeyboardInterrupt is properly raised
+        elif signum == signal.SIGINT and self._original_sigint_handler is not None:
+            if callable(self._original_sigint_handler):
+                self._original_sigint_handler(signum, frame)
+            elif self._original_sigint_handler == signal.SIG_DFL:
+                # Restore default and re-raise signal
+                signal.signal(signal.SIGINT, signal.SIG_DFL)
+                os.kill(os.getpid(), signal.SIGINT)
+        elif signum == signal.SIGTERM and self._original_sigterm_handler is not None:
+            if callable(self._original_sigterm_handler):
+                self._original_sigterm_handler(signum, frame)
+            elif self._original_sigterm_handler == signal.SIG_DFL:
+                # Restore default and re-raise signal
+                signal.signal(signal.SIGTERM, signal.SIG_DFL)
+                os.kill(os.getpid(), signal.SIGTERM)
 
     def _get_terminal_size(self) -> tuple[int, int]:
         """Get the current terminal size.
@@ -782,9 +816,29 @@ class TerminalSession:
         self.is_running = True
         self.status = SessionStatus.IDLE
 
+        # Save and setup signal handlers only if not already done
+        if self._original_sigint_handler is None:
+            self._original_sigint_handler = signal.signal(
+                signal.SIGINT,
+                self._signal_handler,
+            )
+        if self._original_sigterm_handler is None:
+            self._original_sigterm_handler = signal.signal(
+                signal.SIGTERM,
+                self._signal_handler,
+            )
+
     def stop(self) -> None:
         """Stop the terminal session."""
         self.is_running = False
         if self.snapshot_timer:
             self.snapshot_timer.cancel()
         self.status = SessionStatus.IDLE
+
+        # Restore original signal handlers
+        if self._original_sigint_handler is not None:
+            signal.signal(signal.SIGINT, self._original_sigint_handler)
+            self._original_sigint_handler = None
+        if self._original_sigterm_handler is not None:
+            signal.signal(signal.SIGTERM, self._original_sigterm_handler)
+            self._original_sigterm_handler = None

@@ -4,6 +4,8 @@ This module provides a command to list all available slash commands
 in the application along with their descriptions.
 """
 
+from typing import override
+
 from streetrace.commands.base_command import Command
 from streetrace.commands.command_executor import CommandExecutor
 from streetrace.log import get_logger
@@ -48,15 +50,9 @@ class HelpCommand(Command):
         """
         return "Displays a list of all available commands with their descriptions."
 
-    async def execute_async(self, user_input: str) -> str | None:  # noqa: ARG002
-        """Execute the help command.
-
-        Displays all registered commands with their descriptions.
-
-        Args:
-            user_input: The raw input string from the user (e.g., "/exit").
-
-        """
+    @override
+    async def execute_async(self) -> None:
+        """Display all registered commands with their descriptions."""
         logger.info("Executing help command")
 
         # Format the output
@@ -68,5 +64,3 @@ class HelpCommand(Command):
 
         # Display the help information
         self.ui_bus.dispatch_ui_update(ui_events.Info(help_text))
-
-        return None

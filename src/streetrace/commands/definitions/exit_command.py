@@ -29,11 +29,8 @@ class ExitCommand(Command):
         return "Exit the interactive session."
 
     @override
-    async def execute_async(self, user_input: str) -> str | None:
+    async def execute_async(self) -> None:
         """Signal the application to stop.
-
-        Args:
-            user_input: The raw input string from the user (e.g., "/exit").
 
         Raises:
             SystemExit to signal exit.

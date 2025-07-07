@@ -19,7 +19,6 @@ from tzlocal import get_localzone  # For creating message Content/Parts
 
 from streetrace.args import Args
 from streetrace.log import get_logger
-from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.system_context import SystemContext
 from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import register_renderer
@@ -734,7 +733,7 @@ class SessionManager:
 
     def _add_project_context(
         self,
-        processed_prompt: ProcessedPrompt | None,
+        user_input: str | None,
         assistant_response: str,
         session: Session,
     ) -> None:
@@ -742,10 +741,7 @@ class SessionManager:
 
         Experimental.
         """
-        user_prompt = ""
-        if processed_prompt and processed_prompt.prompt:
-            user_prompt = processed_prompt.prompt
-        else:
+        if not user_input:
             user_prompt_parts = []
             for event in session.events:
                 if event.author != "user":
@@ -755,15 +751,15 @@ class SessionManager:
                 text_parts = [part.text for part in event.content.parts if part.text]
                 if text_parts:
                     user_prompt_parts.extend(text_parts)
-            user_prompt = "\n".join(user_prompt_parts)
+            user_input = "\n".join(user_prompt_parts)
         self.system_context.add_context_from_turn(
-            user_prompt,
+            user_input,
             assistant_response,
         )
 
     async def post_process(
         self,
-        processed_prompt: ProcessedPrompt | None,
+        user_input: str | None,
         original_session: Session,
     ) -> None:
         """Process session after ReAct loop.
@@ -775,7 +771,7 @@ class SessionManager:
         * Update project context based on this turn.
 
         Args:
-            processed_prompt: The input to the last agent interaction
+            user_input: The input to the last agent interaction
             original_session: The original session.
 
         """
@@ -791,7 +787,7 @@ class SessionManager:
         assistant_response = await self._squash_turn_events(session)
 
         self._add_project_context(
-            processed_prompt=processed_prompt,
+            user_input=user_input,
             assistant_response=assistant_response,
             session=session,
         )

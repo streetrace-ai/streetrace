@@ -1,11 +1,18 @@
 """Runs agents and implements the core user<->agent interaction loop."""
 
+from typing import override
+
 from google.adk import Runner
 from google.genai import types as genai_types
 
 from streetrace.agents.agent_manager import AgentManager
+from streetrace.input_handler import (
+    HANDLED_CONT,
+    HandlerResult,
+    InputContext,
+    InputHandler,
+)
 from streetrace.log import get_logger
-from streetrace.prompt_processor import ProcessedPrompt
 from streetrace.session_service import SessionManager
 from streetrace.ui.adk_event_renderer import render_event as _  # noqa: F401
 from streetrace.ui.ui_bus import UiBus
@@ -13,7 +20,7 @@ from streetrace.ui.ui_bus import UiBus
 logger = get_logger(__name__)
 
 
-class Supervisor:
+class Supervisor(InputHandler):
     """Workflow supervisor manages and executes available workflows."""
 
     def __init__(
@@ -25,22 +32,19 @@ class Supervisor:
         """Initialize a new instance of workflow supervisor.
 
         Args:
-            ui_bus: UI event bus for displaying messages to the user
-            tool_provider: Provider of tools for the agent
-            session_manager: Conversaion sessions manager
-            args: Application arguments containing session information
             agent_manager: Manager for discovering and creating agents
+            session_manager: Conversaion sessions manager
+            ui_bus: UI event bus for displaying messages to the user
 
         """
-        self.ui_bus = ui_bus
-        self.session_manager = session_manager
         self.agent_manager = agent_manager
+        self.session_manager = session_manager
+        self.ui_bus = ui_bus
+        self.long_running = True
 
-    async def run_async(self, payload: ProcessedPrompt | None) -> None:
+    @override
+    async def handle(self, ctx: InputContext) -> HandlerResult:
         """Run the payload through the workflow.
-
-        Args:
-            payload: Processed user prompt to be sent to the agent.
 
         This method orchestrates the full interaction cycle between the user and agent:
         1. Prepares the user's message with any attached file contents
@@ -49,20 +53,16 @@ class Supervisor:
         4. Runs the agent with the message and captures all events
         5. Extracts the final response and adds it to global history
 
+        Args:
+            ctx: User input processing context.
+
+        Returns:
+            HandlerResult indicating handing result.
+
         """
-        parts = []
-        if payload:
-            if payload.prompt:
-                parts.append(genai_types.Part.from_text(text=payload.prompt))
-            if payload.mentions:
-                for mention in payload.mentions:
-                    mention_text = (
-                        f"\nAttached file `{mention[0]!s}`:\n\n```\n{mention[1]}\n```\n"
-                    )
-                    parts.append(genai_types.Part.from_text(text=mention_text))
+        parts = [genai_types.Part.from_text(text=item) for item in ctx]
 
         content = genai_types.Content(role="user", parts=parts) if parts else None
-
         final_response_text: str | None = "Agent did not produce a final response."
 
         session = await self.session_manager.get_or_create_session()
@@ -107,6 +107,7 @@ class Supervisor:
         # Add the agent's final message to the history
         if final_response_text:
             await self.session_manager.post_process(
-                processed_prompt=payload,
+                user_input=ctx.user_input,
                 original_session=session,
             )
+        return HANDLED_CONT

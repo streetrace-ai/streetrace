@@ -9,6 +9,7 @@ components and managing the application lifecycle.
 from streetrace.agents.agent_manager import AgentManager
 from streetrace.app_state import AppState
 from streetrace.args import Args
+from streetrace.bash_handler import BashHandler
 from streetrace.commands.command_executor import CommandExecutor
 
 # Import specific command classes
@@ -19,11 +20,11 @@ from streetrace.commands.definitions import (
     HistoryCommand,
     ResetSessionCommand,
 )
-from streetrace.commands.definitions.bash_command import BashCommand
 from streetrace.costs import UsageAndCost
+from streetrace.input_handler import InputContext, InputHandler
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
-from streetrace.prompt_processor import ProcessedPrompt, PromptProcessor
+from streetrace.prompt_processor import PromptProcessor
 from streetrace.session_service import JSONSessionService, SessionManager
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
@@ -47,10 +48,8 @@ class Application:
         state: AppState,
         ui: ConsoleUI,
         ui_bus: UiBus,
-        cmd_executor: CommandExecutor,
-        prompt_processor: PromptProcessor,
+        input_handling_pipeline: list[InputHandler],
         session_manager: SessionManager,
-        workflow_supervisor: Supervisor,
     ) -> None:
         """Initialize the Application with necessary components and configuration.
 
@@ -59,21 +58,15 @@ class Application:
             state: App State container.
             ui: ConsoleUI instance for handling user interaction and displaying output.
             ui_bus: UI event bus to exchange messages with the UI.
-            cmd_executor: CommandExecutor instance for processing internal commands.
-            prompt_processor: PromptProcessor instance for processing prompts and file
-                mentions.
+            input_handling_pipeline: Pipeline of input handlers.
             session_manager: SessionManager to manage conversation sessions.
-            workflow_supervisor: Supervisor to use for user<->agent interaction
-                management.
 
         """
         self.args = args
         self.ui = ui
         self.ui_bus = ui_bus
-        self.cmd_executor = cmd_executor
-        self.prompt_processor = prompt_processor
+        self.input_handling_pipeline = input_handling_pipeline
         self.session_manager = session_manager
-        self.workflow_supervisor = workflow_supervisor
         self.ui_bus.on_usage_data(self._on_usage_data)
         self.state = state
         logger.info("Application initialized.")
@@ -102,31 +95,26 @@ class Application:
             await self._run_interactive()
 
     async def _process_input(self, user_input: str) -> None:
-        command_status = await self.cmd_executor.execute_async(
-            user_input,
-        )
-
-        extra_input: str | None = None
-
-        if command_status.command_executed:
-            if command_status.error:
-                self.ui_bus.dispatch_ui_update(ui_events.Error(command_status.error))
-            if command_status.output:
-                extra_input = command_status.output
+        ctx: InputContext = InputContext(user_input=user_input)
+        for handler in self.input_handling_pipeline:
+            if handler.long_running:
+                with self.ui.status():
+                    result = await handler.handle(ctx)
             else:
-                # if no command output, we don't need to process it further
+                result = await handler.handle(ctx)
+            if result.handled:
+                logger.debug("Input handled by %s", handler.__class__.__name__)
+            if ctx.error:
+                logger.error(
+                    "%s error (will continue = %s): %s",
+                    handler.__class__.__name__,
+                    result.continue_,
+                    ctx.error,
+                )
+                self.ui_bus.dispatch_ui_update(ui_events.Error(ctx.error))
+                ctx.error = None
+            if not result.continue_:
                 return
-
-        processed_prompt: ProcessedPrompt | None = None
-
-        if user_input.strip():
-            processed_prompt = self.prompt_processor.build_context(
-                user_input,
-                extra_input,
-            )
-
-        with self.ui.status():
-            await self.workflow_supervisor.run_async(processed_prompt)
 
     async def _run_non_interactive(self) -> None:
         """Handle non-interactive mode (single prompt execution)."""
@@ -246,7 +234,6 @@ def create_app(args: Args) -> Application:
     )
 
     # Register commands
-    cmd_executor.register(BashCommand(work_dir=args.working_dir))
     cmd_executor.register(ExitCommand())
     cmd_executor.register(
         HistoryCommand(
@@ -271,14 +258,19 @@ def create_app(args: Args) -> Application:
         HelpCommand(ui_bus=ui_bus, cmd_executor=cmd_executor),
     )
 
+    input_handling_pipeline = [
+        cmd_executor,
+        BashHandler(work_dir=args.working_dir),
+        prompt_processor,
+        workflow_supervisor,
+    ]
+
     # Initialize the Application
     return Application(
         args=args,
         state=state,
         ui=ui,
         ui_bus=ui_bus,
-        cmd_executor=cmd_executor,
-        prompt_processor=prompt_processor,
+        input_handling_pipeline=input_handling_pipeline,
         session_manager=session_manager,
-        workflow_supervisor=workflow_supervisor,
     )

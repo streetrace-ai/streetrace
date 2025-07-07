@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from streetrace.prompt_processor import ProcessedPrompt
+from streetrace.input_handler import InputContext
 from streetrace.workflow.supervisor import Supervisor
 
 
@@ -27,7 +27,7 @@ class TestSupervisorAgentInteraction:
     ) -> None:
         """Test that agent is properly created and cleaned up."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -39,7 +39,7 @@ class TestSupervisorAgentInteraction:
             return_value=mock_adk_runner(),
         ):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert agent creation and cleanup
         shallow_supervisor.agent_manager.create_agent.assert_called_once_with("default")
@@ -59,7 +59,7 @@ class TestSupervisorAgentInteraction:
     ) -> None:
         """Test that Runner is properly initialized with correct parameters."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test prompt", mentions=[])
+        input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -73,7 +73,7 @@ class TestSupervisorAgentInteraction:
             return_value=mock_runner,
         ) as runner_context:
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert Runner initialization
         runner_context.assert_called_once_with(
@@ -98,7 +98,7 @@ class TestSupervisorAgentInteraction:
     ) -> None:
         """Test processing multiple events before reaching final response."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Complex request", mentions=[])
+        input_context = InputContext(user_input="Complex request")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -118,7 +118,7 @@ class TestSupervisorAgentInteraction:
 
         with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert all events were dispatched to UI
         assert shallow_supervisor.ui_bus.dispatch_ui_update.call_count == 3
@@ -144,7 +144,7 @@ class TestSupervisorAgentInteraction:
     ) -> None:
         """Test handling agent escalation responses."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Problematic request", mentions=[])
+        input_context = InputContext(user_input="Problematic request")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -161,7 +161,7 @@ class TestSupervisorAgentInteraction:
 
         with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert escalation was handled
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
@@ -182,7 +182,7 @@ class TestSupervisorAgentInteraction:
     ) -> None:
         """Test handling when agent produces no final response."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Request without response", mentions=[])
+        input_context = InputContext(user_input="Request without response")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -202,7 +202,7 @@ class TestSupervisorAgentInteraction:
 
         with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert all events were dispatched
         assert shallow_supervisor.ui_bus.dispatch_ui_update.call_count == 2
@@ -223,7 +223,7 @@ class TestSupervisorAgentInteraction:
     ) -> None:
         """Test handling final response with content but no parts."""
         # Arrange
-        prompt = ProcessedPrompt(prompt="Test request", mentions=[])
+        input_context = InputContext(user_input="Test request")
 
         shallow_supervisor.session_manager = mock_session_manager
         shallow_supervisor.agent_manager = mock_agent_manager
@@ -241,7 +241,7 @@ class TestSupervisorAgentInteraction:
 
         with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
             # Act
-            await shallow_supervisor.run_async(prompt)
+            await shallow_supervisor.handle(input_context)
 
         # Assert event was dispatched and post-processing occurred
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
