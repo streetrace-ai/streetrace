@@ -69,7 +69,7 @@ poetry run streetrace --help
 
 ## Enhanced Terminal Features
 
-The development container includes an enhanced bash terminal with:
+The development container includes an enhanced bash terminal with live-synchronized configuration files (.bashrc and .bash_aliases) that are mounted from the host for immediate updates without requiring container rebuilds:
 
 ### Command History
 - **Persistent history**: Command history is saved between container restarts
@@ -141,6 +141,20 @@ The development container uses a multi-stage build process:
 - **User setup**: Non-root user `devuser` for security
 - **Volume mounting**: Source code mounted for live editing
 - **Docker support**: Docker-outside-of-Docker for container operations
+
+### Configuration File Mounting
+
+The following configuration files are live-mounted from the host:
+
+- `.devcontainer/.bashrc` → `/home/devuser/.bashrc`
+- `.devcontainer/.bash_aliases` → `/home/devuser/.bash_aliases`
+- `.devcontainer/.bash_history` → `/home/devuser/.bash_history`
+
+This approach provides:
+- **Live updates**: Changes to bash configuration are immediately available
+- **No rebuilds**: Modify shell configuration without rebuilding the container
+- **Host consistency**: Same configuration files on both host and container
+- **Version control**: Configuration files are tracked in Git
 
 ## Troubleshooting
 

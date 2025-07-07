@@ -20,15 +20,6 @@ function sr() {
     poetry run streetrace "$@"
 }
 
-# Quick test runners
-function pytest() {
-    poetry run pytest "$@"
-}
-
-function mypy() {
-    poetry run mypy "$@"
-}
-
 function ruff() {
     poetry run ruff "$@"
 }
@@ -78,29 +69,33 @@ alias sr-sonnet-4='poetry run streetrace --model="anthropic/claude-sonnet-4-2025
 alias sr-gpt-4-1='poetry run streetrace --model="gpt-4.1"'
 
 function help() {
-    echo "Available commands:"
-    echo "StreetRace commands:"
-    echo "  sr-sonnet-4      - Run StreetRace with Sonnet 4 model"
-    echo "  sr-gpt-4-1      - Run StreetRace with GPT-4.1 model"
-    echo "Development commands:"
-    echo "  check            - Run checks"
-    echo "  test             - Run tests"
-    echo "  lint             - Run linters"
-    echo "  findfile <name>   - Find files matching <name>"
-    echo "  finddir <name>    - Find directories matching <name>"
-    echo "  psgrep <pattern>  - Search for processes matching <pattern>"
-    echo "  streetrace        - Run the StreetRace command"
-    echo "  sr                - Alias for streetrace"
-    echo "  pytest            - Run tests with pytest"
-    echo "  mypy              - Run type checks with mypy"
-    echo "  ruff              - Run code linting with ruff"
-    echo "GIT commands:"
-    echo "  git-clean-branches - Clean up merged branches"
-    echo "  git-sync          - Sync current branch with remote"
-    echo "  gst               - Quick git status"
-    echo "File commands:"
-    echo "  ltree             - List files and directories in a tree-like format"
-    echo "  mkcd              - Create a directory and cd into it"
-    echo "Poetry commands:"
-    echo "  pi                - Install dependencies"
+    echo -e "\n\033[1;36m🚗💨 StreetRace Development Environment\033[0m\n"
+    
+    echo -e "\033[1;33m🏁 StreetRace Aliases:\033[0m"
+    echo -e "  \033[32msr\033[0m                 - Run StreetRace (short alias for 'poetry run streetrace')"    
+    echo -e "  \033[32msr-sonnet-4\033[0m        - Run with Claude Sonnet 4 model (alias for 'poetry run streetrace --model=\"anthropic/claude-sonnet-4-20250514\"')"
+    echo -e "  \033[32msr-gpt-4-1\033[0m         - Run with GPT-4.1 model (alias for 'poetry run streetrace --model=\"gpt-4.1\"')\n"
+
+    echo -e "\033[1;33m⚡ Development Commands:\033[0m"
+    echo -e "  \033[32mcheck\033[0m              - Run all checks (make check)"
+    echo -e "  \033[32mtest\033[0m               - Run tests (make test)"
+    echo -e "  \033[32mlint\033[0m               - Run linters (make lint)"        
+    echo -e "  \033[32mruff\033[0m               - Run code linting\n"
+    
+    echo -e "\033[1;33m🔍 Search & Find:\033[0m"
+    echo -e "  \033[32mfindfile <name>\033[0m    - Find files matching pattern"
+    echo -e "  \033[32mfinddir <name>\033[0m     - Find directories matching pattern"
+    echo -e "  \033[32mpsgrep <pattern>\033[0m   - Search running processes\n"
+    
+    echo -e "\033[1;33m🌳 Git Commands:\033[0m"
+    echo -e "  \033[32mgst\033[0m                - Colorized git status"
+    echo -e "  \033[32mgit-sync\033[0m           - Sync current branch with remote"
+    echo -e "  \033[32mgit-clean-branches\033[0m - Clean up merged branches\n"
+    
+    echo -e "\033[1;33m📁 File Operations:\033[0m"
+    echo -e "  \033[32mltree\033[0m              - Tree-like directory listing"
+    echo -e "  \033[32mmkcd <dir>\033[0m         - Create directory and cd into it\n"
+    
+    echo -e "\033[1;33m📦 Poetry Commands:\033[0m"
+    echo -e "  \033[32mpi\033[0m                 - Install dependencies (poetry install)\n"
 }

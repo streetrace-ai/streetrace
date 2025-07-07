@@ -53,6 +53,7 @@ endpoints), giving teams full control, observability, and security.
 - **Command shortcuts** like `gs` (git status), `pi` (poetry install), `check` (make check)
 - **Quick navigation** with `root`, `src`, `tests` commands
 - **Development workflow** helpers like `dev-setup`, `dev-check`, `dev-test`
+- **Live configuration** with bash config files mounted from host (no container rebuilds needed)
 
 To get started:
 

@@ -8,7 +8,9 @@
   "workspaceFolder": "/workspace",
   "mounts": [
     "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
-    "source=${localWorkspaceFolder}/.devcontainer/.bash_history,target=/home/devuser/.bash_history,type=bind,consistency=cached"
+    "source=${localWorkspaceFolder}/.devcontainer/.bash_history,target=/home/devuser/.bash_history,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/.bashrc,target=/home/devuser/.bashrc,type=bind,consistency=cached",
+    "source=${localWorkspaceFolder}/.devcontainer/.bash_aliases,target=/home/devuser/.bash_aliases,type=bind,consistency=cached"
   ],
   "features": {
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}

@@ -46,10 +46,8 @@ FROM dependencies as development
 RUN useradd --create-home --shell /bin/bash --user-group --uid 1000 devuser \
     && chown -R devuser:devuser /workspace
 
-# Copy bash configuration
-COPY .devcontainer/.bashrc /home/devuser/.bashrc
-COPY .devcontainer/.bash_aliases /home/devuser/.bash_aliases
-RUN chown devuser:devuser /home/devuser/.bashrc /home/devuser/.bash_aliases
+# Note: bash configuration files (.bashrc, .bash_aliases) are mounted from host
+# via devcontainer.json mounts configuration for live synchronization
 
 # Switch to non-root user
 USER devuser
