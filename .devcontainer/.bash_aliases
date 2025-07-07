@@ -61,7 +61,7 @@ alias pi='poetry install'
 
 # Development shortcuts
 alias check='make check'
-alias test='make test'
+alias run-tests='make test'
 alias lint='make lint'
 
 # Streetrace shortcuts
@@ -78,7 +78,7 @@ function help() {
 
     echo -e "\033[1;33m⚡ Development Commands:\033[0m"
     echo -e "  \033[32mcheck\033[0m              - Run all checks (make check)"
-    echo -e "  \033[32mtest\033[0m               - Run tests (make test)"
+    echo -e "  \033[32mrun-tests\033[0m          - Run tests (make test)"
     echo -e "  \033[32mlint\033[0m               - Run linters (make lint)"        
     echo -e "  \033[32mruff\033[0m               - Run code linting\n"
     
