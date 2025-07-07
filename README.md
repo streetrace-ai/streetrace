@@ -47,13 +47,8 @@ endpoints), giving teams full control, observability, and security.
 
 **For the best development experience, use the VS Code Dev Container** which includes:
 
-- **Enhanced terminal** with persistent bash history and intelligent autocompletion
-- **Smart shell features** including Git branch display and developer-friendly aliases
-- **Tab completion** for Poetry, Git, Make, and file paths
+- **Enhanced terminal** with persistent bash history and autocompletion
 - **Command shortcuts** like `gs` (git status), `pi` (poetry install), `check` (make check)
-- **Quick navigation** with `root`, `src`, `tests` commands
-- **Development workflow** helpers like `dev-setup`, `dev-check`, `dev-test`
-- **Live configuration** with bash config files mounted from host (no container rebuilds needed)
 
 To get started:
 
