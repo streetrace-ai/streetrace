@@ -1,11 +1,14 @@
 """Console UI."""
 
+import sys
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
 from prompt_toolkit import HTML, PromptSession
 from prompt_toolkit.completion import Completer  # Base class
 from prompt_toolkit.formatted_text import StyleAndTextTuples
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.validation import Validator
 from rich.console import Console
@@ -25,7 +28,7 @@ _TOOLBAR_TEMPLATE = (
     "usage: <highlight>{usage_and_cost.app_run_usage.prompt_tokens_str}</highlight>in/"
     "<highlight>{usage_and_cost.app_run_usage.completion_tokens_str}</highlight>out, "
     "<highlight>${usage_and_cost.app_run_usage.cost_str}</highlight> | "
-    "Send: Esc,Enter | Hints: @ Tab / | Break/Exit: Ctrl+C"
+    "Send: Enter | New line: Alt+Enter | Hints: @ Tab / | Exit: Ctrl+C"
 )
 _STATUS_MESSAGE_TEMPLATE = (
     "{current_model} Working... {usage_and_cost.turn_usage.prompt_tokens_str}in:"
@@ -122,11 +125,25 @@ class ConsoleUI:
         self.app_state = app_state
         self.console = Console()
         self.completer = completer  # Use the generic completer instance
-        # Enable multiline input, potentially useful for longer prompts or pasted code
+
+        # Create custom key bindings for intuitive Enter behavior
+        kb = KeyBindings()
+
+        @kb.add("escape", "enter")  # Alt+Enter fallback (works everywhere)
+        def _(event: KeyPressEvent) -> None:
+            """Insert newline on Alt+Enter (universal fallback)."""
+            event.current_buffer.insert_text("\n")
+
+        @kb.add("enter")  # Plain Enter submits
+        def _(event: KeyPressEvent) -> None:
+            """Submit input on plain Enter."""
+            event.current_buffer.validate_and_handle()
+
         self.prompt_session: PromptSession[Any] = PromptSession(
             completer=self.completer,  # Pass the completer here
             complete_while_typing=True,  # Suggest completions proactively
-            multiline=True,  # Allow multiline input with Esc+Enter
+            multiline=True,  # Keep buffer capable of real newlines
+            key_bindings=kb,  # Custom key bindings for Enter behavior
         )
         self.ui_bus = ui_bus
         self.spinner: StatusSpinner | None = None  # Initialize spinner attribute

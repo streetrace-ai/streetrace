@@ -56,6 +56,7 @@ class TestConsoleUIInitialization:
         assert prompt_session.completer is mock_completer
         assert prompt_session.complete_while_typing is True
         assert prompt_session.multiline is True
+        assert prompt_session.key_bindings is not None  # Custom key bindings
 
     def test_ui_bus_event_registration(self, app_state, mock_completer, mock_ui_bus):
         """Test that ConsoleUI registers for UI bus events."""
