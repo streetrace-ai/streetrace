@@ -152,11 +152,9 @@ class Application:
     async def _run_interactive(self) -> None:
         """Handle interactive mode (conversation loop)."""
         splash = f"""
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🏁 Welcome to [bold]StreetRace[/bold] 🚗💨
 
-    🏁 Welcome to StreetRace 🚗💨
-
-    📚 Quick Commands:
+Quick commands:
 
     • /exit, /quit, /bye    → Exit the interactive session
     • /history              → Show conversation history
@@ -164,8 +162,9 @@ class Application:
     • /reset                → Start a new conversation
     • /help, /h             → List all available commands
 
-    Enjoy the ride! 🏁
+[dim][white]CWD: {self.args.working_dir}[/white][/dim]
 
+Enjoy the ride! 🏁
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             """
         self.ui_bus.dispatch_ui_update(ui_events.Info(splash))
