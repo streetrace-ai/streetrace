@@ -21,7 +21,7 @@ from streetrace.ui.ui_bus import UiBus
 if TYPE_CHECKING:
     from rich.status import Status
 
-_PROMPT = "You:"
+_PROMPT = "> "
 
 _TOOLBAR_TEMPLATE = (
     "<highlight>{current_model}</highlight> | "
@@ -198,7 +198,7 @@ class ConsoleUI:
             # Defines appearance for continuation lines in multiline mode
             # Simple dots for now, could be more elaborate
             return [
-                ("class:prompt-continuation", "." * width),  # Style in Styles.PT
+                ("class:prompt-continuation", " " * width),  # Style in Styles.PT
             ]
 
         def build_bottom_toolbar() -> HTML:
@@ -222,6 +222,7 @@ class ConsoleUI:
                     prompt_continuation=build_prompt_continuation,
                     bottom_toolbar=build_bottom_toolbar,
                     validator=Validator.from_callable(send_is_typing),
+                    placeholder=[("class:placeholder", "Enter your prompt")],
                     # completer and complete_while_typing are set in __init__
                 )
         except EOFError:  # Handle Ctrl+D as a way to exit

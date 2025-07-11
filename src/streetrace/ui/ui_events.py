@@ -53,7 +53,7 @@ def render_markdown(obj: Markdown, console: Console) -> None:
     console.print(RichMarkdown(obj), style=Styles.RICH_INFO)
 
 
-_PROMPT = "You:"
+_PROMPT = "> "
 
 
 class UserInput(_Str):

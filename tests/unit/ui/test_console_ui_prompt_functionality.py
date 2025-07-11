@@ -255,7 +255,7 @@ class TestConsoleUIPromptFunctionality:
                 # Test the continuation function
                 width = 5
                 result = prompt_continuation(width, 0, 0)
-                expected = [("class:prompt-continuation", "." * width)]
+                expected = [("class:prompt-continuation", " " * width)]
 
                 assert result == expected
 

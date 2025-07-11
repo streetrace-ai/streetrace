@@ -1,3 +1,4 @@
+# ruff: noqa: W293, W291
 """Orchestrate the StreetRace🚗💨 application flow and manage component interactions.
 
 This module contains the Application class which serves as the central
@@ -150,12 +151,23 @@ class Application:
 
     async def _run_interactive(self) -> None:
         """Handle interactive mode (conversation loop)."""
-        self.ui_bus.dispatch_ui_update(
-            ui_events.Info(
-                "Entering interactive mode. Type '/bye' to exit, '/help' for etc., "
-                "or press Ctrl+C/Ctrl+D to quit.",
-            ),
-        )
+        splash = f"""
+🏁 Welcome to [bold]StreetRace[/bold] 🚗💨
+
+Quick commands:
+
+    • /exit, /quit, /bye    → Exit the interactive session
+    • /history              → Show conversation history
+    • /compact              → Summarize and compact history
+    • /reset                → Start a new conversation
+    • /help, /h             → List all available commands
+
+[dim][white]CWD: {self.args.working_dir}[/white][/dim]
+
+Enjoy the ride! 🏁
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+            """
+        self.ui_bus.dispatch_ui_update(ui_events.Info(splash))
 
         while True:
             try:

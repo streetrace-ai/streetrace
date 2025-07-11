@@ -28,7 +28,8 @@ class Styles:
         {
             # Default input area
             "": "",
-            "prompt": "fg:ansiwhite",
+            "prompt": "fg:ansiyellow bold",
+            "placeholder": "fg:#808080",  # Dimmed gray for placeholder
             # Bottom toolbar (reverse=True, so fg/bg are inverted)
             "bottom-toolbar": "bg:ansiwhite fg:ansiblue",
             "highlight": "bg:ansibrightyellow",
