@@ -1,3 +1,4 @@
+# ruff: noqa: W293, W291
 """Orchestrate the StreetRace🚗💨 application flow and manage component interactions.
 
 This module contains the Application class which serves as the central
@@ -152,19 +153,19 @@ class Application:
         """Handle interactive mode (conversation loop)."""
         splash = f"""
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                                                                 
-    🏁 Welcome to StreetRace 🚗💨                                
-                                                               
-    📚 Quick Commands:                                          
-                                                                
-    • /exit, /quit, /bye    → Exit the interactive session                   
-    • /history              → Show conversation history                       
-    • /compact              → Summarize and compact history                   
-    • /reset                → Start a new conversation                        
-    • /help, /h             → List all available commands                     
-                                                                    
-    Enjoy the ride! 🏁   
-                                                                                                            
+
+    🏁 Welcome to StreetRace 🚗💨
+
+    📚 Quick Commands:
+
+    • /exit, /quit, /bye    → Exit the interactive session
+    • /history              → Show conversation history
+    • /compact              → Summarize and compact history
+    • /reset                → Start a new conversation
+    • /help, /h             → List all available commands
+
+    Enjoy the ride! 🏁
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
             """
         self.ui_bus.dispatch_ui_update(ui_events.Info(splash))
