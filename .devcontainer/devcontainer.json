@@ -2,7 +2,7 @@
   "name": "StreetRace🚗💨 Development Environment",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": "..",
+    "context": ".",
     "target": "development"
   },
   "workspaceFolder": "/workspace",
