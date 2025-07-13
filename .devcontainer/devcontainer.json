@@ -5,9 +5,9 @@
     "context": ".",
     "target": "development"
   },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
   "workspaceFolder": "/workspace",
   "mounts": [
-    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",    
     "source=${localWorkspaceFolder}/.devcontainer/.bashrc,target=/home/devuser/.bashrc,type=bind,consistency=cached",
     "source=${localWorkspaceFolder}/.devcontainer/.bash_aliases,target=/home/devuser/.bash_aliases,type=bind,consistency=cached"
   ],
