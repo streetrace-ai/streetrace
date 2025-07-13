@@ -48,8 +48,7 @@
       }
     }
   },
-  "postCreateCommand": "cat /workspace/.devcontainer/.bashrc >> ~/.bashrc && cat /workspace/.devcontainer/.bash_aliases >> ~/.bashrc && source ~/.bashrc && poetry install",
-  "postStartCommand": "poetry env info --path > /tmp/poetry_venv_path",
+  "postCreateCommand": "poetry install",
   "forwardPorts": [],
   "remoteUser": "devuser",
   "containerUser": "devuser",
