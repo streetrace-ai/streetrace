@@ -9,8 +9,7 @@
   "workspaceFolder": "/workspace",
   "mounts": [
     "source=${localWorkspaceFolder}/.devcontainer/.bashrc,target=/home/devuser/.bashrc,type=bind,consistency=cached",
-    "source=${localWorkspaceFolder}/.devcontainer/.bash_aliases,target=/home/devuser/.bash_aliases,type=bind,consistency=cached",
-    "source=${localWorkspaceFolder}/.devcontainer/.bashrc,target=/home/devuser/.bash_profile,type=bind,consistency=cached"
+    "source=${localWorkspaceFolder}/.devcontainer/.bash_aliases,target=/home/devuser/.bash_aliases,type=bind,consistency=cached"
   ],
   "customizations": {
     "vscode": {
@@ -44,6 +43,12 @@
           "**/.venv": true
         },
         "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash",
+            "args": ["-l"]
+          }
+        },
         "git.autofetch": true,
         "git.enableSmartCommit": true,
         "editor.rulers": [88],
@@ -53,7 +58,7 @@
       }
     }
   },
-  "postCreateCommand": "poetry install",
+  "postCreateCommand": "poetry install && echo 'source ~/.bashrc' >> ~/.bash_profile && echo 'source ~/.bashrc' >> ~/.profile",
   "forwardPorts": [],
   "remoteUser": "devuser",
   "containerUser": "devuser",
