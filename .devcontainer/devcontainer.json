@@ -18,7 +18,7 @@
         "DavidAnson.vscode-markdownlint"
       ],
       "settings": {
-        "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
+        "python.defaultInterpreterPath": "python",
         "python.terminal.activateEnvironment": false,
         "python.analysis.typeCheckingMode": "strict",
         "python.analysis.autoSearchPaths": true,
@@ -48,7 +48,8 @@
       }
     }
   },
-  "postCreateCommand": "poetry install && cat /workspace/.devcontainer/.bashrc >> ~/.bashrc && cat /workspace/.devcontainer/.bash_aliases >> ~/.bashrc",
+  "postCreateCommand": "cat /workspace/.devcontainer/.bashrc >> ~/.bashrc && cat /workspace/.devcontainer/.bash_aliases >> ~/.bashrc && source ~/.bashrc && poetry install",
+  "postStartCommand": "poetry env info --path > /tmp/poetry_venv_path",
   "forwardPorts": [],
   "remoteUser": "devuser",
   "containerUser": "devuser",
