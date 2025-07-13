@@ -31,11 +31,6 @@ RUN pip install poetry==$POETRY_VERSION
 # Set working directory
 WORKDIR /workspace
 
-# Copy Poetry configuration files, LICENSE, and README
-COPY pyproject.toml poetry.lock LICENSE README.md ./
-
-# Install dependencies
-RUN poetry install --no-root && rm -rf $POETRY_CACHE_DIR
 
 # Stage 2: Development stage
 FROM dependencies as development
@@ -43,9 +38,6 @@ FROM dependencies as development
 # Create a non-root user for development
 RUN useradd --create-home --shell /bin/bash --user-group --uid 1000 devuser \
     && chown -R devuser:devuser /workspace
-
-# Note: bash configuration files (.bashrc, .bash_aliases) are mounted from host
-# via devcontainer.json mounts configuration for live synchronization
 
 # Switch to non-root user
 USER devuser
