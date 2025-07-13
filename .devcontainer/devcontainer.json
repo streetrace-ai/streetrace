@@ -1,8 +1,8 @@
 {
   "name": "StreetRace🚗💨 Development Environment",
   "build": {
-    "dockerfile": ".devcontainer/Dockerfile",
-    "context": "..",
+    "dockerfile": "Dockerfile",
+    "context": ".",
     "target": "development"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
@@ -48,7 +48,7 @@
       }
     }
   },
-  "postCreateCommand": "poetry install",
+  "postCreateCommand": "cat /workspace/.devcontainer/.bashrc >> ~/.bashrc && cat /workspace/.devcontainer/.bash_aliases >> ~/.bashrc && export POETRY_VIRTUALENVS_IN_PROJECT=false && export POETRY_VIRTUALENVS_PATH=/home/devuser/.cache/pypoetry/virtualenvs && poetry install",
   "forwardPorts": [],
   "remoteUser": "devuser",
   "containerUser": "devuser",

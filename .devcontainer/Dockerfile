@@ -42,14 +42,5 @@ RUN useradd --create-home --shell /bin/bash --user-group --uid 1000 devuser \
 # Switch to non-root user
 USER devuser
 
-# Copy and setup bashrc and bash_aliases
-COPY .devcontainer/.bashrc /home/devuser/.bashrc_streetrace
-COPY .devcontainer/.bash_aliases /home/devuser/.bash_aliases_streetrace
-
-# Append custom configuration to user's bashrc
-RUN cat /home/devuser/.bashrc_streetrace >> /home/devuser/.bashrc && \
-    cat /home/devuser/.bash_aliases_streetrace >> /home/devuser/.bashrc && \
-    rm /home/devuser/.bashrc_streetrace /home/devuser/.bash_aliases_streetrace
-
 # Set default command
 CMD ["/bin/bash"]
