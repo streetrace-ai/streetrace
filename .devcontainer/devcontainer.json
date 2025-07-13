@@ -1,8 +1,8 @@
 {
   "name": "StreetRace🚗💨 Development Environment",
   "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".",
+    "dockerfile": ".devcontainer/Dockerfile",
+    "context": "..",
     "target": "development"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
