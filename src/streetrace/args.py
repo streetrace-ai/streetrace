@@ -22,11 +22,17 @@ class Args(tap.TypedArgs):
             "Required if running a prompt."
         ),
     )
+    command: str | None = tap.arg(
+        positional=True,
+        nargs="?",
+        help="Command to run (configure) or prompt text",
+        default=None,
+    )
     prompt: str | None = tap.arg(help="Non-interactive prompt mode", default=None)
     arbitrary_prompt: list[str] | None = tap.arg(
         positional=True,
         nargs="*",
-        help="Prompt to use",
+        help="Additional prompt arguments",
         default=[],
     )
     verbose: bool = tap.arg(help="Enables verbose (DEBUG) logging", default=False)
@@ -38,6 +44,10 @@ class Args(tap.TypedArgs):
     session_id: str | None = tap.arg(help="Session ID to use (or create)", default=None)
     list_sessions: bool = tap.arg(help="List available sessions", default=False)
     version: bool = tap.arg(help="Show version and exit", default=False)
+    local: bool = tap.arg(help="Configure local settings", default=False)
+    global_: bool = tap.arg(help="Configure global settings", default=False)
+    show: bool = tap.arg(help="Show configuration settings", default=False)
+    reset: bool = tap.arg(help="Reset configuration settings", default=False)
 
     @property
     def non_interactive_prompt(self) -> tuple[str | None, bool]:
@@ -55,6 +65,12 @@ class Args(tap.TypedArgs):
         """
         if self.prompt:
             return self.prompt, False
+        if self.command and self.command != "configure":
+            # First positional arg is treated as prompt if not a command
+            prompt_parts = [self.command]
+            if self.arbitrary_prompt:
+                prompt_parts.extend(self.arbitrary_prompt)
+            return " ".join(prompt_parts), True
         if self.arbitrary_prompt:
             return " ".join(self.arbitrary_prompt), True
         return None, False

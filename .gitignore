@@ -175,3 +175,4 @@ cython_debug/
 
 # local temp dir
 /tmp
+.streetrace/config.toml
