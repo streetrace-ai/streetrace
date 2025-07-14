@@ -44,10 +44,22 @@ class Args(tap.TypedArgs):
     session_id: str | None = tap.arg(help="Session ID to use (or create)", default=None)
     list_sessions: bool = tap.arg(help="List available sessions", default=False)
     version: bool = tap.arg(help="Show version and exit", default=False)
-    local: bool = tap.arg(help="Configure local settings", default=False)
-    global_: bool = tap.arg(help="Configure global settings", default=False)
-    show: bool = tap.arg(help="Show configuration settings", default=False)
-    reset: bool = tap.arg(help="Reset configuration settings", default=False)
+
+    @property
+    def is_subcommand_invocation(self) -> bool:
+        """Check if this is a subcommand invocation.
+        
+        Returns:
+            True if the command is a registered subcommand, False otherwise.
+
+        """
+        if not self.command:
+            return False
+
+        # Import here to avoid circular imports
+        from streetrace.subcommands import SubcommandRegistry
+        registry = SubcommandRegistry.instance()
+        return self.command in registry.list_subcommands()
 
     @property
     def non_interactive_prompt(self) -> tuple[str | None, bool]:
@@ -65,8 +77,8 @@ class Args(tap.TypedArgs):
         """
         if self.prompt:
             return self.prompt, False
-        if self.command and self.command != "configure":
-            # First positional arg is treated as prompt if not a command
+        if self.command and not self.is_subcommand_invocation:
+            # First positional arg is treated as prompt if not a subcommand
             prompt_parts = [self.command]
             if self.arbitrary_prompt:
                 prompt_parts.extend(self.arbitrary_prompt)

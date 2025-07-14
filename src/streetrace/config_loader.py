@@ -14,11 +14,12 @@ def load_model_from_config(args: Args) -> str | None:
         
     Returns:
         Model name or None if not found
+
     """
     # Priority 1: Command line argument
     if args.model:
         return args.model
-    
+
     # Priority 2: Local configuration
     local_config_path = args.working_dir / ".streetrace" / "config.toml"
     if local_config_path.exists():
@@ -30,7 +31,7 @@ def load_model_from_config(args: Args) -> str | None:
         except Exception:
             # Ignore config file errors and continue
             pass
-    
+
     # Priority 3: Global configuration
     global_config_path = Path.home() / ".streetrace" / "config.toml"
     if global_config_path.exists():
@@ -42,5 +43,5 @@ def load_model_from_config(args: Args) -> str | None:
         except Exception:
             # Ignore config file errors and continue
             pass
-    
+
     return None

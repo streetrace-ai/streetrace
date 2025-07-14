@@ -8,9 +8,13 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from streetrace.app import create_app
-from streetrace.args import Args, bind_and_run
-from streetrace.configure import run_configure
+from streetrace.args import Args
 from streetrace.log import get_logger, init_logging
+from streetrace.subcommands import (
+    ConfigureSubcommand,
+    SubcommandParser,
+    SubcommandRegistry,
+)
 
 
 def show_version() -> None:
@@ -25,14 +29,11 @@ def show_version() -> None:
     sys.exit(0)
 
 
-def run(args: Args) -> None:
-    """Configure and run the Application."""
+def run_main_app(args: Args) -> None:
+    """Run the main application (non-subcommand mode)."""
     if args.version:
         show_version()
-    if args.command == "configure":
-        run_configure(args)
-        return
-    
+
     cwd = Path.cwd()
     if not cwd.is_dir():
         msg = f"Current working directory is not a directory: {cwd}"
@@ -50,7 +51,7 @@ def run(args: Args) -> None:
     if not effective_model:
         print("Error: No model specified. Use --model argument or configure a model with 'streetrace configure --global' or 'streetrace configure --local'")
         sys.exit(1)
-    
+
     # Update args with effective model for the app
     args.model = effective_model
     app = create_app(args)
@@ -71,9 +72,23 @@ def run(args: Args) -> None:
             raise
 
 
+def setup_subcommands() -> None:
+    """Register all available subcommands."""
+    registry = SubcommandRegistry.instance()
+
+    # Register the configure subcommand
+    configure_subcommand = ConfigureSubcommand()
+    registry.register(configure_subcommand)
+
+
 def main() -> None:
     """Entry point for the CLI."""
-    bind_and_run(run)
+    # Set up subcommands
+    setup_subcommands()
+
+    # Use SubcommandParser to handle routing
+    parser = SubcommandParser()
+    parser.parse_and_execute(main_app_handler=run_main_app)
 
 
 if __name__ == "__main__":
