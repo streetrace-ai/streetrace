@@ -2,6 +2,8 @@
 
 from typing import Optional
 
+import typed_argparse as tap
+
 from streetrace.log import get_logger
 
 from .base_subcommand import BaseSubcommand
@@ -11,7 +13,7 @@ logger = get_logger(__name__)
 
 class SubcommandRegistry:
     """Central registry for managing subcommands.
-    
+
     This class implements a singleton pattern to provide global access
     to the subcommand registry throughout the application.
     """
@@ -41,10 +43,10 @@ class SubcommandRegistry:
 
     def register(self, subcommand: BaseSubcommand) -> None:
         """Register a subcommand.
-        
+
         Args:
             subcommand: The subcommand instance to register.
-            
+
         Raises:
             ValueError: If a subcommand with the same name is already registered.
 
@@ -61,14 +63,14 @@ class SubcommandRegistry:
             raise ValueError(msg)
 
         self._subcommands[name] = subcommand
-        logger.debug(f"Registered subcommand '{name}' ({type(subcommand).__name__})")
+        logger.debug("Registered subcommand '%s' (%s)", name, type(subcommand).__name__)
 
     def get_subcommand(self, name: str) -> BaseSubcommand | None:
         """Get a subcommand by name.
-        
+
         Args:
             name: The name of the subcommand to retrieve.
-            
+
         Returns:
             The subcommand instance if found, None otherwise.
 
@@ -77,20 +79,20 @@ class SubcommandRegistry:
 
     def list_subcommands(self) -> list[str]:
         """List all registered subcommand names.
-        
+
         Returns:
             A list of registered subcommand names.
 
         """
         return list(self._subcommands.keys())
 
-    def execute_subcommand(self, name: str, args) -> None:
+    def execute_subcommand(self, name: str, args: tap.TypedArgs) -> None:
         """Execute a subcommand with parsed arguments.
-        
+
         Args:
             name: The name of the subcommand to execute.
             args: Parsed arguments for the subcommand.
-            
+
         Raises:
             ValueError: If the subcommand is not found.
 
@@ -101,5 +103,5 @@ class SubcommandRegistry:
             msg = f"Unknown subcommand '{name}'. Available subcommands: {available}"
             raise ValueError(msg)
 
-        logger.info(f"Executing subcommand '{name}'")
+        logger.info("Executing subcommand '%s'", name)
         subcommand.execute(args)

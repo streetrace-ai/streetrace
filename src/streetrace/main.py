@@ -9,12 +9,13 @@ from dotenv import load_dotenv
 
 from streetrace.app import create_app
 from streetrace.args import Args
-from streetrace.log import get_logger, init_logging
 from streetrace.commands.subcommands import (
     ConfigureSubcommand,
     SubcommandParser,
     SubcommandRegistry,
 )
+from streetrace.config_loader import load_model_from_config
+from streetrace.log import get_logger, init_logging
 
 
 def show_version() -> None:
@@ -46,10 +47,13 @@ def run_main_app(args: Args) -> None:
     logger = get_logger(__name__)
 
     # Load model from configuration for the main app
-    from streetrace.config_loader import load_model_from_config
     effective_model = load_model_from_config(args)
     if not effective_model:
-        print("Error: No model specified. Use --model argument or configure a model with 'streetrace configure --global' or 'streetrace configure --local'")
+        error_msg = (
+            "Error: No model specified. Use --model argument or configure a model "
+            "with 'streetrace configure --global' or 'streetrace configure --local'"
+        )
+        sys.stderr.write(f"{error_msg}\n")
         sys.exit(1)
 
     # Update args with effective model for the app

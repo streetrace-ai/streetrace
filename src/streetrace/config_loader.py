@@ -1,17 +1,20 @@
 """Configuration loader for StreetRace."""
 
+import logging
 import tomllib
 from pathlib import Path
 
 from streetrace.args import Args
 
+logger = logging.getLogger(__name__)
+
 
 def load_model_from_config(args: Args) -> str | None:
     """Load model configuration with priority: CLI > local > global.
-    
+
     Args:
         args: Parsed command line arguments
-        
+
     Returns:
         Model name or None if not found
 
@@ -24,24 +27,22 @@ def load_model_from_config(args: Args) -> str | None:
     local_config_path = args.working_dir / ".streetrace" / "config.toml"
     if local_config_path.exists():
         try:
-            with open(local_config_path, "rb") as f:
+            with local_config_path.open("rb") as f:
                 config = tomllib.load(f)
                 if "model" in config:
                     return config["model"]
-        except Exception:
-            # Ignore config file errors and continue
-            pass
+        except (OSError, tomllib.TOMLDecodeError) as e:
+            logger.debug("Failed to load local config: %s", e)
 
     # Priority 3: Global configuration
     global_config_path = Path.home() / ".streetrace" / "config.toml"
     if global_config_path.exists():
         try:
-            with open(global_config_path, "rb") as f:
+            with global_config_path.open("rb") as f:
                 config = tomllib.load(f)
                 if "model" in config:
                     return config["model"]
-        except Exception:
-            # Ignore config file errors and continue
-            pass
+        except (OSError, tomllib.TOMLDecodeError) as e:
+            logger.debug("Failed to load global config: %s", e)
 
     return None

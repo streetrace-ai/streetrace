@@ -1,5 +1,6 @@
 """Configuration management functionality."""
 
+import sys
 import tomllib
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -40,121 +41,180 @@ class ModelParameter(ConfigParameter):
 
     @property
     def name(self) -> str:
+        """Parameter name."""
         return "model"
 
     @property
     def display_name(self) -> str:
+        """Human-readable parameter name."""
         return "Model"
 
     def get_value(self, config: dict) -> str:
+        """Get current value from config."""
         return config.get("model", "Not set")
 
     def set_value(self, config: dict) -> None:
-        model = input("Enter model name (e.g., anthropic/claude-3-5-sonnet-20241022): ").strip()
+        """Interactive value setting."""
+        model = input(
+            "Enter model name (e.g., anthropic/claude-3-5-sonnet-20241022): ",
+        ).strip()
         if model:
             config["model"] = model
 
     def clear_value(self, config: dict) -> None:
+        """Clear value from config."""
         config.pop("model", None)
 
 
 class ConfigManager:
     """Manage TOML configuration files."""
 
-    def __init__(self, args: ConfigureArgs):
+    def __init__(self, args: ConfigureArgs) -> None:
+        """Initialize the configuration manager.
+
+        Args:
+            args: Configure command arguments.
+
+        """
         self.args = args
         self.global_config_path = Path.home() / ".streetrace" / "config.toml"
         self.local_config_path = args.working_dir / ".streetrace" / "config.toml"
         self.parameters = [ModelParameter()]
 
-    def load_config(self, is_global: bool) -> dict:
+    def load_config(self, *, is_global: bool) -> dict:
         """Load configuration from TOML file."""
         config_path = self.global_config_path if is_global else self.local_config_path
         if config_path.exists():
-            with open(config_path, "rb") as f:
+            with config_path.open("rb") as f:
                 return tomllib.load(f)
         return {}
 
-    def save_config(self, config: dict, is_global: bool) -> None:
+    def save_config(self, config: dict, *, is_global: bool) -> None:
         """Save configuration to TOML file."""
         config_path = self.global_config_path if is_global else self.local_config_path
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w") as f:
+        with config_path.open("w") as f:
             toml.dump(config, f)
 
-    def show_config(self, is_global: bool) -> None:
+    def show_config(self, *, is_global: bool) -> None:
         """Display current configuration."""
         scope = "Global" if is_global else "Local"
-        config = self.load_config(is_global)
-        print(f"{scope} configuration:")
+        config = self.load_config(is_global=is_global)
+        sys.stdout.write(f"{scope} configuration:\n")
         for param in self.parameters:
             value = param.get_value(config)
-            print(f"  {param.display_name}: {value}")
+            sys.stdout.write(f"  {param.display_name}: {value}\n")
 
-    def reset_config(self, is_global: bool) -> None:
+    def reset_config(self, *, is_global: bool) -> None:
         """Reset configuration with confirmation."""
         scope = "global" if is_global else "local"
-        confirm = input(f"Clear all settings from {scope} config? (y/N): ").strip().lower()
+        confirm = (
+            input(
+                f"Clear all settings from {scope} config? (y/N): ",
+            )
+            .strip()
+            .lower()
+        )
         if confirm == "y":
-            config_path = self.global_config_path if is_global else self.local_config_path
+            config_path = (
+                self.global_config_path if is_global else self.local_config_path
+            )
             if config_path.exists():
                 config_path.unlink()
-            print(f"{scope.capitalize()} configuration cleared.")
+            sys.stdout.write(f"{scope.capitalize()} configuration cleared.\n")
         else:
-            print("Cancel - No changes made")
+            sys.stdout.write("Cancel - No changes made\n")
 
-    def interactive_config(self, is_global: bool) -> None:
+    def interactive_config(self, *, is_global: bool) -> None:
         """Interactive configuration menu."""
         scope = "Global" if is_global else "Local"
-        config = self.load_config(is_global)
+        config = self.load_config(is_global=is_global)
+        max_options = len(self.parameters) + 4
 
         while True:
-            print(f"\n{scope} configuration menu")
-            for i, param in enumerate(self.parameters, 1):
-                value = param.get_value(config)
-                print(f"{i}. Configure {param.display_name} (current: {value})")
-
-            print(f"{len(self.parameters) + 1}. Show all settings")
-            print(f"{len(self.parameters) + 2}. Clear all settings")
-            print(f"{len(self.parameters) + 3}. Save & Exit")
-            print(f"{len(self.parameters) + 4}. Exit without saving")
-
-            choice = input(f"Select option (1-{len(self.parameters) + 4}): ").strip()
+            self._show_menu(scope)
+            choice = input(f"Select option (1-{max_options}): ").strip()
 
             try:
                 choice_num = int(choice)
-                if 1 <= choice_num <= len(self.parameters):
-                    self.parameters[choice_num - 1].set_value(config)
-                elif choice_num == len(self.parameters) + 1:
-                    print("\nCurrent Settings:")
-                    for param in self.parameters:
-                        value = param.get_value(config)
-                        print(f"  {param.display_name}: {value}")
-                elif choice_num == len(self.parameters) + 2:
-                    confirm = input("Clear all settings? (y/N): ").strip().lower()
-                    if confirm == "y":
-                        for param in self.parameters:
-                            param.clear_value(config)
-                elif choice_num == len(self.parameters) + 3:
-                    self.save_config(config, is_global)
-                    print(f"{scope} configuration saved")
+                should_exit = self._handle_menu_choice(
+                    choice_num,
+                    config,
+                    scope,
+                    is_global=is_global,
+                    max_options=max_options,
+                )
+                if should_exit:
                     break
-                elif choice_num == len(self.parameters) + 4:
-                    print("Exit without saving")
-                    break
-                else:
-                    print(f"Invalid option. Please select 1-{len(self.parameters) + 4}.")
             except ValueError:
-                print(f"Invalid option. Please select 1-{len(self.parameters) + 4}.")
+                self._show_invalid_option_message(max_options)
+
+    def _show_menu(self, scope: str) -> None:
+        """Show the interactive configuration menu."""
+        sys.stdout.write(f"\n{scope} configuration menu\n")
+        for i, param in enumerate(self.parameters, 1):
+            value = param.get_value(self.load_config(is_global=scope == "Global"))
+            display_text = f"{i}. Configure {param.display_name} (current: {value})\n"
+            sys.stdout.write(display_text)
+
+        sys.stdout.write(f"{len(self.parameters) + 1}. Show all settings\n")
+        sys.stdout.write(f"{len(self.parameters) + 2}. Clear all settings\n")
+        sys.stdout.write(f"{len(self.parameters) + 3}. Save & Exit\n")
+        sys.stdout.write(f"{len(self.parameters) + 4}. Exit without saving\n")
+
+    def _handle_menu_choice(
+        self,
+        choice_num: int,
+        config: dict,
+        scope: str,
+        *,
+        is_global: bool,
+        max_options: int,
+    ) -> bool:
+        """Handle menu choice and return True if should exit."""
+        if 1 <= choice_num <= len(self.parameters):
+            self.parameters[choice_num - 1].set_value(config)
+        elif choice_num == len(self.parameters) + 1:
+            self._show_current_settings(config)
+        elif choice_num == len(self.parameters) + 2:
+            self._clear_all_settings(config)
+        elif choice_num == len(self.parameters) + 3:
+            self.save_config(config, is_global=is_global)
+            sys.stdout.write(f"{scope} configuration saved\n")
+            return True
+        elif choice_num == len(self.parameters) + 4:
+            sys.stdout.write("Exit without saving\n")
+            return True
+        else:
+            self._show_invalid_option_message(max_options)
+        return False
+
+    def _show_current_settings(self, config: dict) -> None:
+        """Show current configuration settings."""
+        sys.stdout.write("\nCurrent Settings:\n")
+        for param in self.parameters:
+            value = param.get_value(config)
+            sys.stdout.write(f"  {param.display_name}: {value}\n")
+
+    def _clear_all_settings(self, config: dict) -> None:
+        """Clear all configuration settings with confirmation."""
+        confirm = input("Clear all settings? (y/N): ").strip().lower()
+        if confirm == "y":
+            for param in self.parameters:
+                param.clear_value(config)
+
+    def _show_invalid_option_message(self, max_options: int) -> None:
+        """Show invalid option message."""
+        sys.stdout.write(f"Invalid option. Please select 1-{max_options}.\n")
 
 
 def show_usage() -> None:
     """Show configure command usage."""
-    print("Usage: streetrace configure [OPTIONS]")
-    print("\nOptions:")
-    print("  --show --global     Show global configuration")
-    print("  --show --local      Show local configuration")
-    print("  --reset --global    Reset global configuration")
-    print("  --reset --local     Reset local configuration")
-    print("  --global            Interactive global configuration")
-    print("  --local             Interactive local configuration")
+    sys.stdout.write("Usage: streetrace configure [OPTIONS]\n")
+    sys.stdout.write("\nOptions:\n")
+    sys.stdout.write("  --show --global     Show global configuration\n")
+    sys.stdout.write("  --show --local      Show local configuration\n")
+    sys.stdout.write("  --reset --global    Reset global configuration\n")
+    sys.stdout.write("  --reset --local     Reset local configuration\n")
+    sys.stdout.write("  --global            Interactive global configuration\n")
+    sys.stdout.write("  --local             Interactive local configuration\n")

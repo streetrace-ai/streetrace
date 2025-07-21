@@ -1,15 +1,18 @@
 """Configure subcommand implementation."""
 
+import sys
+
 import typed_argparse as tap
 
-from ..base_subcommand import BaseSubcommand
+from streetrace.commands.subcommands.base_subcommand import BaseSubcommand
+
 from .args import ConfigureArgs
 from .manager import ConfigManager, show_usage
 
 
 class ConfigureSubcommand(BaseSubcommand):
     """Configure subcommand implementation.
-    
+
     This subcommand handles configuration management for streetrace,
     including local and global settings management.
     """
@@ -30,7 +33,7 @@ class ConfigureSubcommand(BaseSubcommand):
 
     def execute(self, args: ConfigureArgs) -> None:
         """Execute the configure subcommand.
-        
+
         Args:
             args: Parsed configure-specific arguments.
 
@@ -39,17 +42,17 @@ class ConfigureSubcommand(BaseSubcommand):
 
         # Validate argument combinations
         if args.show and not (args.global_ or args.local):
-            print("Error: --show requires either --global or --local")
+            sys.stderr.write("Error: --show requires either --global or --local\n")
             show_usage()
             return
 
         if args.reset and not (args.global_ or args.local):
-            print("Error: --reset requires either --global or --local")
+            sys.stderr.write("Error: --reset requires either --global or --local\n")
             show_usage()
             return
 
         if args.global_ and args.local:
-            print("Error: Cannot specify both --global and --local")
+            sys.stderr.write("Error: Cannot specify both --global and --local\n")
             show_usage()
             return
 
@@ -59,10 +62,10 @@ class ConfigureSubcommand(BaseSubcommand):
 
         # Execute based on arguments
         if args.show:
-            config_manager.show_config(args.global_)
+            config_manager.show_config(is_global=args.global_)
         elif args.reset:
-            config_manager.reset_config(args.global_)
+            config_manager.reset_config(is_global=args.global_)
         elif args.global_:
-            config_manager.interactive_config(True)
+            config_manager.interactive_config(is_global=True)
         elif args.local:
-            config_manager.interactive_config(False)
+            config_manager.interactive_config(is_global=False)

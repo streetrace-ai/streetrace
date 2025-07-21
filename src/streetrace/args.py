@@ -1,13 +1,20 @@
 """Parse and organize app args."""
 
-from collections.abc import Callable
+from __future__ import annotations
+
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import typed_argparse as tap
 from tzlocal import get_localzone
 
 from streetrace.utils.uid import get_user_identity
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from streetrace.commands.subcommands import SubcommandRegistry
 
 _START_TIME = datetime.now(tz=get_localzone())
 
@@ -45,10 +52,14 @@ class Args(tap.TypedArgs):
     list_sessions: bool = tap.arg(help="List available sessions", default=False)
     version: bool = tap.arg(help="Show version and exit", default=False)
 
-    @property
-    def is_subcommand_invocation(self) -> bool:
+    def is_subcommand_invocation(
+        self, registry: SubcommandRegistry | None = None,
+    ) -> bool:
         """Check if this is a subcommand invocation.
-        
+
+        Args:
+            registry: Optional subcommand registry to use for checking.
+
         Returns:
             True if the command is a registered subcommand, False otherwise.
 
@@ -56,9 +67,13 @@ class Args(tap.TypedArgs):
         if not self.command:
             return False
 
-        # Import here to avoid circular imports
-        from streetrace.commands.subcommands import SubcommandRegistry
-        registry = SubcommandRegistry.instance()
+        if registry is None:
+            # Import here to avoid circular imports
+            from streetrace.commands.subcommands import (  # noqa: PLC0415
+                SubcommandRegistry,
+            )
+            registry = SubcommandRegistry.instance()
+
         return self.command in registry.list_subcommands()
 
     @property
@@ -77,7 +92,7 @@ class Args(tap.TypedArgs):
         """
         if self.prompt:
             return self.prompt, False
-        if self.command and not self.is_subcommand_invocation:
+        if self.command and not self.is_subcommand_invocation():
             # First positional arg is treated as prompt if not a subcommand
             prompt_parts = [self.command]
             if self.arbitrary_prompt:

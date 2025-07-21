@@ -6,11 +6,14 @@ from typing import Any
 
 import typed_argparse as tap
 
+from streetrace.args import Args
 from streetrace.log import get_logger
 
 from .registry import SubcommandRegistry
 
 logger = get_logger(__name__)
+
+MIN_SUBCOMMAND_LENGTH = 3
 
 
 class SubcommandParser:
@@ -21,11 +24,12 @@ class SubcommandParser:
     to the main application for non-subcommand invocations.
     """
 
-    def __init__(self, registry: SubcommandRegistry | None = None):
+    def __init__(self, registry: SubcommandRegistry | None = None) -> None:
         """Initialize the subcommand parser.
 
         Args:
-            registry: The subcommand registry to use. If None, uses the singleton instance.
+            registry: The subcommand registry to use. If None, uses the singleton
+                instance.
 
         """
         self.registry = registry or SubcommandRegistry.instance()
@@ -57,9 +61,9 @@ class SubcommandParser:
         # Don't treat flags (starting with - or --) as subcommands
         if command.startswith("-"):
             return False
-            
-        # Single words with no spaces that are lowercase and contain hyphens or underscores
-        # are likely intended as subcommands
+
+        # Single words with no spaces that are lowercase and contain hyphens or
+        # underscores are likely intended as subcommands
         if " " in command:
             return False
 
@@ -68,10 +72,7 @@ class SubcommandParser:
             return True
 
         # Single lowercase words that don't look like natural language
-        if command.islower() and len(command) > 2:
-            return True
-
-        return False
+        return bool(command.islower() and len(command) > MIN_SUBCOMMAND_LENGTH)
 
     def parse_and_execute(
         self,
@@ -96,42 +97,38 @@ class SubcommandParser:
         if not argv:
             if main_app_handler:
                 # We need to create empty args for the main app
-                from streetrace.args import Args
-
                 empty_args = Args()
                 main_app_handler(empty_args)
             return
 
         # Check if the first argument is a subcommand before parsing
         potential_subcommand = argv[0]
-        
+
         if self.is_subcommand(potential_subcommand):
             # It's a subcommand, execute it directly
             self._execute_subcommand(potential_subcommand, argv[1:])
         elif self._looks_like_subcommand(potential_subcommand) and len(argv) == 1:
-            # Looks like an invalid subcommand (single word with no additional args), show error
+            # Looks like an invalid subcommand (single word with no additional args)
             available = ", ".join(self.registry.list_subcommands())
-            print(f"Error: Unknown subcommand '{potential_subcommand}'")
-            print(f"Available subcommands: {available}")
+            sys.stderr.write(f"Error: Unknown subcommand '{potential_subcommand}'\n")
+            sys.stderr.write(f"Available subcommands: {available}\n")
             sys.exit(1)
         else:
             # Not a subcommand, parse with main Args class and run main app
             try:
-                from streetrace.args import Args
-
                 parser = tap.Parser(Args)
                 args = parser.parse_args(argv)
-                
+
                 if main_app_handler:
                     main_app_handler(args)
                 else:
                     logger.warning(
-                        "No main app handler provided for non-subcommand invocation"
+                        "No main app handler provided for non-subcommand invocation",
                     )
-            except SystemExit:
+            except SystemExit as e:
                 # typed_argparse calls sys.exit on parse errors or --help
-                # Let it propagate
-                raise
+                # We need to let it propagate to maintain expected CLI behavior
+                sys.exit(e.code)
 
     def _execute_subcommand(
         self, subcommand_name: str, subcommand_argv: list[str],
@@ -146,8 +143,8 @@ class SubcommandParser:
         subcommand = self.registry.get_subcommand(subcommand_name)
         if subcommand is None:
             available = ", ".join(self.registry.list_subcommands())
-            print(f"Error: Unknown subcommand '{subcommand_name}'")
-            print(f"Available subcommands: {available}")
+            sys.stderr.write(f"Error: Unknown subcommand '{subcommand_name}'\n")
+            sys.stderr.write(f"Available subcommands: {available}\n")
             sys.exit(1)
 
         try:
@@ -166,6 +163,6 @@ class SubcommandParser:
             # Let it propagate with the same exit code
             sys.exit(e.code)
         except Exception as e:
-            logger.exception(f"Error executing subcommand '{subcommand_name}': {e}")
-            print(f"Error executing subcommand '{subcommand_name}': {e}")
+            logger.exception("Error executing subcommand '%s'", subcommand_name)
+            sys.stderr.write(f"Error executing subcommand '{subcommand_name}': {e}\n")
             sys.exit(1)
