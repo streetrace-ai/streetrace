@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from streetrace.app import create_app
 from streetrace.args import Args
 from streetrace.log import get_logger, init_logging
-from streetrace.subcommands import (
+from streetrace.commands.subcommands import (
     ConfigureSubcommand,
     SubcommandParser,
     SubcommandRegistry,

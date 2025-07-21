@@ -57,7 +57,7 @@ class Args(tap.TypedArgs):
             return False
 
         # Import here to avoid circular imports
-        from streetrace.subcommands import SubcommandRegistry
+        from streetrace.commands.subcommands import SubcommandRegistry
         registry = SubcommandRegistry.instance()
         return self.command in registry.list_subcommands()
 

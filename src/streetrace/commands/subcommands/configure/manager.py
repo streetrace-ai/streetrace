@@ -1,4 +1,4 @@
-"""Configure command implementation."""
+"""Configuration management functionality."""
 
 import tomllib
 from abc import ABC, abstractmethod
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import toml
 
-from streetrace.args import Args
+from .args import ConfigureArgs
 
 
 class ConfigParameter(ABC):
@@ -61,7 +61,7 @@ class ModelParameter(ConfigParameter):
 class ConfigManager:
     """Manage TOML configuration files."""
 
-    def __init__(self, args: Args):
+    def __init__(self, args: ConfigureArgs):
         self.args = args
         self.global_config_path = Path.home() / ".streetrace" / "config.toml"
         self.local_config_path = args.working_dir / ".streetrace" / "config.toml"
@@ -146,41 +146,6 @@ class ConfigManager:
                     print(f"Invalid option. Please select 1-{len(self.parameters) + 4}.")
             except ValueError:
                 print(f"Invalid option. Please select 1-{len(self.parameters) + 4}.")
-
-
-def run_configure(args: Args) -> None:
-    """Run the configure command."""
-    config_manager = ConfigManager(args)
-
-    # Validate argument combinations
-    if args.show and not (args.global_ or args.local):
-        print("Error: --show requires either --global or --local")
-        show_usage()
-        return
-
-    if args.reset and not (args.global_ or args.local):
-        print("Error: --reset requires either --global or --local")
-        show_usage()
-        return
-
-    if args.global_ and args.local:
-        print("Error: Cannot specify both --global and --local")
-        show_usage()
-        return
-
-    if not (args.show or args.reset or args.global_ or args.local):
-        show_usage()
-        return
-
-    # Execute based on arguments
-    if args.show:
-        config_manager.show_config(args.global_)
-    elif args.reset:
-        config_manager.reset_config(args.global_)
-    elif args.global_:
-        config_manager.interactive_config(True)
-    elif args.local:
-        config_manager.interactive_config(False)
 
 
 def show_usage() -> None:
