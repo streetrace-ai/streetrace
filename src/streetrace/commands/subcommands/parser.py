@@ -97,7 +97,11 @@ class SubcommandParser:
         if not argv:
             if main_app_handler:
                 # We need to create empty args for the main app
-                empty_args = Args()
+                empty_args = Args(
+                    model=None,
+                    command=None,
+                    arbitrary_prompt=[],
+                )
                 main_app_handler(empty_args)
             return
 

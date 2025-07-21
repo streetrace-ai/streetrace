@@ -30,7 +30,8 @@ def load_model_from_config(args: Args) -> str | None:
             with local_config_path.open("rb") as f:
                 config = tomllib.load(f)
                 if "model" in config:
-                    return config["model"]
+                    model_value = config["model"]
+                    return str(model_value) if model_value is not None else None
         except (OSError, tomllib.TOMLDecodeError) as e:
             logger.debug("Failed to load local config: %s", e)
 
@@ -41,7 +42,8 @@ def load_model_from_config(args: Args) -> str | None:
             with global_config_path.open("rb") as f:
                 config = tomllib.load(f)
                 if "model" in config:
-                    return config["model"]
+                    model_value = config["model"]
+                    return str(model_value) if model_value is not None else None
         except (OSError, tomllib.TOMLDecodeError) as e:
             logger.debug("Failed to load global config: %s", e)
 

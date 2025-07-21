@@ -33,10 +33,9 @@ class Args(tap.TypedArgs):
         positional=True,
         nargs="?",
         help="Command to run (configure) or prompt text",
-        default=None,
     )
     prompt: str | None = tap.arg(help="Non-interactive prompt mode", default=None)
-    arbitrary_prompt: list[str] | None = tap.arg(
+    arbitrary_prompt: list[str] = tap.arg(
         positional=True,
         nargs="*",
         help="Additional prompt arguments",
@@ -53,7 +52,8 @@ class Args(tap.TypedArgs):
     version: bool = tap.arg(help="Show version and exit", default=False)
 
     def is_subcommand_invocation(
-        self, registry: SubcommandRegistry | None = None,
+        self,
+        registry: SubcommandRegistry | None = None,
     ) -> bool:
         """Check if this is a subcommand invocation.
 
@@ -72,6 +72,7 @@ class Args(tap.TypedArgs):
             from streetrace.commands.subcommands import (  # noqa: PLC0415
                 SubcommandRegistry,
             )
+
             registry = SubcommandRegistry.instance()
 
         return self.command in registry.list_subcommands()

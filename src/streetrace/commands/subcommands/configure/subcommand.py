@@ -1,6 +1,7 @@
 """Configure subcommand implementation."""
 
 import sys
+from typing import cast
 
 import typed_argparse as tap
 
@@ -31,41 +32,50 @@ class ConfigureSubcommand(BaseSubcommand):
         """Create the typed_argparse Args class for this subcommand."""
         return ConfigureArgs
 
-    def execute(self, args: ConfigureArgs) -> None:
+    def execute(self, args: tap.TypedArgs) -> None:
         """Execute the configure subcommand.
 
         Args:
             args: Parsed configure-specific arguments.
 
         """
-        config_manager = ConfigManager(args)
+        # Type cast since we know this will be ConfigureArgs from create_parser
+        configure_args = cast("ConfigureArgs", args)
+        config_manager = ConfigManager(configure_args)
 
         # Validate argument combinations
-        if args.show and not (args.global_ or args.local):
+        if configure_args.show and not (configure_args.global_ or configure_args.local):
             sys.stderr.write("Error: --show requires either --global or --local\n")
             show_usage()
             return
 
-        if args.reset and not (args.global_ or args.local):
+        if configure_args.reset and not (
+            configure_args.global_ or configure_args.local
+        ):
             sys.stderr.write("Error: --reset requires either --global or --local\n")
             show_usage()
             return
 
-        if args.global_ and args.local:
+        if configure_args.global_ and configure_args.local:
             sys.stderr.write("Error: Cannot specify both --global and --local\n")
             show_usage()
             return
 
-        if not (args.show or args.reset or args.global_ or args.local):
+        if not (
+            configure_args.show
+            or configure_args.reset
+            or configure_args.global_
+            or configure_args.local
+        ):
             show_usage()
             return
 
         # Execute based on arguments
-        if args.show:
-            config_manager.show_config(is_global=args.global_)
-        elif args.reset:
-            config_manager.reset_config(is_global=args.global_)
-        elif args.global_:
+        if configure_args.show:
+            config_manager.show_config(is_global=configure_args.global_)
+        elif configure_args.reset:
+            config_manager.reset_config(is_global=configure_args.global_)
+        elif configure_args.global_:
             config_manager.interactive_config(is_global=True)
-        elif args.local:
+        elif configure_args.local:
             config_manager.interactive_config(is_global=False)

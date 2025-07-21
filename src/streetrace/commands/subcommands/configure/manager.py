@@ -24,15 +24,15 @@ class ConfigParameter(ABC):
         """Human-readable parameter name."""
 
     @abstractmethod
-    def get_value(self, config: dict) -> str:
+    def get_value(self, config: dict[str, str]) -> str:
         """Get current value from config."""
 
     @abstractmethod
-    def set_value(self, config: dict) -> None:
+    def set_value(self, config: dict[str, str]) -> None:
         """Interactive value setting."""
 
     @abstractmethod
-    def clear_value(self, config: dict) -> None:
+    def clear_value(self, config: dict[str, str]) -> None:
         """Clear value from config."""
 
 
@@ -49,11 +49,11 @@ class ModelParameter(ConfigParameter):
         """Human-readable parameter name."""
         return "Model"
 
-    def get_value(self, config: dict) -> str:
+    def get_value(self, config: dict[str, str]) -> str:
         """Get current value from config."""
         return config.get("model", "Not set")
 
-    def set_value(self, config: dict) -> None:
+    def set_value(self, config: dict[str, str]) -> None:
         """Interactive value setting."""
         model = input(
             "Enter model name (e.g., anthropic/claude-3-5-sonnet-20241022): ",
@@ -61,7 +61,7 @@ class ModelParameter(ConfigParameter):
         if model:
             config["model"] = model
 
-    def clear_value(self, config: dict) -> None:
+    def clear_value(self, config: dict[str, str]) -> None:
         """Clear value from config."""
         config.pop("model", None)
 
@@ -81,15 +81,17 @@ class ConfigManager:
         self.local_config_path = args.working_dir / ".streetrace" / "config.toml"
         self.parameters = [ModelParameter()]
 
-    def load_config(self, *, is_global: bool) -> dict:
+    def load_config(self, *, is_global: bool) -> dict[str, str]:
         """Load configuration from TOML file."""
         config_path = self.global_config_path if is_global else self.local_config_path
         if config_path.exists():
             with config_path.open("rb") as f:
-                return tomllib.load(f)
+                loaded_config = tomllib.load(f)
+                # Convert to dict[str, str] for type safety
+                return {k: str(v) for k, v in loaded_config.items()}
         return {}
 
-    def save_config(self, config: dict, *, is_global: bool) -> None:
+    def save_config(self, config: dict[str, str], *, is_global: bool) -> None:
         """Save configuration to TOML file."""
         config_path = self.global_config_path if is_global else self.local_config_path
         config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -165,7 +167,7 @@ class ConfigManager:
     def _handle_menu_choice(
         self,
         choice_num: int,
-        config: dict,
+        config: dict[str, str],
         scope: str,
         *,
         is_global: bool,
@@ -189,14 +191,14 @@ class ConfigManager:
             self._show_invalid_option_message(max_options)
         return False
 
-    def _show_current_settings(self, config: dict) -> None:
+    def _show_current_settings(self, config: dict[str, str]) -> None:
         """Show current configuration settings."""
         sys.stdout.write("\nCurrent Settings:\n")
         for param in self.parameters:
             value = param.get_value(config)
             sys.stdout.write(f"  {param.display_name}: {value}\n")
 
-    def _clear_all_settings(self, config: dict) -> None:
+    def _clear_all_settings(self, config: dict[str, str]) -> None:
         """Clear all configuration settings with confirmation."""
         confirm = input("Clear all settings? (y/N): ").strip().lower()
         if confirm == "y":
