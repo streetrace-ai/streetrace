@@ -1,0 +1,56 @@
+{
+  "name": "StreetRace🚗💨 Development Environment",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".",
+    "target": "development"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "workspaceFolder": "/workspace",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.mypy-type-checker",
+        "charliermarsh.ruff",
+        "ms-vscode.vscode-json",
+        "tamasfe.even-better-toml",
+        "DavidAnson.vscode-markdownlint"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "python",
+        "python.terminal.activateEnvironment": false,
+        "python.analysis.typeCheckingMode": "strict",
+        "python.analysis.autoSearchPaths": true,
+        "[python]": {
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "always"
+          },
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/.pytest_cache": true,
+          "**/.mypy_cache": true,
+          "**/.ruff_cache": true,
+          "**/.coverage": true,
+          "**/htmlcov": true,
+          "**/.venv": true
+        },
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "git.autofetch": true,
+        "git.enableSmartCommit": true,
+        "editor.rulers": [88],
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "makefile.configureOnOpen": true
+      }
+    }
+  },
+  "postCreateCommand": "cat /workspace/.devcontainer/.bashrc >> ~/.bashrc && cat /workspace/.devcontainer/.bash_aliases >> ~/.bashrc && export POETRY_VIRTUALENVS_IN_PROJECT=false && export POETRY_VIRTUALENVS_PATH=/home/devuser/.cache/pypoetry/virtualenvs && poetry install",
+  "forwardPorts": [],
+  "remoteUser": "devuser",
+  "containerUser": "devuser",
+  "updateRemoteUserUID": true
+}

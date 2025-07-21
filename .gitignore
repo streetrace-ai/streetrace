@@ -175,4 +175,8 @@ cython_debug/
 
 # local temp dir
 /tmp
+
+# Local Streetrace config
 .streetrace/config.toml
+
+.devcontainer/.bash_history
