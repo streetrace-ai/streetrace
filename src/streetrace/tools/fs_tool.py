@@ -168,11 +168,18 @@ def write_file(
             work_dir,
         ),
     )
-    
-    # If content is empty, add guidance for using append_to_file with specific chunk sizes
+
+    # If content is empty, add guidance for using append_to_file with specific
+    # chunk sizes
     if not content and result.get("result") == "success":
-        result["output"] = f"Empty file created at '{path}'. Use append_to_file to add content in manageable chunks. IMPORTANT: Keep each append_to_file call under 6000 tokens (~4500 words) to avoid hitting output limits. For very large files, break content into multiple smaller append_to_file calls."
-    
+        result["output"] = (
+            f"Empty file created at '{path}'. Use append_to_file to add content "
+            "in manageable chunks. IMPORTANT: Keep each append_to_file call "
+            "under 6000 tokens (~4500 words) to avoid hitting output limits. "
+            "For very large files, break content into multiple smaller "
+            "append_to_file calls."
+        )
+
     return result
 
 
@@ -184,7 +191,8 @@ def append_to_file(
     """Append content to an existing file or create a new file if it doesn't exist.
 
     Args:
-        path (str): The path to the file to append to, relative to the working directory.
+        path (str): The path to the file to append to, relative to the working
+            directory.
         content (str): Content to append to the file.
         work_dir (str): The working directory.
 

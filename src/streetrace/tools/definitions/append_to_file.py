@@ -18,7 +18,8 @@ def append_to_file(
     """Append content to an existing file or create a new file if it doesn't exist.
 
     Args:
-        path (str): The path to the file to append to, relative to the working directory.
+        path (str): The path to the file to append to, relative to the working
+            directory.
         content (str): Content to append to the file.
         work_dir (str): The working directory.
 
