@@ -31,6 +31,9 @@ _DEFAULT_TOOLS = [
         name="write_file",
     ),
     ToolInfo(
+        name="append_to_file",
+    ),
+    ToolInfo(
         name="create_directory",
     ),
     ToolInfo(
