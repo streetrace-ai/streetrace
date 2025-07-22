@@ -1,4 +1,4 @@
-"""Tests for enhanced write_file and append_to_file functionality."""
+"""Tests for write_file and append_to_file functionality."""
 
 from pathlib import Path
 
@@ -6,8 +6,8 @@ from streetrace.tools.definitions.result import OpResultCode
 from streetrace.tools.fs_tool import append_to_file, write_file
 
 
-class TestWriteFileEnhanced:
-    """Test enhanced write_file functionality with empty content handling."""
+class TestWriteFileWithEmptyContent:
+    """Test write_file functionality with empty content handling."""
 
     def test_write_file_with_content(self, work_dir: Path) -> None:
         """Test write_file with normal content."""
