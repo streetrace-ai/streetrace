@@ -10,6 +10,7 @@ sanitization and validation to prevent unauthorized access.
 from pathlib import Path
 from typing import Any
 
+import streetrace.tools.definitions.append_to_file as af
 import streetrace.tools.definitions.create_directory as c
 import streetrace.tools.definitions.find_in_files as s
 import streetrace.tools.definitions.list_directory as rds
@@ -138,17 +139,18 @@ def read_file(
 
 def write_file(
     path: str,
-    content: str,
     work_dir: Path,
+    content: str = "",
 ) -> dict[str, Any]:
     """Create or overwrite a file with content encoded as utf-8.
 
     For python scripts, checks python syntax before writing and outputs syntax errors
-    if present.
+    if present. If content is empty, creates an empty file and returns guidance to
+    use append_to_file for adding content in chunks.
 
     Args:
         path (str): The path to the file to write, relative to the working directory.
-        content (str): Content to write to the file.
+        content (str): Content to write to the file. Defaults to empty string.
         work_dir (str): The working directory.
 
     Returns:
@@ -156,10 +158,53 @@ def write_file(
             "tool_name": "write_file"
             "result": "success" or "failure"
             "error": error message if there was an error writing to the file
+            "output": guidance message if empty file was created
+
+    """
+    result = dict(
+        wf.write_utf8_file(
+            _clean_path(path),
+            content,
+            work_dir,
+        ),
+    )
+
+    # If content is empty, add guidance for using append_to_file with specific
+    # chunk sizes
+    if not content and result.get("result") == "success":
+        result["output"] = (
+            f"Empty file created at '{path}'. Use append_to_file to add content "
+            "in manageable chunks. IMPORTANT: Keep each append_to_file call "
+            "under 6000 tokens (~4500 words) to avoid hitting output limits. "
+            "For very large files, break content into multiple smaller "
+            "append_to_file calls."
+        )
+
+    return result
+
+
+def append_to_file(
+    path: str,
+    content: str,
+    work_dir: Path,
+) -> dict[str, Any]:
+    """Append content to an existing file or create a new file if it doesn't exist.
+
+    Args:
+        path (str): The path to the file to append to, relative to the working
+            directory.
+        content (str): Content to append to the file.
+        work_dir (str): The working directory.
+
+    Returns:
+        dict[str,Any]:
+            "tool_name": "append_to_file"
+            "result": "success" or "failure"
+            "error": error message if there was an error appending to the file
 
     """
     return dict(
-        wf.write_utf8_file(
+        af.append_to_file(
             _clean_path(path),
             content,
             work_dir,
