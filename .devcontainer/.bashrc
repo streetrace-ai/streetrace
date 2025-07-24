@@ -54,8 +54,7 @@ case "$TERM" in
         ;;
 esac
 
-export POETRY_VIRTUALENVS_IN_PROJECT=false
-export POETRY_VIRTUALENVS_PATH=/home/devuser/.cache/pypoetry/virtualenvs
+export POETRY_VIRTUALENVS_IN_PROJECT=true
 
 # Welcome message
 echo "🚗💨 Welcome to StreetRace Development Environment!"
