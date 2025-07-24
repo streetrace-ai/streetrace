@@ -63,3 +63,4 @@ class UserInput(_Str):
 @register_renderer
 def render_user_input(obj: UserInput, console: Console) -> None:
     console.print(f"{_PROMPT} {obj}", style=Styles.RICH_PROMPT)
+    console.print()  # Add blank line for visual separation

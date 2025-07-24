@@ -1,4 +1,3 @@
-# ruff: noqa: W293, W291
 """Orchestrate the StreetRace🚗💨 application flow and manage component interactions.
 
 This module contains the Application class which serves as the central
@@ -172,7 +171,10 @@ Enjoy the ride! 🏁
         while True:
             try:
                 user_input = await self.ui.prompt_async()
+                # Add visual separation around user input
+                self.ui_bus.dispatch_ui_update(ui_events.Info(""))
                 await self._process_input(user_input)
+                self.ui_bus.dispatch_ui_update(ui_events.Info(""))
             except (EOFError, SystemExit):
                 self.ui_bus.dispatch_ui_update(ui_events.Info("\nLeaving..."))
                 raise
