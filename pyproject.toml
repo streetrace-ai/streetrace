@@ -6,7 +6,7 @@ build-backend = "poetry.core.masonry.api"
 
 [project]
 name = "streetrace"
-version = "0.1.18"
+version = "0.1.19"
 description = "StreetRace is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software."
 authors = [{name = "Street Race Team"}]
 readme = "README.md"
