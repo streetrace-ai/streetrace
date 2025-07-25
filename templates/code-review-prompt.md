@@ -7,8 +7,15 @@ You are conducting a code review for a GitHub pull request. You must analyze the
 1. First, run `git diff main...HEAD --unified=3` to see all changes in the PR with line numbers
 2. For each changed file, also run `git diff main...HEAD <filename>` to get precise line context
 3. Analyze each changed file for issues
-4. For each issue found, identify the exact file path and line number from the NEW file (after changes)
-5. Categorize issues by severity: error, warning, or notice
+4. Look specifically for:
+   - Code duplication or repetition within the changes
+   - Similar patterns that could be abstracted into functions
+   - Hard-coded values that appear multiple times
+   - Repeated logic that violates DRY (Don't Repeat Yourself) principle
+   - Opportunities to parameterize configuration values
+   - Common patterns that could use existing utilities or libraries
+5. For each issue found, identify the exact file path and line number from the NEW file (after changes)
+6. Categorize issues by severity: error, warning, or notice
 
 ## Output Format
 
@@ -68,12 +75,18 @@ Format the same information as a readable markdown report for developers.
 - Missing tests
 - Technical debt
 - Deprecated usage
+- Significant code duplication (e.g., copy-pasted functions)
+- Violations of DRY principle
 
 ### Notice (Consider fixing)
 - Style violations
 - Minor optimizations
 - Documentation improvements
 - Refactoring opportunities
+- Code that could be extracted into reusable functions
+- Hard-coded values that should be parameterized
+- Repeated patterns that could use loops or higher-order functions
+- Similar code blocks that could be consolidated
 
 ## Important Requirements
 
@@ -84,8 +97,9 @@ Format the same information as a readable markdown report for developers.
 5. Include positive feedback for good practices
 6. Keep messages concise but informative
 
-## Example Issue
+## Example Issues
 
+### Security Issue
 ```json
 {
   "severity": "error",
@@ -95,5 +109,30 @@ Format the same information as a readable markdown report for developers.
   "title": "SQL Injection Vulnerability",
   "message": "User input is directly concatenated into SQL query. Use parameterized queries instead: cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))",
   "category": "security"
+}
+```
+
+### Code Duplication Issue
+```json
+{
+  "severity": "warning",
+  "file": "src/utils/validators.py",
+  "line": 45,
+  "end_line": 67,
+  "title": "Duplicate Validation Logic",
+  "message": "This email validation logic is duplicated from lines 12-34. Extract into a shared validate_email() function to follow DRY principle",
+  "category": "quality"
+}
+```
+
+### Parameterization Opportunity
+```json
+{
+  "severity": "notice",
+  "file": "src/config/settings.py",
+  "line": 89,
+  "title": "Hard-coded Configuration Value",
+  "message": "The timeout value '30' is hard-coded in multiple places (lines 89, 134, 201). Consider extracting to a DEFAULT_TIMEOUT constant",
+  "category": "quality"
 }
 ```
