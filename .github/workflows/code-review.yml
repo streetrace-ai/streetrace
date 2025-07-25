@@ -2,7 +2,7 @@ name: AI Code Review
 
 on:
   pull_request:
-    types: [review_requested]
+    types: [opened, synchronize]
 
 jobs:
   ai-code-review:
