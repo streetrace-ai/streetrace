@@ -106,9 +106,25 @@ run_review() {
     local timestamp=$(date +"%Y%m%d_%H%M%S")
     local report_file="code-reviews/${timestamp}.md"
     
+    # Extract additional prompt from comment if available
+    local additional_prompt=""
+    if [ -n "${COMMENT_BODY:-}" ]; then
+        # Extract everything after "#streetrace review"
+        additional_prompt=$(echo "$COMMENT_BODY" | sed -n 's/.*#streetrace review\s*//p' | sed 's/^[[:space:]]*//')
+        if [ -n "$additional_prompt" ]; then
+            print_status "Additional instructions: $additional_prompt"
+        fi
+    fi
+    
     # Use non-interactive mode with --prompt parameter
     # Reference the github-code-review.md file and instruct to save the report
-    local review_prompt="Please conduct a code review following the instructions in @templates/github-code-review.md. Analyze the git diff between the current branch and main branch to identify the changes that need review. After completing the review, save your detailed report to the file: $report_file"
+    local base_prompt="Please conduct a code review following the instructions in @templates/github-code-review.md. Analyze the git diff between the current branch and main branch to identify the changes that need review."
+    
+    if [ -n "$additional_prompt" ]; then
+        local review_prompt="$base_prompt Additional instructions: $additional_prompt. After completing the review, save your detailed report to the file: $report_file"
+    else
+        local review_prompt="$base_prompt After completing the review, save your detailed report to the file: $report_file"
+    fi
     
     # Capture output to check for timeout errors
     local temp_output="/tmp/streetrace_output.txt"
