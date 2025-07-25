@@ -41,12 +41,24 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
 fi
 
 # Default model - user can override with environment variable
+# Use gpt-4o-mini for speed, can override with STREETRACE_MODEL
 MODEL="${STREETRACE_MODEL:-openai/gpt-4o-mini}"
+
+# For GitHub Actions, prefer faster model to avoid timeouts
+if [ -n "${GITHUB_ACTIONS:-}" ] && [ -z "${STREETRACE_MODEL:-}" ]; then
+    MODEL="openai/gpt-4o-mini"
+    print_status "Using fast model for GitHub Actions: $MODEL"
+fi
 
 # Set timeout for GitHub Actions environment (in seconds)
 # LiteLLM uses this for HTTP client timeouts
-export HTTPX_TIMEOUT="${HTTPX_TIMEOUT:-300}"
-export REQUEST_TIMEOUT="${REQUEST_TIMEOUT:-300}"
+# Default to 10 minutes for complex reviews
+export HTTPX_TIMEOUT="${HTTPX_TIMEOUT:-600}"
+export REQUEST_TIMEOUT="${REQUEST_TIMEOUT:-600}"
+export LITELLM_REQUEST_TIMEOUT="${LITELLM_REQUEST_TIMEOUT:-600}"
+
+# StreetRace specific timeout (in milliseconds)
+export STREETRACE_TIMEOUT="${STREETRACE_TIMEOUT:-600000}"
 
 
 # Check prerequisites
@@ -95,12 +107,19 @@ check_for_changes() {
 # Run code review
 run_review() {
     print_status "Running AI code review with model: $MODEL"
+    print_status "Timeout: ${HTTPX_TIMEOUT}s ($(($HTTPX_TIMEOUT / 60)) minutes)"
     print_status "This may take a moment..."
     
     cd "$PROJECT_ROOT"
     
     # Create code-reviews directory if it doesn't exist
     mkdir -p "$PROJECT_ROOT/code-reviews"
+    
+    # Log environment for debugging
+    print_status "Environment settings:"
+    print_status "  HTTPX_TIMEOUT: $HTTPX_TIMEOUT"
+    print_status "  REQUEST_TIMEOUT: $REQUEST_TIMEOUT"
+    print_status "  STREETRACE_TIMEOUT: $STREETRACE_TIMEOUT"
     
     # Generate timestamp for the report filename
     local timestamp=$(date +"%Y%m%d_%H%M%S")
