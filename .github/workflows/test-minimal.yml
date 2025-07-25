@@ -1,0 +1,12 @@
+name: Minimal Test
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Echo test
+        run: echo "Hello from GitHub Actions"
