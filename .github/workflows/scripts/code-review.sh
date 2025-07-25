@@ -107,10 +107,6 @@ run_review() {
     local markdown_file="code-reviews/${timestamp}.md"
     local json_file="code-reviews/${timestamp}_structured.json"
     
-    # Extract the diff first to help the AI
-    print_status "Extracting PR diff for analysis..."
-    "$PROJECT_ROOT/scripts/extract-diff.sh" "/tmp/pr-diff-${timestamp}.txt"
-    
     # Use non-interactive mode with --prompt parameter
     # Reference the new structured review prompt
     local review_prompt="Please conduct a code review following the instructions in @templates/code-review-prompt.md. The timestamp for your output files is: ${timestamp}. First analyze the git diff between the current branch and main branch to identify all changes. Then create both the structured JSON file at $json_file and the markdown report at $markdown_file as specified in the instructions."

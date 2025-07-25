@@ -4,10 +4,11 @@ You are conducting a code review for a GitHub pull request. You must analyze the
 
 ## Analysis Steps
 
-1. First, run `git diff main...HEAD` to see all changes in the PR
-2. Analyze each changed file for issues
-3. For each issue found, identify the exact file path and line number
-4. Categorize issues by severity: error, warning, or notice
+1. First, run `git diff main...HEAD --unified=3` to see all changes in the PR with line numbers
+2. For each changed file, also run `git diff main...HEAD <filename>` to get precise line context
+3. Analyze each changed file for issues
+4. For each issue found, identify the exact file path and line number from the NEW file (after changes)
+5. Categorize issues by severity: error, warning, or notice
 
 ## Output Format
 
