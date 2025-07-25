@@ -58,6 +58,7 @@ jobs:
           echo "diff-size=$(wc -c < /tmp/pr-diff.txt)" >> $GITHUB_OUTPUT
 
       - name: Check diff size
+        id: check-size
         run: |
           DIFF_SIZE=${{ steps.extract-diff.outputs.diff-size }}
           if [ "$DIFF_SIZE" -gt 100000 ]; then
@@ -66,7 +67,6 @@ jobs:
             exit 0
           fi
           echo "large-diff=false" >> $GITHUB_OUTPUT
-        id: check-size
 
       - name: Run AI Code Review
         if: steps.check-size.outputs.large-diff != 'true'
@@ -98,17 +98,31 @@ jobs:
           # Prepare the review context
           DIFF_CONTENT=$(cat /tmp/pr-diff.txt)
           
+          # Create review prompt with embedded variables using Python
+          python3 -c "
+import os
+with open('templates/github-review-prompt.md', 'r') as f:
+    template = f.read()
+
+with open('/tmp/pr-diff.txt', 'r') as f:
+    pr_diff = f.read()
+
+# Substitute variables
+template = template.replace('\${PR_NUMBER}', os.environ.get('PR_NUMBER', ''))
+template = template.replace('\${PR_TITLE}', os.environ.get('PR_TITLE', ''))
+template = template.replace('\${PR_AUTHOR}', os.environ.get('PR_AUTHOR', ''))
+template = template.replace('\${BASE_BRANCH}', os.environ.get('BASE_BRANCH', ''))
+template = template.replace('\${HEAD_BRANCH}', os.environ.get('HEAD_BRANCH', ''))
+template = template.replace('\${PR_DIFF}', pr_diff)
+
+with open('/tmp/review-prompt.md', 'w') as f:
+    f.write(template)
+"
+          
           # Run the AI review
           poetry run streetrace \
             --model="$MODEL" \
-            --non-interactive \
-            --prompt="$(cat templates/github-review-prompt.md)" \
-            --context="PR_DIFF=$DIFF_CONTENT" \
-            --context="PR_NUMBER=$PR_NUMBER" \
-            --context="PR_TITLE=$PR_TITLE" \
-            --context="PR_AUTHOR=$PR_AUTHOR" \
-            --context="BASE_BRANCH=$BASE_BRANCH" \
-            --context="HEAD_BRANCH=$HEAD_BRANCH" \
+            --prompt="$(cat /tmp/review-prompt.md)" \
             > /tmp/review-output.txt 2>&1
           
           # Extract clean AI response
