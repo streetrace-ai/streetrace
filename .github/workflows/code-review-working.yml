@@ -21,6 +21,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr comment ${{ github.event.pull_request.number }} --body "🤖 **AI Code Review Working!**
-
-Basic workflow functionality confirmed ✅"
+          gh pr comment ${{ github.event.pull_request.number }} --body "🤖 **AI Code Review Working!** - Basic workflow functionality confirmed ✅"
