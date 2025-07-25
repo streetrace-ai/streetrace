@@ -144,7 +144,6 @@ EOF
         if: steps.check-size.outputs.large-diff == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           # Create large diff notice comment
           cat > /tmp/large-diff-notice.txt << 'EOF'
