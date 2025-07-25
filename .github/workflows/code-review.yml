@@ -98,26 +98,11 @@ jobs:
           # Prepare the review context
           DIFF_CONTENT=$(cat /tmp/pr-diff.txt)
           
-          # Create review prompt with embedded variables using Python
-          python3 -c "
-import os
-with open('templates/github-review-prompt.md', 'r') as f:
-    template = f.read()
-
-with open('/tmp/pr-diff.txt', 'r') as f:
-    pr_diff = f.read()
-
-# Substitute variables
-template = template.replace('\${PR_NUMBER}', os.environ.get('PR_NUMBER', ''))
-template = template.replace('\${PR_TITLE}', os.environ.get('PR_TITLE', ''))
-template = template.replace('\${PR_AUTHOR}', os.environ.get('PR_AUTHOR', ''))
-template = template.replace('\${BASE_BRANCH}', os.environ.get('BASE_BRANCH', ''))
-template = template.replace('\${HEAD_BRANCH}', os.environ.get('HEAD_BRANCH', ''))
-template = template.replace('\${PR_DIFF}', pr_diff)
-
-with open('/tmp/review-prompt.md', 'w') as f:
-    f.write(template)
-"
+          # Create review prompt with embedded variables
+          python3 scripts/substitute-variables.py \
+            templates/github-review-prompt.md \
+            /tmp/pr-diff.txt \
+            /tmp/review-prompt.md
           
           # Run the AI review
           poetry run streetrace \
