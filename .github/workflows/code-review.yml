@@ -122,12 +122,20 @@ jobs:
           
           if [ -f "/tmp/clean-review.txt" ]; then
             REVIEW_CONTENT=$(cat /tmp/clean-review.txt)
-            gh pr comment ${{ github.event.pull_request.number }} --body "🤖 **AI Code Review**
+            
+            # Create comment body in a temporary file to handle multi-line content
+            cat > /tmp/comment-body.txt << 'EOF'
+🤖 **AI Code Review**
 
-$REVIEW_CONTENT
+EOF
+            cat /tmp/clean-review.txt >> /tmp/comment-body.txt
+            cat >> /tmp/comment-body.txt << 'EOF'
 
 ---
-*This review was generated automatically using StreetRace AI. Please use your judgment when addressing the feedback.*"
+*This review was generated automatically using StreetRace AI. Please use your judgment when addressing the feedback.*
+EOF
+            
+            gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/comment-body.txt
           else
             echo "No review content found, skipping comment."
           fi
@@ -138,22 +146,21 @@ $REVIEW_CONTENT
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
-          COMMENT="🤖 **AI Code Review Skipped**
+          # Create large diff notice comment
+          cat > /tmp/large-diff-notice.txt << 'EOF'
+🤖 **AI Code Review Skipped**
 
-This PR contains a large diff (${{ steps.extract-diff.outputs.diff-size }} bytes) that would exceed reasonable token limits for AI review.
+This PR contains a large diff that would exceed reasonable token limits for AI review.
 
 Consider:
 - Breaking this PR into smaller, focused changes
-- Running local code review using \`./scripts/code-review-poc.sh\`
+- Running local code review using `./scripts/code-review-poc.sh`
 - Focusing the review on specific files or components
 
-You can still run manual review with:
-\`\`\`bash
-git checkout ${{ github.event.pull_request.head.ref }}
-./scripts/code-review-poc.sh
-\`\`\`"
-
-          gh pr comment $PR_NUMBER --body "$COMMENT"
+You can still run manual review locally with the POC script.
+EOF
+          
+          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/large-diff-notice.txt
 
       - name: Archive review results
         if: always()
