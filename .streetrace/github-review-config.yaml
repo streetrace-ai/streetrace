@@ -1,0 +1,307 @@
+# GitHub Actions Code Review Configuration
+# This file configures the AI-powered code review workflow for GitHub pull requests
+
+# Review Behavior Configuration
+review:
+  # Enable/disable the AI code review workflow
+  enabled: true
+  
+  # Skip review for these PR types/conditions
+  skip_conditions:
+    # Skip dependabot PRs to avoid unnecessary API usage
+    - author: "dependabot[bot]"
+    # Skip draft PRs
+    - draft: true
+    # Skip PRs with specific labels
+    - labels: ["skip-review", "no-review", "wip"]
+    # Skip very large PRs (number of changed files)
+    - max_files: 50
+    # Skip PRs that only change documentation
+    - only_paths: ["*.md", "docs/**", "README*"]
+
+  # File filtering configuration
+  file_filters:
+    # Include these file patterns for review (empty means include all)
+    include:
+      - "*.py"
+      - "*.js"
+      - "*.ts"
+      - "*.jsx"
+      - "*.tsx"
+      - "*.go"
+      - "*.rs"
+      - "*.java"
+      - "*.cpp"
+      - "*.c"
+      - "*.h"
+      - "*.php"
+      - "*.rb"
+      - "*.sh"
+      - "*.sql"
+      - "*.yaml"
+      - "*.yml"
+      - "*.json"
+      - "*.dockerfile"
+      - "Dockerfile*"
+      - "*.toml"
+      - "*.cfg"
+      - "*.ini"
+    
+    # Exclude these file patterns from review
+    exclude:
+      - "*.md"
+      - "*.txt"
+      - "*.log"
+      - "*.lock"
+      - "*.sum"
+      - "*.mod"
+      - "*.png"
+      - "*.jpg"
+      - "*.jpeg"
+      - "*.gif"
+      - "*.svg"
+      - "*.ico"
+      - "*.pdf"
+      - "*.zip"
+      - "*.tar"
+      - "*.gz"
+      - "node_modules/**"
+      - "dist/**"
+      - "build/**"
+      - "coverage/**"
+      - ".git/**"
+      - ".pytest_cache/**"
+      - "__pycache__/**"
+      - "*.pyc"
+      - ".venv/**"
+      - "venv/**"
+      - "vendor/**"
+      - "target/**"
+      - ".cargo/**"
+
+  # Size limits
+  limits:
+    # Maximum diff size in bytes (100KB)
+    max_diff_size: 100000
+    # Maximum number of files in a single review
+    max_files: 30
+    # Maximum lines of code to review
+    max_lines: 2000
+
+# AI Model Configuration
+ai:
+  # Primary model selection (fallback order)
+  models:
+    primary: "anthropic/claude-3-5-sonnet-20241022"
+    fallback:
+      - "openai/gpt-4o"
+      - "openai/gpt-4o-mini"
+      - "google/gemini-1.5-pro"
+      - "google/gemini-1.5-flash"
+  
+  # Model-specific settings
+  settings:
+    # Temperature for response randomness (0.0 = deterministic, 1.0 = creative)
+    temperature: 0.1
+    # Maximum tokens for the review response
+    max_tokens: 4000
+    # Timeout for AI requests (seconds)
+    timeout: 60
+
+# Review Focus Configuration
+focus:
+  # Security review settings
+  security:
+    enabled: true
+    priority: "critical"
+    checks:
+      - "secrets_detection"
+      - "injection_vulnerabilities"
+      - "authentication_flaws"
+      - "authorization_issues"
+      - "cryptographic_weaknesses"
+      - "input_validation"
+      - "path_traversal"
+    
+  # Performance review settings
+  performance:
+    enabled: true
+    priority: "high"
+    checks:
+      - "algorithmic_complexity"
+      - "memory_leaks"
+      - "database_queries"
+      - "caching_strategies"
+      - "async_patterns"
+      - "resource_usage"
+    
+  # Code quality review settings
+  quality:
+    enabled: true
+    priority: "medium"
+    checks:
+      - "readability"
+      - "maintainability"
+      - "error_handling"
+      - "code_organization"
+      - "naming_conventions"
+      - "documentation"
+      - "code_duplication"
+    
+  # Testing review settings
+  testing:
+    enabled: true
+    priority: "medium"
+    checks:
+      - "test_coverage"
+      - "edge_cases"
+      - "integration_tests"
+      - "mock_usage"
+      - "test_organization"
+    
+  # Technical debt review settings
+  technical_debt:
+    enabled: true
+    priority: "low"
+    checks:
+      - "refactoring_opportunities"
+      - "deprecated_usage"
+      - "unused_code"
+      - "complexity_reduction"
+
+# Comment Behavior Configuration
+comments:
+  # Comment posting strategy
+  strategy: "update_existing"  # Options: "new_each_time", "update_existing", "threaded"
+  
+  # Comment formatting
+  format:
+    # Include PR context in comment
+    include_context: true
+    # Use emoji in comments
+    use_emojis: true
+    # Maximum comment length (GitHub limit is ~65k)
+    max_length: 60000
+    # Truncate long reviews
+    truncate_long_reviews: true
+  
+  # Comment filtering
+  filter:
+    # Minimum priority level to include in comments
+    min_priority: "medium"  # Options: "critical", "high", "medium", "low"
+    # Include positive feedback
+    include_positive: true
+    # Group similar issues
+    group_similar: true
+
+# Notification Configuration
+notifications:
+  # Notify on review completion
+  on_completion: true
+  # Notify on critical issues found
+  on_critical_issues: true
+  # Notify on review failures
+  on_failure: true
+
+# Integration Configuration
+integrations:
+  # GitHub-specific settings
+  github:
+    # Auto-approve PRs with no issues (careful!)
+    auto_approve_clean: false
+    # Request changes for critical issues
+    request_changes_on_critical: false
+    # Add labels based on review results
+    add_labels: false
+    label_mapping:
+      critical_issues: "needs-security-review"
+      performance_issues: "performance"
+      quality_issues: "code-quality"
+      clean: "ai-approved"
+  
+  # Slack integration (if configured)
+  slack:
+    enabled: false
+    webhook_url: ""
+    channels:
+      critical: "#security-alerts"
+      general: "#code-review"
+
+# Advanced Configuration
+advanced:
+  # Retry configuration
+  retry:
+    # Number of retry attempts for failed requests
+    max_attempts: 3
+    # Backoff strategy: "linear", "exponential"
+    backoff_strategy: "exponential"
+    # Base delay between retries (seconds)
+    base_delay: 5
+  
+  # Caching configuration
+  cache:
+    # Enable response caching for similar diffs
+    enabled: false
+    # Cache expiration time (hours)
+    expiration: 24
+  
+  # Rate limiting
+  rate_limit:
+    # Maximum requests per minute
+    requests_per_minute: 10
+    # Burst allowance
+    burst_limit: 5
+  
+  # Debug and logging
+  debug:
+    # Enable debug mode
+    enabled: false
+    # Log level: "debug", "info", "warning", "error"
+    log_level: "info"
+    # Save debug artifacts
+    save_artifacts: true
+
+# Custom Templates (optional)
+templates:
+  # Override default review prompt template
+  review_prompt: "templates/github-review-prompt.md"
+  
+  # Custom templates for specific scenarios
+  security_focused: "templates/security-review-prompt.md"
+  performance_focused: "templates/performance-review-prompt.md"
+  
+  # Comment templates
+  comment_header: |
+    🤖 **AI Code Review** - Generated by StreetRace
+    
+  comment_footer: |
+    
+    ---
+    *This review was generated automatically. Please use your judgment when addressing the feedback.*
+
+# Environment-specific overrides
+environments:
+  development:
+    review:
+      enabled: true
+    ai:
+      models:
+        primary: "openai/gpt-4o-mini"  # Use cheaper model for dev
+  
+  staging:
+    review:
+      enabled: true
+    focus:
+      security:
+        priority: "critical"
+  
+  production:
+    review:
+      enabled: true
+    focus:
+      security:
+        priority: "critical"
+      performance:
+        priority: "critical"
+    notifications:
+      on_critical_issues: true
