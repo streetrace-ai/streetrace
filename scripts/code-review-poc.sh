@@ -155,16 +155,44 @@ run_review() {
     fi
 }
 
+# Extract only AI response from StreetRace output
+extract_ai_response() {
+    # Extract text between "StreetRace:" and warning messages
+    # First get everything from "StreetRace:" onwards
+    sed -n '/^StreetRace:$/,$p' "$OUTPUT_FILE" | \
+        # Remove the "StreetRace:" line itself
+        tail -n +2 | \
+        # Stop at warning messages (remove everything from Warning onwards)
+        sed '/^Warning:/,$d' | \
+        # Remove leading whitespace
+        sed 's/^[[:space:]]*//'
+}
+
 # Display results
 display_results() {
     print_status "Code Review Results:"
     echo "=================================="
-    cat "$OUTPUT_FILE"
+    
+    # Extract and display only the AI response
+    local ai_response
+    ai_response=$(extract_ai_response)
+    
+    if [ -n "$ai_response" ]; then
+        echo "$ai_response"
+    else
+        print_warning "Could not extract AI response, showing full output:"
+        cat "$OUTPUT_FILE"
+    fi
+    
     echo "=================================="
     
-    # Save results to project directory
+    # Save cleaned results to project directory
     local results_file="$PROJECT_ROOT/code-review-$(date +%Y%m%d-%H%M%S).md"
-    cp "$OUTPUT_FILE" "$results_file"
+    if [ -n "$ai_response" ]; then
+        echo "$ai_response" > "$results_file"
+    else
+        cp "$OUTPUT_FILE" "$results_file"
+    fi
     print_success "Results saved to: $results_file"
 }
 
