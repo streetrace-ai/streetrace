@@ -3,12 +3,6 @@ name: AI Code Review
 on:
   pull_request:
     types: [opened, synchronize]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.github/**'
-      - 'LICENSE'
-      - '.gitignore'
 
 jobs:
   ai-code-review:

@@ -1,0 +1,62 @@
+name: AI Code Review (Simple Test)
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  test-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    # Skip review for dependabot PRs
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Test environment
+        run: |
+          echo "Testing basic environment..."
+          echo "PR Number: ${{ github.event.pull_request.number }}"
+          echo "PR Title: ${{ github.event.pull_request.title }}"
+          echo "PR Author: ${{ github.event.pull_request.user.login }}"
+          echo "Base Branch: ${{ github.event.pull_request.base.ref }}"
+          echo "Head Branch: ${{ github.event.pull_request.head.ref }}"
+          
+      - name: Check files exist
+        run: |
+          echo "Checking for required files..."
+          ls -la scripts/ || echo "Scripts directory not found"
+          ls -la templates/ || echo "Templates directory not found"
+          ls -la .streetrace/ || echo ".streetrace directory not found"
+          
+      - name: Test script permissions
+        run: |
+          echo "Testing script permissions..."
+          if [ -f "scripts/validate-config.sh" ]; then
+            chmod +x scripts/validate-config.sh
+            ./scripts/validate-config.sh || echo "Validation script failed (expected)"
+          fi
+          
+      - name: Post test comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Testing comment posting..."
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "🤖 **AI Code Review Test**
+
+This is a test comment from the simplified workflow to verify basic functionality.
+
+- PR Number: #${{ github.event.pull_request.number }}
+- PR Title: ${{ github.event.pull_request.title }}
+- Author: @${{ github.event.pull_request.user.login }}
+- Branch: \`${{ github.event.pull_request.base.ref }}\` ← \`${{ github.event.pull_request.head.ref }}\`
+
+✅ Basic workflow functionality is working!"
