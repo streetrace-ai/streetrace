@@ -1,7 +1,5 @@
 #!/bin/bash
-
-# test-code-review.sh
-# Local development script to test the GitHub code review workflow
+# Test the GitHub code review workflow locally
 
 set -euo pipefail
 
@@ -28,56 +26,65 @@ print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# Configuration
+# Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-WORKFLOW_SCRIPT="$PROJECT_ROOT/.github/workflows/scripts/code-review.sh"
 
 # Help function
 show_help() {
     cat << EOF
-Local Test Script for GitHub Code Review Workflow
+Test GitHub Code Review Locally
 
 Usage: $0 [OPTIONS]
 
-This script tests the GitHub code review workflow locally before pushing to GitHub.
+This script tests the AI code review process locally, including:
+1. Running the code review
+2. Parsing the structured output
+3. Showing what GitHub annotations would be generated
 
 Options:
-  -m, --model MODEL    Specify the model to use (default: openai/gpt-4o-mini)
-  -e, --env-file FILE  Load environment variables from a specific file
   -h, --help           Show this help message
+  -m, --model MODEL    Specify the AI model to use (default: from env or openai/gpt-4o-mini)
+  --skip-review        Skip running the review, use existing files
+  --json-file FILE     Path to existing JSON review file (implies --skip-review)
 
 Examples:
-  $0                                    # Run with default model
-  $0 -m anthropic/claude-3-5-sonnet    # Use Claude model
-  $0 -e .env.test                      # Use test environment file
+  $0                                          # Run full test with default model
+  $0 --model anthropic/claude-3-5-sonnet     # Use specific model
+  $0 --skip-review                           # Test parsing only
+  $0 --json-file code-reviews/test.json      # Test specific JSON file
 
-Environment Variables:
-  OPENAI_API_KEY        - API key for OpenAI
-  ANTHROPIC_API_KEY     - API key for Anthropic Claude
-  GOOGLE_AI_API_KEY     - API key for Google AI
-  STREETRACE_MODEL      - Model to use (can be overridden with -m)
+Prerequisites:
+- Must be run from within the StreetRace project directory
+- Must have poetry installed with project dependencies
+- Must have an AI API key configured
 EOF
 }
 
 # Default values
-MODEL=""
-ENV_FILE=""
+MODEL="${STREETRACE_MODEL:-openai/gpt-4o-mini}"
+SKIP_REVIEW=false
+JSON_FILE=""
 
-# Parse command line arguments
+# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
         -m|--model)
             MODEL="$2"
             shift 2
             ;;
-        -e|--env-file)
-            ENV_FILE="$2"
-            shift 2
+        --skip-review)
+            SKIP_REVIEW=true
+            shift
             ;;
-        -h|--help)
-            show_help
-            exit 0
+        --json-file)
+            JSON_FILE="$2"
+            SKIP_REVIEW=true
+            shift 2
             ;;
         *)
             print_error "Unknown option: $1"
@@ -87,70 +94,110 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Main function
+# Main test function
 main() {
-    echo "🧪 Testing GitHub Code Review Workflow Locally"
+    echo "🧪 Testing GitHub Code Review Locally"
+    echo "===================================="
+    
+    cd "$PROJECT_ROOT"
+    
+    # Step 1: Run the code review (unless skipping)
+    if [ "$SKIP_REVIEW" = false ]; then
+        print_status "Running code review with model: $MODEL"
+        
+        # Export model for the review script
+        export STREETRACE_MODEL="$MODEL"
+        
+        # Run the review
+        if ! "$PROJECT_ROOT/.github/workflows/scripts/code-review.sh"; then
+            print_error "Code review failed"
+            exit 1
+        fi
+        
+        # Find the most recent JSON file
+        JSON_FILE=$(ls -t code-reviews/*_structured.json 2>/dev/null | head -n1)
+        
+        if [ -z "$JSON_FILE" ] || [ ! -f "$JSON_FILE" ]; then
+            print_error "No structured JSON review file found"
+            exit 1
+        fi
+    else
+        # Validate provided JSON file
+        if [ -z "$JSON_FILE" ] || [ ! -f "$JSON_FILE" ]; then
+            # Try to find the most recent one
+            JSON_FILE=$(ls -t code-reviews/*_structured.json 2>/dev/null | head -n1)
+            
+            if [ -z "$JSON_FILE" ] || [ ! -f "$JSON_FILE" ]; then
+                print_error "No JSON file specified and no recent reviews found"
+                exit 1
+            fi
+        fi
+    fi
+    
+    print_success "Using review file: $JSON_FILE"
+    
+    # Step 2: Parse and display the review
+    print_status "Parsing structured review..."
+    
+    # Show JSON summary
+    echo ""
+    echo "📊 Review Statistics:"
+    python3 -c "
+import json
+with open('$JSON_FILE') as f:
+    data = json.load(f)
+    stats = data.get('statistics', {})
+    print(f\"  - Total issues: {stats.get('total_issues', 0)}\")
+    print(f\"  - Errors: {stats.get('errors', 0)}\")
+    print(f\"  - Warnings: {stats.get('warnings', 0)}\")
+    print(f\"  - Notices: {stats.get('notices', 0)}\")
+"
+    
+    # Step 3: Generate GitHub annotations (dry run)
+    print_status "Testing GitHub annotations generation..."
+    echo ""
+    echo "📝 GitHub Annotations that would be generated:"
     echo "=============================================="
     
-    # Check if workflow script exists
-    if [ ! -f "$WORKFLOW_SCRIPT" ]; then
-        print_error "Workflow script not found: $WORKFLOW_SCRIPT"
-        exit 1
-    fi
+    # Run the parser in test mode (just show annotations)
+    python3 "$PROJECT_ROOT/.github/workflows/scripts/parse-review-annotations.py" "$JSON_FILE" --annotations-only
     
-    # Make sure the workflow script is executable
-    chmod +x "$WORKFLOW_SCRIPT"
+    # Step 4: Show the summary
+    echo ""
+    echo "📄 Job Summary:"
+    echo "==============="
     
-    # Load environment file if specified
-    if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
-        print_status "Loading environment from: $ENV_FILE"
-        set -a
-        source "$ENV_FILE"
-        set +a
-    elif [ -f "$PROJECT_ROOT/.env" ]; then
-        print_status "Loading default .env file"
-        set -a
-        source "$PROJECT_ROOT/.env"
-        set +a
-    fi
+    # Generate and display the summary
+    python3 "$PROJECT_ROOT/.github/workflows/scripts/parse-review-annotations.py" "$JSON_FILE" \
+        --summary-file /tmp/test-summary.md
     
-    # Set model if specified
-    if [ -n "$MODEL" ]; then
-        export STREETRACE_MODEL="$MODEL"
-        print_status "Using model: $MODEL"
-    fi
-    
-    # Show current configuration
-    print_status "Configuration:"
-    echo "  Project root: $PROJECT_ROOT"
-    echo "  Model: ${STREETRACE_MODEL:-openai/gpt-4o-mini}"
-    echo "  Current branch: $(git branch --show-current)"
-    
-    # Check for API keys
-    if [ -z "${OPENAI_API_KEY:-}" ] && [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -z "${GOOGLE_AI_API_KEY:-}" ]; then
-        print_warning "No API key found. The workflow script will prompt for one."
-    else
-        local keys_found=()
-        [ -n "${OPENAI_API_KEY:-}" ] && keys_found+=("OpenAI")
-        [ -n "${ANTHROPIC_API_KEY:-}" ] && keys_found+=("Anthropic")
-        [ -n "${GOOGLE_AI_API_KEY:-}" ] && keys_found+=("Google AI")
-        print_success "API keys found: ${keys_found[*]}"
+    if [ -f /tmp/test-summary.md ]; then
+        cat /tmp/test-summary.md
+        rm -f /tmp/test-summary.md
     fi
     
     echo ""
-    print_status "Running the code review workflow..."
-    echo "===================================="
-    echo ""
+    print_success "Test completed successfully!"
     
-    # Run the workflow script
-    cd "$PROJECT_ROOT"
-    if "$WORKFLOW_SCRIPT"; then
+    # Show next steps
+    echo ""
+    echo "ℹ️  Next Steps:"
+    echo "  1. Review the annotations above - they will appear inline in the PR"
+    echo "  2. Check the generated markdown report: $(ls -t code-reviews/*.md | head -n1)"
+    echo "  3. The JSON file contains all structured data: $JSON_FILE"
+    
+    # Check if there are errors
+    ERROR_COUNT=$(python3 -c "
+import json
+with open('$JSON_FILE') as f:
+    data = json.load(f)
+    errors = sum(1 for issue in data.get('issues', []) if issue.get('severity') == 'error')
+    print(errors)
+")
+    
+    if [ "$ERROR_COUNT" -gt 0 ]; then
         echo ""
-        print_success "Code review workflow completed successfully!"
-    else
-        echo ""
-        print_error "Code review workflow failed!"
-        exit 1
+        print_warning "The review found $ERROR_COUNT error(s) that would block the PR"
     fi
 }
 

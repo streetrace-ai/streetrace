@@ -68,26 +68,37 @@ jobs:
           # Run the code review script
           ./.github/workflows/scripts/code-review.sh
           
-          # Find the most recent review report
-          LATEST_REPORT=$(ls -t code-reviews/*.md 2>/dev/null | head -n1)
+          # The script sets REVIEW_JSON_FILE and REVIEW_MARKDOWN_FILE in GITHUB_ENV
+
+      - name: Generate GitHub Annotations
+        if: env.REVIEW_JSON_FILE != ''
+        run: |
+          # Parse the JSON review and output GitHub annotations
+          python3 ./.github/workflows/scripts/parse-review-annotations.py "$REVIEW_JSON_FILE" \
+            --summary-file /tmp/review-summary.md
           
-          if [ -n "$LATEST_REPORT" ] && [ -f "$LATEST_REPORT" ]; then
-            echo "Found review report: $LATEST_REPORT"
-            cp "$LATEST_REPORT" /tmp/ai-review-result.txt
-          else
-            echo "ERROR: No review report found in code-reviews/"
-            exit 1
+      - name: Add Job Summary
+        if: always() && env.REVIEW_MARKDOWN_FILE != ''
+        run: |
+          # Add the review summary to GitHub Actions job summary
+          if [ -f "/tmp/review-summary.md" ]; then
+            cat /tmp/review-summary.md >> $GITHUB_STEP_SUMMARY
           fi
+          
+          # Also add link to full review
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📄 [Full Review Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> $GITHUB_STEP_SUMMARY
 
       - name: Post Review Comment
+        if: env.REVIEW_MARKDOWN_FILE != ''
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          # Check if review was generated
-          if [ -f "/tmp/ai-review-result.txt" ] && [ -s "/tmp/ai-review-result.txt" ]; then
-            ./.github/workflows/scripts/post-review-comment.sh /tmp/ai-review-result.txt
+          # Post the markdown review as a PR comment
+          if [ -f "$REVIEW_MARKDOWN_FILE" ]; then
+            ./.github/workflows/scripts/post-review-comment.sh "$REVIEW_MARKDOWN_FILE"
           else
             echo "ERROR: No review generated. This indicates a configuration issue (likely missing API key)."
             echo "Please configure one of the following secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_AI_API_KEY"
@@ -100,6 +111,6 @@ jobs:
         with:
           name: code-review-results
           path: |
-            /tmp/*review*.txt
-            code-reviews/*.md
+            /tmp/*review*.*
+            code-reviews/*
           retention-days: 30

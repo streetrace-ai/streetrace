@@ -104,11 +104,16 @@ run_review() {
     
     # Generate timestamp for the report filename
     local timestamp=$(date +"%Y%m%d_%H%M%S")
-    local report_file="code-reviews/${timestamp}.md"
+    local markdown_file="code-reviews/${timestamp}.md"
+    local json_file="code-reviews/${timestamp}_structured.json"
+    
+    # Extract the diff first to help the AI
+    print_status "Extracting PR diff for analysis..."
+    "$SCRIPT_DIR/../../scripts/extract-diff.sh" "/tmp/pr-diff-${timestamp}.txt"
     
     # Use non-interactive mode with --prompt parameter
-    # Reference the github-code-review.md file and instruct to save the report
-    local review_prompt="Please conduct a code review following the instructions in @templates/github-code-review.md. Analyze the git diff between the current branch and main branch to identify the changes that need review. After completing the review, save your detailed report to the file: $report_file"
+    # Reference the new structured review prompt
+    local review_prompt="Please conduct a code review following the instructions in @templates/code-review-prompt.md. The timestamp for your output files is: ${timestamp}. First analyze the git diff between the current branch and main branch to identify all changes. Then create both the structured JSON file at $json_file and the markdown report at $markdown_file as specified in the instructions."
     
     # Capture output to check for timeout errors
     local temp_output="/tmp/streetrace_output.txt"
@@ -123,13 +128,23 @@ run_review() {
         fi
         
         print_success "Code review completed!"
-        if [ -f "$PROJECT_ROOT/$report_file" ]; then
-            print_success "Review report saved to: $report_file"
-            rm -f "$temp_output"
+        
+        # Check for both output files
+        if [ -f "$PROJECT_ROOT/$json_file" ]; then
+            print_success "Structured review saved to: $json_file"
+            echo "REVIEW_JSON_FILE=$PROJECT_ROOT/$json_file" >> "$GITHUB_ENV" 2>/dev/null || true
         else
-            print_warning "Report file not found at: $report_file"
-            rm -f "$temp_output"
+            print_warning "JSON file not found at: $json_file"
         fi
+        
+        if [ -f "$PROJECT_ROOT/$markdown_file" ]; then
+            print_success "Markdown report saved to: $markdown_file"
+            echo "REVIEW_MARKDOWN_FILE=$PROJECT_ROOT/$markdown_file" >> "$GITHUB_ENV" 2>/dev/null || true
+        else
+            print_warning "Markdown file not found at: $markdown_file"
+        fi
+        
+        rm -f "$temp_output"
         return 0
     else
         print_error "Code review failed!"
@@ -170,9 +185,10 @@ Usage: $0 [OPTIONS]
 
 This script performs automated code review using StreetRace:
 1. Checks for git changes (staged, branch diff, or recent commits)
-2. Runs AI analysis using StreetRace with the github-code-review.md template
-3. The AI agent automatically analyzes the git diff
-4. Displays and saves the review results
+2. Extracts the PR diff for analysis
+3. Runs AI analysis using StreetRace with structured output format
+4. Generates both JSON (for GitHub annotations) and Markdown reports
+5. Outputs can be parsed for inline PR annotations
 
 Environment Variables:
   OPENAI_API_KEY        - API key for OpenAI (recommended)
