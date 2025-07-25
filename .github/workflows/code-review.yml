@@ -1,0 +1,105 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  ai-code-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    # Skip review for dependabot PRs
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Fetch all branches
+        run: |
+          git fetch origin main:main || true
+          git fetch fork main:main || true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+        with:
+          poetry-version: "latest"
+
+      - name: Configure Poetry
+        run: |
+          poetry config virtualenvs.create true --local
+          poetry config virtualenvs.in-project true --local
+
+      - name: Install MCP Tools
+        run: |
+          npm install -g @modelcontextprotocol/server-filesystem
+
+      - name: Install StreetRace
+        run: |
+          poetry install
+
+      - name: Run Code Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          # Run the code review script
+          ./.github/workflows/scripts/code-review.sh
+          
+          # Find the most recent review report
+          LATEST_REPORT=$(ls -t code-reviews/*.md 2>/dev/null | head -n1)
+          
+          if [ -n "$LATEST_REPORT" ] && [ -f "$LATEST_REPORT" ]; then
+            echo "Found review report: $LATEST_REPORT"
+            cp "$LATEST_REPORT" /tmp/ai-review-result.txt
+          else
+            echo "ERROR: No review report found in code-reviews/"
+            exit 1
+          fi
+
+      - name: Post Review Comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          # Check if review was generated
+          if [ -f "/tmp/ai-review-result.txt" ] && [ -s "/tmp/ai-review-result.txt" ]; then
+            ./.github/workflows/scripts/post-review-comment.sh /tmp/ai-review-result.txt
+          else
+            echo "ERROR: No review generated. This indicates a configuration issue (likely missing API key)."
+            echo "Please configure one of the following secrets: ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_AI_API_KEY"
+            exit 1
+          fi
+
+      - name: Archive review results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-review-results
+          path: |
+            /tmp/*review*.txt
+            code-reviews/*.md
+          retention-days: 30
