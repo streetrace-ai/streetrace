@@ -1,4 +1,4 @@
-name: AI Code Review
+name: AI Code Review POC
 
 on:
   pull_request:
@@ -11,7 +11,7 @@ jobs:
       contents: read
       pull-requests: write
     
-    # Skip review for dependabot PRs to avoid unnecessary API usage
+    # Skip review for dependabot PRs
     if: github.actor != 'dependabot[bot]'
 
     steps:
@@ -19,7 +19,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -38,32 +37,9 @@ jobs:
 
       - name: Install StreetRace
         run: |
-          poetry lock
           poetry install
 
-      - name: Validate Configuration
-        run: |
-          ./scripts/validate-config.sh
-
-      - name: Extract PR Changes
-        id: extract-diff
-        run: |
-          ./scripts/github-diff-extractor.sh > /tmp/pr-diff.txt
-          echo "diff-size=$(wc -c < /tmp/pr-diff.txt)" >> $GITHUB_OUTPUT
-
-      - name: Check diff size
-        id: check-size
-        run: |
-          DIFF_SIZE=${{ steps.extract-diff.outputs.diff-size }}
-          if [ "$DIFF_SIZE" -gt 100000 ]; then
-            echo "Diff too large ($DIFF_SIZE bytes). Skipping AI review to avoid excessive token usage."
-            echo "large-diff=true" >> $GITHUB_OUTPUT
-          else
-            echo "large-diff=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Run AI Code Review
-        if: steps.check-size.outputs.large-diff != 'true'
+      - name: Run Code Review POC
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -75,96 +51,40 @@ jobs:
           BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
-          echo "Starting AI code review..."
+          # Run the POC script and capture output
+          ./scripts/code-review-poc.sh | tee /tmp/poc-output.txt
           
-          # Check if any API key is available
-          if [ -z "$ANTHROPIC_API_KEY" ] && [ -z "$OPENAI_API_KEY" ] && [ -z "$GOOGLE_AI_API_KEY" ]; then
-            echo "No AI API key configured. Skipping AI review."
-            echo "Please configure ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_AI_API_KEY in repository secrets."
-            exit 0
-          fi
+          # Extract the AI response and save it
+          sed -n '/AI Code Review Results/,/Results saved to:/p' /tmp/poc-output.txt | \
+            sed '1d;$d' > /tmp/ai-review-result.txt || true
           
-          # Determine which AI model to use based on available API keys
-          if [ -n "$ANTHROPIC_API_KEY" ]; then
-            MODEL="anthropic/claude-3-5-sonnet-20241022"
-            echo "Using Anthropic Claude model"
-          elif [ -n "$OPENAI_API_KEY" ]; then
-            MODEL="openai/gpt-4o-mini"
-            echo "Using OpenAI GPT model"
-          elif [ -n "$GOOGLE_AI_API_KEY" ]; then
-            MODEL="google/gemini-1.5-flash"
-            echo "Using Google Gemini model"
-          fi
-          
-          # Create review prompt with embedded variables
-          echo "Creating review prompt..."
-          python3 scripts/substitute-variables.py \
-            templates/github-review-prompt.md \
-            /tmp/pr-diff.txt \
-            /tmp/review-prompt.md
-          
-          # Run the AI review
-          echo "Running AI review with model: $MODEL"
-          if poetry run streetrace --model="$MODEL" --prompt="$(cat /tmp/review-prompt.md)" > /tmp/review-output.txt 2>&1; then
-            echo "AI review completed successfully"
-            cp /tmp/review-output.txt /tmp/clean-review.txt
-          else
-            echo "AI review failed, creating fallback response"
-            echo "AI code review could not be completed due to an error. Please review the changes manually." > /tmp/clean-review.txt
+          # Also try to get the saved file
+          SAVED_FILE=$(grep "Results saved to:" /tmp/poc-output.txt | awk -F': ' '{print $2}' || echo "")
+          if [ -n "$SAVED_FILE" ] && [ -f "$SAVED_FILE" ]; then
+            cp "$SAVED_FILE" /tmp/ai-review-result.txt
           fi
 
       - name: Post Review Comment
-        if: steps.check-size.outputs.large-diff != 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          echo "Posting AI review comment..."
-          
-          if [ -f "/tmp/clean-review.txt" ]; then
-            REVIEW_CONTENT=$(cat /tmp/clean-review.txt)
-            
-            # Create comment body in a temporary file to handle multi-line content
-            cat > /tmp/comment-body.txt << 'EOF'
-🤖 **AI Code Review**
-
-EOF
-            cat /tmp/clean-review.txt >> /tmp/comment-body.txt
-            cat >> /tmp/comment-body.txt << 'EOF'
-
----
-*This review was generated automatically using StreetRace AI. Please use your judgment when addressing the feedback.*
-EOF
-            
-            gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/comment-body.txt
+          # Check if review was generated
+          if [ -f "/tmp/ai-review-result.txt" ] && [ -s "/tmp/ai-review-result.txt" ]; then
+            ./scripts/post-review-comment.sh /tmp/ai-review-result.txt
           else
-            echo "No review content found, skipping comment."
+            echo "No review generated, posting notice"
+            echo "AI code review could not be completed. Please check API key configuration." > /tmp/fallback-review.txt
+            ./scripts/post-review-comment.sh /tmp/fallback-review.txt || true
           fi
-
-      - name: Post Large Diff Notice
-        if: steps.check-size.outputs.large-diff == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Create large diff notice comment
-          cat > /tmp/large-diff-notice.txt << 'EOF'
-🤖 **AI Code Review Skipped**
-
-This PR contains a large diff that would exceed reasonable token limits for AI review.
-
-Consider:
-- Breaking this PR into smaller, focused changes
-- Running local code review using `./scripts/code-review-poc.sh`
-- Focusing the review on specific files or components
-
-You can still run manual review locally with the POC script.
-EOF
-          
-          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/large-diff-notice.txt
 
       - name: Archive review results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: code-review-results
-          path: /tmp/*review*.txt
+          path: |
+            /tmp/*review*.txt
+            /tmp/pr-diff.txt
           retention-days: 30
