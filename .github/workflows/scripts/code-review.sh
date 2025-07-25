@@ -41,14 +41,7 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
 fi
 
 # Default model - user can override with environment variable
-# Use gpt-4o-mini for speed, can override with STREETRACE_MODEL
 MODEL="${STREETRACE_MODEL:-openai/gpt-4o-mini}"
-
-# For GitHub Actions, prefer faster model to avoid timeouts
-if [ -n "${GITHUB_ACTIONS:-}" ] && [ -z "${STREETRACE_MODEL:-}" ]; then
-    MODEL="openai/gpt-4o-mini"
-    print_status "Using fast model for GitHub Actions: $MODEL"
-fi
 
 # Set timeout for GitHub Actions environment (in seconds)
 # LiteLLM uses this for HTTP client timeouts
