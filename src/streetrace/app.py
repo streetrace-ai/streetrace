@@ -172,9 +172,7 @@ Enjoy the ride! 🏁
             try:
                 user_input = await self.ui.prompt_async()
                 # Add visual separation around user input
-                self.ui_bus.dispatch_ui_update(ui_events.Info(""))
                 await self._process_input(user_input)
-                self.ui_bus.dispatch_ui_update(ui_events.Info(""))
             except (EOFError, SystemExit):
                 self.ui_bus.dispatch_ui_update(ui_events.Info("\nLeaving..."))
                 raise
