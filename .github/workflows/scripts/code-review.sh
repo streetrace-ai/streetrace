@@ -109,7 +109,7 @@ run_review() {
     
     # Extract the diff first to help the AI
     print_status "Extracting PR diff for analysis..."
-    "$SCRIPT_DIR/../../scripts/extract-diff.sh" "/tmp/pr-diff-${timestamp}.txt"
+    "$PROJECT_ROOT/scripts/extract-diff.sh" "/tmp/pr-diff-${timestamp}.txt"
     
     # Use non-interactive mode with --prompt parameter
     # Reference the new structured review prompt
