@@ -570,6 +570,11 @@ class PerFileCodeReviewer:
         # Prioritize files
         files = self.prioritize_files(files)
         
+        # Conservative limit during cleanup phase - will be removed later
+        if len(files) > 1:
+            print_status(f"Conservative cleanup mode: Limiting review to 1 file (found {len(files)} total)")
+            files = files[:1]
+        
         # Review each file individually
         review_files = self.review_files(files, reviews_dir, timestamp)
         
