@@ -49,8 +49,10 @@ def generate_sarif_from_per_file_review(review_data: Dict) -> Dict:
         file_path = issue.get('file', '')
         line = issue.get('line', 1)
         
-        # Create rule ID
-        rule_id = f"ai-code-review/{category}"
+        # Create unique rule ID based on category and title to avoid duplicate rule names
+        import hashlib
+        title_hash = hashlib.md5(title.encode()).hexdigest()[:8]
+        rule_id = f"ai-code-review/{category}-{title_hash}"
         
         # Add rule if not already present
         if rule_id not in rules:

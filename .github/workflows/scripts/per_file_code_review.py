@@ -570,11 +570,6 @@ class PerFileCodeReviewer:
         # Prioritize files
         files = self.prioritize_files(files)
         
-        # Limit to 3 files for testing
-        if len(files) > 3:
-            print_status(f"Limiting review to first 3 files for testing (found {len(files)} total)")
-            files = files[:3]
-        
         # Review each file individually
         review_files = self.review_files(files, reviews_dir, timestamp)
         
