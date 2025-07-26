@@ -156,6 +156,21 @@ class FileReviewer:
         output_file = reviews_dir / f"{timestamp}_file_{file_index:03d}_output.txt"
         
         try:
+            # Clean up any existing JSON files before review to avoid conflicts
+            cleanup_patterns = [
+                "review_output.json", "code-review-feedback.json", 
+                "review_report.json", "file_review.json", "analysis.json",
+                "scripts_review.json"  # AI sometimes creates custom names
+            ]
+            for pattern in cleanup_patterns:
+                for search_dir in [self.project_root, Path.cwd()]:
+                    cleanup_file = search_dir / pattern
+                    if cleanup_file.exists():
+                        try:
+                            cleanup_file.unlink()
+                        except:
+                            pass
+            
             # Run StreetRace with streaming output using tee (like code_review.py)
             cmd = [
                 "poetry", "run", "streetrace",
@@ -198,8 +213,18 @@ class FileReviewer:
                     "code-review-feedback.json", 
                     "review_report.json",
                     "file_review.json",
-                    "analysis.json"
+                    "analysis.json",
+                    "scripts_review.json"  # AI sometimes creates custom names
                 ]
+                
+                # Also search for any *.json files in case AI creates custom names
+                for search_dir in [self.project_root, Path.cwd()]:
+                    try:
+                        for json_file in search_dir.glob("*.json"):
+                            if json_file.name not in possible_json_files:
+                                possible_json_files.append(json_file.name)
+                    except:
+                        pass
                 
                 review_data = None
                 json_file_found = None
