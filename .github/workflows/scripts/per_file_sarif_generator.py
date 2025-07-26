@@ -38,9 +38,13 @@ def generate_sarif_from_per_file_review(review_data: Dict) -> Dict:
     results = []
     
     for issue in issues:
+        # Skip "Review Failed" issues - they're not helpful in GitHub annotations
+        title = issue.get('title', 'Code Issue')
+        if title == "Review Failed":
+            continue
+            
         severity = issue.get('severity', 'notice')
         category = issue.get('category', 'quality')
-        title = issue.get('title', 'Code Issue')
         message = issue.get('message', '')
         file_path = issue.get('file', '')
         line = issue.get('line', 1)

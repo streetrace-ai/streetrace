@@ -1,0 +1,31 @@
+{
+  "file": ".github/workflows/IMPROVED_ARCHITECTURE_PROPOSAL.md",
+  "summary": "The proposal outlines an improved architecture for AI code reviews, focusing on per-file reviews for enhanced scalability, quality, and operational benefits. The new system addresses existing limitations such as token window constraints and content truncation, offering scalable and reliable code review processes.",
+  "issues": [
+    {
+      "severity": "error",
+      "line": 2,
+      "title": "Hardcoded Credentials",
+      "message": "There are no hardcoded credentials present, but it's essential to ensure any implementation following this proposal avoids hardcoded secrets in configuration files.",
+      "category": "security",
+      "code_snippet": ""
+    },
+    {
+      "severity": "warning",
+      "line": 120,
+      "title": "Potential High API Costs",
+      "message": "Switching to per-file reviews may increase API costs significantly, which should be monitored and budgeted accordingly.",
+      "category": "performance",
+      "code_snippet": "Current: 1 API call with ~30K tokens = ~$0.30\nProposed: 34 files \u00d7 ~3K tokens each = 34 calls \u00d7 ~$0.03 = ~$1.02"
+    }
+  ],
+  "positive_feedback": [
+    "The architecture allows for unlimited scalability without token limits, enabling effective reviews of large PRs with many files.",
+    "The new system provides consistent quality by dedicating full AI focus to each individual file.",
+    "Error handling improvements ensure that a single file failure does not abort the entire review process, leading to more robust operations."
+  ],
+  "metadata": {
+    "language": "markdown",
+    "review_focus": "security and quality"
+  }
+}

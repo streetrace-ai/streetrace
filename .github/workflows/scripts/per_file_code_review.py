@@ -512,8 +512,11 @@ class PerFileCodeReviewer:
                 feedback = review.get('positive_feedback', [])
                 metadata = review.get('metadata', {})
                 
-                # Add file path to each issue
+                # Add file path to each issue (excluding Review Failed issues)
                 for issue in issues:
+                    # Skip "Review Failed" issues from final aggregation
+                    if issue.get('title') == "Review Failed":
+                        continue
                     issue['file'] = file_path
                     all_issues.append(issue)
                 

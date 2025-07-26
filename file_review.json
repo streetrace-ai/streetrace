@@ -1,0 +1,39 @@
+{
+  "file": ".github/workflows/code-review.yml",
+  "summary": "This file sets up a GitHub Actions workflow for AI code review with focus on security and quality. The configuration is mostly complete, but some minor issues were identified.",
+  "issues": [
+    {
+      "severity": "error",
+      "line": 12,
+      "title": "Improper use of 'if' condition for skipping dependabot PRs",
+      "message": "The 'if' expression in a GitHub Actions workflow should be at the job or step level but here it uses a syntax not compatible with GitHub Actions. This could prevent the intended conditional behavior.",
+      "category": "quality",
+      "code_snippet": "if: github.actor != 'dependabot[bot]'"
+    },
+    {
+      "severity": "notice",
+      "line": 26,
+      "title": "Missing context on poetry install step",
+      "message": "The 'poetry install' step could benefit from logging to capture errors or warnings during installation for better troubleshooting.",
+      "category": "quality",
+      "code_snippet": "poetry install"
+    },
+    {
+      "severity": "notice",
+      "line": 51,
+      "title": "Potential API keys misconfiguration",
+      "message": "The script depends on at least one API key being set in the environment. Ensure that ANTHROPIC_API_KEY, OPENAI_API_KEY, or GOOGLE_AI_API_KEY is configured properly to avoid runtime failures.",
+      "category": "security",
+      "code_snippet": "python3 ./.github/workflows/scripts/post_review_comment.py \"$REVIEW_MARKDOWN_FILE\""
+    }
+  ],
+  "positive_feedback": [
+    "Good use of secrets for API keys.",
+    "Efficient use of job steps to articulate the review process.",
+    "Clear comments outlining the benefits of per-file architecture in AI review."
+  ],
+  "metadata": {
+    "language": "yaml",
+    "review_focus": "security and quality"
+  }
+}

@@ -110,6 +110,10 @@ def main():
     annotations_count = 0
 
     for issue in issues:
+        # Skip "Review Failed" issues - they're not helpful annotations
+        if issue.get('title') == "Review Failed":
+            continue
+            
         annotation = format_github_annotation(issue)
         print(annotation)
         annotations_count += 1
@@ -130,8 +134,9 @@ def main():
             output_github_summary(review)
             sys.stdout = original_stdout
 
-    # Exit with non-zero if there are errors
-    errors_count = sum(1 for issue in issues if issue.get("severity") == "error")
+    # Exit with non-zero if there are errors (excluding Review Failed issues)
+    errors_count = sum(1 for issue in issues 
+                      if issue.get("severity") == "error" and issue.get("title") != "Review Failed")
     if errors_count > 0:
         sys.stderr.write(f"\n❌ Found {errors_count} error(s) that must be fixed\n")
         sys.exit(1)
