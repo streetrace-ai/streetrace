@@ -176,3 +176,6 @@ cython_debug/
 # local temp dir
 /tmp
 .devcontainer/.bash_history
+
+# Code review reports
+code-reviews/
