@@ -1,0 +1,24 @@
+# Ruff configuration for GitHub workflow scripts
+# These scripts are intended for CI/CD use and have different requirements
+
+[lint]
+# Allow common patterns needed in scripts
+ignore = [
+    "T201",    # Allow print statements (needed for script output)
+    "S607",    # Allow subprocess with partial executable paths (git, poetry, gh are standard tools)
+    "S603",    # Allow subprocess calls (needed for GitHub CLI integration)
+    "PLR2004", # Allow magic values (argument count checks are common in CLI scripts)
+    "PLC0415", # Allow imports in functions (datetime, tempfile imports on demand)
+    "DTZ005",  # Allow datetime.now() without timezone (CI timestamps don't need timezone)
+    "F841",    # Allow unused variables (subprocess.run assignments for consistency)
+    "TRY300",  # Allow return in try blocks (early returns are clearer)
+    "D401",    # Allow non-imperative docstring mood (scripts use descriptive docs)
+    "PLW2901", # Allow loop variable overwriting (line processing patterns)
+    "C901",    # Allow complex functions (main workflow functions need complexity)
+    "PLR0912", # Allow many branches (CLI argument handling needs branches)
+    "PLR0915", # Allow many statements (workflow scripts need detailed steps)
+]
+
+[lint.pycodestyle]
+# Line length can be longer for scripts with long strings
+max-line-length = 100
