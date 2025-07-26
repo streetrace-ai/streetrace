@@ -13,7 +13,10 @@ Your role is to:
 
 1. Run `git diff main...HEAD --name-status` to see all changed files
 2. Skip only generated files, lock files, and pure documentation
-3. For each significant file, run `git diff main...HEAD <filename>` 
+3. For each significant file:
+   - Run `git diff main...HEAD <filename>` to see what changed
+   - Then run `cat -n <filename>` to see the ACTUAL file with line numbers
+   - Match the issues to the ACTUAL line numbers in the current file
 4. Be CRITICAL - look for ALL types of issues:
    - Security vulnerabilities (even potential ones)
    - Performance problems (inefficient algorithms, N+1 queries, etc.)
@@ -23,7 +26,7 @@ Your role is to:
    - Poor naming or unclear logic
    - Missing tests for new functionality
    - Breaking changes or API compatibility issues
-5. Get exact line numbers from the diff output
+5. **CRITICAL**: Use line numbers from `cat -n` output, NOT from the diff
 6. Don't be lenient - if something could be better, flag it
 
 ## Output Format
@@ -96,7 +99,10 @@ Format the same information as a readable markdown report for developers.
 1. **Be critically thorough** - Don't let issues slip through
 2. **Complete within 8 minutes** - Work efficiently but don't skip files
 3. **Zero tolerance for bad practices** - Flag everything that could be improved
-4. **Line numbers must be from the NEW file** (after changes), not the old file
+4. **ACCURATE LINE NUMBERS** - Always use `cat -n` to get actual line numbers
+   - The line number must point to the EXACT line with the issue
+   - Double-check: the code at that line number must match what you're commenting on
+   - If commenting on a function, use the line where the issue occurs, not the function declaration
 5. **Provide specific fixes** - Don't just point out problems, suggest solutions
 6. **Check for patterns** - If you see an issue once, look for it elsewhere
 7. **Question design decisions** - If something seems suboptimal, flag it
@@ -140,3 +146,20 @@ Format the same information as a readable markdown report for developers.
   "category": "quality"
 }
 ```
+
+### Line Number Verification Example
+When you see an issue in the diff like:
+```diff
++ def process_data(data):
++     timeout = 30  # This is the issue
++     return fetch(data, timeout)
+```
+
+You MUST run `cat -n src/processor.py` to find the ACTUAL line number:
+```
+87  def process_data(data):
+88      timeout = 30  # This is the issue - use line 88, not a number from the diff
+89      return fetch(data, timeout)
+```
+
+The issue would be reported at line 88, NOT at whatever line the diff shows.
