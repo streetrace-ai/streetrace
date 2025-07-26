@@ -80,27 +80,29 @@ You are conducting a focused code review on a single file. Review the changes wi
 
 **File Path**: {file_path}
 **Language**: {language}
+**Changes Made**: {changes_summary}
 
-**Old Content** (null for new files):
-```
-{old_content}
-```
+---
 
-**New Content**:
-```
+## REVIEW THIS NEW CONTENT:
+
+**IMPORTANT: Line numbers must match the exact line numbers below:**
+
 {new_content}
-```
 
-**Changes Made**:
-{changes_summary}
+---
+
+## Context - Old Content (for reference only):
+{old_content}
 
 ## CRITICAL REQUIREMENTS
 
 - Use the write_json tool to save your review - do NOT print JSON to stdout
 - Use exact field names and structure shown above
 - Security vulnerabilities MUST be marked as "error" severity
-- Focus on the NEW content - that's what needs review
-- Include actual problematic code in code_snippet field
+- **IMPORTANT**: Line numbers must refer to the NEW CONTENT ONLY (ignore old content)
+- **IMPORTANT**: Count line numbers starting from 1 in the NEW CONTENT section
+- Include actual problematic code in code_snippet field  
 - Use a descriptive filename like "review_output.json" or "file_review.json"
 
 Please provide a thorough review focusing on security vulnerabilities and code quality issues. Save the results using the write_json tool.

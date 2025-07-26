@@ -131,6 +131,14 @@ class FileReviewer:
         else:
             return "File modified: content changed"
 
+    def add_line_numbers(self, content: str) -> str:
+        """Add line numbers to content for accurate AI review."""
+        lines = content.splitlines()
+        numbered_lines = []
+        for i, line in enumerate(lines, 1):
+            numbered_lines.append(f"{i:3d}: {line}")
+        return "\n".join(numbered_lines)
+
     def review_file(self, file_path: str, old_content: Optional[str], new_content: str, reviews_dir: Path, timestamp: str, file_index: int) -> Dict:
         """Review a single file and return the review JSON."""
         start_time = time.time()
@@ -138,12 +146,16 @@ class FileReviewer:
         language = self.get_file_language(file_path)
         changes_summary = self.generate_changes_summary(old_content, new_content)
         
+        # Add line numbers to content for accurate AI review
+        numbered_new_content = self.add_line_numbers(new_content)
+        numbered_old_content = self.add_line_numbers(old_content) if old_content else "null"
+        
         # Format the prompt with file-specific content
         prompt = self.review_template.format(
             file_path=file_path,
             language=language,
-            old_content=old_content or "null",
-            new_content=new_content,
+            old_content=numbered_old_content,
+            new_content=numbered_new_content,
             changes_summary=changes_summary
         )
         
