@@ -16,9 +16,10 @@ Your role is to:
 1. Run `git diff main...HEAD --name-status` to see all changed files
 2. Skip only generated files, lock files, and pure documentation
 3. For each significant file:
-   - Run `git diff main...HEAD <filename> --unified=5` to see what changed
+   - Run `git diff main...HEAD <filename> --unified=8` to see what changed with more context
    - Identify ONLY the lines that were added or modified (lines starting with + in the diff)
-   - Run `cat -n <filename>` to get the actual line numbers for ONLY those changed lines
+   - Run `cat -n <filename>` to see the FINAL file with line numbers
+   - For each issue, find the EXACT line number where the problematic code appears in the final file
    - **ONLY review the changed/new lines** - ignore unchanged code
 4. Be CRITICAL about the CHANGES - look for issues in NEW/MODIFIED code only:
    - Security vulnerabilities in the new code
@@ -30,7 +31,10 @@ Your role is to:
    - Missing tests for new functionality
    - Breaking changes in modified APIs
 5. **CRITICAL**: Only comment on lines that appear with + in the diff
-6. **IGNORE**: Any issues in existing unchanged code - this is not a full codebase audit
+6. **DOUBLE-CHECK**: Before reporting, verify the exact line content matches your comment
+   - If commenting on `timeout = 30`, the line number must point to the line containing `timeout = 30`
+   - If commenting on error handling, point to the specific line that needs the fix
+7. **IGNORE**: Any issues in existing unchanged code - this is not a full codebase audit
 
 ## Output Format
 
@@ -105,9 +109,13 @@ Format the same information as a readable markdown report for developers.
    - If only 1 line changed in a 1000-line file, only review that 1 line
 2. **Be critically thorough** - Don't let issues slip through in the NEW code
 3. **Complete within 8 minutes** - Work efficiently but don't skip files
-4. **ACCURATE LINE NUMBERS** - Always use `cat -n` to get actual line numbers
-   - The line number must point to the EXACT line with the issue
-   - The line MUST be one that was changed (appears with + in diff)
+4. **PRECISE LINE NUMBERS** - Critical for inline annotations
+   - Use `cat -n` to see the final file with line numbers
+   - The line number must point to the EXACT line containing the issue
+   - For multi-line issues, use the line where the problem is most obvious
+   - Example: For a missing error check, point to the line that should have the check
+   - Example: For a hardcoded value, point to the exact line with that value
+   - NEVER use line numbers from the diff, only from the final file
 5. **Provide specific fixes** - Don't just point out problems, suggest solutions
 6. **Check for patterns** - If you see an issue in new code, look for it in other new code
 7. **Respect the scope** - This is about what changed, not what already existed
@@ -152,25 +160,37 @@ Format the same information as a readable markdown report for developers.
 }
 ```
 
-### Line Number Verification Example
-When you see a diff like:
+### Line Number Precision Example
+
+Given this diff:
 ```diff
-  def existing_function():  # <- NO COMMENT (no + prefix)
-      return "unchanged"     # <- NO COMMENT (no + prefix)
-  
-+ def process_data(data):    # <- CAN COMMENT (has + prefix)
-+     timeout = 30           # <- CAN COMMENT (has + prefix) 
-+     return fetch(data, timeout)  # <- CAN COMMENT (has + prefix)
-  
-  def another_old_function():  # <- NO COMMENT (no + prefix)
--     return old_value      # <- NO COMMENT (removed line)
-+     return new_value      # <- CAN COMMENT (has + prefix)
+@@ -85,7 +85,9 @@ class DataProcessor:
+     def process(self, data):
+         # Some existing code
+-        result = self.transform(data)
+-        return result
++        timeout = 30
++        result = self.transform(data, timeout)
++        if not result:
++            print("Error")  # Issue: should use proper logging
++        return result
 ```
 
-You MUST:
-1. ONLY review lines with + prefix (new or modified code)
-2. Run `cat -n src/processor.py` to find ACTUAL line numbers
-3. Report issues ONLY for the changed lines
+Run `cat -n processor.py` to see the FINAL file:
+```
+85  class DataProcessor:
+86      def process(self, data):
+87          # Some existing code
+88          timeout = 30           # <- Issue here: hardcoded value
+89          result = self.transform(data, timeout)
+90          if not result:
+91              print("Error")     # <- Issue here: should use logging
+92          return result
+```
 
-WRONG: "Line 15: existing_function should have docstring" (unchanged code)
-RIGHT: "Line 88: Hard-coded timeout value should be configurable" (new code)
+Report issues at the EXACT lines in the final file:
+- Line 88: "Hard-coded timeout value should be configurable"
+- Line 91: "Use proper logging instead of print statement"
+
+NOT line 89 or 90 (even though they're part of the change)
+NOT lines from the diff (like @@ -85,7 +85,9)
