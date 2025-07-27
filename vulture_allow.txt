@@ -46,6 +46,7 @@ snippet  # unused variable (src/streetrace/tools/definitions/find_in_files.py:19
 cli_success  # unused function (src/streetrace/tools/definitions/result.py:55)
 cli_error  # unused function (src/streetrace/tools/definitions/result.py:65)
 write_file  # unused function (src/streetrace/tools/fs_tool.py:139)
+write_json  # unused function (src/streetrace/tools/fs_tool.py:216)
 _.rprompt  # unused attribute (src/streetrace/ui/console_ui.py:153)
 _.rprompt  # unused attribute (src/streetrace/ui/console_ui.py:155)
 render_error  # unused function (src/streetrace/ui/ui_events.py:24)

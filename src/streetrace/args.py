@@ -22,6 +22,10 @@ class Args(tap.TypedArgs):
             "Required if running a prompt."
         ),
     )
+    agent: str | None = tap.arg(
+        help="Specific agent to use (default: Streetrace Coding Agent)",
+        default=None,
+    )
     prompt: str | None = tap.arg(help="Non-interactive prompt mode", default=None)
     arbitrary_prompt: list[str] | None = tap.arg(
         positional=True,
