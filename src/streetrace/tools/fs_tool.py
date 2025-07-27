@@ -16,6 +16,7 @@ import streetrace.tools.definitions.find_in_files as s
 import streetrace.tools.definitions.list_directory as rds
 import streetrace.tools.definitions.read_file as rf
 import streetrace.tools.definitions.write_file as wf
+import streetrace.tools.definitions.write_json as wj
 
 
 def _clean_path(input_str: str) -> str:
@@ -205,6 +206,38 @@ def append_to_file(
     """
     return dict(
         af.append_to_file(
+            _clean_path(path),
+            content,
+            work_dir,
+        ),
+    )
+
+
+def write_json(
+    path: str,
+    content: str,
+    work_dir: Path,
+) -> dict[str, Any]:
+    """Create or overwrite a JSON file with automatic validation.
+
+    This tool validates JSON syntax before writing and provides detailed
+    error messages with fix suggestions if validation fails.
+
+    Args:
+        path (str): The path to the file to write, relative to the working directory.
+        content (str): JSON content to write to the file (as a string).
+        work_dir (str): The working directory.
+
+    Returns:
+        dict[str,Any]:
+            "tool_name": "write_json"
+            "result": "success" or "failure"
+            "error": error message with fix suggestions if JSON is invalid
+            "output": success message if file was written
+
+    """
+    return dict(
+        wj.write_json_file(
             _clean_path(path),
             content,
             work_dir,

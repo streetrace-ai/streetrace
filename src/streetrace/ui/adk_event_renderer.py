@@ -92,11 +92,25 @@ def _display_function_response(response: dict[str, Any], console: Console) -> No
             display_dict = val.model_dump()
         elif isinstance(val, dict):
             display_dict = val
+
+    # Check if this is a write_json error response that needs full error details
+    is_write_json_error = (
+        display_dict.get("tool_name") == "write_json" and
+        display_dict.get("result") == "failure" and
+        "JSON validation failed" in str(display_dict.get("error", ""))
+    )
+
+    def format_response_value(key: str, value: object) -> str:
+        if key == "error" and is_write_json_error:
+            # Don't truncate JSON validation errors - AI needs full details
+            return str(value)
+        return _trim_text(str(value))
+
     logger.info(
         "Function response:\n%s",
         "\n".join(
             [
-                f"  ↳ {key}: {_trim_text(str(display_dict[key]))}"
+                f"  ↳ {key}: {format_response_value(key, display_dict[key])}"
                 for key in display_dict
             ],
         ),
@@ -105,7 +119,7 @@ def _display_function_response(response: dict[str, Any], console: Console) -> No
         Syntax(
             code="\n".join(
                 [
-                    f"  ↳ {key}: {_trim_text(str(display_dict[key]))}"
+                    f"  ↳ {key}: {format_response_value(key, display_dict[key])}"
                     for key in display_dict
                 ],
             ),

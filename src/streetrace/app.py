@@ -96,7 +96,9 @@ class Application:
             await self._run_interactive()
 
     async def _process_input(self, user_input: str) -> None:
-        ctx: InputContext = InputContext(user_input=user_input)
+        ctx: InputContext = InputContext(
+            user_input=user_input, agent_name=self.args.agent,
+        )
         for handler in self.input_handling_pipeline:
             if handler.long_running:
                 with self.ui.status():

@@ -1,0 +1,20 @@
+# Ruff configuration for GitHub workflow scripts
+# These scripts are primarily CLI utilities with different patterns than the main codebase
+
+line-length = 88
+
+[lint]
+# Allow print statements in CLI scripts
+ignore = [
+    "T201",  # print statements are expected in CLI tools
+    "S607",  # subprocess with partial executable paths (git, python3, etc.)
+    "S603",  # subprocess without shell=True audit
+    "TRY300", # Consider moving statements before `except` clause
+    "E722",  # Bare except clauses (acceptable for cleanup operations in scripts)
+    "F841",  # Local variable assigned but never used (subprocess results)
+]
+
+[lint.extend-per-file-ignores]
+# Additional ignores for specific patterns
+"**/per_file_code_review.py" = ["PLW2901"]  # Allow variable reassignment in loops for file processing
+"**/code_review.py" = ["PLW2901"]  # Allow variable reassignment in loops for env file parsing
