@@ -176,3 +176,4 @@ cython_debug/
 # local temp dir
 /tmp
 .devcontainer/.bash_history
+profile_output.prof

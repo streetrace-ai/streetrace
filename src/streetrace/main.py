@@ -5,11 +5,7 @@ import sys
 from importlib.metadata import version
 from pathlib import Path
 
-from dotenv import load_dotenv
-
-from streetrace.app import create_app
 from streetrace.args import Args, bind_and_run
-from streetrace.log import get_logger, init_logging
 
 
 def show_version() -> None:
@@ -24,10 +20,47 @@ def show_version() -> None:
     sys.exit(0)
 
 
-def run(args: Args) -> None:
+def run(args: Args) -> None:  # noqa: C901
     """Configure and run the Application."""
+    # Handle early exits that don't need full app initialization
     if args.version:
         show_version()
+
+    # For list-sessions, we need minimal initialization
+    if args.list_sessions:
+        from streetrace.app import CONTEXT_DIR  # noqa: PLC0415
+        from streetrace.session_service import JSONSessionService  # noqa: PLC0415
+
+        cwd = Path.cwd()
+        if not cwd.is_dir():
+            msg = f"Current working directory is not a directory: {cwd}"
+            raise NotADirectoryError(msg)
+
+        context_dir = cwd / CONTEXT_DIR
+        session_service = JSONSessionService(context_dir / "sessions")
+
+        async def list_sessions() -> None:
+            sessions = await session_service.list_sessions(
+                app_name=args.effective_app_name,
+                user_id=args.effective_user_id,
+            )
+
+            if not sessions:
+                print("No sessions found.")  # noqa: T201
+            else:
+                print("Available sessions:")  # noqa: T201
+                for session in sessions:
+                    print(f"  - {session.session_id} (created: {session.created_at})")  # noqa: T201
+
+        asyncio.run(list_sessions())
+        sys.exit(0)
+
+    # Full initialization for actual app usage - defer heavy imports
+    from dotenv import load_dotenv  # noqa: PLC0415
+
+    from streetrace.app import create_app  # noqa: PLC0415
+    from streetrace.log import get_logger, init_logging  # noqa: PLC0415
+
     cwd = Path.cwd()
     if not cwd.is_dir():
         msg = f"Current working directory is not a directory: {cwd}"
