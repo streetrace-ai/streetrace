@@ -1,11 +1,7 @@
 """Runs agents and implements the core user<->agent interaction loop."""
 
-from typing import override
+from typing import TYPE_CHECKING, override
 
-from google.adk import Runner
-from google.genai import types as genai_types
-
-from streetrace.agents.agent_manager import AgentManager
 from streetrace.input_handler import (
     HANDLED_CONT,
     HandlerResult,
@@ -13,9 +9,12 @@ from streetrace.input_handler import (
     InputHandler,
 )
 from streetrace.log import get_logger
-from streetrace.session_service import SessionManager
-from streetrace.ui.adk_event_renderer import render_event as _  # noqa: F401
+from streetrace.ui.adk_event_renderer import Event
 from streetrace.ui.ui_bus import UiBus
+
+if TYPE_CHECKING:
+    from streetrace.agents.agent_manager import AgentManager
+    from streetrace.session.session_manager import SessionManager
 
 logger = get_logger(__name__)
 
@@ -25,8 +24,8 @@ class Supervisor(InputHandler):
 
     def __init__(
         self,
-        agent_manager: AgentManager,
-        session_manager: SessionManager,
+        agent_manager: "AgentManager",
+        session_manager: "SessionManager",
         ui_bus: UiBus,
     ) -> None:
         """Initialize a new instance of workflow supervisor.
@@ -60,6 +59,8 @@ class Supervisor(InputHandler):
             HandlerResult indicating handing result.
 
         """
+        from google.genai import types as genai_types
+
         parts = [genai_types.Part.from_text(text=item) for item in ctx]
 
         content = genai_types.Content(role="user", parts=parts) if parts else None
@@ -68,6 +69,10 @@ class Supervisor(InputHandler):
         session = await self.session_manager.get_or_create_session()
         session = await self.session_manager.validate_session(session)
         async with self.agent_manager.create_agent("default") as root_agent:
+            # Type cast needed because JSONSessionService uses duck typing at runtime
+            # but inherits from BaseSessionService only during TYPE_CHECKING
+            from google.adk import Runner
+
             runner = Runner(
                 app_name=session.app_name,
                 session_service=self.session_manager.session_service,
@@ -81,7 +86,7 @@ class Supervisor(InputHandler):
                 session_id=session.id,
                 new_message=content,  # type: ignore[arg-type] # base lacks precision
             ):
-                self.ui_bus.dispatch_ui_update(event)
+                self.ui_bus.dispatch_ui_update(Event(event=event))
                 await self.session_manager.manage_current_session()
 
                 # TODO(krmrn42): Handle wrong tool calls. How to detect the root cause

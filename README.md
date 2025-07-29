@@ -373,3 +373,16 @@ The tool returns a list of available tools with:
 - Tool name
 - Description
 - Whether the tool requires agent capabilities
+
+## GitHub Workflow: Startup Profiling on PR
+
+On every pull request, the project runs `scripts/profile_startup.py` on both the PR branch and the main branch and compares their startup performance. The results are posted as a comment on the PR for fast visibility and regression detection.
+
+How it works:
+- On each PR, the CI workflow:
+  - Checks out the PR branch, installs dependencies, and runs `profile_startup.py --json --save=profile_pr.json`.
+  - Checks out the main branch at HEAD, installs dependencies, and runs the profiler to `profile_main.json`.
+  - Uses `scripts/compare_profiles.py` to generate a Markdown summary showing deltas for startup performance key metrics.
+  - Posts the difference as a persistent, auto-updating PR comment.
+
+This ensures that startup regressions are caught early and remediation advice is visible to contributors and reviewers.

@@ -5,13 +5,15 @@ the current conversation history in the interactive mode.
 """
 
 # Import Application for type hint only, avoid circular dependency if possible
-from typing import override
+from typing import TYPE_CHECKING, override
 
 from streetrace.commands.base_command import Command
 from streetrace.log import get_logger
-from streetrace.session_service import SessionManager
 from streetrace.ui import ui_events
-from streetrace.ui.ui_bus import UiBus
+
+if TYPE_CHECKING:
+    from streetrace.session.session_manager import SessionManager
+    from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
 
@@ -19,7 +21,7 @@ logger = get_logger(__name__)
 class ResetSessionCommand(Command):
     """Command to clear the conversation history, resetting it to the initial state."""
 
-    def __init__(self, ui_bus: UiBus, session_manager: SessionManager) -> None:
+    def __init__(self, ui_bus: "UiBus", session_manager: "SessionManager") -> None:
         """Initialize a new instance of ResetSessionCommand."""
         self.ui_bus = ui_bus
         self.session_manager = session_manager

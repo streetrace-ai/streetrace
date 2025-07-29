@@ -1,19 +1,30 @@
 """Rendering wrapper for google.adk.events.Event."""
 
-from typing import Any
-
-from google.adk.events import Event
-from google.genai.types import FunctionCall
-from mcp.types import CallToolResult
-from rich.console import Console
-from rich.markdown import Markdown
-from rich.syntax import Syntax
+import sys
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 from streetrace.log import get_logger
 from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import register_renderer
 
+if TYPE_CHECKING:
+    from google.adk.events import Event as AdkEvent
+    from google.genai.types import FunctionCall
+    from rich.console import Console
+
 logger = get_logger(__name__)
+
+
+@dataclass
+class Event:
+    """Wrapper for ADK Event.
+
+    This class is used to allow lazy-loading of ADK Event while having strict
+    typing of the Event type.
+    """
+
+    event: "AdkEvent"
 
 
 def _trim_text(text: str, max_length: int = 200, max_lines: int = 2) -> str:
@@ -45,8 +56,10 @@ def _display_assistant_text(
     author: str,
     text: str,
     is_final_response: bool,  # noqa: FBT001
-    console: Console,
+    console: "Console",
 ) -> None:
+    from rich.markdown import Markdown
+
     style = Styles.RICH_INFO
     if is_final_response:
         style = Styles.RICH_MODEL
@@ -67,10 +80,12 @@ def _display_assistant_text(
 
 def _display_function_call(
     author: str,
-    function_call: FunctionCall,
-    console: Console,
+    function_call: "FunctionCall",
+    console: "Console",
 ) -> None:
     logger.info("Function call: `%s(%s)`", function_call.name, function_call.args)
+    from rich.syntax import Syntax
+
     console.print(
         author,
         Syntax(
@@ -84,11 +99,19 @@ def _display_function_call(
     )
 
 
-def _display_function_response(response: dict[str, Any], console: Console) -> None:
+def _is_call_tool_result(value: object) -> bool:
+    if value and "mcp.types" in sys.modules:
+        return isinstance(value, sys.modules["mcp.types"].CallToolResult)
+    return False
+
+
+def _display_function_response(response: dict[str, Any], console: "Console") -> None:
+    from rich.syntax import Syntax
+
     display_dict = response
     if len(display_dict) == 1:
         val = next(iter(display_dict.values()))
-        if isinstance(val, CallToolResult):
+        if _is_call_tool_result(val):
             display_dict = val.model_dump()
         elif isinstance(val, dict):
             display_dict = val
@@ -118,23 +141,27 @@ def _display_function_response(response: dict[str, Any], console: Console) -> No
 
 
 @register_renderer
-def render_event(obj: Event, console: Console) -> None:
+def render_event(obj: Event, console: "Console") -> None:
     """Render the provided google.adk.events.Event to rich.console."""
-    author = f"[bold]{obj.author}:[/bold]\n"
-    if obj.is_final_response() and obj.actions and obj.actions.escalate:
+    author = f"[bold]{obj.event.author}:[/bold]\n"
+    if (
+        obj.event.is_final_response()
+        and obj.event.actions
+        and obj.event.actions.escalate
+    ):
         # Handle potential errors/escalations
         console.print(
             author,
-            f"Agent escalated: {obj.error_message or 'No specific message.'}",
+            f"Agent escalated: {obj.event.error_message or 'No specific message.'}",
             style=Styles.RICH_ERROR,
         )
-    if obj.content and obj.content.parts:
-        for part in obj.content.parts:
+    if obj.event.content and obj.event.content.parts:
+        for part in obj.event.content.parts:
             if part.text:
                 _display_assistant_text(
                     author,
                     part.text,
-                    obj.is_final_response(),
+                    obj.event.is_final_response(),
                     console,
                 )
 

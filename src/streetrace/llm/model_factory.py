@@ -1,6 +1,9 @@
 """Factory for creating and managing LLM models."""
 
-from google.adk.models.base_llm import BaseLlm
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from google.adk.models.base_llm import BaseLlm
 
 from streetrace.llm.llm_interface import (
     AdkLiteLlmInterface,
@@ -43,7 +46,7 @@ class ModelFactory:
         """
         return AdkLiteLlmInterface(model_name, self.ui_bus)
 
-    def get_current_model(self) -> BaseLlm:
+    def get_current_model(self) -> "BaseLlm":
         """Return the default model based on the configuration.
 
         Returns:

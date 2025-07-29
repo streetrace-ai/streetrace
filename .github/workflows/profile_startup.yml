@@ -1,0 +1,57 @@
+name: Profile Startup on PR
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/profile_startup.py'
+      - 'scripts/compare_profiles.py'
+      - 'src/**'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+
+jobs:
+  profile_startup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install
+
+      - name: Run profile on PR branch
+        run: poetry run python scripts/profile_startup.py --json --save=profile_pr.json
+
+      - name: Save PR branch commit SHA
+        id: pr_sha
+        run: echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Fetch and checkout main branch
+        run: |
+          git fetch origin main:main
+          git checkout main
+
+      - name: Install dependencies for main
+        run: poetry install
+
+      - name: Run profile on main branch
+        run: poetry run python scripts/profile_startup.py --json --save=profile_main.json
+
+      - name: Compare results
+        run: python scripts/compare_profiles.py profile_main.json profile_pr.json diff_report.md
+
+      - name: Checkout PR branch again for report context
+        run: git checkout ${{ steps.pr_sha.outputs.sha }}
+
+      - name: Comment on PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          path: diff_report.md

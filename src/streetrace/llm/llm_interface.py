@@ -9,15 +9,15 @@ token estimation, API standardization, and provider-agnostic interactions.
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, cast, override
 
-from google.adk.models.base_llm import BaseLlm
-from litellm.utils import token_counter
+if TYPE_CHECKING:
+    from streetrace.llm.lite_llm_client import RetryingLiteLlm
 
-from streetrace.llm.lite_llm_client import RetryingLiteLlm
 from streetrace.log import get_logger
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
 
 if TYPE_CHECKING:
+    from google.adk.models.base_llm import BaseLlm
     from litellm.types.utils import ModelResponse
 
 logger = get_logger(__name__)
@@ -39,7 +39,7 @@ class LlmInterface(ABC):
     """
 
     @abstractmethod
-    def get_adk_llm(self) -> BaseLlm:
+    def get_adk_llm(self) -> "BaseLlm":
         """Get the ADK LLM interface instance."""
         raise NotImplementedError
 
@@ -68,6 +68,8 @@ class AdkLiteLlmInterface(LlmInterface):
             ui_bus: UI event bus to exchange messages with the UI.
 
         """
+        from streetrace.llm.lite_llm_client import RetryingLiteLlm
+
         self.model = model
         self.llm_instance = RetryingLiteLlm(model=model, ui_bus=ui_bus)
         self.ui_bus = ui_bus
@@ -75,7 +77,7 @@ class AdkLiteLlmInterface(LlmInterface):
         ui_bus.on_typing_prompt(self.estimate_token_count)
 
     @override
-    def get_adk_llm(self) -> RetryingLiteLlm:
+    def get_adk_llm(self) -> "RetryingLiteLlm":
         """Get the internal LLM interface reference."""
         return self.llm_instance
 
@@ -87,6 +89,8 @@ class AdkLiteLlmInterface(LlmInterface):
 
         Override to provide a proper count estimation.
         """
+        from litellm.utils import token_counter
+
         messages = [{"user": "role", "content": prompt}]
         estimated_token_count = token_counter(model=self.model, messages=messages)
         self.ui_bus.dispatch_prompt_token_count_estimate(estimated_token_count)

@@ -5,19 +5,19 @@ the current conversation history to reduce token usage while maintaining context
 """
 
 # Import Application for type hint only
-from typing import override
-
-import litellm
-from google.adk.events import Event
-from google.adk.models.llm_request import LlmRequest
-from google.genai import types as genai_types
+from typing import TYPE_CHECKING, override
 
 from streetrace.args import Args
 from streetrace.commands.base_command import Command
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
 from streetrace.messages import COMPACT
-from streetrace.session_service import SessionManager
+
+if TYPE_CHECKING:
+    from google.genai import types as genai_types
+
+    from streetrace.session.session_manager import SessionManager
+
 from streetrace.system_context import SystemContext
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
@@ -32,7 +32,7 @@ class CompactCommand(Command):
         self,
         ui_bus: UiBus,
         args: Args,
-        session_manager: SessionManager,
+        session_manager: "SessionManager",
         system_context: SystemContext,
         model_factory: ModelFactory,
     ) -> None:
@@ -55,8 +55,11 @@ class CompactCommand(Command):
 
     async def _summarize_contents(
         self,
-        contents: list[genai_types.Content],
+        contents: "list[genai_types.Content]",
     ) -> tuple[str | None, str | None]:
+        from google.adk.models.llm_request import LlmRequest
+        from google.genai import types as genai_types
+
         contents.append(
             genai_types.Content(
                 role="user",
@@ -97,7 +100,10 @@ class CompactCommand(Command):
     async def execute_async(self) -> None:
         """Execute the history compaction action using the HistoryManager."""
         # allow ADK to feed a fake tool to model in case it needs one
-        # TODO(krmrn42): Find a workaround as importing litellm directly takes time.
+        import litellm
+        from google.adk.events import Event
+        from google.genai import types as genai_types
+
         litellm.modify_params = True
 
         current_session = await self.session_manager.get_current_session()

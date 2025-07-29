@@ -1,11 +1,15 @@
 """Base class for StreetRace agents."""
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
-from a2a.types import AgentCard
-from google.adk.agents import BaseAgent
+if TYPE_CHECKING:
+    # Import only for type checking to avoid circular imports
+    from a2a.types import AgentCard
+    from google.adk.agents import BaseAgent
 
-from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
+    from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
+
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import AnyTool
@@ -15,12 +19,12 @@ class StreetRaceAgent(ABC):
     """Base class for StreetRace agents."""
 
     @abstractmethod
-    def get_agent_card(self) -> AgentCard | StreetRaceAgentCard:
+    def get_agent_card(self) -> "AgentCard | StreetRaceAgentCard":
         """Provide an A2A AgentCard."""
         msg = "This method should be implemented by subclasses."
         raise NotImplementedError(msg)
 
-    def get_extended_agent_card(self) -> AgentCard | StreetRaceAgentCard:
+    def get_extended_agent_card(self) -> "AgentCard | StreetRaceAgentCard":
         """Provide an extended A2A AgentCard.
 
         If the default agent card reports supportsAuthenticatedExtendedCard,
@@ -43,7 +47,7 @@ class StreetRaceAgent(ABC):
         model_factory: ModelFactory,
         tools: list[AnyTool],
         system_context: SystemContext,
-    ) -> BaseAgent:
+    ) -> "BaseAgent":
         """Create the agent Run the Hello World agent with the provided input.
 
         Args:
