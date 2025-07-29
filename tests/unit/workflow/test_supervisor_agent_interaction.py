@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from streetrace.input_handler import InputContext
+from streetrace.ui.adk_event_renderer import Event as EventWrapper
 from streetrace.workflow.supervisor import Supervisor
 
 
@@ -35,7 +36,7 @@ class TestSupervisorAgentInteraction:
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
-            "streetrace.workflow.supervisor.Runner",
+            "google.adk.Runner",
             return_value=mock_adk_runner(),
         ):
             # Act
@@ -69,7 +70,7 @@ class TestSupervisorAgentInteraction:
         mock_runner = mock_adk_runner()
 
         with patch(
-            "streetrace.workflow.supervisor.Runner",
+            "google.adk.Runner",
             return_value=mock_runner,
         ) as runner_context:
             # Act
@@ -116,7 +117,7 @@ class TestSupervisorAgentInteraction:
 
         mock_runner = mock_adk_runner(events)
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with patch("google.adk.Runner", return_value=mock_runner):
             # Act
             await shallow_supervisor.handle(input_context)
 
@@ -126,7 +127,7 @@ class TestSupervisorAgentInteraction:
             call[0][0]
             for call in shallow_supervisor.ui_bus.dispatch_ui_update.call_args_list
         ]
-        assert actual_calls == events
+        assert actual_calls == [EventWrapper(event) for event in events]
 
         # Assert post-processing was called after final response
         shallow_supervisor.session_manager.post_process.assert_called_once()
@@ -159,13 +160,13 @@ class TestSupervisorAgentInteraction:
 
         mock_runner = mock_adk_runner([escalation_event])
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with patch("google.adk.Runner", return_value=mock_runner):
             # Act
             await shallow_supervisor.handle(input_context)
 
         # Assert escalation was handled
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
-            escalation_event,
+            EventWrapper(escalation_event),
         )
         shallow_supervisor.session_manager.post_process.assert_called_once()
 
@@ -200,7 +201,7 @@ class TestSupervisorAgentInteraction:
 
         mock_runner = mock_adk_runner(events)
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with patch("google.adk.Runner", return_value=mock_runner):
             # Act
             await shallow_supervisor.handle(input_context)
 
@@ -239,12 +240,12 @@ class TestSupervisorAgentInteraction:
 
         mock_runner = mock_adk_runner([final_event])
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with patch("google.adk.Runner", return_value=mock_runner):
             # Act
             await shallow_supervisor.handle(input_context)
 
         # Assert event was dispatched and post-processing occurred
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
-            final_event,
+            EventWrapper(final_event),
         )
         shallow_supervisor.session_manager.post_process.assert_called_once()

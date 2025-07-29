@@ -12,7 +12,7 @@ from streetrace.args import Args
 from streetrace.commands.base_command import Command
 from streetrace.commands.definitions.compact_command import CompactCommand
 from streetrace.llm.model_factory import ModelFactory
-from streetrace.session_service import SessionManager
+from streetrace.session.session_manager import SessionManager
 from streetrace.system_context import SystemContext
 from streetrace.ui.ui_bus import UiBus
 

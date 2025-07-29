@@ -9,12 +9,9 @@ from google.adk.events import Event
 from google.genai import types as genai_types
 
 from streetrace.args import Args
-from streetrace.session_service import (
-    JSONSessionSerializer,
-    JSONSessionService,
-    SessionManager,
-    _session_id,
-)
+from streetrace.session.json_serializer import JSONSessionSerializer
+from streetrace.session.session_manager import SessionManager, _session_id
+from streetrace.session.session_service import JSONSessionService
 
 
 @pytest.fixture
@@ -47,18 +44,16 @@ class TestSessionServiceIntegration:
             # Create serializer and service
             json_serializer = JSONSessionSerializer(storage_path=storage_dir)
             json_session_service = JSONSessionService(
-                storage_path=storage_dir,
                 serializer=json_serializer,
             )
 
             # Create session manager with fixed session ID
             with patch(
-                "streetrace.session_service._session_id",
+                "streetrace.session.session_manager._session_id",
                 return_value=test_session_id,
             ):
                 session_manager = SessionManager(
                     args=real_args,
-                    session_service=json_session_service,
                     system_context=system_context,
                     ui_bus=ui_bus,
                 )
@@ -124,7 +119,7 @@ class TestSessionServiceIntegration:
                 # Reset the session with a new ID
                 new_session_id = "new-session"
                 with patch(
-                    "streetrace.session_service._session_id",
+                    "streetrace.session.session_manager._session_id",
                     return_value=new_session_id,
                 ):
                     session_manager.reset_session()
@@ -155,7 +150,7 @@ class TestSessionServiceIntegration:
         # Test with a fixed time
         expected_id = "2023-01-15_10-30"
 
-        with patch("streetrace.session_service.datetime") as mock_dt:
+        with patch("streetrace.session.session_manager.datetime") as mock_dt:
             mock_datetime = Mock()
             mock_datetime.strftime.return_value = expected_id
             mock_dt.now.return_value = mock_datetime

@@ -13,7 +13,7 @@ from google.adk.events import Event
 from google.adk.sessions import Session
 from google.genai import types as genai_types
 
-from streetrace.session_service import SessionManager
+from streetrace.session.session_manager import SessionManager
 
 
 class TestSessionValidation:

@@ -7,7 +7,7 @@ from google.adk.events import Event
 from google.adk.sessions import Session
 from google.genai import types as genai_types
 
-from streetrace.session_service import JSONSessionSerializer
+from streetrace.session.json_serializer import JSONSessionSerializer
 
 
 class TestJSONSessionSerializerEdgeCases:
@@ -28,7 +28,7 @@ class TestJSONSessionSerializerEdgeCases:
         # Mock Session.model_validate_json to return None
         with (
             patch("google.adk.sessions.Session.model_validate_json", return_value=None),
-            patch("streetrace.session_service.logger") as mock_logger,
+            patch("streetrace.session.json_serializer.logger") as mock_logger,
         ):
             # List sessions
             sessions = list(

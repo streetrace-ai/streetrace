@@ -26,7 +26,7 @@ def get_user_identity() -> str:
     gh_path = shutil.which("gh")
     if gh_path:
         try:
-            from streetrace.log import get_logger  # noqa: PLC0415
+            from streetrace.log import get_logger
             get_logger(__name__).info("GitHub CLI path: {gh_path}")
 
             result = subprocess.run( # noqa: S603
@@ -45,7 +45,7 @@ def get_user_identity() -> str:
     git_path = shutil.which("git")
     if git_path:
         try:
-            from streetrace.log import get_logger  # noqa: PLC0415
+            from streetrace.log import get_logger
             get_logger(__name__).info(f"Git CLI path: {git_path}")
 
             result = subprocess.run( # noqa: S603

@@ -8,6 +8,7 @@ from google.adk.events import Event
 from google.genai.types import Content, FunctionCall, FunctionResponse, Part
 from rich.syntax import Syntax
 
+from streetrace.ui.adk_event_renderer import Event as EventWrapper
 from streetrace.ui.adk_event_renderer import render_event
 
 
@@ -20,7 +21,7 @@ class TestFunctionResponseRendering:
         mock_console,
     ):
         """Test rendering a basic function response event."""
-        render_event(function_response_event, mock_console)
+        render_event(EventWrapper(function_response_event), mock_console)
 
         mock_console.print.assert_called_once()
 
@@ -33,7 +34,7 @@ class TestFunctionResponseRendering:
         mock_console,
     ):
         """Test that function responses use proper syntax highlighting."""
-        render_event(function_response_event, mock_console)
+        render_event(EventWrapper(function_response_event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][0]
@@ -51,7 +52,7 @@ class TestFunctionResponseRendering:
         sample_function_response_data,
     ):
         """Test that function response is formatted with arrow prefix."""
-        render_event(function_response_event, mock_console)
+        render_event(EventWrapper(function_response_event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][0]
@@ -81,7 +82,7 @@ class TestFunctionResponseRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][0]
@@ -118,7 +119,7 @@ class TestFunctionResponseRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][0]
@@ -142,7 +143,7 @@ class TestFunctionResponseRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Should not print anything for empty response
         mock_console.print.assert_not_called()
@@ -168,7 +169,7 @@ class TestFunctionResponseRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][0]
@@ -199,7 +200,7 @@ class TestFunctionResponseRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][0]
@@ -233,7 +234,7 @@ class TestFunctionResponseRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Should have 2 print calls, one for each function response
         assert mock_console.print.call_count == 2
@@ -272,7 +273,7 @@ class TestFunctionResponseRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Should have 3 print calls: text, function call, function response
         assert mock_console.print.call_count == 3
@@ -301,7 +302,7 @@ class TestFunctionResponseRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][0]
@@ -342,7 +343,7 @@ class TestFunctionResponseRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][0]
@@ -371,7 +372,7 @@ class TestFunctionResponseRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Empty response dict should not trigger printing
         mock_console.print.assert_not_called()
@@ -382,7 +383,7 @@ class TestFunctionResponseRendering:
         mock_console,
     ):
         """Test that function response output doesn't include author prefix."""
-        render_event(function_response_event, mock_console)
+        render_event(EventWrapper(function_response_event), mock_console)
 
         call_args = mock_console.print.call_args
         # Function response print should only have the Syntax object as positional arg

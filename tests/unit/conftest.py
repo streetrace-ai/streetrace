@@ -12,6 +12,7 @@ from streetrace.agents.agent_manager import AgentManager
 from streetrace.app import Application
 from streetrace.app_state import AppState
 from streetrace.args import Args
+from streetrace.bash_handler import BashHandler
 from streetrace.commands.command_executor import CommandExecutor
 from streetrace.commands.definitions import (
     CompactCommand,
@@ -25,11 +26,9 @@ from streetrace.commands.definitions import (
 from streetrace.llm.llm_interface import AdkLiteLlmInterface
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.prompt_processor import PromptProcessor
-from streetrace.session_service import (
-    JSONSessionSerializer,
-    JSONSessionService,
-    SessionManager,
-)
+from streetrace.session.json_serializer import JSONSessionSerializer
+from streetrace.session.session_manager import SessionManager
+from streetrace.session.session_service import JSONSessionService
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui.completer import CommandCompleter, PathCompleter, PromptCompleter
@@ -252,10 +251,9 @@ def mock_json_session_service(mock_json_serializer) -> JSONSessionService:
 
 @pytest.fixture
 def shallow_json_session_service(
-    sessions_dir,
     mock_json_serializer,
 ) -> JSONSessionService:
-    return JSONSessionService(sessions_dir, mock_json_serializer)
+    return JSONSessionService(mock_json_serializer)
 
 
 @pytest.fixture
@@ -277,17 +275,18 @@ def mock_session_manager(
 
 @pytest.fixture
 def shallow_session_manager(
-    mock_json_session_service,
     mock_args,
     mock_system_context,
+    mock_json_session_service,
     mock_ui_bus,
 ) -> SessionManager:
-    return SessionManager(
-        session_service=mock_json_session_service,
+    manager = SessionManager(
         args=mock_args,
         system_context=mock_system_context,
         ui_bus=mock_ui_bus,
     )
+    manager._session_service = mock_json_session_service  # noqa: SLF001
+    return manager
 
 
 @pytest.fixture
@@ -489,6 +488,12 @@ def shallow_reset_command(mock_ui_bus, mock_session_manager) -> ResetSessionComm
 
 
 @pytest.fixture
+def mock_bash_handler() -> BashHandler:
+    """Fixture to provide a mock BashHandler."""
+    return Mock(spec=BashHandler)
+
+
+@pytest.fixture
 def mock_app(
     mock_args,
     mock_console_ui,
@@ -498,6 +503,7 @@ def mock_app(
     mock_session_manager,
     mock_supervisor,
     app_state,
+    mock_bash_handler,
 ) -> Application:
     app = Mock(spec=Application)
     app.args = mock_args
@@ -508,6 +514,12 @@ def mock_app(
     app.session_manager = mock_session_manager
     app.workflow_supervisor = mock_supervisor
     app.state = app_state
+    app.input_handling_pipeline = [
+        mock_command_executor,
+        mock_bash_handler,
+        mock_prompt_processor,
+        mock_supervisor,
+    ]
     return app
 
 
@@ -521,16 +533,21 @@ def shallow_app(
     mock_session_manager,
     mock_supervisor,
     app_state,
+    mock_bash_handler,
 ) -> Application:
+    input_handling_pipeline = [
+        mock_command_executor,
+        mock_bash_handler,
+        mock_prompt_processor,
+        mock_supervisor,
+    ]
     return Application(
         args=mock_args,
         ui=mock_console_ui,
         ui_bus=mock_ui_bus,
-        cmd_executor=mock_command_executor,
-        prompt_processor=mock_prompt_processor,
         session_manager=mock_session_manager,
-        workflow_supervisor=mock_supervisor,
         state=app_state,
+        input_handling_pipeline=input_handling_pipeline,
     )
 
 

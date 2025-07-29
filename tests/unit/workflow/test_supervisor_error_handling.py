@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from streetrace.input_handler import InputContext
+from streetrace.ui.adk_event_renderer import Event as EventWrapper
 from streetrace.workflow.supervisor import Supervisor
 
 
@@ -104,7 +105,7 @@ class TestSupervisorErrorHandling:
         mock_runner.run_async.return_value = _failing_async_iter()
 
         with (
-            patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner),
+            patch("google.adk.Runner", return_value=mock_runner),
             # Act & Assert - Exception should propagate (fail-fast for core components)
             pytest.raises(Exception, match="Runner execution failed"),
         ):
@@ -154,7 +155,7 @@ class TestSupervisorErrorHandling:
         mock_runner.run_async.return_value = mock_events_iterator([final_event])
 
         with (
-            patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner),
+            patch("google.adk.Runner", return_value=mock_runner),
             # Act & Assert - UI failure should propagate
             # However, since this is internal workflow logic, it might follow fail-fast
             pytest.raises(Exception, match="UI dispatch failed"),
@@ -200,7 +201,7 @@ class TestSupervisorErrorHandling:
         mock_runner.run_async.return_value = mock_events_iterator([final_event])
 
         with (
-            patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner),
+            patch("google.adk.Runner", return_value=mock_runner),
             # Act & Assert - Exception should propagate (fail-fast for core components)
             pytest.raises(Exception, match="Post-process failed"),
         ):
@@ -208,7 +209,7 @@ class TestSupervisorErrorHandling:
 
         # Assert that execution proceeded normally until post_process
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
-            final_event,
+            EventWrapper(final_event),
         )
 
     @pytest.mark.asyncio
@@ -247,7 +248,7 @@ class TestSupervisorErrorHandling:
         mock_runner.run_async.return_value = mock_events_iterator([final_event])
 
         with (
-            patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner),
+            patch("google.adk.Runner", return_value=mock_runner),
             # Act & Assert - Exception should propagate (fail-fast for core components)
             pytest.raises(Exception, match="Agent cleanup failed"),
         ):
@@ -274,7 +275,7 @@ class TestSupervisorErrorHandling:
 
         with (
             patch(
-                "streetrace.workflow.supervisor.Runner",
+                "google.adk.Runner",
                 side_effect=Exception("Runner init failed"),
             ),
             # Act & Assert - Exception should propagate (fail-fast for core components)
@@ -319,12 +320,12 @@ class TestSupervisorErrorHandling:
         mock_runner = Mock()
         mock_runner.run_async.return_value = mock_events_iterator([problematic_event])
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with patch("google.adk.Runner", return_value=mock_runner):
             # Act - Should handle gracefully
             await shallow_supervisor.handle(input_context)
 
         # Assert processing completed successfully
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
-            problematic_event,
+            EventWrapper(problematic_event),
         )
         shallow_supervisor.session_manager.post_process.assert_called_once()

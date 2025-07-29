@@ -11,11 +11,9 @@ from google.adk.sessions import Session
 from google.genai import types as genai_types
 
 from streetrace.args import Args
-from streetrace.session_service import (
-    JSONSessionSerializer,
-    JSONSessionService,
-    SessionManager,
-)
+from streetrace.session.json_serializer import JSONSessionSerializer
+from streetrace.session.session_manager import SessionManager
+from streetrace.session.session_service import JSONSessionService
 from streetrace.system_context import SystemContext
 from streetrace.ui.ui_bus import UiBus
 
@@ -79,7 +77,6 @@ def json_serializer(session_storage_dir: Path) -> JSONSessionSerializer:
 def json_session_service(json_serializer: JSONSessionSerializer) -> JSONSessionService:
     """Create a JSON session service."""
     return JSONSessionService(
-        storage_path=json_serializer.storage_path,
         serializer=json_serializer,
     )
 
@@ -87,19 +84,20 @@ def json_session_service(json_serializer: JSONSessionSerializer) -> JSONSessionS
 @pytest.fixture
 def session_manager(
     mock_args: Args,
-    json_session_service: JSONSessionService,
     system_context: SystemContext,
+    json_session_service: JSONSessionService,
     ui_bus: UiBus,
 ) -> SessionManager:
     """Create a session manager."""
-    with patch("streetrace.session_service._session_id") as mock_session_id:
+    with patch("streetrace.session.session_manager._session_id") as mock_session_id:
         mock_session_id.return_value = "test-session-id"
-        return SessionManager(
+        manager = SessionManager(
             args=mock_args,
-            session_service=json_session_service,
             system_context=system_context,
             ui_bus=ui_bus,
         )
+        manager._session_service = json_session_service  # noqa: SLF001
+        return manager
 
 
 @pytest.fixture

@@ -34,7 +34,7 @@ class TestSupervisorSessionManagement:
         )
 
         with patch(
-            "streetrace.workflow.supervisor.Runner",
+            "google.adk.Runner",
             return_value=mock_adk_runner(),
         ):
             # Act
@@ -62,7 +62,7 @@ class TestSupervisorSessionManagement:
         )
 
         with patch(
-            "streetrace.workflow.supervisor.Runner",
+            "google.adk.Runner",
             return_value=mock_adk_runner(),
         ):
             # Act
@@ -103,7 +103,7 @@ class TestSupervisorSessionManagement:
         mock_runner = mock_adk_runner(events)
 
         with patch(
-            "streetrace.workflow.supervisor.Runner",
+            "google.adk.Runner",
             return_value=mock_runner,
         ) as mock_runner_patch:
             # Act
@@ -139,7 +139,7 @@ class TestSupervisorSessionManagement:
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
-            "streetrace.workflow.supervisor.Runner",
+            "google.adk.Runner",
             return_value=mock_adk_runner(),
         ):
             # Act
@@ -173,7 +173,7 @@ class TestSupervisorSessionManagement:
 
         mock_runner = mock_adk_runner(events)
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with patch("google.adk.Runner", return_value=mock_runner):
             # Act
             await shallow_supervisor.handle(input_context)
 
@@ -205,7 +205,7 @@ class TestSupervisorSessionManagement:
 
         mock_runner = mock_adk_runner(events)
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with patch("google.adk.Runner", return_value=mock_runner):
             # Act
             await shallow_supervisor.handle(input_context)
 
@@ -234,7 +234,7 @@ class TestSupervisorSessionManagement:
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
-            "streetrace.workflow.supervisor.Runner",
+            "google.adk.Runner",
             return_value=mock_adk_runner(),
         ) as mock_runner_patch:
             # Act
@@ -262,7 +262,7 @@ class TestSupervisorSessionManagement:
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
-            "streetrace.workflow.supervisor.Runner",
+            "google.adk.Runner",
             return_value=mock_adk_runner(),
         ):
             # Act

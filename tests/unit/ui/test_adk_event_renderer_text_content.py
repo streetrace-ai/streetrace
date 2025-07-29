@@ -9,6 +9,7 @@ from google.adk.events import Event
 from google.genai.types import Content, FunctionCall, Part
 from rich.markdown import Markdown
 
+from streetrace.ui.adk_event_renderer import Event as EventWrapper
 from streetrace.ui.adk_event_renderer import render_event
 from streetrace.ui.colors import Styles
 
@@ -32,7 +33,7 @@ class TestTextContentRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Verify author and markdown content are printed with correct style
         expected_author = f"[bold]{sample_author}:[/bold]\n"
@@ -53,7 +54,7 @@ class TestTextContentRendering:
         sample_author,
     ):
         """Test rendering a final response event uses different styling."""
-        render_event(final_response_event, mock_console)
+        render_event(EventWrapper(final_response_event), mock_console)
 
         expected_author = f"[bold]{sample_author}:[/bold]\n"
         mock_console.print.assert_called_once()
@@ -76,7 +77,7 @@ class TestTextContentRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         markdown_obj = call_args[0][1]
@@ -98,7 +99,7 @@ class TestTextContentRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Should have 3 print calls, one for each text part
         assert mock_console.print.call_count == 3
@@ -126,7 +127,7 @@ class TestTextContentRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Should only print the non-empty text part
         mock_console.print.assert_called_once()
@@ -148,7 +149,7 @@ class TestTextContentRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Should only print the non-None text part
         mock_console.print.assert_called_once()
@@ -158,14 +159,14 @@ class TestTextContentRendering:
 
     def test_render_event_no_content(self, empty_event, mock_console):
         """Test rendering event with no content."""
-        render_event(empty_event, mock_console)
+        render_event(EventWrapper(empty_event), mock_console)
 
         # Should not print anything for content
         mock_console.print.assert_not_called()
 
     def test_render_event_empty_content_parts(self, event_empty_content, mock_console):
         """Test rendering event with content but no parts."""
-        render_event(event_empty_content, mock_console)
+        render_event(EventWrapper(event_empty_content), mock_console)
 
         # Should not print anything for content
         mock_console.print.assert_not_called()
@@ -186,7 +187,7 @@ class TestTextContentRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         markdown_obj = call_args[0][1]
@@ -199,7 +200,7 @@ class TestTextContentRendering:
         # Test with special characters in author name
         basic_event.author = "Agent-1_Test"
 
-        render_event(basic_event, mock_console)
+        render_event(EventWrapper(basic_event), mock_console)
 
         call_args = mock_console.print.call_args
         expected_author = "[bold]Agent-1_Test:[/bold]\n"
@@ -217,7 +218,7 @@ class TestTextContentRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Should still render the text as-is through Markdown
         mock_console.print.assert_called_once()
@@ -239,7 +240,7 @@ class TestTextContentRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Should have calls for both text and function call
         assert mock_console.print.call_count == 2
@@ -260,7 +261,7 @@ class TestTextContentRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         mock_console.print.assert_called_once()
         call_args = mock_console.print.call_args

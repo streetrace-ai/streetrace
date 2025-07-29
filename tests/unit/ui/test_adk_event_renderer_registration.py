@@ -12,6 +12,7 @@ from google.adk.events import Event
 from google.adk.events.event_actions import EventActions
 from google.genai.types import Content, FunctionCall, FunctionResponse, Part
 
+from streetrace.ui.adk_event_renderer import Event as EventWrapper
 from streetrace.ui.adk_event_renderer import render_event
 from streetrace.ui.console_ui import ConsoleUI
 from streetrace.ui.render_protocol import (
@@ -27,10 +28,10 @@ class TestRendererRegistration:
     def test_render_event_is_registered(self):
         """Test that render_event function is registered for Event type."""
         # Check that Event type is in the registry
-        assert Event in _display_renderers_registry
+        assert EventWrapper in _display_renderers_registry
 
         # Check that the registered function is our render_event
-        registered_renderer = _display_renderers_registry[Event]
+        registered_renderer = _display_renderers_registry[EventWrapper]
         assert registered_renderer == render_event
 
     def test_render_using_registered_renderer_calls_render_event(
@@ -53,14 +54,14 @@ class TestRendererRegistration:
     ):
         """Test that Event objects can be rendered through the registry."""
         # This should not raise an exception
-        render_using_registered_renderer(basic_event, mock_console)
+        render_using_registered_renderer(EventWrapper(basic_event), mock_console)
 
         # Mock console should have been called (content rendering)
         mock_console.print.assert_called()
 
     def test_registry_contains_correct_function_signature(self):
         """Test that the registered function has the correct signature."""
-        registered_renderer = _display_renderers_registry[Event]
+        registered_renderer = _display_renderers_registry[EventWrapper]
 
         # Check function annotations
         annotations = registered_renderer.__annotations__
@@ -115,7 +116,7 @@ class TestRendererRegistration:
             )
 
             # Each should render without error through the registry
-            render_using_registered_renderer(event, mock_console)
+            render_using_registered_renderer(EventWrapper(event), mock_console)
 
     def test_registry_error_for_unregistered_type(self, mock_console):
         """Test that unregistered types raise appropriate error."""
@@ -162,7 +163,8 @@ class TestRendererRegistration:
         )
 
         # Should render without error
-        render_event(comprehensive_event, mock_console)
+
+        render_event(EventWrapper(comprehensive_event), mock_console)
 
         # Should have multiple print calls for different content types
         assert mock_console.print.call_count > 1
@@ -182,7 +184,7 @@ class TestRendererRegistration:
 
         # Mock the console.print method to verify calls
         with patch.object(console_ui.console, "print") as mock_print:
-            console_ui.display(basic_event)
+            console_ui.display(EventWrapper(basic_event))
 
             # Should have called print (content rendering)
             mock_print.assert_called()
@@ -190,12 +192,13 @@ class TestRendererRegistration:
     def test_direct_function_call_vs_registry_call(self, basic_event, mock_console):
         """Test that calling the function directly vs through registry is similar."""
         # Call directly
-        render_event(basic_event, mock_console)
+
+        render_event(EventWrapper(basic_event), mock_console)
         direct_call_count = mock_console.print.call_count
 
         # Call through registry
         mock_console.reset_mock()
-        render_using_registered_renderer(basic_event, mock_console)
+        render_using_registered_renderer(EventWrapper(basic_event), mock_console)
         registry_call_count = mock_console.print.call_count
 
         # Should produce the same number of calls
