@@ -228,7 +228,11 @@ def main():
     }
 
     if args.json:
-        print(json.dumps(results, indent=2))
+        json_output = json.dumps(results, indent=2)
+        if args.save:
+            Path(args.save).write_text(json_output)
+        else:
+            print(json_output)
         return
 
     # Human-readable output
