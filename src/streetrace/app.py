@@ -1,4 +1,3 @@
-# ruff: noqa: W293, W291
 """Orchestrate the StreetRace🚗💨 application flow and manage component interactions.
 
 This module contains the Application class which serves as the central

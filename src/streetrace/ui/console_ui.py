@@ -216,6 +216,7 @@ class ConsoleUI:
         # with the prompt rendering.
         try:
             with patch_stdout():
+                self.console.print()
                 user_input = await self.prompt_session.prompt_async(
                     build_prompt,
                     style=Styles.PT_ANSI,
@@ -225,6 +226,7 @@ class ConsoleUI:
                     placeholder=[("class:placeholder", "Enter your prompt")],
                     # completer and complete_while_typing are set in __init__
                 )
+                self.console.print()
         except EOFError:  # Handle Ctrl+D as a way to exit
             return "/exit"  # Consistent exit command
         except KeyboardInterrupt as kb_interrupt:  # Handle Ctrl+C
