@@ -83,17 +83,27 @@ jobs:
         if: steps.scripts_in_main.outputs.startup == 'true'
         run: poetry run python scripts/profile_startup.py --json --save=profile_main.json
 
-      - name: Compare results
-        if: steps.scripts_in_main.outputs.compare == 'true'
-        run: python scripts/compare_profiles.py profile_main.json profile_pr.json diff_report.md
-
       - name: Restore PR branch for reporting
         if: steps.scripts_in_pr.outputs.startup == 'true'
         run: git checkout ${{ steps.pr_sha.outputs.sha }}
 
+      - name: Compare results
+        if: steps.scripts_in_pr.outputs.startup == 'true' && steps.scripts_in_main.outputs.startup == 'true' && steps.scripts_in_pr.outputs.compare == 'true'
+        run: python scripts/compare_profiles.py profile_main.json profile_pr.json diff_report.md
+
+      - name: Format comparison with format_profile.py if compare missing
+        if: steps.scripts_in_pr.outputs.startup == 'true' && steps.scripts_in_main.outputs.startup == 'true' && steps.scripts_in_pr.outputs.compare != 'true'
+        run: |
+          echo "# ⚡ Startup Performance Comparison" > diff_report.md
+          echo "" >> diff_report.md
+          echo "*Note: Detailed comparison not available (compare_profiles.py missing). Showing PR profile only.*" >> diff_report.md
+          echo "" >> diff_report.md
+          python scripts/format_profile.py profile_pr.json temp_pr.md
+          cat temp_pr.md >> diff_report.md
+
       - name: Comment PR-only results if main missing
         if: steps.scripts_in_pr.outputs.startup == 'true' && steps.scripts_in_main.outputs.startup != 'true'
-        run: echo "# Startup Profile (PR only)\n" > diff_report.md && cat profile_pr.json >> diff_report.md
+        run: python scripts/format_profile.py profile_pr.json diff_report.md
 
       - name: Comment on PR
         if: steps.scripts_in_pr.outputs.startup == 'true'
