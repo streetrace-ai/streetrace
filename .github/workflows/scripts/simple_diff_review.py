@@ -64,37 +64,11 @@ def run_simple_diff_review(project_root: Path, model: str, base_ref: str = "main
                     except:
                         pass
 
-        # Simple prompt that lets the agent handle everything
-        prompt = f"""Review this pull request using a holistic diff-based approach:
-
-1. Use the execute_cli_command tool to run: git diff {base_ref}...HEAD
-2. If the diff is very large (>100k chars), intelligently trim it while prioritizing security-critical files
-3. If you trim the diff, include this exact warning: "The diff has been trimmed to fit into the context window, please keep the PRs smaller"
-4. Review the entire diff for security vulnerabilities, code quality, and cross-file consistency
-5. Use the write_json tool to save your review with this structure:
-
-{{
-  "summary": "Brief review summary of all changes",
-  "issues": [
-    {{
-      "severity": "error|warning|notice",
-      "line": 42,
-      "title": "Issue Title",
-      "message": "Detailed description", 
-      "category": "security|performance|quality|testing|maintainability",
-      "code_snippet": "problematic code",
-      "file": "path/to/file"
-    }}
-  ],
-  "positive_feedback": ["Good practices found"],
-  "metadata": {{
-    "review_focus": "holistic diff analysis",
-    "review_type": "diff_based"
-  }}
-}}
-
-Focus on security vulnerabilities (SQL injection, command injection, hardcoded secrets) and mark them as "error" severity.
-Execute the review immediately using the available tools."""
+        # Create the instructions file path
+        instructions_file = project_root / ".github/workflows/templates/diff-review-instructions.md"
+        
+        # Simple prompt that references the instructions file
+        prompt = f"Please follow the instructions in @{instructions_file.relative_to(project_root)} to review this pull request using git diff {base_ref}...HEAD"
 
         # Run StreetRace with the simple prompt
         cmd = [
