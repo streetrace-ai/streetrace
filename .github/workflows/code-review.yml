@@ -53,14 +53,15 @@ jobs:
           HEAD_BRANCH: ${{ github.event.pull_request.head.ref }}
           STREETRACE_MODEL: "openai/gpt-4o"
         run: |
-          # Run the per-file StreetRace review system
+          # Run the holistic diff-based StreetRace review system
           # 
-          # Per-file architecture benefits:
-          # - No token limits: Each file gets full attention with complete context
-          # - Superior security detection: 3x more vulnerabilities found vs single-call
-          # - Unlimited scalability: Can handle hundreds of files without constraints
-          # - Individual file focus: No content truncation or summarization
-          # - Better quality: Each file gets dedicated analysis time
+          # Holistic diff-based architecture benefits:
+          # - Better contextual understanding: Reviews entire diff in one pass
+          # - Cross-file consistency: Sees relationships between changes
+          # - Token efficiency: Same or better usage with superior context
+          # - Smart scaling: Intelligent trimming for large PRs with warnings
+          # - Simplified architecture: Much cleaner and more maintainable
+          # - Quality focus: Discourages oversized PRs through trimming alerts
           python3 ./.github/workflows/scripts/code_review.py
           
           # The script sets REVIEW_JSON_FILE and REVIEW_SARIF_FILE in GITHUB_ENV
