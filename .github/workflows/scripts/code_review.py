@@ -148,51 +148,51 @@ class CodeReviewRunner:
             sys.exit(1)
 
 
-    def run_per_file_review(self, timestamp: str) -> None:
-        """Run the per-file review strategy."""
-        print_status("🔄 Running per-file AI code review...")
+    def run_simple_diff_review(self, timestamp: str) -> None:
+        """Run the simplified diff-based review strategy."""
+        print_status("🔄 Running simple holistic diff-based AI code review...")
 
         try:
-            # Run per-file review
+            # Run simple diff-based review
             subprocess.run(
-                ["python3", str(self.scripts_dir / "per_file_code_review.py"), "main"],
+                ["python3", str(self.scripts_dir / "simple_diff_review.py"), "main"],
                 cwd=self.project_root,
                 check=True,
                 env={**os.environ, "STREETRACE_MODEL": self.model},
             )
 
-            print_success("Per-file review completed!")
+            print_success("Simple diff-based review completed!")
 
-            # Find the generated per-file review using more efficient approach
+            # Find the generated diff-based review
             reviews_dir = self.project_root / "code-reviews"
-            per_file_json = next(reviews_dir.glob(f"{timestamp}_per_file_structured.json"), None)
+            diff_json = next(reviews_dir.glob(f"{timestamp}_diff_based_structured.json"), None)
 
-            if not per_file_json or not per_file_json.exists():
-                print_error("Per-file review output not found")
+            if not diff_json or not diff_json.exists():
+                print_error("Diff-based review output not found")
                 sys.exit(1)
 
-            print_success(f"Per-file review saved: {per_file_json.name}")
+            print_success(f"Diff-based review saved: {diff_json.name}")
 
-            # Generate SARIF from per-file review
-            sarif_path = reviews_dir / f"{timestamp}_per_file_sarif.json"
+            # Generate SARIF from diff-based review
+            sarif_path = reviews_dir / f"{timestamp}_diff_based_sarif.json"
 
             try:
                 subprocess.run(
-                    ["python3", str(self.scripts_dir / "per_file_sarif_generator.py"),
-                     str(per_file_json), str(sarif_path)],
+                    ["python3", str(self.scripts_dir / "sarif_generator.py"),
+                     str(diff_json), str(sarif_path)],
                     check=True,
                     cwd=self.project_root,
                 )
 
                 if sarif_path.exists():
                     print_success(f"SARIF file generated: {sarif_path.name}")
-                    self._set_github_env_vars(per_file_json, sarif_path)
+                    self._set_github_env_vars(diff_json, sarif_path)
 
             except subprocess.CalledProcessError as e:
                 print_warning(f"SARIF generation failed: {e}")
 
         except subprocess.CalledProcessError as e:
-            print_error(f"Per-file review failed: {e}")
+            print_error(f"Simple diff-based review failed: {e}")
             sys.exit(1)
 
     def _set_github_env_vars(self, json_file: Path, sarif_file: Path) -> None:
@@ -204,10 +204,10 @@ class CodeReviewRunner:
                 f.write(f"REVIEW_SARIF_FILE={sarif_file}\n")
 
     def run_review(self) -> None:
-        """Run the per-file AI code review."""
+        """Run the simple diff-based AI code review."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        print_status(f"Running per-file AI code review with model: {self.model}")
-        self.run_per_file_review(timestamp)
+        print_status(f"Running simple holistic diff-based AI code review with model: {self.model}")
+        self.run_simple_diff_review(timestamp)
 
     def display_results(self) -> None:
         """Display results summary."""
@@ -230,12 +230,12 @@ class CodeReviewRunner:
 
 def show_help() -> None:
     """Show help message."""
-    help_text = """Per-File StreetRace Review for GitHub Actions
+    help_text = """Simple Holistic Diff-Based StreetRace Review for GitHub Actions
 
 Usage: python code_review.py [OPTIONS]
 
-Performs automated per-file code review using StreetRace with superior 
-security detection and unlimited scalability.
+Performs automated simple holistic diff-based code review using StreetRace 
+with superior contextual understanding and elegant simplicity.
 
 Environment Variables:
   OPENAI_API_KEY        - OpenAI API key (required)

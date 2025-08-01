@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""SARIF generator for per-file code reviews.
+"""SARIF generator for code reviews.
 
 This module generates SARIF (Static Analysis Results Interchange Format) files
-from aggregated per-file review data for GitHub integration.
+from code review data for GitHub integration.
 """
 
 import hashlib
@@ -30,8 +30,8 @@ def map_severity_to_sarif_level(severity: str) -> str:
     return SARIF_SEVERITY_MAP.get(severity, "note")  # Default to 'note' for unknown severities
 
 
-def generate_sarif_from_per_file_review(review_data: dict) -> dict:
-    """Generate SARIF format from per-file aggregated review data."""
+def generate_sarif_from_review(review_data: dict) -> dict:
+    """Generate SARIF format from code review data."""
     # Extract metadata
     statistics = review_data.get("statistics", {})
     issues = review_data.get("issues", [])
@@ -107,8 +107,8 @@ def generate_sarif_from_per_file_review(review_data: dict) -> dict:
         "runs": [{
             "tool": {
                 "driver": {
-                    "name": "StreetRace Review (Per-File)",
-                    "version": "2.0.0",
+                    "name": "StreetRace Review",
+                    "version": "2.0.0", 
                     "informationUri": "https://github.com/krmrn42/street-race",
                     "rules": list(rules.values()),
                 },
@@ -118,7 +118,7 @@ def generate_sarif_from_per_file_review(review_data: dict) -> dict:
                 "review_summary": summary,
                 "statistics": statistics,
                 "timestamp": datetime.now().isoformat(),
-                "review_type": "per-file",
+                "review_type": review_data.get("metadata", {}).get("review_type", "unknown"),
                 "total_issues": len(issues),
             },
         }],
@@ -136,7 +136,7 @@ def _generate_fingerprint(file_path: str, line: int, message: str) -> str:
 def main():
     """Main entry point for SARIF generation."""
     if len(sys.argv) != 3:
-        print_error("Usage: python per_file_sarif_generator.py <review_json_file> <output_sarif_file>")
+        print_error("Usage: python sarif_generator.py <review_json_file> <output_sarif_file>")
         sys.exit(1)
 
     review_json_file = Path(sys.argv[1])
@@ -152,7 +152,7 @@ def main():
             review_data = json.load(f)
 
         # Generate SARIF
-        sarif_data = generate_sarif_from_per_file_review(review_data)
+        sarif_data = generate_sarif_from_review(review_data)
 
         # Save SARIF file
         with output_sarif_file.open("w") as f:

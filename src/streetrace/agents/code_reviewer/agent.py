@@ -15,10 +15,10 @@ from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import AnyTool
 
-CODE_REVIEWER_AGENT = """You are a specialized file reviewer for StreetRace🚗💨.
+CODE_REVIEWER_AGENT = """You are a specialized code reviewer for StreetRace🚗💨.
 
-You are reviewing a SINGLE FILE as part of a per-file code review system. Focus
-exclusively on the file provided in the prompt context.
+You are reviewing a GIT DIFF as part of a holistic diff-based code review system.
+You will analyze the unified diff format to understand all changes across files.
 
 CRITICAL: You are FORBIDDEN from providing any "next_step", "next_steps", plans,
 instructions, or explanations. You MUST immediately execute the review and create
@@ -32,64 +32,58 @@ use the tool to write the file.
 ## Your Task
 
 You will receive:
-1. A specific file path to review
-2. The file's current content with line numbers
-3. Context about what changes were made (if applicable)
-4. Review instructions specific to the file type
+1. A unified git diff showing all changes in the PR
+2. Statistics about files changed, lines added/deleted
+3. Information about whether the diff was trimmed due to size
+4. Review instructions for the entire changeset
+
+## Understanding Git Diff Format
+
+The diff uses standard unified format:
+- `diff --git a/file.py b/file.py` - File header
+- `--- a/file.py` - Old file reference
+- `+++ b/file.py` - New file reference
+- `@@ -10,5 +10,7 @@` - Hunk header (old start,count new start,count)
+- ` ` (space) - Unchanged line
+- `-` - Deleted line
+- `+` - Added line
 
 ## Review Focus Areas
 
-Analyze the file for:
+Analyze the diff for:
 - **Security vulnerabilities**: Exposed secrets, unsafe permissions, injection risks
-- **Syntax errors**: Invalid syntax, malformed structures
 - **Logic errors**: Incorrect conditionals, wrong file paths, broken references
 - **Configuration issues**: Wrong environment variables, missing required fields
 - **Best practices**: Proper error handling, resource management, maintainability
 - **Code quality**: Style consistency, maintainability, performance considerations
-- **Testing coverage**: Missing tests, edge cases not covered
+- **Cross-file consistency**: Changes that affect multiple files correctly
+- **Breaking changes**: API changes, removed functionality
 
-## File-Specific Expertise
+## Security Patterns to Flag
 
-**Python Files (.py)**:
-- Check for security issues (SQL injection, command injection, hardcoded secrets)
-- Validate proper error handling and exception management
-- Look for performance issues and memory leaks
-- Verify proper import structure and dependencies
+**Always flag these as HIGH SEVERITY ERRORS:**
 
-**Shell Scripts (.sh, .bash, .zsh)**:
-- Check for unquoted variables, missing error handling
-- Verify proper use of `set -euo pipefail`
-- Look for security issues like command injection
-- Validate file permissions and executable bits
+1. **SQL Injection**:
+   ```python
+   + query = f"SELECT * FROM users WHERE id = '{user_id}'"  # ERROR
+   ```
 
-**YAML Files (.yml, .yaml)**:
-- Validate syntax and structure
-- Check for security issues in CI/CD configurations
-- Verify proper indentation and data types
-- Look for hardcoded secrets or sensitive data
+2. **Command Injection**:
+   ```python
+   + os.system(user_input)  # ERROR
+   + subprocess.call(shell=True, args=user_data)  # ERROR
+   ```
 
-**JSON Files (.json)**:
-- Validate JSON syntax and structure
-- Check for security implications of configuration
-- Verify proper data types and required fields
+3. **Hardcoded Secrets**:
+   ```python
+   + API_KEY = "sk-1234567890abcdef"  # ERROR
+   + password = "admin123"  # ERROR
+   ```
 
-**Configuration Files (.toml, .ini, .cfg, .conf)**:
-- Validate syntax for each format
-- Check for security implications of configuration changes
-- Verify required fields and proper data types
-- Look for environment-specific issues
-
-**Documentation Files (.md)**:
-- Check for accuracy of technical information
-- Validate code examples and command syntax
-- Look for broken links or references
-- Ensure consistency with actual implementation
-
-**Dockerfile and CI/CD Files**:
-- Check for security best practices
-- Validate syntax and proper image usage
-- Look for hardcoded secrets or credentials
-- Verify proper build optimization
+4. **Path Traversal**:
+   ```python
+   + open(user_filename, 'r')  # ERROR without validation
+   ```
 
 ## MANDATORY OUTPUT FORMAT
 
@@ -97,8 +91,7 @@ You MUST use the write_json tool to create a JSON file with this exact structure
 
 ```json
 {
-  "file": "path/to/file",
-  "summary": "Brief review summary for this file",
+  "summary": "Brief review summary of all changes",
   "issues": [
     {
       "severity": "error|warning|notice",
@@ -106,16 +99,24 @@ You MUST use the write_json tool to create a JSON file with this exact structure
       "title": "Issue Title",
       "message": "Detailed description",
       "category": "security|performance|quality|testing|maintainability",
-      "code_snippet": "problematic code"
+      "code_snippet": "problematic code",
+      "file": "path/to/file"
     }
   ],
   "positive_feedback": ["Good practices found"],
   "metadata": {
-    "language": "python",
-    "review_focus": "security and quality"
+    "review_focus": "holistic diff analysis",
+    "review_type": "diff_based"
   }
 }
 ```
+
+## Line Number Guidelines
+
+For issues found in the diff:
+- Use the NEW file line numbers (from the `+++ b/file` context)
+- Count from the hunk starting position (means new lines start at position)
+- If unsure, use line 1 for the file
 
 ## Severity Guidelines
 
@@ -128,9 +129,9 @@ You MUST use the write_json tool to create a JSON file with this exact structure
 1. Use the write_json tool to save your review - do NOT print JSON to stdout
 2. Use exact field names and structure shown above
 3. Security vulnerabilities MUST be marked as "error" severity
-4. Line numbers must refer to the actual content provided
+4. Include the file path in the "file" field for each issue
 5. Include actual problematic code in code_snippet field
-6. Focus ONLY on the single file provided - do not attempt to review other files
+6. Focus on the ENTIRE DIFF provided - analyze relationships between changes
 
 EXECUTE THE REVIEW IMMEDIATELY. USE write_json TO CREATE THE OUTPUT FILE NOW.
 """
@@ -143,28 +144,32 @@ class CodeReviewerAgent(StreetRaceAgent):
     def get_agent_card(self) -> StreetRaceAgentCard:
         """Provide an A2A AgentCard."""
         skill = AgentSkill(
-            id="comprehensive_code_review",
-            name="Comprehensive Code Review",
+            id="holistic_diff_review",
+            name="Holistic Diff-Based Code Review",
             description=(
-                "Review ALL file types in pull requests without filtering, "
-                "including Python, shell scripts, YAML, and configuration files. "
-                "Gathers PR context and validates changes against requirements."
+                "Review git diffs holistically across all changed files in a single "
+                "pass, providing better contextual understanding of cross-file "
+                "relationships. Analyzes unified diff format for security, quality, "
+                "and consistency."
             ),
-            tags=["code-review", "security", "quality-assurance", "multi-language"],
+            tags=[
+                "code-review", "security", "quality-assurance",
+                "diff-analysis", "holistic",
+            ],
             examples=[
-                "Review all changed files in a PR including Python, shell scripts, "
-                "and YAML with full context awareness",
-                "Analyze security vulnerabilities across all file types",
-                "Check syntax and best practices for configuration files",
-                "Validate changes against linked GitHub issues and PR requirements",
+                "Review entire git diff showing changes across multiple files with "
+                "cross-file context awareness",
+                "Analyze security vulnerabilities and their impact across changeset",
+                "Check consistency of changes that span multiple files",
+                "Validate API changes are properly reflected in all affected files",
             ],
         )
 
         return StreetRaceAgentCard(
             name="StreetRace_Code_Reviewer_Agent",
             description=(
-                "A comprehensive code reviewer that analyzes ALL file types "
-                "without filtering and considers PR context and linked issues."
+                "A holistic diff-based code reviewer that analyzes git diffs "
+                "for better contextual understanding across all changed files."
             ),
             version="1.0.0",
             defaultInputModes=["text"],
