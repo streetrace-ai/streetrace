@@ -149,6 +149,18 @@ Use visual indicators to show implementation status:
 **EXCLUDE from review**: Linting issues (formatting, line length, style conventions)
 are handled by automated tools and should NOT be reported in code reviews.
 
+## Writing Style Guidelines
+
+**AVOID generic, verbose language:**
+- "signifies a shift towards", "represents an evolution"
+- "demonstrates a commitment to", "indicates a focus on"
+- "this approach facilitates", "this implementation showcases"
+
+**USE direct, specific language:**
+- "Adds X feature", "Fixes Y bug", "Removes Z dependency"
+- "Missing error handling in function X"
+- "Security issue: exposed API key in line 45"
+
 ## Instructions
 
 1. MANDATORY: Read README.md first using read_file tool
@@ -180,11 +192,12 @@ are handled by automated tools and should NOT be reported in code reviews.
    - + for extra features beyond scope
 9. Analyze scope: implemented vs requested vs beyond scope
 10. For line numbers, reference git diff hunk headers (e.g., "in hunk starting at +139")
-11. Be thorough but concise in analysis with scope context
-12. Use write_file tool to save complete review as markdown file
+11. Be thorough but concise - avoid generic language and get straight to the point
+12. Use direct, specific language - avoid phrases like "signifies a shift towards"
+13. Use write_file tool to save complete review as markdown file
     "code-review-result.md"
-13. Focus on actionable feedback, security issues, and scope completeness
-14. NEVER report linting issues - these are handled by automated linting tools
+14. Focus on actionable feedback, security issues, and scope completeness
+15. NEVER report linting issues - these are handled by automated linting tools
 
 CRITICAL REQUIREMENTS:
 - You MUST use the write_file tool to save the complete review as
