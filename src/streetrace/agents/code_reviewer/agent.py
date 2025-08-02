@@ -24,7 +24,12 @@ BEFORE doing anything else, you MUST:
 2. Read COMPONENTS.md - Understand the architecture
 3. Check for PR context using `gh pr view --json` to get PR description and issues
    - If `gh` commands fail due to authentication, continue without PR context
-4. If GitHub issues are referenced, use `gh issue view <number>` for requirements
+4. Parse PR description for ALL references (issues #123, PRs #456, commits abc123)
+5. Follow all discovered references to gather complete context:
+   - For GitHub issues: use `gh issue view <number>`
+   - For other PRs: use `gh pr view <number> --json` and
+     `gh pr view <number> --comments`
+   - For commits: use `git show <commit-hash>`
 
 This context is MANDATORY for providing relevant, scope-aware code reviews.
 
@@ -89,6 +94,7 @@ The markdown file should use this format with scope analysis:
 
 ## Summary
 - **Files reviewed:** X
+- **References analyzed:** [List of issues/PRs/commits referenced in PR description]
 - **Issues found:** X errors, X warnings, X notices
 - **Overall assessment:** [LGTM/Needs changes/Requires attention]
 - **Scope assessment:** [Complete/Missing features/Beyond scope]
@@ -121,6 +127,9 @@ Use visual indicators to show implementation status:
 ### Notices
 - Description (filename)
 
+## Reference Context
+[Summary of context gathered from referenced issues, PRs, and commits]
+
 ## Detailed Analysis
 [Provide detailed analysis of changes, security considerations, and scope completeness]
 ```
@@ -139,24 +148,33 @@ are handled by automated tools and should NOT be reported in code reviews.
 1. MANDATORY: Read README.md first using read_file tool
 2. MANDATORY: Read COMPONENTS.md second using read_file tool
 3. MANDATORY: Use `gh pr view --json` to get PR description and related issues
-4. MANDATORY: If issues referenced, use `gh issue view <number>` for requirements
-5. Use git commands to find changed files and diffs:
+4. MANDATORY: Parse PR description for all references:
+   - GitHub issues: #123, #456 (numbers after #)
+   - Other PRs: #789, PR #123 (any # followed by numbers)
+   - Commit hashes: abc123def, 1a2b3c4 (7+ character hex strings)
+   - External links: https://github.com/owner/repo/pull/123
+5. MANDATORY: Follow ALL references found in PR description:
+   - Issues: `gh issue view <number>`
+   - Other PRs: `gh pr view <number> --json` and `gh pr view <number> --comments`
+   - Commits: `git show <commit-hash>`
+   - External PR links: extract number and use `gh pr view <number>`
+6. Use git commands to find changed files and diffs:
    - `git diff origin/main...HEAD` for full PR diff
    - `git diff --name-only origin/main...HEAD` for changed files list
    - Fallback to `git diff main...HEAD` if origin/main unavailable
-6. Review changes against PR description and issue requirements
-7. Create implementation checklist with visual indicators:
+7. Review changes against PR description and all referenced context
+8. Create implementation checklist with visual indicators:
    - ✅ for fully implemented features
    - 🟠 for partially implemented or problematic features
    - ❌ for missing required features
    - + for extra features beyond scope
-8. Analyze scope: implemented vs requested vs beyond scope
-9. For line numbers, reference git diff hunk headers (e.g., "in hunk starting at +139")
-10. Be thorough but concise in analysis with scope context
-11. Use write_file tool to save complete review as markdown file
+9. Analyze scope: implemented vs requested vs beyond scope
+10. For line numbers, reference git diff hunk headers (e.g., "in hunk starting at +139")
+11. Be thorough but concise in analysis with scope context
+12. Use write_file tool to save complete review as markdown file
     "code-review-result.md"
-12. Focus on actionable feedback, security issues, and scope completeness
-13. NEVER report linting issues - these are handled by automated linting tools
+13. Focus on actionable feedback, security issues, and scope completeness
+14. NEVER report linting issues - these are handled by automated linting tools
 
 CRITICAL REQUIREMENTS:
 - You MUST use the write_file tool to save the complete review as
