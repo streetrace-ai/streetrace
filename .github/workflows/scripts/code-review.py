@@ -37,21 +37,13 @@ def main() -> None:
         fallback_content = """# Code Review Results
 
 ## Summary
-- **Files reviewed:** Unable to complete full review
-- **Issues found:** Review process encountered technical difficulties
-- **Overall assessment:** Manual review recommended
-- **Scope assessment:** Unable to determine
+- **Overall assessment:** Review failed - manual review required
 
 ## Technical Issue
-The automated code review agent was unable to complete the review process
-and save the results file. This may be due to:
-- File system permissions
-- Memory constraints
-- Tool execution issues
+Automated review agent failed to complete analysis.
 
 ## Recommendation
-Please conduct a manual code review or investigate the workflow logs
-for the specific technical issue that prevented automated review completion.
+Check workflow logs and conduct manual review.
 """
         review_file.write_text(fallback_content)
         print("Fallback review file created")

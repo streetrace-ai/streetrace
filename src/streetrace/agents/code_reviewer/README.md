@@ -48,11 +48,11 @@ Only reviews lines that were actually changed (+ in git diff), avoiding unnecess
 
 ## Usage
 
-The agent is automatically available in StreetRace and can be invoked for code review tasks:
+The agent must be explicitly specified using the `--agent` parameter:
 
 ```bash
-# The agent will be discovered automatically
-poetry run streetrace --model=<your-model> --prompt="Review all changes in this PR using the code reviewer agent"
+# Use the specific agent parameter
+poetry run streetrace --model=<your-model> --agent=StreetRace_Code_Reviewer_Agent --prompt="Review all changes in this PR"
 ```
 
 ## Integration with GitHub Actions
