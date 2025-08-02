@@ -43,14 +43,24 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
-        run: python3 ./.github/workflows/scripts/code-review.py
+          STREETRACE_MODEL: ${{ vars.STREETRACE_MODEL || 'openai/gpt-4o' }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo "ERROR: No OpenAI API key found. Set OPENAI_API_KEY secret"
+            exit 1
+          fi
+          poetry run streetrace \
+            --model="$STREETRACE_MODEL" \
+            --agent=StreetRace_Code_Reviewer_Agent \
+            --prompt="CRITICAL: You MUST create the file code-review-result.md using write_file tool. This is mandatory - the workflow will fail without it. Conduct a code review and save ALL results to this file. Verify file creation with read_file. Do not print to console." \
+            || echo "StreetRace completed with exit code $?"
 
       - name: Format review
         if: always()
         run: ./.github/workflows/scripts/format-review.sh
 
       - name: Post review comment
-        if: always()
+        if: always() && hashFiles('formatted-review.md') != ''
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           number: ${{ github.event.pull_request.number }}
