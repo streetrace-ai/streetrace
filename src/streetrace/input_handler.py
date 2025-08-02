@@ -29,6 +29,7 @@ class InputContext:
     bash_output: str | None = None
     enrich_input: dict[str, str] = field(default_factory=dict)
     error: str | None = None
+    agent_name: str | None = None
 
     def __iter__(self) -> Iterator[str]:
         """Iterate over the input context."""
