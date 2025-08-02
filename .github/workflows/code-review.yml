@@ -38,6 +38,7 @@ jobs:
         timeout-minutes: 10
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
         run: python3 ./.github/workflows/scripts/code-review.py
 
       - name: Format review
