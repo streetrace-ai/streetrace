@@ -1,0 +1,53 @@
+name: StreetRace Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  streetrace-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    if: github.actor != 'dependabot[bot]'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Poetry
+        uses: abatilo/actions-poetry@v3
+
+      - name: Setup environment
+        run: ./.github/workflows/scripts/setup-env.sh
+
+      - name: Run Code Review
+        timeout-minutes: 10
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: python3 ./.github/workflows/scripts/code-review.py
+
+      - name: Format review
+        if: always()
+        run: ./.github/workflows/scripts/format-review.sh
+
+      - name: Post review comment
+        if: always()
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          number: ${{ github.event.pull_request.number }}
+          header: streetrace-code-review
+          path: formatted-review.md

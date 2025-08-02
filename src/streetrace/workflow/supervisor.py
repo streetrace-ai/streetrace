@@ -68,7 +68,9 @@ class Supervisor(InputHandler):
 
         session = await self.session_manager.get_or_create_session()
         session = await self.session_manager.validate_session(session)
-        async with self.agent_manager.create_agent("default") as root_agent:
+        # Use agent specified in args, or default if none specified
+        agent_name = ctx.agent_name or "default"
+        async with self.agent_manager.create_agent(agent_name) as root_agent:
             # Type cast needed because JSONSessionService uses duck typing at runtime
             # but inherits from BaseSessionService only during TYPE_CHECKING
             from google.adk import Runner
