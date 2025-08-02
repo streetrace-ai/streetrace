@@ -1,8 +1,9 @@
 """Object to Rich Console rendering protocol."""
 
-from typing import Any, Protocol, TypeVar, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar, runtime_checkable
 
-from rich.console import Console
+if TYPE_CHECKING:
+    from rich.console import Console
 
 T_Protocol_contra = TypeVar("T_Protocol_contra", contravariant=True)
 
@@ -11,7 +12,7 @@ T_Protocol_contra = TypeVar("T_Protocol_contra", contravariant=True)
 class RendererFn(Protocol[T_Protocol_contra]):
     """Protocol to render T_RenderedType_contra to Rich Console."""
 
-    def __call__(self, obj: T_Protocol_contra, console: Console) -> None:
+    def __call__(self, obj: T_Protocol_contra, console: "Console") -> None:
         """Protocol to render an object type to console."""
         ...
 
@@ -38,7 +39,7 @@ def register_renderer[T_Protocol_contra](
 
 def render_using_registered_renderer(
     obj: object,
-    console: Console,
+    console: "Console",
 ) -> None:
     """Render the provided object using a registered renderer."""
     renderer = _display_renderers_registry.get(type(obj))

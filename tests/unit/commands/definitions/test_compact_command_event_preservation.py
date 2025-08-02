@@ -13,7 +13,7 @@ from google.genai import types as genai_types
 
 from streetrace.args import Args
 from streetrace.commands.definitions.compact_command import CompactCommand
-from streetrace.session_service import SessionManager
+from streetrace.session.session_manager import SessionManager
 from streetrace.system_context import SystemContext
 from streetrace.ui.ui_bus import UiBus
 

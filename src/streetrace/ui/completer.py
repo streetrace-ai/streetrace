@@ -15,11 +15,14 @@ import os
 import re
 from collections.abc import Iterable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion
-from prompt_toolkit.document import Document
 
 from streetrace.commands.command_executor import CommandExecutor
+
+if TYPE_CHECKING:
+    from prompt_toolkit.document import Document
 
 
 class PathCompleter(Completer):
@@ -48,7 +51,7 @@ class PathCompleter(Completer):
 
     def get_completions(  # noqa: C901, PLR0912
         self,
-        document: Document,
+        document: "Document",
         complete_event: CompleteEvent,  # noqa: ARG002
     ) -> Iterable[Completion]:
         """Generate completions for file/directory paths after an '@' symbol."""
@@ -165,7 +168,7 @@ class CommandCompleter(Completer):
 
     def get_completions(
         self,
-        document: Document,
+        document: "Document",
         complete_event: CompleteEvent,  # noqa: ARG002
     ) -> Iterable[Completion]:
         """Generate completions for commands starting with '/'.
@@ -222,7 +225,7 @@ class PromptCompleter(Completer):
 
     def get_completions(
         self,
-        document: Document,
+        document: "Document",
         complete_event: CompleteEvent,
     ) -> Iterable[Completion]:
         """Generate completions by yielding results from all registered completers.

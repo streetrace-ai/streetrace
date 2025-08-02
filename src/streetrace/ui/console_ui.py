@@ -1,6 +1,5 @@
 """Console UI."""
 
-import sys
 from types import TracebackType
 from typing import TYPE_CHECKING, Any
 
@@ -181,6 +180,7 @@ class ConsoleUI:
             The string entered by the user.
 
         """
+        from prompt_toolkit.styles import Style
 
         # --- prompt_toolkit setup ---
         def build_prompt() -> list[tuple[str, str]]:
@@ -219,7 +219,7 @@ class ConsoleUI:
                 self.console.print()
                 user_input = await self.prompt_session.prompt_async(
                     build_prompt,
-                    style=Styles.PT_ANSI,
+                    style=Style.from_dict(Styles.PT_ANSI),
                     prompt_continuation=build_prompt_continuation,
                     bottom_toolbar=build_bottom_toolbar,
                     validator=Validator.from_callable(send_is_typing),

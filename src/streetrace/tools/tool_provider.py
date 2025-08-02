@@ -1,20 +1,21 @@
 """Provide tools to agents."""
 
 import importlib
+import sys
 from collections.abc import Callable, Iterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
-from google.adk.tools.base_tool import BaseTool
-from google.adk.tools.base_toolset import BaseToolset
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
-from mcp import StdioServerParameters
+if TYPE_CHECKING:
+    from google.adk.tools.base_tool import BaseTool
+    from google.adk.tools.base_toolset import BaseToolset
+    from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 
 from streetrace.log import get_logger
 from streetrace.tools.definitions.fake_tools import get_current_time, get_weather
 from streetrace.utils.hide_args import hide_args
 
-type AnyTool = Callable[..., Any] | BaseTool | BaseToolset
+type AnyTool = Callable[..., Any] | "BaseTool" | "BaseToolset"
 
 logger = get_logger(__name__)
 
@@ -23,15 +24,51 @@ _STREETRACE_TOOLS_PREFIX = "streetrace:"
 _STREETRACE_TOOLS_MODULE = "streetrace.tools"
 
 
+def _is_base_tool(tool: AnyTool | str) -> bool:
+    if isinstance(tool, str):
+        return False
+    if "google.adk.tools.base_tool" in sys.modules:
+        return isinstance(tool, sys.modules["google.adk.tools.base_tool"].BaseTool)
+    return False
+
+
+def _is_base_toolset(tool: AnyTool | str) -> bool:
+    if isinstance(tool, str):
+        return False
+    if "google.adk.tools.base_toolset" in sys.modules:
+        return isinstance(
+            tool,
+            sys.modules["google.adk.tools.base_toolset"].BaseToolset,
+        )
+    return False
+
+
+def _as_mcp_toolset(tool: AnyTool | str) -> "MCPToolset | None":
+    if isinstance(tool, str):
+        return None
+    if "google.adk.tools.mcp_tool.mcp_toolset" in sys.modules and isinstance(
+        tool,
+        sys.modules["google.adk.tools.mcp_tool.mcp_toolset"].MCPToolset,
+    ):
+        return cast("MCPToolset", tool)
+    return None
+
+
 def _log_retrieved_tools(tools: list[AnyTool]) -> None:
     """Log the retrieved tools."""
     retrieved_tools = []
     for tool in tools:
-        if isinstance(tool, BaseToolset):
-            tool_names = "*" if not tool.tool_filter else tool.tool_filter
+        if _is_base_toolset(tool):
+            tool_names = (
+                getattr(tool, "tool_filter")  # noqa: B009
+                if hasattr(tool, "tool_filter") and getattr(tool, "tool_filter")  # noqa: B009
+                else "*"
+            )
             retrieved_tools.append(f"{tool.__class__.__name__}, {tool_names}")
-        elif isinstance(tool, BaseTool):
-            retrieved_tools.append(f"{tool.__class__.__name__}, {tool.name}")
+        elif _is_base_tool(tool):
+            retrieved_tools.append(
+                f"{tool.__class__.__name__}, {getattr(tool, 'name')}",  # noqa: B009
+            )
         elif callable(tool):
             retrieved_tools.append(f"{tool.__class__.__name__}, {tool.__name__}")
     logger.info("Retrieved tools:\n%s", retrieved_tools)
@@ -47,8 +84,9 @@ class ToolProvider:
     async def release_tools(self, tools: list[AnyTool]) -> None:
         """Release all tools."""
         for tool in tools:
-            if isinstance(tool, MCPToolset):
-                await tool.close()
+            mcp_tool = _as_mcp_toolset(tool)
+            if mcp_tool:
+                await mcp_tool.close()
 
     async def get_tools(
         self,
@@ -72,7 +110,11 @@ class ToolProvider:
         if "get_current_time" in tool_refs:
             tools.append(get_current_time)
 
-        base_tools = [tool for tool in tool_refs if isinstance(tool, BaseTool)]
+        base_tools = [
+            tool
+            for tool in tool_refs
+            if _is_base_tool(tool) and not isinstance(tool, str)
+        ]
         tools.extend(base_tools)
 
         tool_names = [tool for tool in tool_refs if isinstance(tool, str)]
@@ -94,7 +136,7 @@ class ToolProvider:
     def _create_mcp_toolsets(
         self,
         mcp_servers: dict[str, set[str]],
-    ) -> list[MCPToolset]:
+    ) -> list["MCPToolset"]:
         """Create and yield a list of MCPToolsets for all requested servers.
 
         Args:
@@ -104,6 +146,9 @@ class ToolProvider:
             List of MCPToolset instances.
 
         """
+        from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
+        from mcp import StdioServerParameters
+
         toolsets: list[MCPToolset] = []
 
         # Create all toolsets

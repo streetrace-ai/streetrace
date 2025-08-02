@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from streetrace.session_service import JSONSessionSerializer
+from streetrace.session.json_serializer import JSONSessionSerializer
 
 
 class TestJSONSessionSerializer:
@@ -141,7 +141,7 @@ class TestJSONSessionSerializer:
                 "read_text",
                 side_effect=UnicodeDecodeError("utf-8", b"", 0, 1, "Invalid byte"),
             ),
-            patch("streetrace.session_service.logger") as mock_logger,
+            patch("streetrace.session.json_serializer.logger") as mock_logger,
         ):
             # Try to read the session
             read_session = serializer.read(
@@ -178,7 +178,7 @@ class TestJSONSessionSerializer:
                 "read_text",
                 side_effect=OSError("Permission denied"),
             ),
-            patch("streetrace.session_service.logger") as mock_logger,
+            patch("streetrace.session.json_serializer.logger") as mock_logger,
         ):
             # Try to read the session
             read_session = serializer.read(
@@ -271,7 +271,7 @@ class TestJSONSessionSerializer:
         path.mkdir(exist_ok=True)
 
         # Try to delete the "session"
-        with patch("streetrace.session_service.logger") as mock_logger:
+        with patch("streetrace.session.json_serializer.logger") as mock_logger:
             serializer.delete(
                 app_name=sample_session.app_name,
                 user_id=sample_session.user_id,
@@ -294,7 +294,7 @@ class TestJSONSessionSerializer:
         # Mock unlink to raise an exception
         with (
             patch.object(Path, "unlink", side_effect=OSError("Test error")),
-            patch("streetrace.session_service.logger") as mock_logger,
+            patch("streetrace.session.json_serializer.logger") as mock_logger,
         ):
             # Try to delete the session
             serializer.delete(
@@ -387,7 +387,7 @@ class TestJSONSessionSerializer:
                         OSError("Error reading file"),
                     ],
                 ),
-                patch("streetrace.session_service.logger") as mock_logger,
+                patch("streetrace.session.json_serializer.logger") as mock_logger,
             ):
                 # The implementation should skip invalid files and continue with valid
                 # ones

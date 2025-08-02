@@ -7,6 +7,7 @@ including error messages, escalation indicators, and proper styling.
 from google.adk.events import Event
 from google.genai.types import Content, Part
 
+from streetrace.ui.adk_event_renderer import Event as EventWrapper
 from streetrace.ui.adk_event_renderer import render_event
 from streetrace.ui.colors import Styles
 
@@ -21,7 +22,7 @@ class TestEscalationRendering:
         sample_author,
     ):
         """Test rendering an escalation event with error message."""
-        render_event(escalation_event, mock_console)
+        render_event(EventWrapper(escalation_event), mock_console)
 
         # Should have two print calls: one for escalation, one for content
         assert mock_console.print.call_count == 2
@@ -40,7 +41,7 @@ class TestEscalationRendering:
         sample_author,
     ):
         """Test rendering an escalation event without error message."""
-        render_event(escalation_event_no_message, mock_console)
+        render_event(EventWrapper(escalation_event_no_message), mock_console)
 
         # Should have two print calls: one for escalation, one for content
         assert mock_console.print.call_count == 2
@@ -72,7 +73,7 @@ class TestEscalationRendering:
             error_message="Should not show this",
         )
 
-        render_event(non_final_escalation_event, mock_console)
+        render_event(EventWrapper(non_final_escalation_event), mock_console)
 
         # Should only have one print call for content, no escalation
         mock_console.print.assert_called_once()
@@ -99,7 +100,7 @@ class TestEscalationRendering:
             error_message="Should not show this",
         )
 
-        render_event(final_non_escalation_event, mock_console)
+        render_event(EventWrapper(final_non_escalation_event), mock_console)
 
         # Should only have one print call for content, no escalation
         mock_console.print.assert_called_once()
@@ -121,7 +122,7 @@ class TestEscalationRendering:
             error_message="Should not show this",
         )
 
-        render_event(final_no_actions_event, mock_console)
+        render_event(EventWrapper(final_no_actions_event), mock_console)
 
         # Should only have one print call for content, no escalation
         mock_console.print.assert_called_once()
@@ -148,7 +149,7 @@ class TestEscalationRendering:
             error_message="",  # Empty string
         )
 
-        render_event(empty_message_event, mock_console)
+        render_event(EventWrapper(empty_message_event), mock_console)
 
         # Should have escalation with default message
         escalation_call = mock_console.print.call_args_list[0]
@@ -172,7 +173,7 @@ class TestEscalationRendering:
             error_message="   ",  # Whitespace only
         )
 
-        render_event(whitespace_message_event, mock_console)
+        render_event(EventWrapper(whitespace_message_event), mock_console)
 
         # Should have escalation with actual whitespace message
         escalation_call = mock_console.print.call_args_list[0]
@@ -199,7 +200,7 @@ class TestEscalationRendering:
             error_message=multiline_error,
         )
 
-        render_event(multiline_message_event, mock_console)
+        render_event(EventWrapper(multiline_message_event), mock_console)
 
         # Should have escalation with full multiline message
         escalation_call = mock_console.print.call_args_list[0]
@@ -224,7 +225,7 @@ class TestEscalationRendering:
             error_message=special_error,
         )
 
-        render_event(special_message_event, mock_console)
+        render_event(EventWrapper(special_message_event), mock_console)
 
         # Should handle special characters properly
         escalation_call = mock_console.print.call_args_list[0]
@@ -232,7 +233,7 @@ class TestEscalationRendering:
 
     def test_render_escalation_uses_error_style(self, escalation_event, mock_console):
         """Test that escalation messages use the error style."""
-        render_event(escalation_event, mock_console)
+        render_event(EventWrapper(escalation_event), mock_console)
 
         escalation_call = mock_console.print.call_args_list[0]
         assert escalation_call[1]["style"] == Styles.RICH_ERROR
@@ -243,7 +244,7 @@ class TestEscalationRendering:
         mock_console,
     ):
         """Test that escalation events still render their content."""
-        render_event(escalation_event, mock_console)
+        render_event(EventWrapper(escalation_event), mock_console)
 
         # Should have two calls: escalation and content
         assert mock_console.print.call_count == 2
@@ -268,7 +269,7 @@ class TestEscalationRendering:
             error_message="Critical error occurred",
         )
 
-        render_event(escalation_only_event, mock_console)
+        render_event(EventWrapper(escalation_only_event), mock_console)
 
         # Should only have one call for escalation
         mock_console.print.assert_called_once()
@@ -284,7 +285,7 @@ class TestEscalationRendering:
         sample_author,
     ):
         """Test that escalation author is formatted consistently."""
-        render_event(escalation_event, mock_console)
+        render_event(EventWrapper(escalation_event), mock_console)
 
         escalation_call = mock_console.print.call_args_list[0]
         expected_author = f"[bold]{sample_author}:[/bold]\n"
@@ -309,7 +310,7 @@ class TestEscalationRendering:
             error_message=long_error,
         )
 
-        render_event(long_message_event, mock_console)
+        render_event(EventWrapper(long_message_event), mock_console)
 
         # Should handle long messages without truncation in escalation
         escalation_call = mock_console.print.call_args_list[0]

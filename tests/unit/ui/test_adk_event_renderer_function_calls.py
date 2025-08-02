@@ -9,6 +9,7 @@ from google.genai.types import Content, FunctionCall, Part
 from rich.markdown import Markdown
 from rich.syntax import Syntax
 
+from streetrace.ui.adk_event_renderer import Event as EventWrapper
 from streetrace.ui.adk_event_renderer import render_event
 
 
@@ -22,7 +23,7 @@ class TestFunctionCallRendering:
         sample_author,
     ):
         """Test rendering a basic function call event."""
-        render_event(function_call_event, mock_console)
+        render_event(EventWrapper(function_call_event), mock_console)
 
         expected_author = f"[bold]{sample_author}:[/bold]\n"
         mock_console.print.assert_called_once()
@@ -38,7 +39,7 @@ class TestFunctionCallRendering:
         mock_console,
     ):
         """Test that function calls use proper syntax highlighting."""
-        render_event(function_call_event, mock_console)
+        render_event(EventWrapper(function_call_event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][1]
@@ -56,7 +57,7 @@ class TestFunctionCallRendering:
         sample_function_call_data,
     ):
         """Test that function call code is formatted correctly."""
-        render_event(function_call_event, mock_console)
+        render_event(EventWrapper(function_call_event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][1]
@@ -82,7 +83,7 @@ class TestFunctionCallRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][1]
@@ -113,7 +114,7 @@ class TestFunctionCallRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][1]
@@ -137,7 +138,7 @@ class TestFunctionCallRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][1]
@@ -161,7 +162,7 @@ class TestFunctionCallRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][1]
@@ -194,7 +195,7 @@ class TestFunctionCallRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Should have 2 print calls, one for each function call
         assert mock_console.print.call_count == 2
@@ -224,7 +225,7 @@ class TestFunctionCallRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         # Should have 2 print calls: one for text, one for function call
         assert mock_console.print.call_count == 2
@@ -259,7 +260,7 @@ class TestFunctionCallRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][1]
@@ -299,7 +300,7 @@ class TestFunctionCallRendering:
             partial=False,
         )
 
-        render_event(event, mock_console)
+        render_event(EventWrapper(event), mock_console)
 
         call_args = mock_console.print.call_args
         syntax_obj = call_args[0][1]

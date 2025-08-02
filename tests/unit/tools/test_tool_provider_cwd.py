@@ -22,7 +22,7 @@ class TestToolProviderCwd:
         """Create a ToolProvider instance."""
         return ToolProvider(work_dir)
 
-    @patch("streetrace.tools.tool_provider.MCPToolset")
+    @patch("google.adk.tools.mcp_tool.mcp_toolset.MCPToolset")
     def test_filesystem_server_uses_cwd(
         self,
         mock_mcp_toolset: Mock,
@@ -53,7 +53,7 @@ class TestToolProviderCwd:
         # Check tool filter
         assert call_args[1]["tool_filter"] == ["read_file"]
 
-    @patch("streetrace.tools.tool_provider.MCPToolset")
+    @patch("google.adk.tools.mcp_tool.mcp_toolset.MCPToolset")
     def test_non_filesystem_server_also_uses_cwd(
         self,
         mock_mcp_toolset: Mock,
@@ -85,7 +85,7 @@ class TestToolProviderCwd:
         # Check tool filter
         assert call_args[1]["tool_filter"] == ["some_tool"]
 
-    @patch("streetrace.tools.tool_provider.MCPToolset")
+    @patch("google.adk.tools.mcp_tool.mcp_toolset.MCPToolset")
     def test_multiple_servers_all_use_cwd(
         self,
         mock_mcp_toolset: Mock,
@@ -129,7 +129,7 @@ class TestToolProviderCwd:
             or actual_filters[1] in expected_filters
         )
 
-    @patch("streetrace.tools.tool_provider.MCPToolset")
+    @patch("google.adk.tools.mcp_tool.mcp_toolset.MCPToolset")
     def test_server_with_all_tools_uses_cwd(
         self,
         mock_mcp_toolset: Mock,
@@ -160,7 +160,7 @@ class TestToolProviderCwd:
         # Check tool filter is None (all tools)
         assert call_args[1]["tool_filter"] is None
 
-    @patch("streetrace.tools.tool_provider.MCPToolset")
+    @patch("google.adk.tools.mcp_tool.mcp_toolset.MCPToolset")
     def test_all_mcp_servers_use_cwd_no_work_dir_args(
         self,
         mock_mcp_toolset: Mock,

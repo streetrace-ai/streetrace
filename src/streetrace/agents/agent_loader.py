@@ -4,11 +4,13 @@ import importlib.util
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from streetrace.agents.street_race_agent import StreetRaceAgent
-from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.log import get_logger
+
+if TYPE_CHECKING:
+    from streetrace.agents.street_race_agent import StreetRaceAgent
+    from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 
 logger = get_logger(__name__)
 
@@ -16,10 +18,10 @@ logger = get_logger(__name__)
 class AgentInfo:
     """Agent card and module references."""
 
-    agent_card: StreetRaceAgentCard
+    agent_card: "StreetRaceAgentCard"
     module: ModuleType
 
-    def __init__(self, agent_card: StreetRaceAgentCard, module: ModuleType) -> None:
+    def __init__(self, agent_card: "StreetRaceAgentCard", module: ModuleType) -> None:
         """Initialize with the provided Agent Card and Module."""
         self.agent_card = agent_card
         self.module = module
@@ -168,7 +170,7 @@ def get_available_agents(base_dirs: list[Path]) -> list[AgentInfo]:
     return agents
 
 
-def get_agent_impl(agent_details: AgentInfo) -> type[StreetRaceAgent]:
+def get_agent_impl(agent_details: AgentInfo) -> "type[StreetRaceAgent]":
     """Get class implementing the agent."""
     agent_class = _get_streetrace_agent_class(agent_details.module)
     if agent_class is None:

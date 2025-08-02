@@ -5,7 +5,7 @@ prompt_toolkit and rich library components used throughout the application.
 
 """
 
-from prompt_toolkit.styles import Style
+from typing import ClassVar
 
 _USER_INPUT = "#f4bf75"
 _MODEL_RESPONSE = "#f5f5f5"
@@ -24,17 +24,15 @@ class Styles:
     message types (info, warning, error).
     """
 
-    PT_ANSI = Style.from_dict(
-        {
-            # Default input area
-            "": "",
-            "prompt": "fg:ansiyellow bold",
-            "placeholder": "fg:#808080",  # Dimmed gray for placeholder
-            # Bottom toolbar (reverse=True, so fg/bg are inverted)
-            "bottom-toolbar": "bg:ansiwhite fg:ansiblue",
-            "highlight": "bg:ansibrightyellow",
-        },
-    )
+    PT_ANSI: ClassVar[dict[str, str]] = {
+        # Default input area
+        "": "",
+        "prompt": "fg:ansiyellow bold",
+        "placeholder": "fg:#808080",  # Dimmed gray for placeholder
+        # Bottom toolbar (reverse=True, so fg/bg are inverted)
+        "bottom-toolbar": "bg:ansiwhite fg:ansiblue",
+        "highlight": "bg:ansibrightyellow",
+    }
     RICH_PROMPT = _USER_INPUT
     RICH_MODEL = _MODEL_RESPONSE
     RICH_TOOL_CALL = _CODE_THEME  # Theme for tool call syntax

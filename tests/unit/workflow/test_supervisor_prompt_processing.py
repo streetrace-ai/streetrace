@@ -37,7 +37,7 @@ class TestSupervisorPromptProcessing:
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         with patch(
-            "streetrace.workflow.supervisor.Runner",
+            "google.adk.Runner",
             return_value=mock_adk_runner(),
         ):
             # Act
@@ -83,7 +83,7 @@ class TestSupervisorPromptProcessing:
 
         mock_runner = mock_adk_runner()
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with patch("google.adk.Runner", return_value=mock_runner):
             # Act
             await shallow_supervisor.handle(input_context)
 
@@ -125,7 +125,7 @@ class TestSupervisorPromptProcessing:
         mock_runner = mock_adk_runner()
 
         with patch(
-            "streetrace.workflow.supervisor.Runner",
+            "google.adk.Runner",
             return_value=mock_runner,
         ):
             # Act
@@ -160,7 +160,7 @@ class TestSupervisorPromptProcessing:
         # Mock runner
         mock_runner = mock_adk_runner()
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with patch("google.adk.Runner", return_value=mock_runner):
             # Act
             await shallow_supervisor.handle(input_context)
 
@@ -198,7 +198,7 @@ class TestSupervisorPromptProcessing:
 
         mock_runner = mock_adk_runner()
 
-        with patch("streetrace.workflow.supervisor.Runner", return_value=mock_runner):
+        with patch("google.adk.Runner", return_value=mock_runner):
             # Act
             await shallow_supervisor.handle(input_context)
 

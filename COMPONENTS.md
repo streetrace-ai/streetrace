@@ -368,3 +368,9 @@ The uid module implements a robust user identity resolution system that:
 This utility ensures that StreetRace can reliably identify users across different environments for session tracking and attribution, supporting the project's goal of maintaining coherent conversation history.
 
 The module is used in the Args class to determine the effective user ID for session management, providing a consistent way to identify sessions across different invocations of the application.
+---
+### scripts/compare_profiles.py
+
+**Goal & Function**: Compares the output JSONs of `scripts/profile_startup.py` from two different commits (typically, main branch vs. PR branch) and emits a Markdown report with key deltas for performance metrics. Intended for CI usage to visualize startup performance regressions and improvements directly in PR comments.
+
+**Why Essential**: Automates the detection and report of user-facing startup performance regressions. Ensures every PR is transparently evaluated for speed impact, promoting a fast and responsive developer experience.

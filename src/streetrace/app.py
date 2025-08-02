@@ -6,6 +6,9 @@ components and managing the application lifecycle.
 """
 
 # Core application components
+
+import asyncio
+
 from streetrace.agents.agent_manager import AgentManager
 from streetrace.app_state import AppState
 from streetrace.args import Args
@@ -23,9 +26,10 @@ from streetrace.commands.definitions import (
 from streetrace.costs import UsageAndCost
 from streetrace.input_handler import InputContext, InputHandler
 from streetrace.llm.model_factory import ModelFactory
-from streetrace.log import get_logger
+from streetrace.log import get_logger, lazy_setup_litellm_logging
+from streetrace.preload_deps import preload_dependencies
 from streetrace.prompt_processor import PromptProcessor
-from streetrace.session_service import JSONSessionService, SessionManager
+from streetrace.session.session_manager import SessionManager
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.ui import ui_events
@@ -49,7 +53,7 @@ class Application:
         ui: ConsoleUI,
         ui_bus: UiBus,
         input_handling_pipeline: list[InputHandler],
-        session_manager: SessionManager,
+        session_manager: "SessionManager",
     ) -> None:
         """Initialize the Application with necessary components and configuration.
 
@@ -95,6 +99,7 @@ class Application:
             await self._run_interactive()
 
     async def _process_input(self, user_input: str) -> None:
+        lazy_setup_litellm_logging()
         ctx: InputContext = InputContext(user_input=user_input)
         for handler in self.input_handling_pipeline:
             if handler.long_running:
@@ -170,7 +175,9 @@ Enjoy the ride! 🏁
 
         while True:
             try:
+                preload_task = asyncio.create_task(preload_dependencies())
                 user_input = await self.ui.prompt_async()
+                await preload_task  # Ensure dependencies are preloaded
                 await self._process_input(user_input)
             except (EOFError, SystemExit):
                 self.ui_bus.dispatch_ui_update(ui_events.Info("\nLeaving..."))
@@ -217,11 +224,8 @@ def create_app(args: Args) -> Application:
 
     tool_provider = ToolProvider(args.working_dir)
 
-    session_service = JSONSessionService(context_dir / "sessions")
-
     session_manager = SessionManager(
         args=args,
-        session_service=session_service,
         system_context=system_context,
         ui_bus=ui_bus,
     )

@@ -11,7 +11,8 @@ from google.adk.events import Event
 from google.adk.sessions import Session
 from google.genai import types as genai_types
 
-from streetrace.session_service import JSONSessionSerializer, JSONSessionService
+from streetrace.session.json_serializer import JSONSessionSerializer
+from streetrace.session.session_service import JSONSessionService
 
 THIS_FILE_PATH = Path(inspect.getsourcefile(lambda: 0) or ".")
 EXAMPLE_SESSION_JSON_PATH = THIS_FILE_PATH.parent / (THIS_FILE_PATH.name + ".json")
@@ -136,9 +137,9 @@ class TestSessionService:
     @classmethod
     def setup_class(cls):
         cls.temp_dir_path = Path(tempfile.mkdtemp(prefix="streetrace_test_service_"))
-        cls.logger_patcher = patch("streetrace.session_service.logger")
+        cls.logger_patcher = patch("streetrace.session.session_service.logger")
         cls.mock_logger = cls.logger_patcher.start()
-        cls.service = JSONSessionService(cls.temp_dir_path)
+        cls.service = JSONSessionService(JSONSessionSerializer(cls.temp_dir_path))
 
     @classmethod
     def teardown_class(cls):
@@ -207,7 +208,6 @@ class TestSessionService:
         original_read = mock_serializer.read
 
         service_with_mock = JSONSessionService(
-            self.temp_dir_path,
             serializer=mock_serializer,
         )
 
@@ -232,7 +232,6 @@ class TestSessionService:
                 app_name=s_info["app_name"],
                 user_id=s_info["user_id"],
                 session_id=s_info["session_id"],
-                config=None,
             )
 
     async def test_create_get_append_session_roundtrip(self):

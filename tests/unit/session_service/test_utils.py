@@ -7,7 +7,7 @@ from google.adk.sessions import Session
 from google.adk.sessions.base_session_service import ListSessionsResponse
 from rich.console import Console
 
-from streetrace.session_service import (
+from streetrace.session.session_manager import (
     DisplaySessionsList,
     _session_id,
     render_list_of_sessions,
@@ -23,7 +23,7 @@ def test_session_id_without_user_provided_id():
     """Test that _session_id generates an ID based on current time when not provided."""
     expected_id = "2023-05-15_10-30"
 
-    with patch("streetrace.session_service.datetime") as mock_dt:
+    with patch("streetrace.session.session_manager.datetime") as mock_dt:
         mock_datetime = Mock()
         mock_datetime.strftime.return_value = expected_id
         mock_dt.now.return_value = mock_datetime

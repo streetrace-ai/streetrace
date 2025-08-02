@@ -6,30 +6,25 @@ from google.adk.events import Event
 from google.adk.sessions import Session
 from google.genai import types as genai_types
 
-from streetrace.session_service import JSONSessionSerializer, JSONSessionService
+from streetrace.session.json_serializer import JSONSessionSerializer
+from streetrace.session.session_service import JSONSessionService
 
 
 class TestJSONSessionService:
     """Tests for the JSONSessionService class."""
 
-    async def test_init(self, session_storage_dir, json_serializer):
+    async def test_init(self, json_serializer):
         """Test initialization of JSONSessionService."""
-        # Test with default serializer
-        service = JSONSessionService(storage_path=session_storage_dir)
-        assert isinstance(service.serializer, JSONSessionSerializer)
-        assert service.serializer.storage_path == session_storage_dir
-
         # Test with provided serializer
         service_with_serializer = JSONSessionService(
-            storage_path=session_storage_dir,
             serializer=json_serializer,
         )
         assert service_with_serializer.serializer is json_serializer
 
-    async def test_get_session_from_memory(self, session_storage_dir, sample_session):
+    async def test_get_session_from_memory(self, json_serializer, sample_session):
         """Test get_session method retrieving from memory."""
         # Initialize the service
-        service = JSONSessionService(storage_path=session_storage_dir)
+        service = JSONSessionService(json_serializer)
 
         # Add a session to memory
         app_name = sample_session.app_name
@@ -38,7 +33,7 @@ class TestJSONSessionService:
 
         # Mock the superclass get_session method to return the sample session
         with patch(
-            "streetrace.session_service.InMemorySessionService.get_session",
+            "streetrace.session.session_service.InMemorySessionService.get_session",
             new=AsyncMock(return_value=sample_session),
         ) as mock_super_get:
             # Mock serializer to verify it's not called
@@ -63,14 +58,14 @@ class TestJSONSessionService:
             )
             service.serializer.read.assert_not_called()
 
-    async def test_get_session_from_storage(self, session_storage_dir, sample_session):
+    async def test_get_session_from_storage(self, json_serializer, sample_session):
         """Test get_session method retrieving from storage."""
         # Initialize the service
-        service = JSONSessionService(storage_path=session_storage_dir)
+        service = JSONSessionService(json_serializer)
 
         # Mock the superclass get_session method to return None (not in memory)
         with patch(
-            "streetrace.session_service.InMemorySessionService.get_session",
+            "streetrace.session.session_service.InMemorySessionService.get_session",
             new=AsyncMock(return_value=None),
         ):
             # Set up serializer to return our sample session
@@ -91,7 +86,6 @@ class TestJSONSessionService:
                 app_name=sample_session.app_name,
                 user_id=sample_session.user_id,
                 session_id=sample_session.id,
-                config=None,
             )
 
             # Verify the session was added to memory
@@ -102,14 +96,14 @@ class TestJSONSessionService:
                 is not None
             )
 
-    async def test_get_session_not_found(self, session_storage_dir):
+    async def test_get_session_not_found(self, json_serializer):
         """Test get_session method when session doesn't exist."""
         # Initialize the service
-        service = JSONSessionService(storage_path=session_storage_dir)
+        service = JSONSessionService(json_serializer)
 
         # Mock the superclass get_session method to return None (not in memory)
         with patch(
-            "streetrace.session_service.InMemorySessionService.get_session",
+            "streetrace.session.session_service.InMemorySessionService.get_session",
             new=AsyncMock(return_value=None),
         ):
             # Set up serializer to return None (session doesn't exist)
@@ -129,17 +123,16 @@ class TestJSONSessionService:
                 app_name="nonexistent",
                 user_id="nonexistent",
                 session_id="nonexistent",
-                config=None,
             )
 
-    async def test_create_session(self, session_storage_dir, sample_session):
+    async def test_create_session(self, json_serializer, sample_session):
         """Test create_session method."""
         # Initialize the service
-        service = JSONSessionService(storage_path=session_storage_dir)
+        service = JSONSessionService(json_serializer)
 
         # Mock the superclass create_session method to return a session
         with patch(
-            "streetrace.session_service.InMemorySessionService.create_session",
+            "streetrace.session.session_service.InMemorySessionService.create_session",
             new=AsyncMock(return_value=sample_session),
         ) as mock_create:
             # Mock the serializer
@@ -169,10 +162,10 @@ class TestJSONSessionService:
             # Verify serializer.write was called with session keyword argument
             service.serializer.write.assert_called_once_with(session=sample_session)
 
-    async def test_replace_events(self, session_storage_dir, sample_session):
+    async def test_replace_events(self, json_serializer, sample_session):
         """Test replace_events method."""
         # Initialize the service
-        service = JSONSessionService(storage_path=session_storage_dir)
+        service = JSONSessionService(json_serializer)
 
         # Create a session with events
         original_events = [
@@ -223,15 +216,15 @@ class TestJSONSessionService:
         # We need to patch the super() methods that are called directly
         with (
             patch(
-                "streetrace.session_service.InMemorySessionService.create_session",
+                "streetrace.session.session_service.InMemorySessionService.create_session",
                 new=AsyncMock(return_value=new_session),
             ) as mock_super_create,
             patch(
-                "streetrace.session_service.InMemorySessionService.append_event",
+                "streetrace.session.session_service.InMemorySessionService.append_event",
                 new=AsyncMock(side_effect=fake_append),
             ) as mock_super_append,
             patch(
-                "streetrace.session_service.InMemorySessionService.get_session",
+                "streetrace.session.session_service.InMemorySessionService.get_session",
                 new=AsyncMock(return_value=final_session),
             ) as mock_super_get,
         ):
@@ -271,10 +264,10 @@ class TestJSONSessionService:
             # Verify the result
             assert result == final_session
 
-    async def test_list_sessions(self, session_storage_dir):
+    async def test_list_sessions(self, json_serializer):
         """Test list_sessions method."""
         # Initialize the service
-        service = JSONSessionService(storage_path=session_storage_dir)
+        service = JSONSessionService(json_serializer)
 
         # Mock the serializer
         service.serializer = Mock(spec=JSONSessionSerializer)
@@ -302,14 +295,14 @@ class TestJSONSessionService:
         assert "session1" in session_ids
         assert "session2" in session_ids
 
-    async def test_delete_session(self, session_storage_dir, sample_session):
+    async def test_delete_session(self, json_serializer, sample_session):
         """Test delete_session method."""
         # Initialize the service
-        service = JSONSessionService(storage_path=session_storage_dir)
+        service = JSONSessionService(json_serializer)
 
         # Mock the superclass delete_session method
         with patch(
-            "streetrace.session_service.InMemorySessionService.delete_session",
+            "streetrace.session.session_service.InMemorySessionService.delete_session",
         ) as mock_super_delete:
             # Mock the serializer
             service.serializer = Mock(spec=JSONSessionSerializer)
@@ -335,10 +328,10 @@ class TestJSONSessionService:
                 session_id=sample_session.id,
             )
 
-    async def test_append_event(self, session_storage_dir, sample_session):
+    async def test_append_event(self, json_serializer, sample_session):
         """Test append_event method."""
         # Initialize the service
-        service = JSONSessionService(storage_path=session_storage_dir)
+        service = JSONSessionService(json_serializer)
 
         # Create an event to append
         event = Event(
@@ -350,7 +343,7 @@ class TestJSONSessionService:
         )
         # Mock the superclass append_event method
         with patch(
-            "streetrace.session_service.InMemorySessionService.append_event",
+            "streetrace.session.session_service.InMemorySessionService.append_event",
             new=AsyncMock(return_value=event),
         ) as mock_super_append:
             # Mock the serializer

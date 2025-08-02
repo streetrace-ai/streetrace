@@ -25,7 +25,7 @@ class TestSessionManager:
 
         # Reset with new ID
         with patch(
-            "streetrace.session_service._session_id",
+            "streetrace.session.session_manager._session_id",
             return_value="new-session-id",
         ):
             session_manager.reset_session()

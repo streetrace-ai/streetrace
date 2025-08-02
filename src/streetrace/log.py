@@ -10,9 +10,9 @@ from logging import (
     getLogger,
 )
 
-import litellm
-
 from streetrace.args import Args
+
+__verbose_logging = False
 
 
 def init_logging(args: Args) -> None:
@@ -40,6 +40,8 @@ def init_logging(args: Args) -> None:
 
     # Configure Logging Level based on args
     if args.verbose:
+        import litellm
+
         # https://docs.litellm.ai/docs/debugging/local_debugging
         litellm._turn_on_debug()  # type: ignore[attr-defined,no-untyped-call] # noqa: SLF001
         # Add console handler only if debug is enabled
@@ -47,8 +49,7 @@ def init_logging(args: Args) -> None:
         # Set root logger level to DEBUG initially to capture everything
         root_logger.setLevel(DEBUG)
         root_logger.info("Debug logging enabled.")
-    else:
-        litellm.suppress_debug_info = True
+        __verbose_logging = True
     # --- End Logging Configuration ---
 
 
@@ -67,3 +68,14 @@ def configure_3p_loggers(root_logger: Logger) -> None:
             name,
         )  # Replace with the actual logger name
         third_party_logger.handlers.clear()  # Remove any existing handlers
+
+
+def lazy_setup_litellm_logging() -> None:
+    """Set up litellm logging lazily."""
+    import litellm
+
+    if not __verbose_logging:
+        litellm.suppress_debug_info = True
+
+    # This is important to do after importing litellm so it affects litellm loggers.
+    configure_3p_loggers(getLogger())

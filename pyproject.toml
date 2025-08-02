@@ -27,12 +27,18 @@ fix = true
 
 [tool.ruff.lint]
 select = ["ALL"]
-ignore = ["D203", "D213", "ANN002", "ANN003", "TD003"]
+ignore = ["D203", "D213", "ANN002", "ANN003", "TD003", "PLC0415"]
 
 [tool.ruff.lint.flake8-annotations]
 allow-star-arg-any = true
 
 [tool.ruff.lint.per-file-ignores]
+"scripts/**/*.py" = [
+    "T201", # allow print
+    "ANN201", # don't require return type annotations
+    "ANN204",
+    "PLR2004", # allow magic values
+]
 "tests/**/*.py" = [
     "S101", # asserts allowed in tests.
     "D100", # module-level docstrings for test files are not required.
@@ -69,6 +75,23 @@ testpaths = [
 pythonpath = ["src"] # Make src importable directly
 # Enable asyncio mode for pytest-asyncio
 asyncio_mode = "auto"
+# Performance test markers
+markers = [
+    "performance: marks tests as performance tests (deselect with '-m \"not performance\"')",
+]
+
+# pytest-benchmark configuration
+[tool.pytest-benchmark]
+# Only run benchmarks when explicitly requested
+disable_gc = true
+min_rounds = 3
+max_time = 10.0
+# Configure for import benchmarks
+timer = "time.perf_counter"
+# Sort by test name for consistent comparisons
+sort = "name"
+# Don't save benchmarks by default
+autosave = false
 
 [tool.deptry.per_rule_ignores]
 DEP002 = ["anthropic", "ollama", "openai", "boto3", "deprecated"]
@@ -88,6 +111,7 @@ pytest = "^8.3.5"
 pytest-mock = "^3.14.0"
 pytest-timeout = "^2.3.1"
 pytest-asyncio = "^0.23.7"
+pytest-benchmark = "^4.0.0"
 
 [tool.poetry.dependencies]
 prompt-toolkit = "^3.0.51"

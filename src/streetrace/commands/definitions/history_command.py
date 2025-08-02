@@ -5,24 +5,24 @@ the current conversation history in the interactive mode.
 """
 
 from collections.abc import Sequence
-from typing import override
+from typing import TYPE_CHECKING, override
 
-from google.adk.events import Event
-from google.adk.sessions import Session
+if TYPE_CHECKING:
+    from google.adk.events import Event
+    from google.adk.sessions import Session
+    from rich.console import Console, Group
+
+    from streetrace.session.session_manager import SessionManager
+    from streetrace.system_context import SystemContext
+    from streetrace.ui.ui_bus import UiBus
+
 from pydantic import BaseModel
-from rich.console import Console, Group
-from rich.markdown import Markdown
-from rich.syntax import Syntax
-from rich.table import Table
 
 from streetrace.commands.base_command import Command
 from streetrace.log import get_logger
-from streetrace.session_service import SessionManager
-from streetrace.system_context import SystemContext
 from streetrace.ui import ui_events
 from streetrace.ui.colors import Styles
 from streetrace.ui.render_protocol import register_renderer
-from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
 
@@ -30,7 +30,7 @@ logger = get_logger(__name__)
 class _DisplayHistory(BaseModel):
     system_message: str | None
     context: Sequence[str] | None
-    session: Session | None
+    session: "Session | None"
 
 
 _MAX_FUNCTION_ARG_LENGTH = 20
@@ -57,7 +57,7 @@ def _truncate_value(value: object, max_length: int) -> str:
     return f"{string_value[:max_length]}... [{len(string_value)} chars]"
 
 
-def _render_message_content(msg: Event) -> Group:
+def _render_message_content(msg: "Event") -> "Group":
     """Extract and format message content parts for rendering.
 
     Args:
@@ -67,6 +67,8 @@ def _render_message_content(msg: Event) -> Group:
         A list of rendered content parts.
 
     """
+    from rich.console import Group
+
     group = Group()
 
     # Check for escalation messages
@@ -79,6 +81,9 @@ def _render_message_content(msg: Event) -> Group:
         )
 
     if msg.content and msg.content.parts:
+        from rich.markdown import Markdown
+        from rich.syntax import Syntax
+
         for part in msg.content.parts:
             # Handle text content
             if part.text:
@@ -135,8 +140,10 @@ def _render_message_content(msg: Event) -> Group:
 
 
 @register_renderer
-def render_history(obj: _DisplayHistory, console: Console) -> None:
+def render_history(obj: _DisplayHistory, console: "Console") -> None:
     """Render a full history on the UI."""
+    from rich.table import Table
+
     table = Table(
         title="Conversation history",
         show_lines=False,
@@ -184,9 +191,9 @@ class HistoryCommand(Command):
 
     def __init__(
         self,
-        ui_bus: UiBus,
-        system_context: SystemContext,
-        session_manager: SessionManager,
+        ui_bus: "UiBus",
+        system_context: "SystemContext",
+        session_manager: "SessionManager",
     ) -> None:
         """Initialize a new instance of HistoryCommand."""
         self.ui_bus = ui_bus

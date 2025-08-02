@@ -1,10 +1,13 @@
 """Agent manager for the StreetRace application."""
 
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from google.adk.agents import BaseAgent
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+
+    from google.adk.agents import BaseAgent
 
 from streetrace.agents.agent_loader import (
     AgentInfo,
@@ -69,7 +72,7 @@ class AgentManager:
         return get_available_agents(base_dirs)
 
     @asynccontextmanager
-    async def create_agent(self, agent_name: str) -> AsyncGenerator[BaseAgent, None]:
+    async def create_agent(self, agent_name: str) -> "AsyncGenerator[BaseAgent, None]":
         """Create an agent with the specified name and model.
 
         Args:
