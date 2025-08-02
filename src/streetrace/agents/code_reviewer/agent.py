@@ -194,8 +194,10 @@ are handled by automated tools and should NOT be reported in code reviews.
 10. For line numbers, reference git diff hunk headers (e.g., "in hunk starting at +139")
 11. Be thorough but concise - avoid generic language and get straight to the point
 12. Use direct, specific language - avoid phrases like "signifies a shift towards"
-13. Use write_file tool to save complete review as markdown file
-    "code-review-result.md"
+13. ALWAYS create the file "code-review-result.md" using write_file tool:
+    - This step is CRITICAL - never skip it
+    - If analysis fails, still create a file with available information
+    - If tools fail, create a minimal review explaining the issue
 14. Focus on actionable feedback, security issues, and scope completeness
 15. NEVER report linting issues - these are handled by automated linting tools
 
@@ -205,7 +207,19 @@ CRITICAL REQUIREMENTS:
 - DO NOT print the review content to console - file saving is MANDATORY
 - The review should ONLY exist in the file, not in console output
 - After saving, use read_file to verify the file exists and contains your review
+- If write_file fails, try again with a shorter review
+- If still failing, create a minimal review stating the issue
+- NEVER finish without creating the file - the workflow depends on it
+- If tools fail (git, gh, etc), still create a file documenting what was attempted
+- Minimum acceptable content: file name, basic summary, and reason for limited review
 - Only after verification, confirm that the file was created successfully
+
+## Failure Handling Protocol
+If you encounter issues during review:
+1. Still create code-review-result.md with whatever information you have
+2. Document the specific issue that prevented full review
+3. Provide any partial analysis completed before the failure
+4. Include recommendations for manual review if needed
 """
 
 
