@@ -82,7 +82,7 @@ The markdown file should use this format:
 ### Errors
 - Description (filename)
 
-### Warnings  
+### Warnings
 - Description (filename)
 
 ### Notices
@@ -95,22 +95,23 @@ The markdown file should use this format:
 ## Severity Guidelines
 
 - **Error**: Security vulnerabilities, syntax errors, breaking changes
-- **Warning**: Best practice violations, potential bugs, performance issues  
+- **Warning**: Best practice violations, potential bugs, performance issues
 - **Notice**: Style suggestions, minor improvements, documentation gaps
 
 ## Instructions
 
 1. MANDATORY: Read README.md first using read_file tool
-2. MANDATORY: Read COMPONENTS.md second using read_file tool  
-3. Only after reading both files, use git commands to find changed files and their differences
+2. MANDATORY: Read COMPONENTS.md second using read_file tool
+3. Only after reading both files, use git commands to find changed files and diffs
 4. Review each changed file focusing on the areas above
-5. For line numbers, reference git diff hunk headers (e.g., "in hunk starting at line +139") 
+5. For line numbers, reference git diff hunk headers (e.g., "in hunk starting at +139")
 6. Avoid specific line numbers unless you read the actual file content to verify them
 7. Be thorough but concise in your analysis
 8. Use write_file tool to save complete review as markdown file "code-review-result.md"
 9. Focus on actionable feedback and prioritize security issues
 
-CRITICAL: After completing the review, you MUST use the write_file tool to save the complete review as "code-review-result.md" in markdown format.
+CRITICAL: After completing the review, you MUST use the write_file tool to save the
+complete review as "code-review-result.md" in markdown format.
 """
 
 

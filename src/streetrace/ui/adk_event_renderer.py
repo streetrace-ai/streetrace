@@ -93,7 +93,7 @@ def _display_function_response(response: dict[str, Any], console: Console) -> No
         elif isinstance(val, dict):
             display_dict = val
 
-    def format_response_value(key: str, value: object) -> str:
+    def format_response_value(_key: str, value: object) -> str:
         return _trim_text(str(value))
 
     logger.info(
