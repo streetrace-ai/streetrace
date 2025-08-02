@@ -48,7 +48,11 @@ Analyze the changes for:
 - **Syntax errors**: Invalid syntax, malformed structures
 - **Logic errors**: Incorrect conditionals, wrong file paths, broken references
 - **Best practices**: Proper error handling, resource management, maintainability
-- **Code quality**: Style consistency, maintainability, performance considerations
+- **Code quality**: Architecture, maintainability, performance considerations
+
+**IMPORTANT**: Do NOT check for linting issues (code style, formatting, etc.).
+These are handled by specialized linting tools in the CI pipeline and should not be
+part of the code review. Focus on logic, security, and architectural concerns.
 
 ## File-Specific Expertise
 
@@ -125,7 +129,10 @@ Use visual indicators to show implementation status:
 
 - **Error**: Security vulnerabilities, syntax errors, breaking changes
 - **Warning**: Best practice violations, potential bugs, performance issues
-- **Notice**: Style suggestions, minor improvements, documentation gaps
+- **Notice**: Minor improvements, documentation gaps, architectural suggestions
+
+**EXCLUDE from review**: Linting issues (formatting, line length, style conventions)
+are handled by automated tools and should NOT be reported in code reviews.
 
 ## Instructions
 
@@ -149,6 +156,7 @@ Use visual indicators to show implementation status:
 11. Use write_file tool to save complete review as markdown file
     "code-review-result.md"
 12. Focus on actionable feedback, security issues, and scope completeness
+13. NEVER report linting issues - these are handled by automated linting tools
 
 CRITICAL REQUIREMENTS:
 - You MUST use the write_file tool to save the complete review as
