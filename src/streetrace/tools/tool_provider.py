@@ -13,6 +13,12 @@ if TYPE_CHECKING:
 
 from streetrace.log import get_logger
 from streetrace.tools.definitions.fake_tools import get_current_time, get_weather
+from streetrace.tools.mcp_transport import (
+    HttpConnectionConfig,
+    SSEConnectionConfig,
+    StdioConnectionConfig,
+    parse_connection_config,
+)
 from streetrace.utils.hide_args import hide_args
 
 type AnyTool = Callable[..., Any] | "BaseTool" | "BaseToolset"
@@ -147,7 +153,6 @@ class ToolProvider:
 
         """
         from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
-        from mcp import StdioServerParameters
 
         toolsets: list[MCPToolset] = []
 
@@ -157,22 +162,21 @@ class ToolProvider:
             if len(tool_names.intersection(["all", "*"])) == 0:
                 tool_filter = list(tool_names)
 
-            # Set cwd for all MCP tools - there's no point in running anything
-            # in StreetRace's own directory
+            # Try to parse server_name as connection config first,
+            # otherwise fall back to default STDIO behavior
+            connection_params = self._create_connection_params(server_name)
+
             toolset = MCPToolset(
-                connection_params=StdioServerParameters(
-                    command="npx",
-                    args=["-y", server_name, str(self.work_dir)],
-                    cwd=self.work_dir,  # Set MCP server's working directory
-                ),
+                connection_params=connection_params,
                 tool_filter=tool_filter,
             )
             logger.debug(
-                "Created MCP toolset with cwd",
+                "Created MCP toolset",
                 extra={
                     "server_name": server_name,
                     "work_dir": str(self.work_dir),
                     "tool_filter": tool_filter,
+                    "connection_type": type(connection_params).__name__,
                 },
             )
 
@@ -244,3 +248,64 @@ class ToolProvider:
                 servers[server_name].add(func_name)
 
         return servers
+
+    def _create_connection_params(
+        self,
+        server_identifier: str,
+    ) -> Any:
+        """Create appropriate connection parameters based on server identifier.
+
+        Args:
+            server_identifier: Either a server name for default STDIO,
+                             or a JSON string with connection config
+
+        Returns:
+            Appropriate connection parameters instance
+
+        """
+        import json
+
+        from google.adk.tools.mcp_tool.mcp_session_manager import (
+            SseConnectionParams,
+            StreamableHTTPConnectionParams,
+        )
+        from mcp import StdioServerParameters
+
+        # Try to parse as JSON config first
+        try:
+            config_data = json.loads(server_identifier)
+            config = parse_connection_config(config_data)
+
+            if isinstance(config, StdioConnectionConfig):
+                return StdioServerParameters(
+                    command=config.command,
+                    args=config.args,
+                    cwd=config.cwd or self.work_dir,
+                    env=config.env,
+                )
+            if isinstance(config, HttpConnectionConfig):
+                # Build kwargs excluding None values for Pydantic validation
+                kwargs: dict[str, Any] = {
+                    "url": config.url,
+                    "headers": config.headers or {},
+                }
+                if config.timeout is not None:
+                    kwargs["timeout"] = config.timeout
+                return StreamableHTTPConnectionParams(**kwargs)
+            if isinstance(config, SSEConnectionConfig):
+                # Build kwargs excluding None values for Pydantic validation
+                kwargs = {"url": config.url, "headers": config.headers or {}}
+                if config.timeout is not None:
+                    kwargs["timeout"] = config.timeout
+                return SseConnectionParams(**kwargs)
+
+        except (json.JSONDecodeError, ValueError, KeyError):
+            # Fall back to default STDIO behavior for simple server names
+            pass
+
+        # Default STDIO connection for simple server names
+        return StdioServerParameters(
+            command="npx",
+            args=["-y", server_identifier, str(self.work_dir)],
+            cwd=self.work_dir,
+        )
