@@ -1,5 +1,6 @@
 """Tests for the ToolProvider class, focusing on resource management functionality."""
 
+from collections.abc import Callable
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock
 
@@ -37,7 +38,7 @@ class TestToolProviderResourceManagement:
         return Mock(spec=BaseToolset)
 
     @pytest.fixture
-    def mock_callable_tool(self) -> callable:
+    def mock_callable_tool(self) -> Callable:
         """Create a mock callable tool."""
         return Mock(return_value="test_result")
 
@@ -51,7 +52,7 @@ class TestToolProviderResourceManagement:
     async def test_release_tools_with_mcp_toolset(
         self,
         tool_provider: ToolProvider,
-        mock_mcp_toolset: MCPToolset,
+        mock_mcp_toolset: Mock,
     ) -> None:
         """Test releasing tools containing MCPToolset."""
         # Arrange
@@ -88,7 +89,7 @@ class TestToolProviderResourceManagement:
         tool_provider: ToolProvider,
         mock_base_tool: BaseTool,
         mock_base_toolset: BaseToolset,
-        mock_callable_tool: callable,
+        mock_callable_tool: Callable,
     ) -> None:
         """Test releasing tools that are not MCPToolsets."""
         # Arrange
@@ -107,9 +108,9 @@ class TestToolProviderResourceManagement:
     async def test_release_tools_mixed_tool_types(
         self,
         tool_provider: ToolProvider,
-        mock_mcp_toolset: MCPToolset,
+        mock_mcp_toolset: Mock,
         mock_base_tool: BaseTool,
-        mock_callable_tool: callable,
+        mock_callable_tool: Callable,
     ) -> None:
         """Test releasing a mix of MCP and non-MCP tools."""
         # Arrange
@@ -164,30 +165,3 @@ class TestToolProviderResourceManagement:
         mock_toolset1.close.assert_awaited_once()
         # Second toolset close should NOT be called due to exception
         mock_toolset2.close.assert_not_awaited()
-
-
-class TestToolProviderIntegration:
-    """Integration tests for ToolProvider focusing on resource lifecycle."""
-
-    @pytest.fixture
-    def tool_provider(self, work_dir: Path) -> ToolProvider:
-        """Create a ToolProvider instance for testing."""
-        return ToolProvider(work_dir)
-
-    async def test_get_tools_returns_releasable_resources(
-        self,
-        tool_provider: ToolProvider,
-    ) -> None:
-        """Test that get_tools returns resources that can be released."""
-        # Arrange
-        tool_refs = ["get_weather", "get_current_time"]
-
-        # Act
-        tools = await tool_provider.get_tools(tool_refs)
-
-        # Assert
-        assert len(tools) == 2
-        assert all(callable(tool) for tool in tools)
-
-        # Test that these tools can be released without error
-        await tool_provider.release_tools(tools)

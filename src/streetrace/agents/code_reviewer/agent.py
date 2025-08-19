@@ -13,7 +13,10 @@ from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
-from streetrace.tools.tool_provider import AnyTool
+from streetrace.tools.tool_provider import AdkTool, AnyTool
+from streetrace.tools.tool_refs import (
+    StreetraceToolRef,
+)
 
 CODE_REVIEWER_AGENT = """You are a specialized code reviewer for StreetRace🚗💨.
 
@@ -261,23 +264,23 @@ class CodeReviewerAgent(StreetRaceAgent):
         )
 
     @override
-    async def get_required_tools(self) -> list[str | AnyTool]:
+    async def get_required_tools(self) -> list[AnyTool]:
         """Provide a list of required tools for code review."""
         return [
-            # File system tools for reading and writing files
-            "streetrace:fs_tool::read_file",
-            "streetrace:fs_tool::write_file",
-            "streetrace:fs_tool::list_directory",
-            "streetrace:fs_tool::find_in_files",
-            # CLI tools for git and GitHub operations (git, gh commands)
-            "streetrace:cli_tool::execute_cli_command",
+            # StreetRace internal tools for file system operations
+            StreetraceToolRef(module="fs_tool", function="read_file"),
+            StreetraceToolRef(module="fs_tool", function="write_file"),
+            StreetraceToolRef(module="fs_tool", function="list_directory"),
+            StreetraceToolRef(module="fs_tool", function="find_in_files"),
+            # CLI tool for command execution
+            StreetraceToolRef(module="cli_tool", function="execute_cli_command"),
         ]
 
     @override
     async def create_agent(
         self,
         model_factory: ModelFactory,
-        tools: list[AnyTool],
+        tools: list[AdkTool],
         system_context: SystemContext,
     ) -> BaseAgent:
         """Create the comprehensive code reviewer agent.
@@ -300,4 +303,3 @@ class CodeReviewerAgent(StreetRaceAgent):
             instruction=CODE_REVIEWER_AGENT,
             tools=tools,
         )
-

@@ -1,93 +1,73 @@
-"""MCP transport connection configuration classes."""
+"""MCP transport configuration classes."""
 
-from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
 
 
-@dataclass
-class StdioConnectionConfig:
+class StdioTransport(BaseModel):
     """Configuration for STDIO-based MCP connections."""
 
+    type: Literal["stdio"] = "stdio"
     command: str
-    args: list[str]
-    cwd: str | None = None
+    args: list[str] = Field(default_factory=list)
+    cwd: str | None = Field(
+        default=None,
+        description="MCP Server cwd, overrides allowed dirs.",
+    )
     env: dict[str, str] | None = None
 
 
-@dataclass
-class HttpConnectionConfig:
+class HttpTransport(BaseModel):
     """Configuration for HTTP-based MCP connections."""
 
+    type: Literal["http"] = "http"
     url: str
     headers: dict[str, str] | None = None
     timeout: float | None = None
 
 
-@dataclass
-class SSEConnectionConfig:
+class SseTransport(BaseModel):
     """Configuration for Server-Sent Events (SSE) based MCP connections."""
 
+    type: Literal["sse"] = "sse"
     url: str
     headers: dict[str, str] | None = None
     timeout: float | None = None
 
 
-type MCPConnectionConfig = (
-    StdioConnectionConfig | HttpConnectionConfig | SSEConnectionConfig
-)
+Transport = StdioTransport | HttpTransport | SseTransport
 
 
-def parse_connection_config(config_data: dict[str, Any]) -> MCPConnectionConfig:
-    """Parse connection configuration from dictionary data.
+def parse_transport_config(config_data: dict[str, Any] | str) -> Transport:
+    """Parse transport configuration from dictionary data.
 
     Args:
-        config_data: Dictionary containing connection configuration
+        config_data: Dictionary containing transport configuration
 
     Returns:
-        Appropriate connection configuration instance
+        Appropriate transport configuration instance
 
     Raises:
         ValueError: If configuration type is invalid or required fields are missing
 
     """
+    if isinstance(config_data, str):
+        import json
+
+        config_data = json.loads(config_data)
+
+        if not isinstance(config_data, dict):
+            msg = "Transport configuration must be a dictionary or JSON dictionary"
+            raise TypeError(msg)
+
     config_type = config_data.get("type", "stdio").lower()
 
     if config_type == "stdio":
-        command = config_data.get("command")
-        if not command:
-            msg = "STDIO configuration requires 'command' field"
-            raise ValueError(msg)
-
-        return StdioConnectionConfig(
-            command=command,
-            args=config_data.get("args", []),
-            cwd=config_data.get("cwd"),
-            env=config_data.get("env"),
-        )
-
+        return StdioTransport.model_validate(config_data)
     if config_type == "http":
-        url = config_data.get("url")
-        if not url:
-            msg = "HTTP configuration requires 'url' field"
-            raise ValueError(msg)
-
-        return HttpConnectionConfig(
-            url=url,
-            headers=config_data.get("headers"),
-            timeout=config_data.get("timeout"),
-        )
-
+        return HttpTransport.model_validate(config_data)
     if config_type == "sse":
-        url = config_data.get("url")
-        if not url:
-            msg = "SSE configuration requires 'url' field"
-            raise ValueError(msg)
-
-        return SSEConnectionConfig(
-            url=url,
-            headers=config_data.get("headers"),
-            timeout=config_data.get("timeout"),
-        )
-
-    msg = f"Unknown connection type: {config_type}"
+        return SseTransport.model_validate(config_data)
+    msg = f"Unknown transport type: {config_type}"
     raise ValueError(msg)

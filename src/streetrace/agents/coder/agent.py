@@ -3,7 +3,7 @@
 A simple example agent that demonstrates the basic structure of a StreetRace agent.
 """
 
-from typing import override
+from typing import TYPE_CHECKING, override
 
 from a2a.types import AgentCapabilities, AgentSkill
 from google.adk.agents import Agent, BaseAgent
@@ -12,7 +12,15 @@ from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
-from streetrace.tools.tool_provider import AnyTool
+from streetrace.tools.mcp_transport import StdioTransport
+from streetrace.tools.tool_provider import AdkTool, AnyTool
+from streetrace.tools.tool_refs import (
+    McpToolRef,
+    StreetraceToolRef,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 CODER_AGENT = """You StreetRace🚗💨, a pragmatic, forward-thinking senior software
 engineer pair programming witht the USER. You write production-grade code for long-term
@@ -108,30 +116,42 @@ class CoderAgent(StreetRaceAgent):
         )
 
     @override
-    async def get_required_tools(self) -> list[str | AnyTool]:
-        """Provide a list of required tools from known libraries, or tool functions.
+    async def get_required_tools(self) -> list[AnyTool]:
+        """Provide a list of required tool references using structured ToolRef objects.
 
-        Optional. If not implemented, create_agent will be called without tools.
+        Returns structured tool references instead of string-based tool names.
         """
-        return [
-            "streetrace:fs_tool::read_file",
-            "streetrace:fs_tool::create_directory",
-            "streetrace:fs_tool::write_file",  # better due to python ast check
-            "streetrace:fs_tool::append_to_file",  # for large content chunks
-            "streetrace:fs_tool::list_directory",  # honor .gitignore
-            "streetrace:fs_tool::find_in_files",  # honor .gitignore
-            "mcp:@modelcontextprotocol/server-filesystem::edit_file",  # large files
-            "mcp:@modelcontextprotocol/server-filesystem::move_file",  # less tokens
-            "mcp:@modelcontextprotocol/server-filesystem::get_file_info",
-            "mcp:@modelcontextprotocol/server-filesystem::list_allowed_directories",
-            "streetrace:cli_tool::execute_cli_command",
+        tools: Sequence[AnyTool] = [
+            # StreetRace internal tools for file system operations
+            StreetraceToolRef(module="fs_tool", function="read_file"),
+            StreetraceToolRef(module="fs_tool", function="create_directory"),
+            StreetraceToolRef(module="fs_tool", function="write_file"),
+            StreetraceToolRef(module="fs_tool", function="append_to_file"),
+            StreetraceToolRef(module="fs_tool", function="list_directory"),
+            StreetraceToolRef(module="fs_tool", function="find_in_files"),
+            # MCP filesystem server tools for advanced file operations
+            McpToolRef(
+                server=StdioTransport(
+                    command="npx",
+                    args=["-y", "@modelcontextprotocol/server-filesystem"],
+                ),
+                tools=[
+                    "edit_file",
+                    "move_file",
+                    "get_file_info",
+                    "list_allowed_directories",
+                ],
+            ),
+            # CLI tool for command execution
+            StreetraceToolRef(module="cli_tool", function="execute_cli_command"),
         ]
+        return list(tools)
 
     @override
     async def create_agent(
         self,
         model_factory: ModelFactory,
-        tools: list[AnyTool],
+        tools: list[AdkTool],
         system_context: SystemContext,
     ) -> BaseAgent:
         """Create the agent Run the Hello World agent with the provided input.
