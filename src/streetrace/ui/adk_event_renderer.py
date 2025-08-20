@@ -12,8 +12,118 @@ if TYPE_CHECKING:
     from google.adk.events import Event as AdkEvent
     from google.genai.types import FunctionCall
     from rich.console import Console
+    from rich.syntax import Syntax
 
 logger = get_logger(__name__)
+
+
+class EventRenderer:
+    """Stateful renderer that groups function calls with their responses."""
+
+    def __init__(self) -> None:
+        """Initialize the event renderer."""
+        self.pending_function_call: tuple[str, FunctionCall] | None = None
+
+    def render_event(self, obj: "Event", console: "Console") -> None:
+        """Render the provided google.adk.events.Event to rich.console."""
+        from rich.panel import Panel
+
+        author = f"[bold]{obj.event.author}:[/bold]"
+
+        if (
+            obj.event.is_final_response()
+            and obj.event.actions
+            and obj.event.actions.escalate
+        ):
+            # Handle potential errors/escalations
+            console.print(
+                author,
+                f"Agent escalated: {obj.event.error_message or 'No specific message.'}",
+                style=Styles.RICH_ERROR,
+            )
+
+        if obj.event.content and obj.event.content.parts:
+            for part in obj.event.content.parts:
+                if part.text:
+                    # If we have a pending function call, render it first
+                    self._flush_pending_function_call(console)
+
+                    _display_assistant_text(
+                        author + "\n",
+                        part.text,
+                        obj.event.is_final_response(),
+                        console,
+                    )
+
+                if part.function_call:
+                    # Store function call for later grouping with response
+                    self.pending_function_call = (author, part.function_call)
+
+                if part.function_response and part.function_response.response:
+                    # Group with pending function call if available
+                    if self.pending_function_call:
+                        self._render_function_call_group(
+                            self.pending_function_call[0],
+                            self.pending_function_call[1],
+                            part.function_response.response,
+                            console,
+                        )
+                        self.pending_function_call = None
+                    else:
+                        # Orphaned response - render standalone
+                        console.print(
+                            Panel(
+                                _format_function_response(
+                                    part.function_response.response,
+                                ),
+                                title="Function Response",
+                                border_style="blue",
+                            ),
+                        )
+
+    def _flush_pending_function_call(self, console: "Console") -> None:
+        """Render any pending function call that hasn't been paired with a response."""
+        from rich.panel import Panel
+
+        if self.pending_function_call:
+            author, function_call = self.pending_function_call
+            console.print(
+                Panel(
+                    _format_function_call(function_call),
+                    title=f"{author} Function Call",
+                    border_style="yellow",
+                ),
+            )
+            self.pending_function_call = None
+
+    def _render_function_call_group(
+        self,
+        author: str,
+        function_call: "FunctionCall",
+        response: dict[str, Any],
+        console: "Console",
+    ) -> None:
+        """Render function call and response together in a grouped panel."""
+        from rich.panel import Panel
+
+        call_content = _format_function_call(function_call)
+        response_content = _format_function_response(response)
+
+        # Create a group with call and response
+        from rich.console import Group
+
+        combined_content = Group(
+            call_content,
+            "",  # Empty line separator
+            response_content,
+        )
+
+        console.print(
+            Panel(
+                combined_content,
+                border_style="cyan",
+            ),
+        )
 
 
 @dataclass
@@ -71,31 +181,23 @@ def _display_assistant_text(
     )
 
     console.print(
-        author,
         Markdown(text, inline_code_theme=Styles.RICH_MD_CODE),
         style=style,
         end=" ",
     )
 
 
-def _display_function_call(
-    author: str,
-    function_call: "FunctionCall",
-    console: "Console",
-) -> None:
+def _format_function_call(function_call: "FunctionCall") -> "Syntax":
+    """Format function call for display."""
     logger.info("Function call: `%s(%s)`", function_call.name, function_call.args)
     from rich.syntax import Syntax
 
-    console.print(
-        author,
-        Syntax(
-            code=f"{function_call.name}({function_call.args})",
-            lexer="python",
-            theme=Styles.RICH_TOOL_CALL,
-            line_numbers=False,
-            background_color="default",
-        ),
-        end=" ",
+    return Syntax(
+        code=f"{function_call.name}({function_call.args})",
+        lexer="python",
+        theme=Styles.RICH_TOOL_CALL,
+        line_numbers=False,
+        background_color="default",
     )
 
 
@@ -105,7 +207,8 @@ def _is_call_tool_result(value: object) -> bool:
     return False
 
 
-def _display_function_response(response: dict[str, Any], console: "Console") -> None:
+def _format_function_response(response: dict[str, Any]) -> "Syntax":
+    """Format function response for display."""
     from rich.syntax import Syntax
 
     display_dict = response
@@ -124,49 +227,25 @@ def _display_function_response(response: dict[str, Any], console: "Console") -> 
             ],
         ),
     )
-    console.print(
-        Syntax(
-            code="\n".join(
-                [
-                    f"  ↳ {key}: {_trim_text(str(display_dict[key]))}"
-                    for key in display_dict
-                ],
-            ),
-            lexer="python",
-            theme=Styles.RICH_TOOL_CALL,
-            line_numbers=False,
-            background_color="default",
+    return Syntax(
+        code="\n".join(
+            [
+                f"  ↳ {key}: {_trim_text(str(display_dict[key]))}"
+                for key in display_dict
+            ],
         ),
+        lexer="python",
+        theme=Styles.RICH_TOOL_CALL,
+        line_numbers=False,
+        background_color="default",
     )
+
+
+# Global renderer instance to maintain state across events
+_renderer_instance = EventRenderer()
 
 
 @register_renderer
 def render_event(obj: Event, console: "Console") -> None:
     """Render the provided google.adk.events.Event to rich.console."""
-    author = f"[bold]{obj.event.author}:[/bold]\n"
-    if (
-        obj.event.is_final_response()
-        and obj.event.actions
-        and obj.event.actions.escalate
-    ):
-        # Handle potential errors/escalations
-        console.print(
-            author,
-            f"Agent escalated: {obj.event.error_message or 'No specific message.'}",
-            style=Styles.RICH_ERROR,
-        )
-    if obj.event.content and obj.event.content.parts:
-        for part in obj.event.content.parts:
-            if part.text:
-                _display_assistant_text(
-                    author,
-                    part.text,
-                    obj.event.is_final_response(),
-                    console,
-                )
-
-            if part.function_call:
-                _display_function_call(author, part.function_call, console)
-
-            if part.function_response and part.function_response.response:
-                _display_function_response(part.function_response.response, console)
+    _renderer_instance.render_event(obj, console)
