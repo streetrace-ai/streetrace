@@ -114,7 +114,8 @@ class ToolProvider:
 
     async def release_tools(self, tools: list[AdkTool]) -> None:
         """Release all tools."""
-        for tool in tools:
+        # reversed is important to allow proper order of MCP sessions cleanup.
+        for tool in reversed(tools):
             mcp_tool = _as_mcp_toolset(tool)
             if mcp_tool:
                 await mcp_tool.close()
