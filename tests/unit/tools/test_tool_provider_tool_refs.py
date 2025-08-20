@@ -27,7 +27,7 @@ class TestToolProviderToolRefProcessing:
             url="http://localhost:8000/mcp",
             headers={"Auth": "Bearer token"},
         )
-        tool_ref = McpToolRef(server=transport, tools=["*"])
+        tool_ref = McpToolRef(name="fake_tool", server=transport, tools=["*"])
 
         with patch(
             "google.adk.tools.mcp_tool.mcp_toolset.MCPToolset",
@@ -161,6 +161,7 @@ class TestToolProviderToolRefProcessing:
         """Test get_tools with mixed legacy strings and new ToolRef objects."""
         # Create mixed tool references
         mcp_tool_ref = McpToolRef(
+            name="fake_tool",
             server=StdioTransport(command="fake", args=["server"]),
             tools=["tool1"],
         )
@@ -221,6 +222,7 @@ class TestToolRefIntegrationWithProvider:
         tool_refs = [
             # MCP tool with named server
             McpToolRef(
+                name="fake_tool",
                 server=StdioTransport(command="filesystem", args=["fake_server"]),
                 tools=["list"],
             ),

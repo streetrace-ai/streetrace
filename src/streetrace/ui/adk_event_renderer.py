@@ -81,6 +81,9 @@ class EventRenderer:
                             ),
                         )
 
+        # Flush any remaining pending function call that wasn't paired with a response
+        self._flush_pending_function_call(console)
+
     def _flush_pending_function_call(self, console: "Console") -> None:
         """Render any pending function call that hasn't been paired with a response."""
         from rich.panel import Panel

@@ -116,9 +116,12 @@ class ToolProvider:
         """Release all tools."""
         # reversed is important to allow proper order of MCP sessions cleanup.
         for tool in reversed(tools):
-            mcp_tool = _as_mcp_toolset(tool)
-            if mcp_tool:
-                await mcp_tool.close()
+            try:
+                mcp_tool = _as_mcp_toolset(tool)
+                if mcp_tool:
+                    await mcp_tool.close()
+            except:  # noqa: E722
+                logger.exception("Failed to close mcp_tool, ignoring cleanup failure")
 
     async def get_tools(
         self,
@@ -216,8 +219,8 @@ class ToolProvider:
         func = getattr(module, tool_ref.function)
 
         if not callable(func):
-            msg = "%s resolved to non-callable: %s"
-            raise TypeError(msg, tool_ref, func)
+            msg = f"{tool_ref} resolved to non-callable: {func}"
+            raise TypeError(msg)
 
         logger.debug(
             "Created StreetRace tool from ToolRef",

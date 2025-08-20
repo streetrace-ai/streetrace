@@ -9,7 +9,7 @@ from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.base_toolset import BaseToolset
 from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 
-from streetrace.tools.tool_provider import AnyTool, ToolProvider
+from streetrace.tools.tool_provider import AdkTool, ToolProvider
 
 
 class TestToolProviderResourceManagement:
@@ -56,7 +56,7 @@ class TestToolProviderResourceManagement:
     ) -> None:
         """Test releasing tools containing MCPToolset."""
         # Arrange
-        tools: list[AnyTool] = [mock_mcp_toolset]
+        tools: list[AdkTool] = [mock_mcp_toolset]
 
         # Act
         await tool_provider.release_tools(tools)
@@ -75,7 +75,7 @@ class TestToolProviderResourceManagement:
         mock_toolset2 = Mock(spec=MCPToolset)
         mock_toolset2.close = AsyncMock()
 
-        tools: list[AnyTool] = [mock_toolset1, mock_toolset2]
+        tools: list[AdkTool] = [mock_toolset1, mock_toolset2]
 
         # Act
         await tool_provider.release_tools(tools)
@@ -93,7 +93,7 @@ class TestToolProviderResourceManagement:
     ) -> None:
         """Test releasing tools that are not MCPToolsets."""
         # Arrange
-        tools: list[AnyTool] = [
+        tools: list[AdkTool] = [
             mock_base_tool,
             mock_base_toolset,
             mock_callable_tool,
@@ -114,7 +114,7 @@ class TestToolProviderResourceManagement:
     ) -> None:
         """Test releasing a mix of MCP and non-MCP tools."""
         # Arrange
-        tools: list[AnyTool] = [
+        tools: list[AdkTool] = [
             mock_base_tool,
             mock_mcp_toolset,
             mock_callable_tool,
@@ -135,33 +135,7 @@ class TestToolProviderResourceManagement:
         mock_toolset = Mock(spec=MCPToolset)
         mock_toolset.close = AsyncMock(side_effect=Exception("Close failed"))
 
-        tools: list[AnyTool] = [mock_toolset]
+        tools: list[AdkTool] = [mock_toolset]
 
         # Act & Assert - Should not raise exception
-        # The current implementation doesn't handle exceptions explicitly,
-        # but this test documents the expected behavior if we add exception handling
-        with pytest.raises(Exception, match="Close failed"):
-            await tool_provider.release_tools(tools)
-
-    async def test_release_tools_maintains_order_on_partial_failure(
-        self,
-        tool_provider: ToolProvider,
-    ) -> None:
-        """Test that partial failures don't prevent cleanup of remaining tools."""
-        # Arrange
-        mock_toolset1 = Mock(spec=MCPToolset)
-        mock_toolset1.close = AsyncMock(side_effect=Exception("First close failed"))
-
-        mock_toolset2 = Mock(spec=MCPToolset)
-        mock_toolset2.close = AsyncMock()
-
-        tools: list[AnyTool] = [mock_toolset1, mock_toolset2]
-
-        # Act & Assert
-        with pytest.raises(Exception, match="First close failed"):
-            await tool_provider.release_tools(tools)
-
-        # Verify first toolset close was attempted
-        mock_toolset1.close.assert_awaited_once()
-        # Second toolset close should NOT be called due to exception
-        mock_toolset2.close.assert_not_awaited()
+        await tool_provider.release_tools(tools)

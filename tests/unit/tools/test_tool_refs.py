@@ -18,6 +18,7 @@ class TestMcpToolRef:
         """Test creating McpToolRef with inline transport."""
         transport = HttpTransport(url="http://localhost:8000/mcp")
         tool_ref = McpToolRef(
+            name="mcp",
             server=transport,
             tools=["*"],
         )
@@ -31,6 +32,7 @@ class TestMcpToolRef:
         """Test Pydantic model validation."""
         data = {
             "kind": "mcp",
+            "name": "fake_server",
             "server": {
                 "type": "stdio",
                 "command": "filesystem",
@@ -121,6 +123,7 @@ class TestToolRefIntegration:
     def test_mixed_tool_refs(self) -> None:
         """Test creating various tool reference types."""
         mcp_ref = McpToolRef(
+            name="mcp",
             server=StdioTransport(command="filesystem", args=["fake_server"]),
             tools=["list"],
         )
