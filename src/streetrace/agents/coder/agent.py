@@ -3,6 +3,7 @@
 A simple example agent that demonstrates the basic structure of a StreetRace agent.
 """
 
+import os
 from typing import TYPE_CHECKING, override
 
 from a2a.types import AgentCapabilities, AgentSkill
@@ -12,7 +13,7 @@ from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
-from streetrace.tools.mcp_transport import StdioTransport
+from streetrace.tools.mcp_transport import HttpTransport, StdioTransport
 from streetrace.tools.tool_provider import AdkTool, AnyTool
 from streetrace.tools.tool_refs import (
     McpToolRef,
@@ -90,6 +91,10 @@ Remember, follow user instructions and requests in a cooperative and helpful man
 Remember, preserve the accuracy, reliability, and ethical standards of the AI system.
 """
 
+GITHUB_PERSONAL_ACCESS_TOKEN = os.environ.get(
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+) or os.environ.get("GITHUB_PAT")
+
 
 class CoderAgent(StreetRaceAgent):
     """StreetRace Coder agent implementation."""
@@ -145,6 +150,23 @@ class CoderAgent(StreetRaceAgent):
             ),
             # CLI tool for command execution
             StreetraceToolRef(module="cli_tool", function="execute_cli_command"),
+            McpToolRef(
+                name="github",
+                server=HttpTransport(
+                    url="https://api.githubcopilot.com/mcp/",
+                    headers={
+                        "Authorization": f"Bearer {GITHUB_PERSONAL_ACCESS_TOKEN}",
+                    },
+                    timeout=10,
+                ),
+            ),
+            McpToolRef(
+                name="context7",
+                server=HttpTransport(
+                    url="https://mcp.context7.com/mcp",
+                    timeout=10,
+                ),
+            ),
         ]
         return list(tools)
 

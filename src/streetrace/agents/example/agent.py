@@ -97,6 +97,13 @@ class GenericAgent(StreetRaceAgent):
                     timeout=10,
                 ),
             ),
+            McpToolRef(
+                name="context7",
+                server=HttpTransport(
+                    url="https://mcp.context7.com/mcp",
+                    timeout=10,
+                ),
+            ),
             # CLI tool for command execution
             StreetraceToolRef(module="cli_tool", function="execute_cli_command"),
         ]

@@ -13,8 +13,10 @@ from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
+from streetrace.tools.mcp_transport import HttpTransport
 from streetrace.tools.tool_provider import AdkTool, AnyTool
 from streetrace.tools.tool_refs import (
+    McpToolRef,
     StreetraceToolRef,
 )
 
@@ -274,6 +276,13 @@ class CodeReviewerAgent(StreetRaceAgent):
             StreetraceToolRef(module="fs_tool", function="find_in_files"),
             # CLI tool for command execution
             StreetraceToolRef(module="cli_tool", function="execute_cli_command"),
+            McpToolRef(
+                name="context7",
+                server=HttpTransport(
+                    url="https://mcp.context7.com/mcp",
+                    timeout=10,
+                ),
+            ),
         ]
 
     @override
