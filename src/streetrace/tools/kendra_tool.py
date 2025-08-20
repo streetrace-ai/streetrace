@@ -27,6 +27,7 @@ def kendra_query(
     index_id: str,
     max_results: int = 10,
     region: str = "us-east-1",
+    profile: str = "default",
 ) -> dict[str, Any]:
     """Execute a query against Amazon Kendra search index.
 
@@ -36,6 +37,7 @@ def kendra_query(
         work_dir (Path): Working directory (unused but required for consistency).
         max_results (int): Maximum number of results to return. Defaults to 10.
         region (str): AWS region for Kendra service. Defaults to us-east-1.
+        profile (str): AWS profile name to use. Defaults to None.
 
     Returns:
         dict[str, Any]:
@@ -51,5 +53,6 @@ def kendra_query(
             _clean_input(index_id),
             max_results,
             _clean_input(region),
+            _clean_input(profile),
         ),
     )

@@ -13,6 +13,7 @@ def kendra_query(
     index_id: str,
     max_results: int = 10,
     region: str = "us-east-1",
+    profile: str = "default",
 ) -> OpResult:
     """Retrieve relevant passages from Amazon Kendra search index.
 
@@ -21,6 +22,7 @@ def kendra_query(
         index_id (str): The Kendra index ID to retrieve from.
         max_results (int): Maximum number of results to return. Defaults to 10.
         region (str): AWS region for Kendra service. Defaults to us-east-1.
+        profile (str): AWS profile name to use. Defaults to None.
 
     Returns:
         OpResult: Dictionary containing:
@@ -32,7 +34,8 @@ def kendra_query(
     """
     try:
         # Initialize Kendra client
-        kendra_client = boto3.client("kendra", region_name=region)
+        session = boto3.Session(profile_name=profile) if profile else boto3.Session()
+        kendra_client = session.client("kendra", region_name=region)
 
         # Execute the retrieve
         response = kendra_client.retrieve(
