@@ -75,6 +75,7 @@ class GenericAgent(StreetRaceAgent):
             StreetraceToolRef(module="fs_tool", function="find_in_files"),
             # MCP filesystem server tools for advanced file operations
             McpToolRef(
+                name="filesystem",
                 server=StdioTransport(
                     command="npx",
                     args=["-y", "@modelcontextprotocol/server-filesystem"],
@@ -87,6 +88,7 @@ class GenericAgent(StreetRaceAgent):
                 ],
             ),
             McpToolRef(
+                name="github",
                 server=HttpTransport(
                     url="https://api.githubcopilot.com/mcp/",
                     headers={
@@ -120,7 +122,7 @@ class GenericAgent(StreetRaceAgent):
         """
         agent_card = self.get_agent_card()
         return Agent(
-            name="generic",
+            name=agent_card.name,
             model=model_factory.get_current_model(),
             description=agent_card.description,
             global_instruction=system_context.get_system_message(),

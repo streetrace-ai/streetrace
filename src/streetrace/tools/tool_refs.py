@@ -11,6 +11,7 @@ class McpToolRef(BaseModel):
     """Reference to MCP (Model Context Protocol) tools."""
 
     kind: Literal["mcp"] = "mcp"
+    name: str  # MCP server name
     server: Transport  # inline transport config
     tools: list[str] = Field(default_factory=list)  # ["*", "all"] -> wildcard
 
@@ -31,3 +32,15 @@ class CallableToolRef(BaseModel):
 
 
 ToolRef = McpToolRef | StreetraceToolRef | CallableToolRef
+
+
+def tool_name(tool_ref: ToolRef) -> str:
+    """Return the name of the tool."""
+    if tool_ref.kind == "mcp":
+        return tool_ref.name
+    if tool_ref.kind == "streetrace":
+        return f"{tool_ref.module}:{tool_ref.function}"
+    if tool_ref.kind == "callable":
+        return tool_ref.import_path
+    msg = f"Unknown tool reference kind: {tool_ref.kind}"
+    raise TypeError(msg)

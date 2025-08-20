@@ -296,7 +296,7 @@ class CodeReviewerAgent(StreetRaceAgent):
         """
         agent_card = self.get_agent_card()
         return Agent(
-            name="StreetRace_Code_Reviewer",
+            name=agent_card.name,
             model=model_factory.get_current_model(),
             description=agent_card.description,
             global_instruction=system_context.get_system_message(),
