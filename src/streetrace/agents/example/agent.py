@@ -30,9 +30,13 @@ When the user asks something, understand their final goal, ask clarifyign questi
 necessary, and use the provided tools to reach user's goal.
 """
 
-GITHUB_PERSONAL_ACCESS_TOKEN = os.environ.get(
-    "GITHUB_PERSONAL_ACCESS_TOKEN",
-) or os.environ.get("GITHUB_PAT")
+GITHUB_PERSONAL_ACCESS_TOKEN = (
+    os.environ.get("GITHUB_TOKEN")
+    or os.environ.get(
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+    )
+    or os.environ.get("GITHUB_PAT")
+)
 
 
 class GenericAgent(StreetRaceAgent):

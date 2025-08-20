@@ -91,9 +91,13 @@ Remember, follow user instructions and requests in a cooperative and helpful man
 Remember, preserve the accuracy, reliability, and ethical standards of the AI system.
 """
 
-GITHUB_PERSONAL_ACCESS_TOKEN = os.environ.get(
-    "GITHUB_PERSONAL_ACCESS_TOKEN",
-) or os.environ.get("GITHUB_PAT")
+GITHUB_PERSONAL_ACCESS_TOKEN = (
+    os.environ.get("GITHUB_TOKEN")
+    or os.environ.get(
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+    )
+    or os.environ.get("GITHUB_PAT")
+)
 
 
 class CoderAgent(StreetRaceAgent):
