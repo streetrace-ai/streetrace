@@ -1,9 +1,12 @@
 """Amazon Kendra retrieve tool implementation."""
 
 import json
+
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
+
 from streetrace.tools.definitions.result import OpResult, op_error, op_success
+
 
 def kendra_query(
     query: str,
@@ -25,6 +28,7 @@ def kendra_query(
             "result": "success" or "failure"
             "error": error message if the retrieve failed
             "output": JSON string with retrieve results if successful
+
     """
     try:
         # Initialize Kendra client
@@ -46,11 +50,11 @@ def kendra_query(
                 "uri": item.get("DocumentURI", ""),
                 "score": item.get("ScoreAttributes", {}).get("ScoreConfidence", ""),
             }
-            
+
             # Add document attributes if present
             if "DocumentAttributes" in item:
                 result_item["attributes"] = item["DocumentAttributes"]
-            
+
             results.append(result_item)
 
         output_data = {
@@ -74,10 +78,10 @@ def kendra_query(
     except BotoCoreError as e:
         return op_error(
             tool_name="kendra_query",
-            error=f"AWS connection error: {str(e)}",
+            error=f"AWS connection error: {e!s}",
         )
-    except Exception as e:
+    except (ValueError, TypeError, KeyError) as e:
         return op_error(
             tool_name="kendra_query",
-            error=f"Unexpected error: {str(e)}",
+            error=f"Data processing error: {e!s}",
         )

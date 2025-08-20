@@ -4,12 +4,22 @@ This module provides tools for AI agents to query Amazon Kendra search indexes
 to retrieve relevant documents and information from enterprise knowledge bases.
 """
 from typing import Any
+
 import streetrace.tools.definitions.kendra_query as kq
 
 
 def _clean_input(input_str: str) -> str:
-    """Clean input strings from surrounding whitespace and quotes."""
-    return input_str.strip("\"'\\r\\n\\t ")
+    """Clean input string by removing surrounding whitespace and quotes.
+
+    Args:
+        input_str (str): The string to clean.
+
+    Returns:
+        str: A cleaned string without surrounding whitespace or quotes.
+
+    """
+    # Strip surrounding whitespace first, then strip surrounding quotes
+    return input_str.strip().strip('"').strip("'")
 
 
 def kendra_query(
@@ -33,6 +43,7 @@ def kendra_query(
             "result": "success" or "failure"
             "error": error message if the query failed
             "output": JSON string with query results if successful
+
     """
     return dict(
         kq.kendra_query(
@@ -40,5 +51,5 @@ def kendra_query(
             _clean_input(index_id),
             max_results,
             _clean_input(region),
-        )
+        ),
     )
