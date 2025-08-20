@@ -40,7 +40,6 @@ class TestTextContentRendering:
         self,
         final_response_event,
         mock_console,
-        sample_author,
     ):
         """Test rendering a final response event uses different styling."""
         render_event(EventWrapper(final_response_event), mock_console)
@@ -59,7 +58,6 @@ class TestTextContentRendering:
         )
 
         render_event(EventWrapper(event), mock_console)
-
 
     def test_render_event_with_multiple_text_parts(self, mock_console, sample_author):
         """Test rendering event with multiple text parts."""
@@ -80,7 +78,6 @@ class TestTextContentRendering:
 
         # Should have 3 print calls, one for each text part
         assert mock_console.print.call_count == 3
-
 
     def test_render_event_with_empty_text_part(self, mock_console, sample_author):
         """Test rendering event where text part has empty content."""
@@ -152,14 +149,12 @@ class TestTextContentRendering:
 
         render_event(EventWrapper(event), mock_console)
 
-
     def test_render_author_formatting(self, basic_event, mock_console):
         """Test that author name is formatted with bold markup."""
         # Test with special characters in author name
         basic_event.author = "Agent-1_Test"
 
         render_event(EventWrapper(basic_event), mock_console)
-
 
     def test_render_text_with_whitespace_handling(self, mock_console, sample_author):
         """Test rendering of text with various whitespace patterns."""
@@ -195,7 +190,6 @@ class TestTextContentRendering:
 
         # Should have calls for both text and function call
         assert mock_console.print.call_count == 2
-
 
     def test_render_final_response_style(self, mock_console, sample_author):
         """Test that final responses use RICH_MODEL style."""

@@ -49,7 +49,6 @@ class EventRenderer:
                     self._flush_pending_function_call(console)
 
                     _display_assistant_text(
-                        author + "\n",
                         part.text,
                         obj.event.is_final_response(),
                         console,
@@ -63,7 +62,6 @@ class EventRenderer:
                     # Group with pending function call if available
                     if self.pending_function_call:
                         self._render_function_call_group(
-                            self.pending_function_call[0],
                             self.pending_function_call[1],
                             part.function_response.response,
                             console,
@@ -101,7 +99,6 @@ class EventRenderer:
 
     def _render_function_call_group(
         self,
-        author: str,
         function_call: "FunctionCall",
         response: dict[str, Any],
         console: "Console",
@@ -166,7 +163,6 @@ def _trim_text(text: str, max_length: int = 200, max_lines: int = 2) -> str:
 
 
 def _display_assistant_text(
-    author: str,
     text: str,
     is_final_response: bool,  # noqa: FBT001
     console: "Console",

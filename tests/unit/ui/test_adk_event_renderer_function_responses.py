@@ -42,14 +42,12 @@ class TestFunctionResponseRendering:
         self,
         function_response_event,
         mock_console,
-        sample_function_response_data,
     ):
         """Test that function response is formatted with arrow prefix."""
         render_event(EventWrapper(function_response_event), mock_console)
 
         # Function response should be rendered
         mock_console.print.assert_called_once()
-
 
     def test_render_function_response_with_simple_data(
         self,
@@ -75,7 +73,6 @@ class TestFunctionResponseRendering:
 
         # Function response should be rendered
         mock_console.print.assert_called_once()
-
 
     def test_render_function_response_with_complex_data(
         self,
@@ -107,7 +104,6 @@ class TestFunctionResponseRendering:
 
         # Function response should be rendered
         mock_console.print.assert_called_once()
-
 
     def test_render_function_response_with_empty_response(
         self,
@@ -155,7 +151,6 @@ class TestFunctionResponseRendering:
         # Function response should be rendered
         mock_console.print.assert_called_once()
 
-
     def test_render_function_response_with_multiline_trimming(
         self,
         mock_console,
@@ -181,7 +176,6 @@ class TestFunctionResponseRendering:
 
         # Function response should be rendered
         mock_console.print.assert_called_once()
-
 
     def test_render_multiple_function_responses(self, mock_console, sample_author):
         """Test rendering event with multiple function response parts."""
@@ -279,7 +273,6 @@ class TestFunctionResponseRendering:
         # Function response should be rendered
         mock_console.print.assert_called_once()
 
-
     def test_render_function_response_preserves_data_types(
         self,
         mock_console,
@@ -314,7 +307,6 @@ class TestFunctionResponseRendering:
 
         # Function response should be rendered
         mock_console.print.assert_called_once()
-
 
     def test_render_function_response_with_empty_dict_response(
         self,

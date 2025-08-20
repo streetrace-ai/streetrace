@@ -18,7 +18,6 @@ class TestFunctionCallRendering:
         self,
         function_call_event,
         mock_console,
-        sample_author,
     ):
         """Test rendering a basic function call event."""
         render_event(EventWrapper(function_call_event), mock_console)
@@ -41,7 +40,6 @@ class TestFunctionCallRendering:
         self,
         function_call_event,
         mock_console,
-        sample_function_call_data,
     ):
         """Test that function call code is formatted correctly."""
         render_event(EventWrapper(function_call_event), mock_console)
@@ -71,7 +69,6 @@ class TestFunctionCallRendering:
         mock_console.print.assert_called_once()
         # Simplified test - check that output happens rather than exact format
 
-
     def test_render_function_call_with_complex_args(self, mock_console, sample_author):
         """Test rendering function call with complex nested arguments."""
         complex_args = {
@@ -100,7 +97,6 @@ class TestFunctionCallRendering:
         mock_console.print.assert_called_once()
         # Simplified test - check that output happens rather than exact format
 
-
     def test_render_function_call_with_empty_args(self, mock_console, sample_author):
         """Test rendering function call with no arguments."""
         function_call = FunctionCall(
@@ -123,7 +119,6 @@ class TestFunctionCallRendering:
         mock_console.print.assert_called_once()
         # Simplified test - check that output happens rather than exact format
 
-
     def test_render_function_call_with_none_args(self, mock_console, sample_author):
         """Test rendering function call with None arguments."""
         function_call = FunctionCall(
@@ -145,7 +140,6 @@ class TestFunctionCallRendering:
         # Function call should be rendered
         mock_console.print.assert_called_once()
         # Simplified test - check that output happens rather than exact format
-
 
     def test_render_multiple_function_calls(self, mock_console, sample_author):
         """Test rendering event with multiple function calls."""
