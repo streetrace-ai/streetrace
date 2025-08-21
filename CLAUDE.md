@@ -101,6 +101,91 @@ StreetRace follows a modular, layered architecture with clear separation of conc
 - Create small clearly isolated and testable modules with dependency injection.
 - Avoid boolean positional arguments in method definitions - use keyword-only arguments or enums instead.
 
+### Common Ruff Errors to Avoid
+
+**W293 - Blank line contains whitespace**
+- Remove all spaces/tabs from blank lines in docstrings and code
+- Use completely empty lines (no whitespace characters)
+- Example: 
+  ```python
+  def func():
+      """Function description.
+      
+      Args:  # <- This line should be completely empty above
+          param: Description
+      """
+  ```
+
+**E501 - Line too long (exceeds 88 characters)**
+- Break long lines at logical points (function parameters, operators)
+- Use parentheses for implicit line continuation
+- Example:
+  ```python
+  # Bad
+  msg = "This is a very long error message that exceeds the line length limit"
+  
+  # Good  
+  msg = (
+      "This is a very long error message that has been broken "
+      "into multiple lines for readability"
+  )
+  ```
+
+**ANN401 - Dynamically typed expressions (typing.Any)**
+- Avoid `Any` type annotations; use specific types instead
+- For Pydantic validators, use `object` or specific union types
+- Example:
+  ```python
+  # Bad
+  def validator(cls, v: Any) -> Any:
+  
+  # Good
+  def validator(cls, v: object) -> str | dict[str, str]:
+  ```
+
+**ANN001 - Missing type annotation**
+- Always provide type annotations for function parameters
+- Use appropriate types from `typing` module when needed
+- Example:
+  ```python
+  # Bad
+  def process_tool(self, tool_spec) -> AnyTool:
+  
+  # Good
+  def process_tool(self, tool_spec: ToolSpec) -> AnyTool:
+  ```
+
+**BLE001 - Do not catch blind exception**
+- Catch specific exception types instead of bare `except Exception:`
+- Use specific exceptions that are actually expected
+- Example:
+  ```python
+  # Bad
+  try:
+      risky_operation()
+  except Exception:
+      handle_error()
+  
+  # Good
+  try:
+      risky_operation() 
+  except (ValueError, ImportError) as e:
+      handle_specific_error(e)
+  ```
+
+**UP007 - Use X | Y for type annotations**
+- Use modern union syntax `X | Y` instead of `Union[X, Y]`
+- Available in Python 3.10+, which this project uses
+- Example:
+  ```python
+  # Bad
+  from typing import Union
+  ServerConfig = Union[StdioServerConfig, HttpServerConfig]
+  
+  # Good
+  ServerConfig = StdioServerConfig | HttpServerConfig
+  ```
+
 ### Naming Conventions
 
 - **Avoid generic adjectives**: Don't use words like "Enhanced", "Advanced", "Improved" in class, method, and variable names
