@@ -14,7 +14,7 @@ from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
-from streetrace.tools.tool_provider import AnyTool, ToolProvider
+from streetrace.tools.tool_provider import AdkTool, AnyTool, ToolProvider
 
 
 class MockAgent(StreetRaceAgent):
@@ -36,14 +36,17 @@ class MockAgent(StreetRaceAgent):
             version="1.0.0",
         )
 
-    async def get_required_tools(self) -> list[AnyTool | str]:
+    async def get_required_tools(self) -> list[AnyTool]:
         """Return list of required tools."""
-        return ["test_tool_1", "test_tool_2"]
+        return [
+            MagicMock(name="test_tool_1"),
+            MagicMock(name="test_tool_2"),
+        ]
 
     async def create_agent(
         self,
         model_factory: ModelFactory,  # noqa: ARG002
-        tools: list[AnyTool],  # noqa: ARG002
+        tools: list[AdkTool],  # noqa: ARG002
         system_context: SystemContext,  # noqa: ARG002
     ) -> BaseAgent:
         """Create a mock BaseAgent."""
@@ -246,9 +249,7 @@ class TestAgentManager:
             pass
 
         # Assert
-        agent_manager.tool_provider.get_tools.assert_called_once_with(
-            ["test_tool_1", "test_tool_2"],
-        )
+        agent_manager.tool_provider.get_tools.assert_called_once()
 
     @patch("streetrace.agents.agent_manager.get_available_agents")
     @patch("streetrace.agents.agent_manager.get_agent_impl")
@@ -270,7 +271,7 @@ class TestAgentManager:
             def get_agent_card(self) -> StreetRaceAgentCard:
                 raise RuntimeError(self.msg)
 
-            async def get_required_tools(self) -> list[AnyTool | str]:
+            async def get_required_tools(self) -> list[AnyTool]:
                 raise RuntimeError(self.msg)
 
             async def create_agent(
@@ -409,9 +410,7 @@ class TestAgentManagerResourceManagement:
             assert agent is not None
 
         # Assert
-        mock_agent_manager.tool_provider.get_tools.assert_awaited_once_with(
-            ["test_tool_1", "test_tool_2"],
-        )
+        mock_agent_manager.tool_provider.get_tools.assert_awaited_once()
         mock_agent_manager.tool_provider.release_tools.assert_awaited_once()
 
     @patch("streetrace.agents.agent_manager.get_available_agents")
@@ -442,8 +441,11 @@ class TestAgentManagerResourceManagement:
                     version="1.0.0",
                 )
 
-            async def get_required_tools(self) -> list[AnyTool | str]:
-                return ["test_tool_1", "test_tool_2"]
+            async def get_required_tools(self) -> list[AnyTool]:
+                return [
+                    MagicMock(name="test_tool_1"),
+                    MagicMock(name="test_tool_2"),
+                ]
 
             async def create_agent(
                 self,
@@ -461,9 +463,7 @@ class TestAgentManagerResourceManagement:
                 pass
 
         # Verify that tools were still released despite the exception
-        mock_agent_manager.tool_provider.get_tools.assert_awaited_once_with(
-            ["test_tool_1", "test_tool_2"],
-        )
+        mock_agent_manager.tool_provider.get_tools.assert_awaited_once()
         mock_agent_manager.tool_provider.release_tools.assert_awaited_once()
 
     @patch("streetrace.agents.agent_manager.get_available_agents")

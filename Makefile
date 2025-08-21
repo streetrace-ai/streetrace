@@ -7,7 +7,7 @@ typed:
 	poetry run mypy src
 
 security:
-	poetry run bandit -r src
+	poetry run bandit -rq src
 
 depcheck:
 	poetry run deptry src tests

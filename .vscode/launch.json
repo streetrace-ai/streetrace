@@ -9,11 +9,13 @@
       "console": "integratedTerminal",
       "envFile": "${workspaceFolder}/.env",
       "args": [
+        "--agent",
+        "generic",
         "--model",
         "anthropic/claude-sonnet-4-20250514",
         "--verbose",
         "--prompt",
-        "List most popular apple cultivars you know in a file named APPLES.md"
+        "Can you check open issues in streetrace-ai/streetrace GitHub repo and identify the most important one to work on right now?"
       ],
       "justMyCode": false
     }
