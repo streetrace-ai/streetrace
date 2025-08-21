@@ -35,7 +35,7 @@ CONFIG_INSPECTOR_AGENT = """
 
                 ** Enterprise metadata retrieval instructions:**
                     - You must 'list' existing tables to retrieve the name of enterprise metadata table. 
-                    - You must 'query' enterprise metadata table using 'table_name', 'key-condition-expression' and 'expression_attribute_values' assigned to {':<agentid_variable>': {'S': '<your_agent_id>'}}
+                    - You must 'query' enterprise metadata table using 'table_name', 'key_condition_expression' (use 'AgentId' exactly - case sensitive) and 'expression_attribute_values' assigned to {':agentId': {'S': '<your_agent_id>'}}
                     - Do not 'scan' metadata table
 
                 **Core responsibilities:**
