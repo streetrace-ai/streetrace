@@ -139,4 +139,5 @@ class GenericAgent(StreetRaceAgent):
             global_instruction=system_context.get_system_message(),
             instruction=GENERIC_AGENT,
             tools=tools,
+            sub_agents=[],
         )
