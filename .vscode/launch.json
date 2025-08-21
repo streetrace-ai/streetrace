@@ -15,7 +15,7 @@
         "anthropic/claude-sonnet-4-20250514",
         "--verbose",
         "--prompt",
-        "Analyze issue  https://github.com/streetrace-ai/streetrace/issues/76, create the implementation plan, and execute the implementation"
+        "Can you check open issues in streetrace-ai/streetrace GitHub repo and identify the most important one to work on right now?"
       ],
       "justMyCode": false
     }

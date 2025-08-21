@@ -219,7 +219,7 @@ and production.
   # Good
   with (
       patch.object(obj, "method1"),
-      patch.object(obj, "method2"), 
+      patch.object(obj, "method2"),
       pytest.raises(ValueError),
   ):
       # test code
@@ -237,7 +237,7 @@ and production.
   def test_something(self, used_fixture, unused_fixture):
       assert used_fixture.value == "expected"
 
-  # Good  
+  # Good
   def test_something(self, used_fixture):
       assert used_fixture.value == "expected"
   ```
