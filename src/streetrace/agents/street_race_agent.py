@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
-from streetrace.tools.tool_provider import AnyTool
+from streetrace.tools.tool_provider import AdkTool, AnyTool
 
 
 class StreetRaceAgent(ABC):
@@ -33,10 +33,11 @@ class StreetRaceAgent(ABC):
         msg = "This method should be implemented by subclasses."
         raise NotImplementedError(msg)
 
-    async def get_required_tools(self) -> list[str | AnyTool]:
-        """Provide a list of required tools from known libraries, or tool functions.
+    async def get_required_tools(self) -> list[AnyTool]:
+        """Provide a list of required tool references using structured ToolRef objects.
 
         Optional. If not implemented, create_agent will be called without tools.
+        Returns structured tool references instead of string-based tool names.
         """
         msg = "This method should be implemented by subclasses."
         raise NotImplementedError(msg)
@@ -45,7 +46,7 @@ class StreetRaceAgent(ABC):
     async def create_agent(
         self,
         model_factory: ModelFactory,
-        tools: list[AnyTool],
+        tools: list[AdkTool],
         system_context: SystemContext,
     ) -> "BaseAgent":
         """Create the agent Run the Hello World agent with the provided input.
