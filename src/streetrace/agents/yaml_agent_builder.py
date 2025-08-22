@@ -1,24 +1,30 @@
 """Builder for creating ADK agents from YAML specifications."""
 
-
-from google.adk.agents import Agent, BaseAgent
+import inspect
+from typing import TYPE_CHECKING
 
 from streetrace.agents.yaml_models import (
-    AgentDocument,
+    AgentRef,
     HttpServerConfig,
     InlineAgentSpec,
     McpToolSpec,
     StdioServerConfig,
     StreetraceToolSpec,
     ToolSpec,
+    YamlAgentDocument,
     YamlAgentSpec,
 )
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
 from streetrace.system_context import SystemContext
 from streetrace.tools.mcp_transport import HttpTransport, StdioTransport, Transport
-from streetrace.tools.tool_provider import AdkTool, AnyTool
+from streetrace.tools.tool_provider import AdkTool, AnyTool, ToolProvider
 from streetrace.tools.tool_refs import McpToolRef, StreetraceToolRef
+
+if TYPE_CHECKING:
+    from google.adk.agents import BaseAgent
+    from google.adk.models.base_llm import BaseLlm
+from typing import Any
 
 logger = get_logger(__name__)
 
@@ -29,16 +35,12 @@ class YamlAgentBuilder:
     def __init__(
         self,
         model_factory: ModelFactory,
+        tool_provider: ToolProvider,
         system_context: SystemContext,
     ) -> None:
-        """Initialize the builder.
-
-        Args:
-            model_factory: Factory for creating and managing LLM models
-            system_context: System context containing project-level instructions
-
-        """
+        """Initialize the builder."""
         self.model_factory = model_factory
+        self.tool_provider = tool_provider
         self.system_context = system_context
 
     def _create_transport_from_server_config(
@@ -80,172 +82,62 @@ class YamlAgentBuilder:
         msg = "Tool specification must have either 'streetrace' or 'mcp' field"
         raise ValueError(msg)
 
-    def get_required_tools(self, spec: YamlAgentSpec) -> list[AnyTool]:
-        """Extract required tools from agent specification.
+    def _create_agent_tools(
+        self,
+        tools: list[ToolSpec | AgentRef | InlineAgentSpec],
+        model: "BaseLlm | None",
+    ) -> list["AdkTool"]:
+        if not tools:
+            return []
 
-        Args:
-            spec: YAML agent specification
-
-        Returns:
-            List of tool references
-
-        """
         tool_refs: list[AnyTool] = []
+        for tool_spec in tools:
+            if isinstance(tool_spec, AgentRef):
+                msg = "Agent references must be resolved before creating the agent"
+                raise TypeError(msg)
+            if isinstance(tool_spec, InlineAgentSpec):
+                from google.adk.tools.agent_tool import AgentTool
 
-        # Convert direct tools
-        for tool_spec in spec.tools:
-            tool_ref = self._convert_tool_spec_to_tool_ref(tool_spec)
-            tool_refs.append(tool_ref)
+                # Agent-tools typically get a subset of tools or specialized tools
+                agent_tool = AgentTool(
+                    self._create_agent_from_spec(
+                        spec=tool_spec.agent,
+                        model=model,
+                    ),
+                )
+                tool_refs.append(agent_tool)
+            if isinstance(tool_spec, ToolSpec):
+                tool_ref = self._convert_tool_spec_to_tool_ref(tool_spec)
+                tool_refs.append(tool_ref)
 
-        # Note: sub_agents and agent_tools don't contribute to tool_refs
-        # as they are handled differently in ADK
-
-        return tool_refs
+        return self.tool_provider.get_tools(tool_refs)
 
     def _create_sub_agents(
         self,
-        sub_agent_specs: list[InlineAgentSpec],
-        tools: list[AdkTool],
-        model_name: str | None = None,
-    ) -> list[BaseAgent]:
-        """Create sub-agents from specifications.
+        agents: list[AgentRef | InlineAgentSpec],
+        model: "BaseLlm | None",
+    ) -> list["BaseAgent"]:
+        if not agents:
+            return []
 
-        Args:
-            sub_agent_specs: List of sub-agent specifications
-            tools: Available tools to distribute to sub-agents
-            model_name: Model name to use (inherits from parent if None)
-
-        Returns:
-            List of created ADK agents
-
-        """
         sub_agents = []
-
-        for sub_agent_spec in sub_agent_specs:
+        for sub_spec in agents:
+            if isinstance(sub_spec, AgentRef):
+                msg = "Agent references must be resolved before creating the agent"
+                raise TypeError(msg)
             # Each sub-agent gets its own copy of tools
             # In a more sophisticated implementation, we might filter tools
             # based on the sub-agent's own tool specifications
             sub_agent = self._create_agent_from_spec(
-                sub_agent_spec.inline,
-                tools,
-                model_name=model_name,
-                is_root=False,
+                spec=sub_spec.agent,
+                model=model,
             )
             sub_agents.append(sub_agent)
-
         return sub_agents
 
-    def _create_agent_tools(
-        self,
-        agent_tool_specs: list[InlineAgentSpec],
-        tools: list[AdkTool],
-        model_name: str | None = None,
-    ) -> list[BaseAgent]:
-        """Create agent-as-tool instances from specifications.
-
-        Args:
-            agent_tool_specs: List of agent-tool specifications
-            tools: Available tools to distribute to agent-tools
-            model_name: Model name to use (inherits from parent if None)
-
-        Returns:
-            List of created ADK agents configured as tools
-
-        """
-        agent_tools = []
-
-        for agent_tool_spec in agent_tool_specs:
-            # Agent-tools typically get a subset of tools or specialized tools
-            agent_tool = self._create_agent_from_spec(
-                agent_tool_spec.inline,
-                tools,
-                model_name=model_name,
-                is_root=False,
-            )
-            agent_tools.append(agent_tool)
-
-        return agent_tools
-
-    def _create_agent_from_spec(
-        self,
-        spec: YamlAgentSpec,
-        tools: list[AdkTool],
-        model_name: str | None = None,
-        is_root: bool = True,
-    ) -> BaseAgent:
-        """Create an ADK agent from specification.
-
-        Args:
-            spec: YAML agent specification
-            tools: Available ADK tools
-            model_name: Model name to use (inherits if None)
-            is_root: Whether this is the root agent
-
-        Returns:
-            Created ADK agent
-
-        """
-        # Determine model to use
-        effective_model_name = spec.model or model_name
-        if effective_model_name:
-            model = self.model_factory.get_model(effective_model_name)
-        else:
-            model = self.model_factory.get_current_model()
-
-        # Create sub-agents if any
-        sub_agents = []
-        if spec.sub_agents:
-            sub_agents = self._create_sub_agents(
-                spec.sub_agents,
-                tools,
-                model_name=effective_model_name,
-            )
-
-        # Create agent-tools if any
-        agent_tools = []
-        if spec.agent_tools:
-            agent_tools = self._create_agent_tools(
-                spec.agent_tools,
-                tools,
-                model_name=effective_model_name,
-            )
-
-        # Prepare ADK constructor arguments
-        agent_args = {
-            "name": spec.name,
-            "model": model,
-            "description": spec.description,
-            "tools": tools,
-        }
-
-        # Add instruction if provided
-        if spec.instruction:
-            agent_args["instruction"] = spec.instruction
-
-        # Add global_instruction only for root agent
-        if is_root and spec.global_instruction:
-            agent_args["global_instruction"] = spec.global_instruction
-        elif is_root:
-            # Use system context for global instruction if not explicitly set
-            agent_args["global_instruction"] = self.system_context.get_system_message()
-
-        # Add sub-agents if any
-        if sub_agents:
-            agent_args["agents"] = sub_agents
-
-        # Add agent-tools if any (these become regular tools in ADK)
-        if agent_tools:
-            # In ADK, agent-tools are treated as regular tools
-            # We would need to wrap them appropriately here
-            # For now, we'll log and skip this feature
-            logger.warning(
-                "Agent-tools not fully implemented yet for agent '%s'",
-                spec.name,
-            )
-
-        # Pass through ADK-specific configuration
+    def _adk_config(self, spec: YamlAgentSpec) -> dict[str, Any]:
         adk_config = spec.adk
-
+        agent_args: dict[str, Any] = {}
         # Map common ADK fields
         if adk_config.disallow_transfer_to_parent:
             agent_args["disallow_transfer_to_parent"] = (
@@ -264,25 +156,85 @@ class YamlAgentBuilder:
         if adk_config.input_schema:
             # In a real implementation, we'd need to resolve string schema names
             # to actual schema objects
-            logger.warning(
-                "input_schema not fully implemented yet for agent '%s'",
-                spec.name,
-            )
+            msg = f"input_schema not implemented yet for agent '{spec.name}'"
+            raise NotImplementedError(msg)
 
         if adk_config.output_schema:
-            logger.warning(
-                "output_schema not fully implemented yet for agent '%s'",
-                spec.name,
-            )
+            msg = f"output_schema not implemented yet for agent '{spec.name}'"
+            raise NotImplementedError(msg)
 
         # Pass through any other ADK fields
-        for key, value in adk_config.model_extra.items():
-            if key not in agent_args:
-                agent_args[key] = value
+        if adk_config.model_extra:
+            for key, value in adk_config.model_extra.items():
+                if key not in agent_args:
+                    agent_args[key] = value
+
+        return agent_args
+
+    def _create_agent_from_spec(
+        self,
+        spec: YamlAgentSpec,
+        model: "BaseLlm | None" = None,
+        global_instruction: str | None = None,
+    ) -> "BaseAgent":
+        """Create an ADK agent from specification.
+
+        Args:
+            spec: YAML agent specification
+            model: Model name to use (inherits if None)
+            global_instruction: Global instruction to assign to this agent
+
+        Returns:
+            Created ADK agent
+
+        """
+        # Prepare ADK constructor arguments
+        agent_args: dict[str, Any] = {
+            "name": spec.name,
+            "description": spec.description,
+        }
+
+        # if spec defines a model, use that model
+        # else if model is passed, use that model
+        # else use system default model
+        if spec.model:
+            model = self.model_factory.get_llm_interface(
+                model_name=spec.model,
+            ).get_adk_llm()
+        if not model:
+            model = self.model_factory.get_current_model()
+        agent_args["model"] = model
+
+        tools = self._create_agent_tools(spec.tools, model)
+        if tools:
+            agent_args["tools"] = tools
+
+        # Create sub-agents if any
+        sub_agents = self._create_sub_agents(spec.sub_agents, model)
+        if sub_agents:
+            agent_args["sub_agents"] = sub_agents
+
+        # Add instruction if provided
+        if spec.instruction:
+            agent_args["instruction"] = spec.instruction
+
+        # Add global_instruction only for root agent
+        if spec.global_instruction:
+            agent_args["global_instruction"] = spec.global_instruction
+        elif global_instruction:
+            # Use system context for global instruction if not explicitly set
+            agent_args["global_instruction"] = global_instruction
+
+        agent_args = {**self._adk_config(spec), **agent_args}
+
+        from google.adk.agents import Agent
 
         return Agent(**agent_args)
 
-    def create_agent(self, agent_doc: AgentDocument, tools: list[AdkTool]) -> BaseAgent:
+    def create_agent(
+        self,
+        agent_doc: YamlAgentDocument,
+    ) -> "BaseAgent":
         """Create an ADK agent from an agent document.
 
         Args:
@@ -295,6 +247,40 @@ class YamlAgentBuilder:
         """
         return self._create_agent_from_spec(
             agent_doc.spec,
-            tools,
-            is_root=True,
+            global_instruction=self.system_context.get_system_message(),
         )
+
+    async def close(self, agent: "BaseAgent") -> None:
+        """Close agent and all its tools/sub-agents recursively in depth-first order.
+
+        Args:
+            agent: The agent to close
+
+        """
+        await self._close_agent_recursive(agent)
+
+    async def _close_agent_recursive(self, agent: "BaseAgent") -> None:
+        """Recursively close agent, its sub-agents, and tools in depth-first order."""
+        # First, recursively close all sub-agents
+        for sub_agent in agent.sub_agents:
+            await self._close_agent_recursive(sub_agent)
+
+        # Then close all tools, handling AgentTool specially
+        # Check if agent has tools (only LlmAgent and its subclasses do)
+        for tool in getattr(agent, "tools", []) or []:
+            await self._close_tool_recursive(tool)
+
+    async def _close_tool_recursive(self, tool: object) -> None:
+        """Recursively close a tool, handling AgentTool specially."""
+        # If this is an AgentTool, traverse its agent first before closing the tool
+        from google.adk.tools.agent_tool import AgentTool
+
+        if isinstance(tool, AgentTool):
+            await self._close_agent_recursive(tool.agent)
+
+        # Then close the tool itself if it has a close method
+        close_fn = getattr(tool, "close", None)
+        if callable(close_fn):
+            ret = close_fn()
+            if inspect.isawaitable(ret):
+                await ret

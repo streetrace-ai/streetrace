@@ -39,10 +39,8 @@ tools:
   - streetrace:
       module: fs_tool
       function: list_directory
+  - $ref: ./reviewer.yml
 
 sub_agents:
   - $ref: ./generic.yml
-  - $ref: ./reviewer.yml
-
-agent_tools:
   - $ref: ./reviewer.yml

@@ -116,14 +116,14 @@ class ToolProvider:
         """Release all tools."""
         # reversed is important to allow proper order of MCP sessions cleanup.
         for tool in reversed(tools):
-            try:
-                mcp_tool = _as_mcp_toolset(tool)
-                if mcp_tool:
+            mcp_tool = _as_mcp_toolset(tool)
+            if mcp_tool:
+                try:
                     await mcp_tool.close()
-            except:  # noqa: E722
-                logger.exception("Failed to close mcp_tool, ignoring cleanup failure")
+                except Exception:
+                    logger.exception("Failed to close MCP toolset during cleanup")
 
-    async def get_tools(
+    def get_tools(
         self,
         tool_refs: Sequence[AnyTool],
     ) -> list[AdkTool]:

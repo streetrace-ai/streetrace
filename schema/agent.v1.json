@@ -12,7 +12,7 @@
       "description": "Schema version"
     },
     "kind": {
-      "type": "string", 
+      "type": "string",
       "const": "agent",
       "description": "Resource type"
     },
@@ -31,7 +31,7 @@
       "description": "Model to use for this agent (defaults to inherited/current)"
     },
     "instruction": {
-      "type": "string", 
+      "type": "string",
       "description": "Agent-specific instructions"
     },
     "global_instruction": {
@@ -53,7 +53,7 @@
           "description": "Disallow transferring to parent agent"
         },
         "disallow_transfer_to_peers": {
-          "type": "boolean", 
+          "type": "boolean",
           "default": false,
           "description": "Disallow transferring to peer agents"
         },
@@ -93,6 +93,28 @@
         "oneOf": [
           {
             "type": "object",
+            "required": ["$ref"],
+            "additionalProperties": false,
+            "properties": {
+              "$ref": {
+                "type": "string",
+                "description": "Path to another agent YAML file"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["agent"],
+            "additionalProperties": false,
+            "properties": {
+              "agent": {
+                "$ref": "#",
+                "description": "Inline agent specification"
+              }
+            }
+          },
+          {
+            "type": "object",
             "required": ["streetrace"],
             "additionalProperties": false,
             "properties": {
@@ -106,7 +128,7 @@
                     "description": "StreetRace module name (e.g., 'fs_tool', 'cli_tool')"
                   },
                   "function": {
-                    "type": "string", 
+                    "type": "string",
                     "description": "Function name within the module"
                   }
                 }
@@ -211,40 +233,10 @@
           },
           {
             "type": "object",
-            "required": ["inline"],
+            "required": ["agent"],
             "additionalProperties": false,
             "properties": {
-              "inline": {
-                "$ref": "#",
-                "description": "Inline agent specification"
-              }
-            }
-          }
-        ]
-      }
-    },
-    "agent_tools": {
-      "type": "array",
-      "description": "Agents that are used as tools by this agent",
-      "items": {
-        "oneOf": [
-          {
-            "type": "object",
-            "required": ["$ref"],
-            "additionalProperties": false,
-            "properties": {
-              "$ref": {
-                "type": "string",
-                "description": "Path to another agent YAML file"
-              }
-            }
-          },
-          {
-            "type": "object",
-            "required": ["inline"],
-            "additionalProperties": false,
-            "properties": {
-              "inline": {
+              "agent": {
                 "$ref": "#",
                 "description": "Inline agent specification"
               }

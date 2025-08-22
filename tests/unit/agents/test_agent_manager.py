@@ -8,13 +8,13 @@ import pytest
 from a2a.types import AgentCapabilities
 from google.adk.agents import BaseAgent
 
-from streetrace.agents.agent_loader import AgentInfo
 from streetrace.agents.agent_manager import AgentManager
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
+from streetrace.agents.yaml_agent_loader import AgentInfo
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
-from streetrace.tools.tool_provider import AdkTool, AnyTool, ToolProvider
+from streetrace.tools.tool_provider import AnyTool, ToolProvider
 
 
 class MockAgent(StreetRaceAgent):
@@ -46,7 +46,7 @@ class MockAgent(StreetRaceAgent):
     async def create_agent(
         self,
         model_factory: ModelFactory,  # noqa: ARG002
-        tools: list[AdkTool],  # noqa: ARG002
+        tool_provider: ToolProvider,  # noqa: ARG002
         system_context: SystemContext,  # noqa: ARG002
     ) -> BaseAgent:
         """Create a mock BaseAgent."""
@@ -98,17 +98,8 @@ def agent_manager(
 @pytest.fixture
 def mock_agent_info() -> AgentInfo:
     """Create a mock AgentInfo."""
-    mock_card = StreetRaceAgentCard(
-        name="Test Agent",
-        description="A test agent",
-        capabilities=AgentCapabilities(streaming=False),
-        skills=[],
-        defaultInputModes=["text"],
-        defaultOutputModes=["text"],
-        version="1.0.0",
-    )
     mock_module = MagicMock()
-    return AgentInfo(agent_card=mock_card, module=mock_module)
+    return AgentInfo(name="Test Agent", description="A test agent", module=mock_module)
 
 
 class TestAgentManager:
@@ -133,136 +124,131 @@ class TestAgentManager:
         assert manager.tool_provider is mock_tool_provider
         assert manager.work_dir == work_dir
 
-    @patch("streetrace.agents.agent_manager.get_available_agents")
     def test_list_available_agents(
         self,
-        mock_get_available_agents: MagicMock,
         agent_manager: AgentManager,
         mock_agent_info: AgentInfo,
     ) -> None:
         """Test listing available agents."""
         # Arrange
         expected_agents = [mock_agent_info]
-        mock_get_available_agents.return_value = expected_agents
 
-        # Act
-        agents = agent_manager.list_available_agents()
+        with (
+            patch.object(agent_manager.yaml_loader, "discover", return_value=[]),
+            patch.object(
+                agent_manager.python_loader,
+                "discover",
+                return_value=expected_agents,
+            ),
+        ):
+            # Act
+            agents = agent_manager.discover()
 
-        # Assert
-        assert agents == expected_agents
-        mock_get_available_agents.assert_called_once()
+            # Assert
+            assert agents == expected_agents
 
-        # Verify the base directories passed to get_available_agents
-        call_args = mock_get_available_agents.call_args[0][0]
-        assert len(call_args) == 2
-        assert call_args[0] == agent_manager.work_dir / "agents"
-        assert str(call_args[1]).endswith("agents")
-
-    @patch("streetrace.agents.agent_manager.get_available_agents")
-    @patch("streetrace.agents.agent_manager.get_agent_impl")
     async def test_create_agent_success(
         self,
-        mock_get_agent_impl: MagicMock,
-        mock_get_available_agents: MagicMock,
         agent_manager: AgentManager,
-        mock_agent_info: AgentInfo,
     ) -> None:
         """Test successful agent creation."""
         # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
-        mock_agent_class = MockAgent
-        mock_get_agent_impl.return_value = mock_agent_class
+        mock_agent_instance = MockAgent("Test Agent")
 
-        # Act
-        async with agent_manager.create_agent("Test Agent") as agent:
-            # Assert
-            assert agent is not None
-            assert hasattr(agent, "name")
+        with (
+            patch.object(
+                agent_manager.yaml_loader,
+                "load_agent",
+                side_effect=ValueError,
+            ),
+            patch.object(
+                agent_manager.python_loader,
+                "load_agent",
+                return_value=mock_agent_instance,
+            ),
+        ):
+            # Act
+            async with agent_manager.create_agent("Test Agent") as agent:
+                # Assert
+                assert agent is not None
+                assert hasattr(agent, "name")
 
-        # Verify that the correct methods were called
-        mock_get_available_agents.assert_called_once()
-        mock_get_agent_impl.assert_called_once_with(mock_agent_info)
-
-    @patch("streetrace.agents.agent_manager.get_available_agents")
     async def test_create_agent_not_found(
         self,
-        mock_get_available_agents: MagicMock,
         agent_manager: AgentManager,
-        mock_agent_info: AgentInfo,
     ) -> None:
         """Test agent creation when agent is not found."""
-        # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
-
-        # Act & Assert
-        with pytest.raises(ValueError, match="Specified agent not found"):
+        # Arrange - both loaders will raise ValueError
+        with (
+            patch.object(
+                agent_manager.yaml_loader,
+                "load_agent",
+                side_effect=ValueError,
+            ),
+            patch.object(
+                agent_manager.python_loader,
+                "load_agent",
+                side_effect=ValueError,
+            ),
+            pytest.raises(ValueError, match="Specified agent not found"),
+        ):
+            # Act & Assert
             async with agent_manager.create_agent("Nonexistent Agent"):
                 pass
 
-    @patch("streetrace.agents.agent_manager.get_available_agents")
     async def test_create_agent_default_name(
         self,
-        mock_get_available_agents: MagicMock,
         agent_manager: AgentManager,
     ) -> None:
         """Test creating agent with 'default' name maps to DEFAULT_AGENT."""
         # Arrange
-        default_agent_card = StreetRaceAgentCard(
-            name="Streetrace Coding Agent",
-            description="Default agent",
-            capabilities=AgentCapabilities(streaming=False),
-            skills=[],
-            defaultInputModes=["text"],
-            defaultOutputModes=["text"],
-            version="1.0.0",
-        )
-        default_agent_info = AgentInfo(
-            agent_card=default_agent_card,
-            module=MagicMock(),
-        )
-        mock_get_available_agents.return_value = [default_agent_info]
+        mock_agent_instance = MockAgent("Streetrace Coding Agent")
 
-        # Act & Assert
-        with patch("streetrace.agents.agent_manager.get_agent_impl") as mock_get_impl:
-            mock_get_impl.return_value = MockAgent
-
+        with (
+            patch.object(
+                agent_manager.yaml_loader,
+                "load_agent",
+                side_effect=ValueError,
+            ),
+            patch.object(
+                agent_manager.python_loader,
+                "load_agent",
+                return_value=mock_agent_instance,
+            ),
+        ):
+            # Act & Assert
             async with agent_manager.create_agent("default") as agent:
                 assert agent is not None
 
-    @patch("streetrace.agents.agent_manager.get_available_agents")
-    @patch("streetrace.agents.agent_manager.get_agent_impl")
     async def test_create_agent_tool_provider_integration(
         self,
-        mock_get_agent_impl: MagicMock,
-        mock_get_available_agents: MagicMock,
-        agent_manager: MagicMock,
-        mock_agent_info: AgentInfo,
+        agent_manager: AgentManager,
     ) -> None:
         """Test that agent creation properly integrates with tool provider."""
         # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
-        mock_agent_class = MockAgent
-        mock_get_agent_impl.return_value = mock_agent_class
+        mock_agent_instance = MockAgent("Test Agent")
 
-        # Act
-        async with agent_manager.create_agent("Test Agent"):
-            pass
+        with (
+            patch.object(
+                agent_manager.yaml_loader,
+                "load_agent",
+                side_effect=ValueError,
+            ),
+            patch.object(
+                agent_manager.python_loader,
+                "load_agent",
+                return_value=mock_agent_instance,
+            ),
+        ):
+            # Act
+            async with agent_manager.create_agent("Test Agent"):
+                pass
 
-        # Assert
-        agent_manager.tool_provider.get_tools.assert_called_once()
-
-    @patch("streetrace.agents.agent_manager.get_available_agents")
-    @patch("streetrace.agents.agent_manager.get_agent_impl")
     async def test_create_agent_exception_handling(
         self,
-        mock_get_agent_impl: MagicMock,
-        mock_get_available_agents: MagicMock,
         agent_manager: AgentManager,
-        mock_agent_info: AgentInfo,
     ) -> None:
         """Test exception handling during agent creation."""
-        # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
 
         # Mock agent that raises exception during initialization
         class FailingAgent(StreetRaceAgent):
@@ -277,15 +263,27 @@ class TestAgentManager:
             async def create_agent(
                 self,
                 model_factory,  # noqa: ARG002
-                tools,  # noqa: ARG002
+                tool_provider: ToolProvider,  # noqa: ARG002
                 system_context,  # noqa: ARG002
             ) -> BaseAgent:
                 raise RuntimeError(self.msg)
 
-        mock_get_agent_impl.return_value = FailingAgent
+        failing_agent_instance = FailingAgent()
 
-        # Act & Assert
-        with pytest.raises(RuntimeError, match="Agent initialization failed"):
+        with (
+            patch.object(
+                agent_manager.yaml_loader,
+                "load_agent",
+                side_effect=ValueError,
+            ),
+            patch.object(
+                agent_manager.python_loader,
+                "load_agent",
+                return_value=failing_agent_instance,
+            ),
+            pytest.raises(RuntimeError, match="Agent initialization failed"),
+        ):
+            # Act & Assert
             async with agent_manager.create_agent("Test Agent"):
                 pass
 
@@ -294,72 +292,66 @@ class TestAgentManager:
         agent_manager: AgentManager,
     ) -> None:
         """Test listing agents when directories don't exist or are empty."""
-        with patch("streetrace.agents.agent_manager.get_available_agents") as mock_get:
-            mock_get.return_value = []
-
-            agents = agent_manager.list_available_agents()
+        with (
+            patch.object(agent_manager.yaml_loader, "discover", return_value=[]),
+            patch.object(agent_manager.python_loader, "discover", return_value=[]),
+        ):
+            agents = agent_manager.discover()
             assert agents == []
 
-    @patch("streetrace.agents.agent_manager.get_available_agents")
     def test_list_available_agents_multiple_agents(
         self,
-        mock_get_available_agents: MagicMock,
         agent_manager: AgentManager,
     ) -> None:
         """Test listing multiple available agents."""
         # Arrange
-        agent1_card = StreetRaceAgentCard(
+        agent_info_1 = AgentInfo(
             name="Agent 1",
             description="First agent",
-            capabilities=AgentCapabilities(streaming=False),
-            skills=[],
-            defaultInputModes=["text"],
-            defaultOutputModes=["text"],
-            version="1.0.0",
+            module=MagicMock(),
         )
-        agent2_card = StreetRaceAgentCard(
+        agent_info_2 = AgentInfo(
             name="Agent 2",
             description="Second agent",
-            capabilities=AgentCapabilities(streaming=False),
-            skills=[],
-            defaultInputModes=["text"],
-            defaultOutputModes=["text"],
-            version="1.0.0",
+            module=MagicMock(),
         )
+        yaml_agents = [agent_info_1]
+        python_agents = [agent_info_2]
+        expected_agents = yaml_agents + python_agents
 
-        agent_info_1 = AgentInfo(agent_card=agent1_card, module=MagicMock())
-        agent_info_2 = AgentInfo(agent_card=agent2_card, module=MagicMock())
-        expected_agents = [agent_info_1, agent_info_2]
+        with (
+            patch.object(
+                agent_manager.yaml_loader,
+                "discover",
+                return_value=yaml_agents,
+            ),
+            patch.object(
+                agent_manager.python_loader,
+                "discover",
+                return_value=python_agents,
+            ),
+        ):
+            # Act
+            agents = agent_manager.discover()
 
-        mock_get_available_agents.return_value = expected_agents
-
-        # Act
-        agents = agent_manager.list_available_agents()
-
-        # Assert
-        assert len(agents) == 2
-        assert agents == expected_agents
+            # Assert
+            assert len(agents) == 2
+            assert agents == expected_agents
 
     def test_agent_manager_paths_configuration(
         self,
         agent_manager: AgentManager,
     ) -> None:
         """Test that AgentManager configures correct base directories."""
-        with patch("streetrace.agents.agent_manager.get_available_agents") as mock_get:
-            mock_get.return_value = []
+        # Verify the loaders are initialized with correct paths
+        expected_paths = [
+            agent_manager.work_dir / p
+            for p in ["./agents", ".", "~/.streetrace/agents", "/etc/streetrace/agents"]
+        ]
 
-            agent_manager.list_available_agents()
-
-            # Verify the correct paths are being used
-            call_args = mock_get.call_args[0][0]
-            assert len(call_args) == 2
-
-            # First path should be work_dir/agents
-            assert call_args[0] == agent_manager.work_dir / "agents"
-
-            # Second path should be relative to the repo root
-            assert call_args[1].name == "agents"
-            assert "src/streetrace/agents" in str(call_args[1])
+        # The paths are stored as Path objects in the loaders
+        assert agent_manager.yaml_loader.base_paths == expected_paths
+        assert agent_manager.python_loader.base_paths == expected_paths
 
 
 class TestAgentManagerResourceManagement:
@@ -388,48 +380,54 @@ class TestAgentManagerResourceManagement:
             work_dir=work_dir,
         )
 
-    @patch("streetrace.agents.agent_manager.get_available_agents")
-    @patch("streetrace.agents.agent_manager.get_agent_impl")
-    async def test_create_agent_calls_release_tools_on_success(
+    async def test_create_agent_calls_close_on_success(
         self,
-        mock_get_agent_impl: MagicMock,
-        mock_get_available_agents: MagicMock,
         mock_tool_provider: Mock,
         mock_agent_manager: AgentManager,
-        mock_agent_info: AgentInfo,
     ) -> None:
-        """Test that release_tools is called when agent creation succeeds."""
+        """Test that agent.close is called when agent creation succeeds."""
         # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
-        mock_agent_class = MockAgent
-        mock_get_agent_impl.return_value = mock_agent_class
+        mock_agent_instance = MockAgent("Test Agent")
         mock_agent_manager.tool_provider = mock_tool_provider
 
-        # Act
-        async with mock_agent_manager.create_agent("Test Agent") as agent:
-            assert agent is not None
+        with (
+            patch.object(
+                mock_agent_instance,
+                "close",
+                new_callable=AsyncMock,
+            ) as mock_close,
+            patch.object(
+                mock_agent_manager.yaml_loader,
+                "load_agent",
+                side_effect=ValueError,
+            ),
+            patch.object(
+                mock_agent_manager.python_loader,
+                "load_agent",
+                return_value=mock_agent_instance,
+            ),
+        ):
+            # Act
+            async with mock_agent_manager.create_agent("Test Agent") as agent:
+                assert agent is not None
 
-        # Assert
-        mock_agent_manager.tool_provider.get_tools.assert_awaited_once()
-        mock_agent_manager.tool_provider.release_tools.assert_awaited_once()
+            # Assert
+            mock_close.assert_awaited_once()
 
-    @patch("streetrace.agents.agent_manager.get_available_agents")
-    @patch("streetrace.agents.agent_manager.get_agent_impl")
-    async def test_create_agent_calls_release_tools_on_exception(
+    async def test_create_agent_calls_close_on_exception(
         self,
-        mock_get_agent_impl: MagicMock,
-        mock_get_available_agents: MagicMock,
         mock_tool_provider: Mock,
         mock_agent_manager: AgentManager,
-        mock_agent_info: AgentInfo,
     ) -> None:
-        """Test that release_tools is called even when agent creation fails."""
+        """Test that agent.close is called even when agent creation fails."""
         # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
         mock_agent_manager.tool_provider = mock_tool_provider
 
         # Mock agent that raises exception during agent creation
         class FailingAgent(StreetRaceAgent):
+            def __init__(self) -> None:
+                self.close_called = False
+
             def get_agent_card(self) -> StreetRaceAgentCard:
                 return StreetRaceAgentCard(
                     name="Failing Agent",
@@ -450,103 +448,67 @@ class TestAgentManagerResourceManagement:
             async def create_agent(
                 self,
                 model_factory,  # noqa: ARG002
-                tools,  # noqa: ARG002
+                tool_provider: ToolProvider,  # noqa: ARG002
                 system_context,  # noqa: ARG002
             ) -> BaseAgent:
                 raise RuntimeError("Agent creation failed")
 
-        mock_get_agent_impl.return_value = FailingAgent
+            async def close(self, agent_instance: BaseAgent | None = None) -> None:  # noqa: ARG002
+                self.close_called = True
 
-        # Act & Assert
-        with pytest.raises(RuntimeError, match="Agent creation failed"):
-            async with mock_agent_manager.create_agent("Test Agent"):
-                pass
+        failing_agent_instance = FailingAgent()
 
-        # Verify that tools were still released despite the exception
-        mock_agent_manager.tool_provider.get_tools.assert_awaited_once()
-        mock_agent_manager.tool_provider.release_tools.assert_awaited_once()
+        with (
+            patch.object(
+                mock_agent_manager.yaml_loader,
+                "load_agent",
+                side_effect=ValueError,
+            ),
+            patch.object(
+                mock_agent_manager.python_loader,
+                "load_agent",
+                return_value=failing_agent_instance,
+            ),
+        ):
+            # Act & Assert
+            with pytest.raises(RuntimeError, match="Agent creation failed"):
+                async with mock_agent_manager.create_agent("Test Agent"):
+                    pass
 
-    @patch("streetrace.agents.agent_manager.get_available_agents")
-    @patch("streetrace.agents.agent_manager.get_agent_impl")
-    async def test_create_agent_calls_release_tools_on_context_exit_exception(
+            # Verify that close was not called since agent creation failed
+            assert not failing_agent_instance.close_called
+
+    async def test_create_agent_calls_close_on_context_exit_exception(
         self,
-        mock_get_agent_impl: MagicMock,
-        mock_get_available_agents: MagicMock,
         mock_tool_provider: Mock,
         mock_agent_manager: AgentManager,
-        mock_agent_info: AgentInfo,
     ) -> None:
-        """Test that release_tools is called when exception occurs in context."""
+        """Test that agent.close is called when exception occurs in context."""
         # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
-        mock_agent_class = MockAgent
-        mock_get_agent_impl.return_value = mock_agent_class
+        mock_agent_instance = MockAgent("Test Agent")
         mock_agent_manager.tool_provider = mock_tool_provider
 
-        # Act & Assert
-        with pytest.raises(ValueError, match="Test exception"):
-            async with mock_agent_manager.create_agent("Test Agent"):
-                raise ValueError("Test exception")
+        with (
+            patch.object(
+                mock_agent_instance,
+                "close",
+                new_callable=AsyncMock,
+            ) as mock_close,
+            patch.object(
+                mock_agent_manager.yaml_loader,
+                "load_agent",
+                side_effect=ValueError,
+            ),
+            patch.object(
+                mock_agent_manager.python_loader,
+                "load_agent",
+                return_value=mock_agent_instance,
+            ),
+        ):
+            # Act & Assert
+            with pytest.raises(ValueError, match="Test exception"):
+                async with mock_agent_manager.create_agent("Test Agent"):
+                    raise ValueError("Test exception")
 
-        # Verify that tools were still released despite the exception
-        mock_agent_manager.tool_provider.release_tools.assert_awaited_once()
-
-    @patch("streetrace.agents.agent_manager.get_available_agents")
-    @patch("streetrace.agents.agent_manager.get_agent_impl")
-    async def test_create_agent_release_tools_receives_correct_tools(
-        self,
-        mock_get_agent_impl: MagicMock,
-        mock_get_available_agents: MagicMock,
-        mock_tool_provider: Mock,
-        mock_agent_manager: AgentManager,
-        mock_agent_info: AgentInfo,
-    ) -> None:
-        """Test that release_tools receives the same tools returned by get_tools."""
-        # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
-        mock_agent_class = MockAgent
-        mock_get_agent_impl.return_value = mock_agent_class
-        mock_agent_manager.tool_provider = mock_tool_provider
-
-        # Capture the tools returned by get_tools
-        expected_tools = [MagicMock(), MagicMock()]
-        mock_agent_manager.tool_provider.get_tools.return_value = expected_tools
-
-        # Act
-        async with mock_agent_manager.create_agent("Test Agent"):
-            pass
-
-        # Assert that release_tools was called with the same tools
-        mock_agent_manager.tool_provider.release_tools.assert_awaited_once_with(
-            expected_tools,
-        )
-
-    @patch("streetrace.agents.agent_manager.get_available_agents")
-    @patch("streetrace.agents.agent_manager.get_agent_impl")
-    async def test_create_agent_release_tools_exception_does_not_mask_original(
-        self,
-        mock_get_agent_impl: MagicMock,
-        mock_get_available_agents: MagicMock,
-        mock_tool_provider: Mock,
-        mock_agent_manager: AgentManager,
-        mock_agent_info: AgentInfo,
-    ) -> None:
-        """Test that exceptions in release_tools don't mask original exceptions."""
-        # Arrange
-        mock_get_available_agents.return_value = [mock_agent_info]
-        mock_agent_class = MockAgent
-        mock_get_agent_impl.return_value = mock_agent_class
-        mock_agent_manager.tool_provider = mock_tool_provider
-
-        # Configure release_tools to raise an exception
-        mock_agent_manager.tool_provider.release_tools.side_effect = Exception(
-            "Release failed",
-        )
-
-        # Act & Assert - Original exception from user code should be preserved
-        with pytest.raises(ValueError, match="Original exception"):
-            async with mock_agent_manager.create_agent("Test Agent"):
-                raise ValueError("Original exception")
-
-        # Verify release_tools was still called
-        mock_agent_manager.tool_provider.release_tools.assert_awaited_once()
+            # Verify that close was still called despite the exception
+            mock_close.assert_awaited_once()
