@@ -19,6 +19,7 @@ def expand_env_vars(value: str) -> str:
         String with environment variables expanded
 
     """
+
     def replace_var(match: re.Match[str]) -> str:
         var_expr = match.group(1)
         if ":-" in var_expr:
@@ -66,8 +67,10 @@ class StdioServerConfig(BaseModel):
     def expand_env_dict(cls, v: object) -> object:
         """Expand environment variables in env dict values."""
         if isinstance(v, dict):
-            return {k: expand_env_vars(val) if isinstance(val, str) else val
-                   for k, val in v.items()}
+            return {
+                k: expand_env_vars(val) if isinstance(val, str) else val
+                for k, val in v.items()
+            }
         return v
 
 
@@ -92,8 +95,10 @@ class HttpServerConfig(BaseModel):
     def expand_headers_env_vars(cls, v: object) -> object:
         """Expand environment variables in headers values."""
         if isinstance(v, dict):
-            return {k: expand_env_vars(val) if isinstance(val, str) else val
-                   for k, val in v.items()}
+            return {
+                k: expand_env_vars(val) if isinstance(val, str) else val
+                for k, val in v.items()
+            }
         return v
 
 
@@ -181,7 +186,7 @@ class InlineAgentSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    inline: "YamlAgentSpec"
+    agent: "YamlAgentSpec"
 
 
 class YamlAgentSpec(BaseModel):
@@ -197,9 +202,8 @@ class YamlAgentSpec(BaseModel):
     instruction: str | None = None
     global_instruction: str | None = None
     adk: AdkConfig = Field(default_factory=AdkConfig)
-    tools: list[ToolSpec] = Field(default_factory=list)
+    tools: list[ToolSpec | AgentRef | InlineAgentSpec] = Field(default_factory=list)
     sub_agents: list[AgentRef | InlineAgentSpec] = Field(default_factory=list)
-    agent_tools: list[AgentRef | InlineAgentSpec] = Field(default_factory=list)
 
     @field_validator("name")
     @classmethod
@@ -240,7 +244,7 @@ AgentRef.model_rebuild()
 InlineAgentSpec.model_rebuild()
 
 
-class AgentDocument(BaseModel):
+class YamlAgentDocument(BaseModel):
     """Root agent document with resolved references."""
 
     model_config = ConfigDict(extra="forbid")

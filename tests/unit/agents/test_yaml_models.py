@@ -7,13 +7,14 @@ import pytest
 from pydantic import ValidationError
 
 from streetrace.agents.yaml_models import (
-    AgentDocument,
+    AdkConfig,
     HttpServerConfig,
     McpToolSpec,
     StdioServerConfig,
     StreetraceToolSpec,
     ToolSpec,
     TransportType,
+    YamlAgentDocument,
     YamlAgentSpec,
     expand_env_vars,
 )
@@ -210,7 +211,6 @@ class TestYamlAgentSpec:
         assert spec.global_instruction is None
         assert spec.tools == []
         assert spec.sub_agents == []
-        assert spec.agent_tools == []
 
     def test_full_spec(self):
         """Test full agent specification."""
@@ -223,7 +223,8 @@ class TestYamlAgentSpec:
             tools=[
                 ToolSpec(
                     streetrace=StreetraceToolSpec(
-                        module="fs_tool", function="read_file",
+                        module="fs_tool",
+                        function="read_file",
                     ),
                 ),
             ],
@@ -257,6 +258,7 @@ class TestYamlAgentSpec:
             instruction="You are an assistant. ${SYSTEM_MSG:-Be nice}",
             global_instruction="${SYSTEM_MSG}",
         )
+        assert spec.instruction is not None
         assert "Be helpful" in spec.instruction
         assert spec.global_instruction == "Be helpful"
 
@@ -266,7 +268,7 @@ class TestYamlAgentSpec:
             YamlAgentSpec(
                 name="test",
                 description="test",
-                adk={"output_schema": "TestSchema"},
+                adk=AdkConfig(output_schema="TestSchema"),
                 tools=[
                     ToolSpec(
                         streetrace=StreetraceToolSpec(module="test", function="test"),
@@ -282,10 +284,10 @@ class TestYamlAgentSpec:
             YamlAgentSpec(
                 name="test",
                 description="test",
-                adk={"output_schema": "TestSchema"},
+                adk=AdkConfig(output_schema="TestSchema"),
                 sub_agents=[
                     InlineAgentSpec(
-                        inline=YamlAgentSpec(name="sub", description="sub"),
+                        agent=YamlAgentSpec(name="sub", description="sub"),
                     ),
                 ],
             )
@@ -297,7 +299,7 @@ class TestAgentDocument:
     def test_agent_document_creation(self):
         """Test creating an agent document."""
         spec = YamlAgentSpec(name="test", description="test")
-        doc = AgentDocument(spec=spec, file_path=Path("/test/agent.yml"))
+        doc = YamlAgentDocument(spec=spec, file_path=Path("/test/agent.yml"))
 
         assert doc.spec == spec
         assert doc.file_path == Path("/test/agent.yml")
@@ -307,7 +309,7 @@ class TestAgentDocument:
     def test_agent_document_no_path(self):
         """Test agent document without file path."""
         spec = YamlAgentSpec(name="test", description="test")
-        doc = AgentDocument(spec=spec)
+        doc = YamlAgentDocument(spec=spec)
 
         assert doc.file_path is None
         assert doc.get_name() == "test"

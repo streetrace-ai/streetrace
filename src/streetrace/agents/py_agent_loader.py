@@ -4,27 +4,15 @@ import importlib.util
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
+from streetrace.agents.base_agent_loader import AgentInfo, AgentLoader
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
     from streetrace.agents.street_race_agent import StreetRaceAgent
-    from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 
 logger = get_logger(__name__)
-
-
-class AgentInfo:
-    """Agent card and module references."""
-
-    agent_card: "StreetRaceAgentCard"
-    module: ModuleType
-
-    def __init__(self, agent_card: "StreetRaceAgentCard", module: ModuleType) -> None:
-        """Initialize with the provided Agent Card and Module."""
-        self.agent_card = agent_card
-        self.module = module
 
 
 def _import_agent_module(agent_dir: Path) -> ModuleType | None:
@@ -133,50 +121,115 @@ def _validate_impl(agent_dir: Path) -> AgentInfo:
         raise ValueError(err_msg) from ex
     else:
         return AgentInfo(
-            agent_card=agent_card,
+            name=agent_card.name,
+            description=agent_card.description,
             module=agent_module,
         )
 
 
-def get_available_agents(base_dirs: list[Path]) -> list[AgentInfo]:
-    """Discover and retrieve the list of available agents."""
-    agents = []
+class PythonAgentLoader(AgentLoader):
+    """Python agent loader implementing the AgentLoader interface."""
 
-    for base_dir in base_dirs:
-        if not base_dir.exists() or not base_dir.is_dir():
-            continue
+    def __init__(self, base_paths: list[Path | str] | list[Path] | list[str]) -> None:
+        """Initialize the PythonAgentLoader.
 
-        # Check each subdirectory in the base directory
-        for item in base_dir.iterdir():
-            if not item.is_dir():
+        Args:
+            base_paths: List of base paths to search for agents
+
+        """
+        self.base_paths = [p if isinstance(p, Path) else Path(p) for p in base_paths]
+
+    def discover(self) -> list[AgentInfo]:
+        """Discover Python agents in the given paths.
+
+        Returns:
+            List of discovered Python agents as AgentInfo objects
+
+        """
+        agents = []
+
+        for base_dir in self.base_paths:
+            if not base_dir.exists() or not base_dir.is_dir():
                 continue
 
-            try:
-                agent_metadata = _validate_impl(item)
-            except (
-                KeyError,
-                ValueError,
-                TypeError,
-                AttributeError,
-                FileNotFoundError,
-            ):
-                logger.exception(
-                    "Failed to get agent name or description from %s",
-                    item,
-                )
-            else:
-                agents.append(agent_metadata)
+            # Check each subdirectory in the base directory
+            for item in base_dir.iterdir():
+                if not item.is_dir():
+                    continue
 
-    return agents
+                try:
+                    agent_metadata = _validate_impl(item)
+                except (
+                    KeyError,
+                    ValueError,
+                    TypeError,
+                    AttributeError,
+                    FileNotFoundError,
+                ):
+                    logger.exception(
+                        "Failed to get agent name or description from %s",
+                        item,
+                    )
+                else:
+                    agents.append(agent_metadata)
 
+        return agents
 
-def get_agent_impl(agent_details: AgentInfo) -> "type[StreetRaceAgent]":
-    """Get class implementing the agent."""
-    agent_class = _get_streetrace_agent_class(agent_details.module)
-    if agent_class is None:
-        err_msg = (
-            "No StreetRaceAgent implementation found for "
-            f"{agent_details.agent_card.name}"
-        )
-        raise ValueError(err_msg)
-    return agent_class
+    def load_agent(self, agent: str | Path | AgentInfo) -> "StreetRaceAgent":
+        """Load a Python agent by name, path, or AgentInfo.
+
+        Args:
+            agent: Agent identifier
+
+        Returns:
+            Loaded StreetRaceAgent implementation
+
+        Raises:
+            ValueError: If agent cannot be loaded
+
+        """
+        if isinstance(agent, AgentInfo):
+            if not agent.module:
+                msg = f"AgentInfo does not contain Python agent data: {agent.name}"
+                raise ValueError(msg)
+            agent_class = _get_streetrace_agent_class(agent.module)
+            if agent_class is None:
+                err_msg = f"No StreetRaceAgent implementation found for {agent.name}"
+                raise ValueError(err_msg)
+            return cast("StreetRaceAgent", agent_class())
+
+        if isinstance(agent, str):
+            known_agent = next(
+                (agent for agent in self.discover() if agent.name == str(agent)),
+                None,
+            )
+            if known_agent:
+                return self.load_agent(known_agent)
+
+        if isinstance(agent, str) and Path(agent).is_dir():
+            return self.load_agent(Path(agent))
+
+        if isinstance(agent, Path) and agent.is_dir():
+            return self.load_agent(_validate_impl(agent))
+
+        msg = f"Python agent not found: {agent}"
+        raise ValueError(msg)
+
+    def validate(self, agent: "str | Path | AgentInfo") -> bool:
+        """Validate a Python agent.
+
+        Args:
+            agent: Agent to validate
+
+        Returns:
+            True if agent is valid, False otherwise
+
+        """
+        try:
+            self.load_agent(agent)
+        except (ValueError, FileNotFoundError, KeyError, TypeError, AttributeError):
+            msg = f"Failed to validate agent {agent}"
+            logger.exception(msg)
+            return False
+        else:
+            return True
