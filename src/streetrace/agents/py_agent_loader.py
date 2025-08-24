@@ -214,22 +214,3 @@ class PythonAgentLoader(AgentLoader):
 
         msg = f"Python agent not found: {agent}"
         raise ValueError(msg)
-
-    def validate(self, agent: "str | Path | AgentInfo") -> bool:
-        """Validate a Python agent.
-
-        Args:
-            agent: Agent to validate
-
-        Returns:
-            True if agent is valid, False otherwise
-
-        """
-        try:
-            self.load_agent(agent)
-        except (ValueError, FileNotFoundError, KeyError, TypeError, AttributeError):
-            msg = f"Failed to validate agent {agent}"
-            logger.exception(msg)
-            return False
-        else:
-            return True

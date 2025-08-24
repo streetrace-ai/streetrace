@@ -79,18 +79,6 @@ class AgentManager:
         """
         return self.yaml_loader.discover() + self.python_loader.discover()
 
-    def validate_agent(self, agent: str | Path) -> bool:
-        """Validate an agent (YAML or Python).
-
-        Args:
-            agent: Agent to validate - can be name (str) or file path (Path)
-
-        Returns:
-            Tuple of (is_valid, message)
-
-        """
-        return self.yaml_loader.validate(agent) or self.python_loader.validate(agent)
-
     @asynccontextmanager
     async def create_agent(self, agent_name: str) -> "AsyncGenerator[BaseAgent, None]":
         """Create an agent with the specified name and model.
