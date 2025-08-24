@@ -359,7 +359,7 @@ class TestAgentManagerResourceManagement:
 
     @pytest.fixture
     def mock_tool_provider(self, mock_tool_provider) -> ToolProvider:
-        """Create a mock ToolProvider with proper release_tools method."""
+        """Create a mock ToolProvider."""
         mock_tools = [MagicMock(), MagicMock()]
         mock_tool_provider.get_tools = AsyncMock(return_value=mock_tools)
         return mock_tool_provider

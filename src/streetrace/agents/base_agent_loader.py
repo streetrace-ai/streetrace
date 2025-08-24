@@ -34,10 +34,6 @@ class AgentCycleError(AgentValidationError):
     """Raised when circular references are detected."""
 
 
-class AgentDuplicateNameError(AgentValidationError):
-    """Raised when duplicate agent names are found."""
-
-
 class AgentInfo:
     """Agent information container supporting both Python and YAML agents."""
 
@@ -64,16 +60,6 @@ class AgentInfo:
         self.file_path = file_path
         self.module = module
         self.yaml_document = yaml_document
-
-    @property
-    def is_yaml_agent(self) -> bool:
-        """Check if this is a YAML-based agent."""
-        return self.yaml_document is not None
-
-    @property
-    def is_python_agent(self) -> bool:
-        """Check if this is a Python-based agent."""
-        return self.module is not None
 
     @property
     def kind(self) -> Literal["python", "yaml"]:
@@ -120,17 +106,5 @@ class AgentLoader(ABC):
 
         Raises:
             ValueError: If agent cannot be loaded
-
-        """
-
-    @abstractmethod
-    def validate(self, agent: str | Path | AgentInfo) -> bool:
-        """Validate an agent.
-
-        Args:
-            agent: Agent to validate - can be name (str), file path (Path), or AgentInfo
-
-        Returns:
-            True if agent is valid, False otherwise
 
         """

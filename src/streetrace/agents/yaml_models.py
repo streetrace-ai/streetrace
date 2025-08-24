@@ -4,9 +4,9 @@ import os
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 def expand_env_vars(value: str) -> str:
@@ -43,8 +43,6 @@ class TransportType(str, Enum):
 class StdioServerConfig(BaseModel):
     """Configuration for stdio MCP server."""
 
-    model_config = ConfigDict(extra="forbid")
-
     type: Literal[TransportType.STDIO] = TransportType.STDIO
     command: str
     args: list[str] = Field(default_factory=list)
@@ -77,8 +75,6 @@ class StdioServerConfig(BaseModel):
 class HttpServerConfig(BaseModel):
     """Configuration for HTTP/SSE MCP server."""
 
-    model_config = ConfigDict(extra="forbid")
-
     type: Literal[TransportType.HTTP, TransportType.SSE]
     url: str
     headers: dict[str, str] = Field(default_factory=dict)
@@ -108,16 +104,12 @@ ServerConfig = StdioServerConfig | HttpServerConfig
 class StreetraceToolSpec(BaseModel):
     """Specification for StreetRace internal tool."""
 
-    model_config = ConfigDict(extra="forbid")
-
     module: str
     function: str
 
 
 class McpToolSpec(BaseModel):
     """Specification for MCP tool."""
-
-    model_config = ConfigDict(extra="forbid")
 
     name: str
     server: ServerConfig
@@ -126,8 +118,6 @@ class McpToolSpec(BaseModel):
 
 class ToolSpec(BaseModel):
     """Tool specification - either streetrace or mcp."""
-
-    model_config = ConfigDict(extra="forbid")
 
     streetrace: StreetraceToolSpec | None = None
     mcp: McpToolSpec | None = None
@@ -147,8 +137,6 @@ class ToolSpec(BaseModel):
 class AgentRef(BaseModel):
     """Reference to another agent file."""
 
-    model_config = ConfigDict(extra="forbid")
-
     ref: str = Field(alias="$ref")
 
     @field_validator("ref")
@@ -164,8 +152,6 @@ class AgentRef(BaseModel):
 class AdkConfig(BaseModel):
     """ADK-specific configuration passed through to Agent constructor."""
 
-    model_config = ConfigDict(extra="allow")  # Allow unknown ADK fields
-
     generate_content_config: dict[str, Any] = Field(default_factory=dict)
     disallow_transfer_to_parent: bool = False
     disallow_transfer_to_peers: bool = False
@@ -177,22 +163,14 @@ class AdkConfig(BaseModel):
     code_executor: str | None = None
 
 
-# Forward reference for recursive definition
-AgentSpec = Union["YamlAgentSpec", AgentRef]
-
-
 class InlineAgentSpec(BaseModel):
     """Inline agent specification."""
-
-    model_config = ConfigDict(extra="forbid")
 
     agent: "YamlAgentSpec"
 
 
 class YamlAgentSpec(BaseModel):
     """YAML agent specification model."""
-
-    model_config = ConfigDict(extra="forbid")
 
     version: Literal[1] = 1
     kind: Literal["agent"] = "agent"
@@ -246,8 +224,6 @@ InlineAgentSpec.model_rebuild()
 
 class YamlAgentDocument(BaseModel):
     """Root agent document with resolved references."""
-
-    model_config = ConfigDict(extra="forbid")
 
     spec: YamlAgentSpec
     file_path: Path | None = None  # Path where this was loaded from
