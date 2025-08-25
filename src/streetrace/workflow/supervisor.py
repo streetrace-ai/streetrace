@@ -9,6 +9,7 @@ from streetrace.input_handler import (
     InputHandler,
 )
 from streetrace.log import get_logger
+from streetrace.ui import ui_events
 from streetrace.ui.adk_event_renderer import Event
 from streetrace.ui.ui_bus import UiBus
 
@@ -70,46 +71,55 @@ class Supervisor(InputHandler):
         session = await self.session_manager.validate_session(session)
         # Use agent specified in args, or default if none specified
         agent_name = ctx.agent_name or "default"
-        async with self.agent_manager.create_agent(agent_name) as root_agent:
-            # Type cast needed because JSONSessionService uses duck typing at runtime
-            # but inherits from BaseSessionService only during TYPE_CHECKING
-            from google.adk import Runner
+        try:
+            async with self.agent_manager.create_agent(agent_name) as root_agent:
+                # Type cast needed because JSONSessionService uses duck typing at runtime
+                # but inherits from BaseSessionService only during TYPE_CHECKING
+                from google.adk import Runner
 
-            runner = Runner(
-                app_name=session.app_name,
-                session_service=self.session_manager.session_service,
-                agent=root_agent,
+                runner = Runner(
+                    app_name=session.app_name,
+                    session_service=self.session_manager.session_service,
+                    agent=root_agent,
+                )
+                # Key Concept: run_async executes the agent logic and yields Events while
+                # it goes through ReAct loop. We iterate through events to reach the final
+                # answer.
+                async for event in runner.run_async(
+                    user_id=session.user_id,
+                    session_id=session.id,
+                    new_message=content,  # type: ignore[arg-type] # base lacks precision
+                ):
+                    self.ui_bus.dispatch_ui_update(Event(event=event))
+                    await self.session_manager.manage_current_session()
+
+                    # TODO(krmrn42): Handle wrong tool calls. How to detect the root cause
+                    # is an attempt to store a large file? E.g.:
+                    # Tool signature doesn't match
+                    #   -> Parameters missing
+                    #       -> tool name is "write_file"
+                    #           -> missing parameter name is "content"
+
+                    # Check if this is the final response from the agent
+                    if event.is_final_response():
+                        if event.content and event.content.parts:
+                            # Assuming text response in the first part
+                            final_response_text = event.content.parts[0].text
+                        elif (
+                            event.actions and event.actions.escalate
+                        ):  # Handle potential errors/escalations
+                            error_msg = event.error_message or "No specific message."
+                            final_response_text = f"Agent escalated: {error_msg}"
+                        # Add more checks here if needed (e.g., specific error codes)
+                        break  # Stop processing events once the final response is found
+        except:
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Error(
+                    f"Error running agent '{agent_name}', see log for errors",
+                ),
             )
-            # Key Concept: run_async executes the agent logic and yields Events while
-            # it goes through ReAct loop. We iterate through events to reach the final
-            # answer.
-            async for event in runner.run_async(
-                user_id=session.user_id,
-                session_id=session.id,
-                new_message=content,  # type: ignore[arg-type] # base lacks precision
-            ):
-                self.ui_bus.dispatch_ui_update(Event(event=event))
-                await self.session_manager.manage_current_session()
-
-                # TODO(krmrn42): Handle wrong tool calls. How to detect the root cause
-                # is an attempt to store a large file? E.g.:
-                # Tool signature doesn't match
-                #   -> Parameters missing
-                #       -> tool name is "write_file"
-                #           -> missing parameter name is "content"
-
-                # Check if this is the final response from the agent
-                if event.is_final_response():
-                    if event.content and event.content.parts:
-                        # Assuming text response in the first part
-                        final_response_text = event.content.parts[0].text
-                    elif (
-                        event.actions and event.actions.escalate
-                    ):  # Handle potential errors/escalations
-                        error_msg = event.error_message or "No specific message."
-                        final_response_text = f"Agent escalated: {error_msg}"
-                    # Add more checks here if needed (e.g., specific error codes)
-                    break  # Stop processing events once the final response is found
+            logger.exception("Error running agent")
+            raise
 
         # Add the agent's final message to the history
         if final_response_text:
