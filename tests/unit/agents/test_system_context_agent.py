@@ -12,7 +12,7 @@ from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
-from streetrace.tools.tool_provider import AnyTool
+from streetrace.tools.tool_provider import AdkTool, AnyTool
 
 
 class SystemContextCapturingAgent(StreetRaceAgent):
@@ -37,14 +37,14 @@ class SystemContextCapturingAgent(StreetRaceAgent):
             version="1.0.0",
         )
 
-    async def get_required_tools(self) -> list[str | AnyTool]:
+    async def get_required_tools(self) -> list[AnyTool]:
         """Return an empty list of required tools."""
         return []
 
     async def create_agent(
         self,
         model_factory: ModelFactory,  # noqa: ARG002
-        tools: list[AnyTool],  # noqa: ARG002
+        tools: list[AdkTool],  # noqa: ARG002
         system_context: SystemContext,
     ) -> BaseAgent:
         """Create a mock agent and capture the system_context.
