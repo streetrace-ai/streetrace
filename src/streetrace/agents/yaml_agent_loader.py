@@ -23,27 +23,12 @@ from streetrace.agents.yaml_models import (
     YamlAgentSpec,
 )
 from streetrace.log import get_logger
+from streetrace.utils.file_discovery import find_files
 
 logger = get_logger(__name__)
 
 # Maximum depth for $ref resolution to prevent infinite recursion
 MAX_REF_DEPTH = 5
-
-
-def _discover_agent_files(base_paths: list[Path]) -> list[Path]:
-    """Discover all agent YAML files in search paths."""
-    agent_files: list[Path] = []
-
-    for search_path in base_paths:
-        if not search_path.exists():
-            continue
-
-        agent_files.extend(
-            list(search_path.rglob("*.yaml")) + list(search_path.rglob("*.yml")),
-        )
-
-    # Remove duplicates and sort
-    return [f for f in sorted(set(agent_files)) if f.is_file()]
 
 
 def _load_yaml_file(file_path: Path) -> dict[str, Any]:
@@ -228,7 +213,7 @@ def _load_agent_yaml(
     try:
         spec = YamlAgentSpec.model_validate(data)
     except ValidationError as e:
-        msg = f"Agent specification validation failed: {e}"
+        msg = f"Agent specification validation failed for {file_path}: {e}"
         raise AgentValidationError(msg, file_path, e) from e
 
     # Additional validation
@@ -264,7 +249,11 @@ class YamlAgentLoader(AgentLoader):
 
         """
         agents: list[AgentInfo] = []
-        agent_files = _discover_agent_files(self.base_paths)
+        # Discover both .yaml and .yml files
+        yaml_files = find_files(self.base_paths, "*.yaml")
+        yml_files = find_files(self.base_paths, "*.yml")
+        agent_files = yaml_files + yml_files
+
         for agent_file in agent_files:
             try:
                 agent_doc = _load_agent_yaml(agent_file)

@@ -11,40 +11,9 @@ from streetrace.agents.yaml_agent_loader import (
     AgentValidationError,
     InlineAgentSpec,
     YamlAgentLoader,
-    _discover_agent_files,
     _load_agent_yaml,
 )
-from streetrace.agents.yaml_models import YamlAgentDocument
-
-
-class TestAgentFileDiscovery:
-    """Test agent file discovery."""
-
-    def test_discover_agent_files_empty_dir(self):
-        """Test discovering agents in empty directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            files = _discover_agent_files([Path(tmpdir)])
-            assert files == []
-
-    def test_discover_agent_files_with_agents(self):
-        """Test discovering agents with YAML files."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmppath = Path(tmpdir)
-
-            # Create agents directory
-            agents_dir = tmppath / "agents"
-            agents_dir.mkdir()
-
-            # Create agent files
-            (agents_dir / "test1.yml").write_text("test: content")
-            (agents_dir / "test2.yaml").write_text("test: content")
-            (tmppath / "custom.agent.yml").write_text("test: content")
-
-            files = _discover_agent_files([agents_dir, tmppath])
-            file_names = [f.name for f in files]
-            assert "test1.yml" in file_names
-            assert "test2.yaml" in file_names
-            assert "custom.agent.yml" in file_names
+from streetrace.agents.yaml_models import ToolSpec, YamlAgentDocument
 
 
 class TestAgentLoading:
@@ -99,7 +68,9 @@ class TestAgentLoading:
             try:
                 doc = _load_agent_yaml(Path(f.name))
                 assert len(doc.spec.tools) == 2
+                assert isinstance(doc.spec.tools[0], ToolSpec)
                 assert doc.spec.tools[0].streetrace is not None
+                assert isinstance(doc.spec.tools[1], ToolSpec)
                 assert doc.spec.tools[1].mcp is not None
             finally:
                 Path(f.name).unlink()
