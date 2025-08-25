@@ -264,9 +264,9 @@ class YamlAgentLoader(AgentLoader):
 
         """
         agents: list[AgentInfo] = []
-        try:
-            agent_files = _discover_agent_files(self.base_paths)
-            for agent_file in agent_files:
+        agent_files = _discover_agent_files(self.base_paths)
+        for agent_file in agent_files:
+            try:
                 agent_doc = _load_agent_yaml(agent_file)
                 # TODO(agents): Figure out a way to handle agents with the same name
                 # There can be multiple agents with the same name, which creates an
@@ -278,11 +278,9 @@ class YamlAgentLoader(AgentLoader):
                     yaml_document=agent_doc,
                 )
                 agents.append(agent_info)
-        except AgentValidationError:
-            logger.exception("Failed to discover YAML agents")
-            return []
-        else:
-            return agents
+            except AgentValidationError as e:
+                logger.warning("Doesn't look like agent: %s\n%s", agent_file, e)
+        return agents
 
     def load_agent(self, agent: "str | Path | AgentInfo") -> "StreetRaceAgent":
         """Load a YAML agent by name, path, or AgentInfo.
