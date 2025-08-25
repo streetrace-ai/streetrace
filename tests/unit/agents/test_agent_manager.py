@@ -345,7 +345,7 @@ class TestAgentManager:
         """Test that AgentManager configures correct base directories."""
         # Verify the loaders are initialized with correct paths
         expected_paths = [
-            agent_manager.work_dir / p
+            agent_manager.work_dir / Path(p).expanduser()
             for p in ["./agents", ".", "~/.streetrace/agents", "/etc/streetrace/agents"]
         ]
 

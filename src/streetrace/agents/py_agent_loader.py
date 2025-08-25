@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from streetrace.agents.base_agent_loader import AgentInfo, AgentLoader
 from streetrace.log import get_logger
+from streetrace.utils.file_discovery import find_files
 
 if TYPE_CHECKING:
     from streetrace.agents.street_race_agent import StreetRaceAgent
@@ -148,30 +149,29 @@ class PythonAgentLoader(AgentLoader):
         """
         agents = []
 
-        for base_dir in self.base_paths:
-            if not base_dir.exists() or not base_dir.is_dir():
+        # Find all agent.py files and get their parent directories
+        agent_py_files = find_files(self.base_paths, "agent.py")
+        agent_dirs = [f.parent for f in agent_py_files]
+
+        for agent_dir in agent_dirs:
+            if not agent_dir.exists() or not agent_dir.is_dir():
                 continue
 
-            # Check each subdirectory in the base directory
-            for item in base_dir.iterdir():
-                if not item.is_dir():
-                    continue
-
-                try:
-                    agent_metadata = _validate_impl(item)
-                except (
-                    KeyError,
-                    ValueError,
-                    TypeError,
-                    AttributeError,
-                    FileNotFoundError,
-                ):
-                    logger.exception(
-                        "Failed to get agent name or description from %s",
-                        item,
-                    )
-                else:
-                    agents.append(agent_metadata)
+            try:
+                agent_metadata = _validate_impl(agent_dir)
+            except (
+                KeyError,
+                ValueError,
+                TypeError,
+                AttributeError,
+                FileNotFoundError,
+            ):
+                logger.exception(
+                    "Failed to get agent name or description from %s",
+                    agent_dir,
+                )
+            else:
+                agents.append(agent_metadata)
 
         return agents
 
