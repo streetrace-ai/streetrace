@@ -147,7 +147,7 @@ class ConfigInspectorAgent(StreetRaceAgent):
             McpToolRef(
                 name="enterprise-context",
                 server=StdioTransport(
-                    command="/Users/emaskerov/.local/bin/uvx",
+                    command="uvx",
                     args=["awslabs.dynamodb-mcp-server@latest"],
                     env={
                         "DDB-MCP-READONLY": "true",
