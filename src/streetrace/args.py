@@ -23,7 +23,7 @@ class Args(tap.TypedArgs):
         ),
     )
     agent: str | None = tap.arg(
-        help="Specific agent to use (default: Streetrace Coding Agent)",
+        help="Specific agent to use (default: Streetrace_Coding_Agent)",
         default=None,
     )
     prompt: str | None = tap.arg(help="Non-interactive prompt mode", default=None)

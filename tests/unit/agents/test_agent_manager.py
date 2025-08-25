@@ -208,7 +208,7 @@ class TestAgentManager:
         """Test creating agent with 'default' name maps to DEFAULT_AGENT."""
         # Arrange
         default_agent_card = StreetRaceAgentCard(
-            name="Streetrace Coding Agent",
+            name="Streetrace_Coding_Agent",
             description="Default agent",
             capabilities=AgentCapabilities(streaming=False),
             skills=[],
