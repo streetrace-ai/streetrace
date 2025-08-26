@@ -73,8 +73,8 @@ class Supervisor(InputHandler):
         agent_name = ctx.agent_name or "default"
         try:
             async with self.agent_manager.create_agent(agent_name) as root_agent:
-                # Type cast needed because JSONSessionService uses duck typing at runtime
-                # but inherits from BaseSessionService only during TYPE_CHECKING
+                # Type cast needed because JSONSessionService uses duck typing at
+                # runtime but inherits from BaseSessionService only during TYPE_CHECKING
                 from google.adk import Runner
 
                 runner = Runner(
@@ -82,9 +82,9 @@ class Supervisor(InputHandler):
                     session_service=self.session_manager.session_service,
                     agent=root_agent,
                 )
-                # Key Concept: run_async executes the agent logic and yields Events while
-                # it goes through ReAct loop. We iterate through events to reach the final
-                # answer.
+                # Key Concept: run_async executes the agent logic and yields Events
+                # while it goes through ReAct loop. We iterate through events to reach
+                # the final answer.
                 async for event in runner.run_async(
                     user_id=session.user_id,
                     session_id=session.id,
@@ -93,8 +93,8 @@ class Supervisor(InputHandler):
                     self.ui_bus.dispatch_ui_update(Event(event=event))
                     await self.session_manager.manage_current_session()
 
-                    # TODO(krmrn42): Handle wrong tool calls. How to detect the root cause
-                    # is an attempt to store a large file? E.g.:
+                    # TODO(krmrn42): Handle wrong tool calls. How to detect the root
+                    # cause is an attempt to store a large file? E.g.:
                     # Tool signature doesn't match
                     #   -> Parameters missing
                     #       -> tool name is "write_file"
