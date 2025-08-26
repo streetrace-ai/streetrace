@@ -157,7 +157,7 @@ class ConfigInspectorAgent(StreetRaceAgent):
                     args=["awslabs.dynamodb-mcp-server@latest"],
                     env={
                         "DDB-MCP-READONLY": "true",
-                        "AWS_PROFILE": AWS_PROFILE,
+#                        "AWS_PROFILE": AWS_PROFILE,
                         "AWS_REGION": AWS_REGION,
                         "FASTMCP_LOG_LEVEL": "ERROR",
                     },
