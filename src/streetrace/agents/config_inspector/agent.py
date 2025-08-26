@@ -23,10 +23,15 @@ from streetrace.tools.tool_refs import (
 )
 # from phoenix.otel import register
 
+# Get with default value
+AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
+AWS_PROFILE = os.environ.get('AWS_PROFILE', 'default')
+PHOENIX_COLLECTOR_ENDPOINT = os.environ.get('PHOENIX_COLLECTOR_ENDPOINT', 'http://localhost:6006/v1/traces')
+
 # # Configure the Phoenix tracer
 # tracer_provider = register(
 #     project_name="streetrace_config_inspector_agent",
-#     endpoint="http://localhost:6006/v1/traces",
+#     endpoint=PHOENIX_COLLECTOR_ENDPOINT,
 #     auto_instrument=True
 # )
 
@@ -151,8 +156,8 @@ class ConfigInspectorAgent(StreetRaceAgent):
                     args=["awslabs.dynamodb-mcp-server@latest"],
                     env={
                         "DDB-MCP-READONLY": "true",
-                        "AWS_PROFILE": "config-inspector-demo",
-                        "AWS_REGION": "us-east-1",
+                        "AWS_PROFILE": AWS_PROFILE,
+                        "AWS_REGION": AWS_REGION,
                         "FASTMCP_LOG_LEVEL": "ERROR",
                     },
                 ),
