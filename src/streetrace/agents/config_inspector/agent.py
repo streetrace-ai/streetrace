@@ -21,12 +21,13 @@ from streetrace.tools.tool_refs import (
     McpToolRef,
     StreetraceToolRef,
 )
+
 # from phoenix.otel import register
 
 # Get with default value
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
 AWS_PROFILE = os.environ.get('AWS_PROFILE', 'default')
-PHOENIX_COLLECTOR_ENDPOINT = os.environ.get('PHOENIX_COLLECTOR_ENDPOINT', 'http://localhost:6006/v1/traces')
+#PHOENIX_COLLECTOR_ENDPOINT = os.environ.get('PHOENIX_COLLECTOR_ENDPOINT', 'http://localhost:6006/v1/traces')
 
 # # Configure the Phoenix tracer
 # tracer_provider = register(
@@ -139,7 +140,7 @@ class ConfigInspectorAgent(StreetRaceAgent):
 
         Returns structured tool references for config inspection capabilities.
         """
-        tools: list[AnyTool] = [
+        tools: Sequence[AnyTool] = [
             # File system tools for reading and writing configuration files
             StreetraceToolRef(module="fs_tool", function="read_file"),
             StreetraceToolRef(module="fs_tool", function="write_file"),
@@ -189,7 +190,7 @@ class ConfigInspectorAgent(StreetRaceAgent):
                 ),
             ),
         ]
-        return tools
+        return list(tools)
 
     @override
     async def create_agent(
@@ -214,7 +215,7 @@ class ConfigInspectorAgent(StreetRaceAgent):
             name=agent_card.name,
             model=model_factory.get_current_model(),
             description=agent_card.description,
-            global_instruction=system_context.get_system_message(),
+        #    global_instruction=system_context.get_system_message(),
             instruction=CONFIG_INSPECTOR_AGENT,
             tools=tools,
         )
