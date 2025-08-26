@@ -202,7 +202,7 @@ class TestAgentManager:
     ) -> None:
         """Test creating agent with 'default' name maps to DEFAULT_AGENT."""
         # Arrange
-        mock_agent_instance = MockAgent("Streetrace Coding Agent")
+        mock_agent_instance = MockAgent("Streetrace_Coding_Agent")
 
         with (
             patch.object(

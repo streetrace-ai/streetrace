@@ -115,7 +115,7 @@ class CoderAgent(StreetRaceAgent):
         )
 
         return StreetRaceAgentCard(
-            name="Streetrace Coding Agent",
+            name="Streetrace_Coding_Agent",
             description="A peer engineer agent that can help you with coding tasks.",
             version="0.2.0",
             defaultInputModes=["text"],

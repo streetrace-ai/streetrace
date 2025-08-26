@@ -23,7 +23,7 @@ from streetrace.tools.tool_provider import ToolProvider
 
 logger = get_logger(__name__)
 
-_DEFAULT_AGENT = "Streetrace Coding Agent"
+_DEFAULT_AGENT = "Streetrace_Coding_Agent"
 
 # Default search paths for agent autodiscovery
 DEFAULT_AGENT_PATHS = [
