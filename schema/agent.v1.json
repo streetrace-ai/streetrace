@@ -1,0 +1,250 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://streetrace.dev/schema/agent.v1.json",
+  "title": "StreetRace Agent Specification",
+  "description": "YAML-based agent specification for StreetRace agents",
+  "type": "object",
+  "required": ["version", "kind", "name", "description"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Schema version"
+    },
+    "kind": {
+      "type": "string",
+      "const": "agent",
+      "description": "Resource type"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "description": "Agent name (must be a valid Python identifier)"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable description of the agent"
+    },
+    "model": {
+      "type": "string",
+      "description": "Model to use for this agent (defaults to inherited/current)"
+    },
+    "instruction": {
+      "type": "string",
+      "description": "Agent-specific instructions"
+    },
+    "global_instruction": {
+      "type": "string",
+      "description": "Global system instruction (root level only)"
+    },
+    "adk": {
+      "type": "object",
+      "description": "ADK-specific configuration passed through to Agent constructor",
+      "properties": {
+        "generate_content_config": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Configuration for content generation"
+        },
+        "disallow_transfer_to_parent": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disallow transferring to parent agent"
+        },
+        "disallow_transfer_to_peers": {
+          "type": "boolean",
+          "default": false,
+          "description": "Disallow transferring to peer agents"
+        },
+        "include_contents": {
+          "type": "string",
+          "default": "default",
+          "description": "Content inclusion strategy"
+        },
+        "input_schema": {
+          "type": "string",
+          "description": "Input schema name"
+        },
+        "output_schema": {
+          "type": "string",
+          "description": "Output schema name"
+        },
+        "output_key": {
+          "type": "string",
+          "description": "Output key"
+        },
+        "planner": {
+          "type": "string",
+          "description": "Planner configuration"
+        },
+        "code_executor": {
+          "type": "string",
+          "description": "Code executor configuration"
+        }
+      },
+      "additionalProperties": true
+    },
+    "tools": {
+      "type": "array",
+      "description": "List of tools available to this agent",
+      "items": {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["$ref"],
+            "additionalProperties": false,
+            "properties": {
+              "$ref": {
+                "type": "string",
+                "description": "Path to another agent YAML file"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["agent"],
+            "additionalProperties": false,
+            "properties": {
+              "agent": {
+                "$ref": "#",
+                "description": "Inline agent specification"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["streetrace"],
+            "additionalProperties": false,
+            "properties": {
+              "streetrace": {
+                "type": "object",
+                "required": ["module", "function"],
+                "additionalProperties": false,
+                "properties": {
+                  "module": {
+                    "type": "string",
+                    "description": "StreetRace module name (e.g., 'fs_tool', 'cli_tool')"
+                  },
+                  "function": {
+                    "type": "string",
+                    "description": "Function name within the module"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["mcp"],
+            "additionalProperties": false,
+            "properties": {
+              "mcp": {
+                "type": "object",
+                "required": ["name", "server"],
+                "additionalProperties": false,
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "MCP server name"
+                  },
+                  "server": {
+                    "type": "object",
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": ["type", "command"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "type": {
+                            "const": "stdio"
+                          },
+                          "command": {
+                            "type": "string",
+                            "description": "Command to run for stdio transport"
+                          },
+                          "args": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Command arguments"
+                          },
+                          "env": {
+                            "type": "object",
+                            "additionalProperties": { "type": "string" },
+                            "description": "Environment variables"
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "required": ["type", "url"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "type": {
+                            "enum": ["http", "sse"]
+                          },
+                          "url": {
+                            "type": "string",
+                            "format": "uri",
+                            "description": "Server URL"
+                          },
+                          "headers": {
+                            "type": "object",
+                            "additionalProperties": { "type": "string" },
+                            "description": "HTTP headers"
+                          },
+                          "timeout": {
+                            "type": "number",
+                            "minimum": 0,
+                            "description": "Request timeout in seconds"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "tools": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "List of specific tools to use from this server (optional filter)"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "sub_agents": {
+      "type": "array",
+      "description": "Sub-agents that this agent can delegate to",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["$ref"],
+            "additionalProperties": false,
+            "properties": {
+              "$ref": {
+                "type": "string",
+                "description": "Path to another agent YAML file"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["agent"],
+            "additionalProperties": false,
+            "properties": {
+              "agent": {
+                "$ref": "#",
+                "description": "Inline agent specification"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "additionalProperties": false
+}

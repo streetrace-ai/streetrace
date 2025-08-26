@@ -4,9 +4,8 @@ Discovers and lists available agents in the system from predefined directories.
 """
 
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Literal, TypedDict
 
-from streetrace.agents.agent_loader import get_available_agents
 from streetrace.log import get_logger
 from streetrace.tools.definitions.result import OpResult, OpResultCode
 
@@ -17,14 +16,15 @@ class AgentInfo(TypedDict):
     """Information about a discovered agent."""
 
     name: str
-    path: str
     description: str | None
+    definition_type: Literal["yaml", "python"]
+    definition_path: str
 
 
 class AgentListResult(OpResult):
     """Result containing the list of available agents."""
 
-    output: list[dict[str, Any]] | None  # type: ignore[misc]
+    output: list[AgentInfo]  # type: ignore[misc]
 
 
 def list_agents(work_dir: Path) -> AgentListResult:
@@ -41,17 +41,26 @@ def list_agents(work_dir: Path) -> AgentListResult:
         AgentListResult containing discovered agents
 
     """
-    # Define paths to search for agents
-    base_dirs = [
-        # ./agents/ (relative to current working directory)
-        work_dir / "agents",
-        # ../../agents/ (relative to src/streetrace/app.py)
-        Path(__file__).parent / "../../agents",
-    ]
-    agents = get_available_agents(base_dirs)
+    from streetrace.agents.agent_manager import DEFAULT_AGENT_PATHS
+    from streetrace.agents.py_agent_loader import PythonAgentLoader
+    from streetrace.agents.yaml_agent_loader import YamlAgentLoader
+
+    agent_paths = [work_dir / p for p in DEFAULT_AGENT_PATHS]
+
+    yaml_loader = YamlAgentLoader(agent_paths)
+    python_loader = PythonAgentLoader(agent_paths)
+    agents = yaml_loader.discover() + python_loader.discover()
     return AgentListResult(
         tool_name="list_agents",
         result=OpResultCode.SUCCESS,
-        output=[agent.agent_card.model_dump() for agent in agents],
+        output=[
+            AgentInfo(
+                name=agent.name,
+                description=agent.description,
+                definition_type=agent.kind,
+                definition_path=agent.path,
+            )
+            for agent in agents
+        ],
         error="",
     )

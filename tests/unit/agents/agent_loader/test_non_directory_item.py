@@ -3,7 +3,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from streetrace.agents.agent_loader import get_available_agents
+from streetrace.agents.yaml_agent_loader import YamlAgentLoader
 
 
 def test_get_available_agents_with_non_directory_items():
@@ -12,27 +12,35 @@ def test_get_available_agents_with_non_directory_items():
     mock_base_dir.exists.return_value = True
     mock_base_dir.is_dir.return_value = True
 
-    # Mock directory items
-    mock_agent_dir = MagicMock(spec=Path)
-    mock_agent_dir.is_dir.return_value = True
+    # Mock YAML file
+    mock_yaml_file = MagicMock(spec=Path)
+    mock_yaml_file.is_file.return_value = True
+    mock_yaml_file.suffix = ".yaml"
 
-    # Mock file (non-directory item)
-    mock_file = MagicMock(spec=Path)
-    mock_file.is_dir.return_value = False
+    # Mock non-YAML file that should be skipped
+    mock_other_file = MagicMock(spec=Path)
+    mock_other_file.is_file.return_value = True
+    mock_other_file.suffix = ".txt"
 
-    # Set up the mock directory to return both a file and a directory
-    mock_base_dir.iterdir.return_value = [mock_agent_dir, mock_file]
+    # Set up the mock directory to return both files via rglob
+    mock_base_dir.rglob.side_effect = lambda pattern: (
+        [mock_yaml_file] if pattern == "*.yaml" else []
+    )
 
-    # Mock _validate_impl to return a mock agent
+    # Mock _load_agent_yaml to return a mock agent document
     with patch(
-        "streetrace.agents.agent_loader._validate_impl",
-        return_value=MagicMock(),
-    ) as mock_validate:
-        result = get_available_agents([mock_base_dir])
+        "streetrace.agents.yaml_agent_loader._load_agent_yaml",
+        return_value=MagicMock(
+            get_name=MagicMock(return_value="test_agent"),
+            get_description=MagicMock(return_value="test description"),
+            file_path=mock_yaml_file,
+        ),
+    ) as mock_load_yaml:
+        result = YamlAgentLoader([mock_base_dir]).discover()
 
-        # Verify _validate_impl was called only once (for the directory)
-        assert mock_validate.call_count == 1
-        mock_validate.assert_called_once_with(mock_agent_dir)
+        # Verify _load_agent_yaml was called only once (for the YAML file)
+        assert mock_load_yaml.call_count == 1
+        mock_load_yaml.assert_called_once_with(mock_yaml_file)
 
-        # We expect one agent since the file is skipped but the directory is processed
+        # We expect one agent since only the YAML file is processed
         assert len(result) == 1

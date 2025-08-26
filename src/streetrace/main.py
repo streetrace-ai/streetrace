@@ -43,7 +43,7 @@ def run(args: Args) -> None:
     while True:
         try:
             asyncio.run(app.run())
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, asyncio.exceptions.CancelledError):
             # we treat keyboard interrupt as an interrupt to the current operation,
             # so we keep the app running.
             # if the current prompt is empty, then Ctrl+C will cause

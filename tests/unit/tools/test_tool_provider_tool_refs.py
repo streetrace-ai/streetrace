@@ -187,7 +187,7 @@ class TestToolProviderToolRefProcessing:
             mock_toolset.__class__.__name__ = "MCPToolset"
             mock_mcp_toolset.return_value = mock_toolset
 
-            tools = await tool_provider.get_tools(tool_refs)
+            tools = tool_provider.get_tools(tool_refs)
 
             # Should get: static tool + MCP toolset + StreetRace tool
             assert len(tools) >= 2
@@ -240,7 +240,7 @@ class TestToolRefIntegrationWithProvider:
             mock_toolset.__class__.__name__ = "MCPToolset"
             mock_mcp.return_value = mock_toolset
 
-            tools = await tool_provider.get_tools(tool_refs)
+            tools = tool_provider.get_tools(tool_refs)
 
             # Should have processed all tool types
             assert len(tools) >= 3

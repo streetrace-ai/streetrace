@@ -14,7 +14,7 @@ from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
 from streetrace.tools.mcp_transport import HttpTransport, StdioTransport
-from streetrace.tools.tool_provider import AdkTool, AnyTool
+from streetrace.tools.tool_provider import AnyTool, ToolProvider
 from streetrace.tools.tool_refs import (
     McpToolRef,
     StreetraceToolRef,
@@ -178,14 +178,14 @@ class CoderAgent(StreetRaceAgent):
     async def create_agent(
         self,
         model_factory: ModelFactory,
-        tools: list[AdkTool],
+        tool_provider: ToolProvider,
         system_context: SystemContext,
     ) -> BaseAgent:
         """Create the agent Run the Hello World agent with the provided input.
 
         Args:
             model_factory: Interface to access configured models.
-            tools: Tools requested by the agent.
+            tool_provider: Tool provider.
             system_context: System context for the agent.
 
         Returns:
@@ -199,5 +199,5 @@ class CoderAgent(StreetRaceAgent):
             description=agent_card.description,
             global_instruction=system_context.get_system_message(),
             instruction=CODER_AGENT,
-            tools=tools,
+            tools=tool_provider.get_tools(await self.get_required_tools()),
         )
