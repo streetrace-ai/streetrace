@@ -51,7 +51,7 @@ jobs:
           fi
           poetry run streetrace \
             --model="$STREETRACE_MODEL" \
-            --agent=StreetRace_Code_Reviewer_Agent \
+            --agent=Reviewer \
             --prompt="CRITICAL: You MUST create the file code-review-result.md using write_file tool. This is mandatory - the workflow will fail without it. Conduct a code review and save ALL results to this file. Verify file creation with read_file. Do not print to console." \
             || echo "StreetRace completed with exit code $?"
 
