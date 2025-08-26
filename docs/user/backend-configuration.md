@@ -5,6 +5,7 @@ This guide explains how to configure Streetrace with various LLM backends. Stree
 ## Overview
 
 Streetrace supports multiple LLM backends through LiteLLM. Each backend requires:
+
 1. **Backend Configuration**: Setting up API keys and access through the provider's platform
 2. **Streetrace Configuration**: Configuring environment variables and model names
 3. **Model Examples**: Using specific models with Streetrace
@@ -43,6 +44,7 @@ streetrace --model=gpt-3.5-turbo
 ### Backend Configuration
 
 Many providers offer OpenAI-compatible endpoints. Examples include:
+
 - **Together AI**: Get API key from [api.together.ai](https://api.together.ai)
 - **Groq**: Get API key from [console.groq.com](https://console.groq.com)
 - **Perplexity**: Get API key from [perplexity.ai](https://perplexity.ai)
@@ -51,26 +53,31 @@ Many providers offer OpenAI-compatible endpoints. Examples include:
 ### Streetrace Configuration
 
 For Together AI:
+
 ```bash
 export TOGETHERAI_API_KEY="your-together-ai-api-key"
 ```
 
 For Groq:
+
 ```bash
 export GROQ_API_KEY="your-groq-api-key"
 ```
 
 For Perplexity:
+
 ```bash
 export PERPLEXITYAI_API_KEY="your-perplexity-api-key"
 ```
 
 For DeepSeek:
+
 ```bash
 export DEEPSEEK_API_KEY="your-deepseek-api-key"
 ```
 
 For custom OpenAI-compatible endpoints, you can also set:
+
 ```bash
 export OPENAI_BASE_URL="https://your-custom-endpoint.com/v1"
 export OPENAI_API_KEY="your-api-key"
@@ -99,14 +106,15 @@ streetrace --model=groq/mixtral-8x7b-32768
 1. **Create Azure Account**: Sign up at [portal.azure.com](https://portal.azure.com)
 
 2. **Create OpenAI Resource**:
+
    ```bash
    # Using Azure CLI
    az login
    az account set --subscription "your-subscription-id"
-   
+
    # Create resource group (if needed)
    az group create --name "rg-openai-streetrace" --location "eastus"
-   
+
    # Create Azure OpenAI resource
    az cognitiveservices account create \
      --name "openai-streetrace" \
@@ -118,10 +126,11 @@ streetrace --model=groq/mixtral-8x7b-32768
    ```
 
 3. **Assign Required Roles**:
+
    ```bash
    # Get your user principal ID
    USER_ID=$(az ad signed-in-user show --query id -o tsv)
-   
+
    # Assign Cognitive Services OpenAI User role
    az role assignment create \
      --assignee "$USER_ID" \
@@ -130,6 +139,7 @@ streetrace --model=groq/mixtral-8x7b-32768
    ```
 
 4. **Deploy Models**:
+
    ```bash
    # Deploy GPT-4o
    az cognitiveservices account deployment create \
@@ -140,7 +150,7 @@ streetrace --model=groq/mixtral-8x7b-32768
      --model-version "2024-08-06" \
      --sku-capacity 10 \
      --sku-name "Standard"
-   
+
    # Deploy GPT-4 Turbo
    az cognitiveservices account deployment create \
      --resource-group "rg-openai-streetrace" \
@@ -153,13 +163,14 @@ streetrace --model=groq/mixtral-8x7b-32768
    ```
 
 5. **Get Credentials**:
+
    ```bash
    # Get API key
    az cognitiveservices account keys list \
      --resource-group "rg-openai-streetrace" \
      --name "openai-streetrace" \
      --query "key1" -o tsv
-   
+
    # Get endpoint
    az cognitiveservices account show \
      --resource-group "rg-openai-streetrace" \
@@ -195,6 +206,7 @@ streetrace --model=azure/your-gpt-35-turbo-deployment
 1. **Access Azure AI Studio**: Go to [ai.azure.com](https://ai.azure.com)
 
 2. **Create Hub and Project**:
+
    ```bash
    # Create an AI Hub first
    az ml workspace create \
@@ -202,7 +214,7 @@ streetrace --model=azure/your-gpt-35-turbo-deployment
      --name "ai-hub-streetrace" \
      --location "eastus" \
      --kind "Hub"
-   
+
    # Create an AI Project under the hub
    az ml workspace create \
      --resource-group "rg-openai-streetrace" \
@@ -213,16 +225,17 @@ streetrace --model=azure/your-gpt-35-turbo-deployment
    ```
 
 3. **Assign Required Roles**:
+
    ```bash
    # Get your user principal ID
    USER_ID=$(az ad signed-in-user show --query id -o tsv)
-   
+
    # Assign Azure AI Developer role
    az role assignment create \
      --assignee "$USER_ID" \
      --role "Azure AI Developer" \
      --scope "/subscriptions/your-subscription-id/resourceGroups/rg-openai-streetrace/providers/Microsoft.MachineLearningServices/workspaces/ai-project-streetrace"
-   
+
    # Assign Cognitive Services OpenAI User role for model access
    az role assignment create \
      --assignee "$USER_ID" \
@@ -231,6 +244,7 @@ streetrace --model=azure/your-gpt-35-turbo-deployment
    ```
 
 4. **Deploy Models via CLI** (Alternative to web interface):
+
    ```bash
    # Create deployment configuration file
    cat > deployment.yml << EOF
@@ -240,7 +254,7 @@ streetrace --model=azure/your-gpt-35-turbo-deployment
    instance_type: Standard_DS3_v2
    instance_count: 1
    EOF
-   
+
    # Deploy the model
    az ml model deploy \
      --resource-group "rg-openai-streetrace" \
@@ -249,12 +263,13 @@ streetrace --model=azure/your-gpt-35-turbo-deployment
    ```
 
 5. **Get Connection Details**:
+
    ```bash
    # List deployed models and their endpoints
    az ml online-endpoint list \
      --resource-group "rg-openai-streetrace" \
      --workspace-name "ai-project-streetrace"
-   
+
    # Get specific endpoint details
    az ml online-endpoint show \
      --resource-group "rg-openai-streetrace" \
@@ -283,25 +298,27 @@ streetrace --model=azure_ai/mistral-large
 ### Backend Configuration
 
 1. **Create Google Cloud Project**:
+
    ```bash
    # Install gcloud CLI first: https://cloud.google.com/sdk/docs/install
    gcloud auth login
-   
+
    # Create a new project
    gcloud projects create streetrace-vertex-ai --name="Streetrace Vertex AI"
-   
+
    # Set the project as active
    gcloud config set project streetrace-vertex-ai
-   
+
    # Link billing account (required for API usage)
    gcloud billing projects link streetrace-vertex-ai --billing-account="YOUR-BILLING-ACCOUNT-ID"
    ```
 
 2. **Enable Required APIs**:
+
    ```bash
    # Enable Vertex AI API
    gcloud services enable aiplatform.googleapis.com
-   
+
    # Enable additional APIs for model access
    gcloud services enable ml.googleapis.com
    gcloud services enable compute.googleapis.com
@@ -309,44 +326,47 @@ streetrace --model=azure_ai/mistral-large
    ```
 
 3. **Create Service Account and Assign Roles**:
+
    ```bash
    # Create service account
    gcloud iam service-accounts create streetrace-vertex-sa \
      --description="Service account for Streetrace Vertex AI access" \
      --display-name="Streetrace Vertex AI"
-   
+
    # Get project ID
    PROJECT_ID=$(gcloud config get-value project)
-   
+
    # Assign required roles
    gcloud projects add-iam-policy-binding $PROJECT_ID \
      --member="serviceAccount:streetrace-vertex-sa@$PROJECT_ID.iam.gserviceaccount.com" \
      --role="roles/aiplatform.user"
-   
+
    gcloud projects add-iam-policy-binding $PROJECT_ID \
      --member="serviceAccount:streetrace-vertex-sa@$PROJECT_ID.iam.gserviceaccount.com" \
      --role="roles/ml.developer"
-   
+
    gcloud projects add-iam-policy-binding $PROJECT_ID \
      --member="serviceAccount:streetrace-vertex-sa@$PROJECT_ID.iam.gserviceaccount.com" \
      --role="roles/serviceusage.serviceUsageConsumer"
    ```
 
 4. **Generate Service Account Key**:
+
    ```bash
    # Create and download service account key
    gcloud iam service-accounts keys create ~/streetrace-vertex-key.json \
      --iam-account=streetrace-vertex-sa@$PROJECT_ID.iam.gserviceaccount.com
-   
+
    # Alternative: Use application default credentials (recommended for development)
    gcloud auth application-default login
    ```
 
 5. **Enable Model Access** (for specific models):
+
    ```bash
    # Enable Claude models in Vertex AI Model Garden (requires manual approval in console)
    echo "Visit https://console.cloud.google.com/vertex-ai/model-garden to enable Claude models"
-   
+
    # List available models
    gcloud ai models list --region=us-central1
    ```
@@ -360,6 +380,7 @@ streetrace --model=azure_ai/mistral-large
 ### Streetrace Configuration
 
 Using service account:
+
 ```bash
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account-key.json"
 export VERTEXAI_PROJECT="your-gcp-project-id"
@@ -367,6 +388,7 @@ export VERTEXAI_LOCATION="us-central1"
 ```
 
 Using gcloud auth:
+
 ```bash
 gcloud auth application-default login
 export VERTEXAI_PROJECT="your-gcp-project-id"
@@ -393,36 +415,40 @@ streetrace --model=vertex_ai/codestral-22b
 ### Backend Configuration
 
 1. **Set up Google Cloud Project** (if not already done):
+
    ```bash
    # Install gcloud CLI: https://cloud.google.com/sdk/docs/install
    gcloud auth login
-   
+
    # Create project (or use existing)
    gcloud projects create streetrace-gemini --name="Streetrace Gemini"
    gcloud config set project streetrace-gemini
-   
+
    # Link billing account (required)
    gcloud billing projects link streetrace-gemini --billing-account="YOUR-BILLING-ACCOUNT-ID"
    ```
 
 2. **Enable Generative AI API**:
+
    ```bash
    # Enable the required API
    gcloud services enable generativelanguage.googleapis.com
    ```
 
 3. **Create API Key via CLI**:
+
    ```bash
    # Create API key for Gemini
    gcloud alpha services api-keys create \
      --display-name="Streetrace Gemini API Key" \
      --api-target=service=generativelanguage.googleapis.com
-   
+
    # Get the API key value (save this securely)
    gcloud alpha services api-keys get-key-string API_KEY_ID
    ```
 
 4. **Alternative: Get API Key via Web Interface**:
+
    - Visit [aistudio.google.com](https://aistudio.google.com)
    - Click "Get API key" → "Create API key in new project"
    - Select your project and create the key
@@ -482,7 +508,24 @@ streetrace --model=claude-3-opus-20240229
 
 ### Backend Configuration
 
+There are two ways to access Bedrock models:
+
+- Using the Bedrock API Key
+- Or using the standard AWS credentials
+
+#### Using the Bedrock API Key
+
+Create a Bedrock API Key by going to AWS Bedrock console -> API Keys, and export the
+API Key in your environment:
+
+```bash
+export AWS_BEARER_TOKEN_BEDROCK="bedrock-api-key"
+```
+
+#### Using AWS Credentials
+
 1. **AWS Account Setup**:
+
    ```bash
    # Install AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html
    # Configure with your credentials
@@ -491,10 +534,11 @@ streetrace --model=claude-3-opus-20240229
    ```
 
 2. **Create IAM User and Policy for Bedrock**:
+
    ```bash
    # Create IAM user for Streetrace
    aws iam create-user --user-name streetrace-bedrock-user
-   
+
    # Create policy for Bedrock access
    cat > bedrock-policy.json << 'EOF'
    {
@@ -514,15 +558,15 @@ streetrace --model=claude-3-opus-20240229
      ]
    }
    EOF
-   
+
    # Create the policy
    aws iam create-policy \
      --policy-name BedrockAccessPolicy \
      --policy-document file://bedrock-policy.json
-   
+
    # Get AWS account ID
    ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-   
+
    # Attach policy to user
    aws iam attach-user-policy \
      --user-name streetrace-bedrock-user \
@@ -530,6 +574,7 @@ streetrace --model=claude-3-opus-20240229
    ```
 
 3. **Create Access Keys**:
+
    ```bash
    # Create access keys for the user
    aws iam create-access-key --user-name streetrace-bedrock-user
@@ -537,10 +582,11 @@ streetrace --model=claude-3-opus-20240229
    ```
 
 4. **Enable Bedrock Service and Request Model Access**:
+
    ```bash
    # List available foundation models
    aws bedrock list-foundation-models --region us-east-1
-   
+
    # Check model access (some models require manual approval)
    aws bedrock get-foundation-model \
      --model-identifier anthropic.claude-3-sonnet-20240229-v1:0 \
@@ -548,6 +594,7 @@ streetrace --model=claude-3-opus-20240229
    ```
 
 5. **Request Model Access via Console**:
+
    ```bash
    echo "Visit AWS Bedrock Console to request model access:"
    echo "https://console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess"
@@ -558,6 +605,7 @@ streetrace --model=claude-3-opus-20240229
    ```
 
 6. **Test Bedrock Access**:
+
    ```bash
    # Test model invocation
    aws bedrock-runtime invoke-model \
@@ -567,7 +615,7 @@ streetrace --model=claude-3-opus-20240229
      --accept application/json \
      response.json \
      --region us-east-1
-   
+
    # Check the response
    cat response.json
    ```
@@ -575,6 +623,7 @@ streetrace --model=claude-3-opus-20240229
 ### Streetrace Configuration
 
 Using AWS credentials:
+
 ```bash
 export AWS_ACCESS_KEY_ID="your-access-key"
 export AWS_SECRET_ACCESS_KEY="your-secret-key"
@@ -582,6 +631,7 @@ export AWS_REGION_NAME="us-east-1"
 ```
 
 Using AWS CLI profile:
+
 ```bash
 export AWS_PROFILE_NAME="your-profile-name"
 export AWS_REGION_NAME="us-east-1"
@@ -599,6 +649,14 @@ streetrace --model=bedrock/mistral.mistral-7b-instruct-v0:2
 streetrace --model=bedrock/mistral.codestral-22b-instruct-v1:0
 ```
 
+### Troubleshooting
+
+```
+LLM error: litellm.BadRequestError: BedrockException - {"message":"Invocation of model ID anthropic.claude-sonnet-4-20250514-v1:0 with on-demand throughput isn’t supported. Retry your request with the ID or ARN of an inference profile that contains this model."}
+```
+
+Go to AWS Bedrock console -> Cross-region inference -> copy the ARN of the model in your region and use it as `--model=bedrock/ARN` parameter when running Streetrace.
+
 ## LiteLLM Proxy
 
 ### Backend Configuration
@@ -608,6 +666,7 @@ streetrace --model=bedrock/mistral.codestral-22b-instruct-v1:0
 3. **Start Proxy**: Run `litellm --config config.yaml`
 
 Example config.yaml:
+
 ```yaml
 model_list:
   - model_name: claude-3-sonnet
@@ -682,6 +741,7 @@ streetrace --model=cohere/command-light
 3. **Pull Models**: Use `ollama pull <model-name>` to download models
 
 Example:
+
 ```bash
 ollama pull llama3.1
 ollama pull codellama
@@ -753,6 +813,7 @@ DEEPSEEK_API_KEY=your-deepseek-key
 ### Model Selection
 
 Always check the latest model names and availability:
+
 - Provider documentation for current model names
 - Use `streetrace --model=<model-name>` format
 - Some models may require specific regions or additional setup
@@ -760,6 +821,7 @@ Always check the latest model names and availability:
 ### Troubleshooting
 
 Common issues:
+
 1. **Invalid API Key**: Verify the key is correct and has proper permissions
 2. **Model Not Found**: Check if the model name is correct and available
 3. **Rate Limiting**: Some providers have rate limits; wait or upgrade your plan
