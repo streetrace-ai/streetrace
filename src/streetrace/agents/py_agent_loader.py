@@ -200,7 +200,7 @@ class PythonAgentLoader(AgentLoader):
 
         if isinstance(agent, str):
             known_agent = next(
-                (a for a in self.discover() if agent.name.lower() == agent.lower()),
+                (a for a in self.discover() if a.name.lower() == agent.lower()),
                 None,
             )
             if known_agent:

@@ -10,12 +10,12 @@
       "envFile": "${workspaceFolder}/.env",
       "args": [
         "--agent",
-        "generic",
+        "GenericCodingAssistant",
         "--model",
         "anthropic/claude-sonnet-4-20250514",
         "--verbose",
         "--prompt",
-        "Can you check open issues in streetrace-ai/streetrace GitHub repo and identify the most important one to work on right now?"
+        "Analyze issue  https://github.com/streetrace-ai/streetrace/issues/76, create the implementation plan, and execute the implementation"
       ],
       "justMyCode": false
     }
