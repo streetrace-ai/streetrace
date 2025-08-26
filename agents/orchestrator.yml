@@ -1,6 +1,6 @@
 version: 1
 kind: agent
-name: orchestrator
+name: Orchestrator
 description: A high-level orchestrator that plans tasks and delegates to specialized agents.
 
 instruction: |

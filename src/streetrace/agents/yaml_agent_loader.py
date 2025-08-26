@@ -297,7 +297,7 @@ class YamlAgentLoader(AgentLoader):
 
         if isinstance(agent, str):
             known_agent = next(
-                (a for a in self.discover() if a.name == str(agent)),
+                (a for a in self.discover() if a.name.lower() == agent.lower()),
                 None,
             )
             if known_agent:
