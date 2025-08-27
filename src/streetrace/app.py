@@ -235,7 +235,7 @@ def create_app(args: Args) -> Application:
     )
 
     # Create model factory
-    model_factory = ModelFactory(args.model, ui_bus)
+    model_factory = ModelFactory(args.model, ui_bus, args)
 
     # Create agent manager
     agent_manager = AgentManager(

@@ -115,7 +115,6 @@ class TestSessionManager:
         self,
         session_manager,
         json_session_service,
-        system_context,
         context_event,
     ):
         """Test get_or_create_session when session doesn't exist."""
@@ -143,9 +142,6 @@ class TestSessionManager:
         json_session_service.create_session = AsyncMock(return_value=new_session)
         json_session_service.append_event = AsyncMock()
 
-        # Mock system context
-        system_context.get_project_context.return_value = ["Test project context"]
-
         # Get or create the session
         result = await session_manager.get_or_create_session()
 
@@ -156,10 +152,6 @@ class TestSessionManager:
             session_id=session_manager.current_session_id,
             state={},
         )
-
-        # Verify that append_event was called with an event containing the project
-        # context
-        json_session_service.append_event.assert_called_once()
 
         # Verify the result
         assert result == session_with_context

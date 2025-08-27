@@ -4,7 +4,6 @@ This module provides the SystemContext class responsible for loading and managin
 system messages and project context from the configuration directory.
 """
 
-from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
@@ -89,66 +88,6 @@ class SystemContext:
 
         # Default system message
         return messages.SYSTEM
-
-    # TODO(krmrn42): pack permanent context in system message.
-    def get_project_context(self) -> Sequence[str]:
-        """Read and combine all context files (excluding system.md).
-
-        Returns:
-            A string containing the combined content of all context files.
-
-        """
-        if not self.config_dir.exists() or not self.config_dir.is_dir():
-            logger.info("Context directory '%s' not found.", self.config_dir)
-            return []
-
-        try:
-            context_files = [
-                f
-                for f in self.config_dir.iterdir()
-                if f.is_file()
-                and f.name[0] != "."
-                and f.name.lower()
-                not in [_SYSTEM_MD.lower(), _CONVERSATIONS_MD.lower()]
-            ]
-        except Exception as e:
-            log_msg = f"Error listing context directory '{self.config_dir}': {e}"
-            logger.exception(log_msg)
-            self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
-            return []
-
-        if not context_files:
-            logger.info("No additional context files found in '%s'.", self.config_dir)
-            return []
-
-        logger.info(
-            "Reading project context files: %s",
-            ", ".join(str(f) for f in context_files),
-        )
-
-        if context_files:  # Only display if files were actually found
-            self.ui_bus.dispatch_ui_update(
-                ui_events.Info(
-                    f"[Loading context from {len(context_files)} .streetrace/ file(s)]",
-                ),
-            )
-
-        combined_context: list[str] = []
-        for file_path in context_files:
-            try:
-                content = file_path.read_text(encoding="utf-8")
-                combined_context.append(content)
-                logger.debug("Read context from: %s", file_path)
-            except Exception as e:
-                log_msg = f"Error reading context file {file_path}: {e}"
-                logger.exception(log_msg)
-                self.ui_bus.dispatch_ui_update(ui_events.Error(log_msg))
-
-        logger.info(
-            "Successfully loaded project context from %d file(s).",
-            len(combined_context),
-        )
-        return combined_context
 
     def add_context_from_turn(
         self,

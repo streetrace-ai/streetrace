@@ -6,9 +6,11 @@ token consumption, and cost calculation based on model pricing. These components
 the reliable foundation for StreetRace's interactions with various LLM providers.
 """
 
+import os
 from collections.abc import AsyncGenerator, Iterable
 from typing import Any, override
 
+import litellm
 from google.adk.models.lite_llm import LiteLlm, LiteLLMClient
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
@@ -41,6 +43,39 @@ _RETRY_WAIT_INCREMENT = 30
 
 _RETRY_WAIT_MAX = 10 * 60  # 10 minutes
 """Maximum waiting time between retries in seconds (10 minutes)."""
+
+
+def setup_redis_caching() -> None:
+    """Configure Redis caching for LiteLLM.
+
+    Sets up Redis cache using localhost:6379 as default values.
+    Environment variables can override these defaults.
+    """
+    try:
+        from litellm.caching.caching import Cache, LiteLLMCacheType
+
+        redis_host = os.getenv("REDIS_HOST", "localhost")
+        redis_port = os.getenv("REDIS_PORT", "6379")
+        redis_password = os.getenv("REDIS_PASSWORD")
+        ttl = os.getenv("REDIS_TTL_SECONDS")
+
+        litellm.cache = Cache(
+            type=LiteLLMCacheType("redis"),
+            host=redis_host,
+            password=redis_password,
+            port=redis_port,
+            ttl=float(ttl) if ttl else None,
+        )
+        logger.info("Redis caching enabled: %s:%s", redis_host, redis_port)
+
+    except ImportError as e:
+        msg = "Redis caching requires 'redis' package. Install with: pip install redis"
+        logger.exception(msg)
+        raise ImportError(msg) from e
+    except Exception as e:
+        msg = f"Failed to setup Redis caching: {e}"
+        logger.exception(msg)
+        raise RuntimeError(msg) from e
 
 
 def _try_extract_usage(response: ModelResponse) -> Usage | None:

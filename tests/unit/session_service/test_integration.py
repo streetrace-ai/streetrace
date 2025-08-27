@@ -68,9 +68,6 @@ class TestSessionServiceIntegration:
                 assert session.app_name == real_args.effective_app_name
                 assert session.user_id == real_args.effective_user_id
 
-                # There should be context events
-                assert len(session.events) > 0
-
                 # Get the existing session
                 existing_session = await session_manager.get_current_session()
                 assert existing_session is not None
