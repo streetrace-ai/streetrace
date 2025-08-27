@@ -531,7 +531,9 @@ See [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/us
 
 #### Using AWS Credentials
 
-1. **Create IAM User and Policy for Bedrock**:
+1. **Create IAM User and Policy**:
+
+   **Note**: Policy example below is for information purposes only. Always check the [AWS documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/security-iam.html) for security best practices and make sure to follow the principle of least privilege when assigning permissions.
 
    ```bash
    # Create IAM user for Streetrace
@@ -576,7 +578,7 @@ See [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/us
      --policy-arn "arn:aws:iam::$ACCOUNT_ID:policy/StreetraceBedrockAccessPolicy"
    ```
 
-3. **Create Access Keys**:
+2. **Create Access Keys**:
 
    ```bash
    # Create access keys for the user
@@ -584,7 +586,7 @@ See [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/us
    # Save the AccessKeyId and SecretAccessKey from the output
    ```
 
-**Important Note:** Amazon highly recommends using short-term access keys when possible to make programmatic calls to AWS or to use the AWS Command Line Interface. Always check [AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/security-creds-programmatic-access.html#security-creds-alternatives-to-long-term-access-keys) for the latest security considerations and best practices.
+**Important Note:** AWS highly recommends using short-term access keys when possible to make programmatic calls to AWS or to use the AWS Command Line Interface. Always check [AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/security-creds-programmatic-access.html#security-creds-alternatives-to-long-term-access-keys) for the latest security considerations and best practices.
    
 ### Streetrace Configuration
 
