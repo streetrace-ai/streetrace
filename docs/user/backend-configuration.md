@@ -524,6 +524,9 @@ API Key. Then export the key in your environment:
 ```bash
 export AWS_BEARER_TOKEN_BEDROCK="your-bedrock-api-key"
 ```
+
+**Note:** You should already have an IAM principal set up with the proper permissions to use Amazon Bedrock.
+
 See [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) for further details and security considerations.
 
 #### Using AWS Credentials
