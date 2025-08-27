@@ -90,17 +90,12 @@ class TestSessionManagerEdgeCases:
         self,
         session_manager,
         json_session_service,
-        system_context,
     ):
         """Test get_or_create_session when session is None after creation."""
         # Setup mocks to simulate creating a session but then getting None when
         # retrieving it
         json_session_service.get_session = AsyncMock(side_effect=[None, None])
         json_session_service.create_session = AsyncMock(return_value=Mock(spec=Session))
-        json_session_service.append_event = AsyncMock()
-
-        # Mock system context
-        system_context.get_project_context.return_value = ["Test project context"]
 
         # Test the assertion error case
         with pytest.raises(AssertionError, match="session is None"):
@@ -108,7 +103,6 @@ class TestSessionManagerEdgeCases:
 
         # Verify the methods were called correctly
         json_session_service.create_session.assert_called_once()
-        json_session_service.append_event.assert_called_once()
         assert json_session_service.get_session.call_count == 2
 
     async def test_squash_turn_events_no_tools(

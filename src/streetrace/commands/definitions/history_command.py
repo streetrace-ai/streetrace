@@ -4,7 +4,6 @@ This module defines the HistoryCommand class which allows users to view
 the current conversation history in the interactive mode.
 """
 
-from collections.abc import Sequence
 from typing import TYPE_CHECKING, override
 
 if TYPE_CHECKING:
@@ -29,7 +28,6 @@ logger = get_logger(__name__)
 
 class _DisplayHistory(BaseModel):
     system_message: str | None
-    context: Sequence[str] | None
     session: "Session | None"
 
 
@@ -215,13 +213,11 @@ class HistoryCommand(Command):
         """Execute the history display action using the HistoryManager."""
         logger.info("Executing history command.")
         system = self.system_context.get_system_message()
-        context = self.system_context.get_project_context()
         session = await self.session_manager.get_current_session()
         if session:
             self.ui_bus.dispatch_ui_update(
                 _DisplayHistory(
                     system_message=system,
-                    context=context,
                     session=session,
                 ),
             )
