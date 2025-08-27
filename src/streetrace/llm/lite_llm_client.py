@@ -52,24 +52,20 @@ def setup_redis_caching() -> None:
     Environment variables can override these defaults.
     """
     try:
-        from litellm.caching.caching import Cache
+        from litellm.caching.caching import Cache, LiteLLMCacheType
 
         redis_host = os.getenv("REDIS_HOST", "localhost")
-        redis_port = int(os.getenv("REDIS_PORT", "6379"))
+        redis_port = os.getenv("REDIS_PORT", "6379")
         redis_password = os.getenv("REDIS_PASSWORD")
         ttl = os.getenv("REDIS_TTL_SECONDS")
 
-        cache_config = {
-            "type": "redis",
-            "host": redis_host,
-            "port": redis_port,
-            "ttl": ttl,
-        }
-
-        if redis_password:
-            cache_config["password"] = redis_password
-
-        litellm.cache = Cache(**cache_config)
+        litellm.cache = Cache(
+            type=LiteLLMCacheType("redis"),
+            host=redis_host,
+            password=redis_password,
+            port=redis_port,
+            ttl=float(ttl) if ttl else None,
+        )
         logger.info("Redis caching enabled: %s:%s", redis_host, redis_port)
 
     except ImportError as e:
