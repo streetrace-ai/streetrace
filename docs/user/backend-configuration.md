@@ -1,6 +1,6 @@
 # Backend Configuration Guide
 
-This guide explains how to configure Streetrace with various LLM backends. Streetrace uses LiteLLM to access different LLM providers through a unified interface.
+This guide explains how to configure Streetrace with various LLM backends. Streetrace uses LiteLLM to access different LLM providers through a unified interface. Visit [LiteLLM documentation](https://docs.litellm.ai/docs/providers) for further details.
 
 ## Overview
 
@@ -504,36 +504,31 @@ streetrace --model=claude-3-5-haiku-20241022
 streetrace --model=claude-3-opus-20240229
 ```
 
-## AWS Bedrock
+## Amazon Bedrock
 
 ### Backend Configuration
 
-There are two ways to access Bedrock models:
+There are **two options** to access Amazon Bedrock models:
 
 - Using the Bedrock API Key
-- Or using the standard AWS credentials
+- Or using the AWS credentials
 
-#### Using the Bedrock API Key
+**Request Model Access**:
+**Note:** Before using Amazon Bedrock, you must enable required models in your AWS Account. See [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-modify.html).  
 
-Create a Bedrock API Key by going to AWS Bedrock console -> API Keys, and export the
-API Key in your environment:
+#### Using the Amazon Bedrock API Key
+
+Create a Bedrock API Key by going to AWS Console -> Amazon Bedrock -> API Keys, and create the
+API Key. Then export the key in your environment:
 
 ```bash
-export AWS_BEARER_TOKEN_BEDROCK="bedrock-api-key"
+export AWS_BEARER_TOKEN_BEDROCK="your-bedrock-api-key"
 ```
+See [Amazon Bedrock documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) for further details and security considerations.
 
 #### Using AWS Credentials
 
-1. **AWS Account Setup**:
-
-   ```bash
-   # Install AWS CLI: https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html
-   # Configure with your credentials
-   aws configure
-   # Enter your AWS Access Key ID, Secret Access Key, region (us-east-1), and output format (json)
-   ```
-
-2. **Create IAM User and Policy for Bedrock**:
+1. **Create IAM User and Policy for Bedrock**:
 
    ```bash
    # Create IAM user for Streetrace
@@ -547,11 +542,16 @@ export AWS_BEARER_TOKEN_BEDROCK="bedrock-api-key"
        {
          "Effect": "Allow",
          "Action": [
-           "bedrock:InvokeModel",
-           "bedrock:InvokeModelWithResponseStream",
+           "bedrock:InvokeModel*",
+           "bedrock:InvokeModelWithResponseStream"
+         ],
+         "Resource": "arn:aws:bedrock:*:*:foundation-model/*"
+       },
+       {
+         "Effect": "Allow",
+         "Action": [
            "bedrock:ListFoundationModels",
-           "bedrock:GetFoundationModel",
-           "bedrock:GetModelInvocationLoggingConfiguration"
+           "bedrock:GetFoundationModel"
          ],
          "Resource": "*"
        }
@@ -561,7 +561,7 @@ export AWS_BEARER_TOKEN_BEDROCK="bedrock-api-key"
 
    # Create the policy
    aws iam create-policy \
-     --policy-name BedrockAccessPolicy \
+     --policy-name StreetraceBedrockAccessPolicy \
      --policy-document file://bedrock-policy.json
 
    # Get AWS account ID
@@ -570,7 +570,7 @@ export AWS_BEARER_TOKEN_BEDROCK="bedrock-api-key"
    # Attach policy to user
    aws iam attach-user-policy \
      --user-name streetrace-bedrock-user \
-     --policy-arn "arn:aws:iam::$ACCOUNT_ID:policy/BedrockAccessPolicy"
+     --policy-arn "arn:aws:iam::$ACCOUNT_ID:policy/StreetraceBedrockAccessPolicy"
    ```
 
 3. **Create Access Keys**:
@@ -581,45 +581,8 @@ export AWS_BEARER_TOKEN_BEDROCK="bedrock-api-key"
    # Save the AccessKeyId and SecretAccessKey from the output
    ```
 
-4. **Enable Bedrock Service and Request Model Access**:
-
-   ```bash
-   # List available foundation models
-   aws bedrock list-foundation-models --region us-east-1
-
-   # Check model access (some models require manual approval)
-   aws bedrock get-foundation-model \
-     --model-identifier anthropic.claude-3-sonnet-20240229-v1:0 \
-     --region us-east-1
-   ```
-
-5. **Request Model Access via Console**:
-
-   ```bash
-   echo "Visit AWS Bedrock Console to request model access:"
-   echo "https://console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess"
-   echo "Request access for:"
-   echo "- Anthropic Claude 3.5 Sonnet"
-   echo "- Anthropic Claude 3 Haiku"
-   echo "- Mistral Codestral"
-   ```
-
-6. **Test Bedrock Access**:
-
-   ```bash
-   # Test model invocation
-   aws bedrock-runtime invoke-model \
-     --model-id anthropic.claude-3-haiku-20240307-v1:0 \
-     --body '{"messages":[{"role":"user","content":"Hello"}],"max_tokens":100,"anthropic_version":"bedrock-2023-05-31"}' \
-     --content-type application/json \
-     --accept application/json \
-     response.json \
-     --region us-east-1
-
-   # Check the response
-   cat response.json
-   ```
-
+**Important Note:** Amazon highly recommends using short-term access keys when possible to make programmatic calls to AWS or to use the AWS Command Line Interface. Always check [AWS documentation](https://docs.aws.amazon.com/IAM/latest/UserGuide/security-creds-programmatic-access.html#security-creds-alternatives-to-long-term-access-keys) for the latest security considerations and best practices.
+   
 ### Streetrace Configuration
 
 Using AWS credentials:
@@ -631,6 +594,7 @@ export AWS_REGION_NAME="us-east-1"
 ```
 
 Using AWS CLI profile:
+**Note:** Check [AWS documentation](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-quickstart.html#getting-started-quickstart-new) on how to create credentials profile  
 
 ```bash
 export AWS_PROFILE_NAME="your-profile-name"
@@ -642,7 +606,7 @@ export AWS_REGION_NAME="us-east-1"
 ```bash
 # Claude models
 streetrace --model=bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
-streetrace --model=bedrock/anthropic.claude-3-haiku-20240307-v1:0
+streetrace --model=bedrock/us.anthropic.claude-3-7-sonnet-20250219-v1:0 # Using inference profile
 
 # Mistral models including Codestral
 streetrace --model=bedrock/mistral.mistral-7b-instruct-v0:2
@@ -655,7 +619,7 @@ streetrace --model=bedrock/mistral.codestral-22b-instruct-v1:0
 LLM error: litellm.BadRequestError: BedrockException - {"message":"Invocation of model ID anthropic.claude-sonnet-4-20250514-v1:0 with on-demand throughput isn’t supported. Retry your request with the ID or ARN of an inference profile that contains this model."}
 ```
 
-Go to AWS Bedrock console -> Cross-region inference -> copy the ARN of the model in your region and use it as `--model=bedrock/ARN` parameter when running Streetrace.
+Go to AWS Bedrock console -> Cross-region inference -> copy the CRIS ARN of the model in your region and use it as `--model=bedrock/ARN` parameter when running Streetrace.
 
 ## LiteLLM Proxy
 
