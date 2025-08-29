@@ -1,0 +1,1 @@
+"""Config inspector agent."""
