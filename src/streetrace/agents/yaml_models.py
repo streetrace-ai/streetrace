@@ -149,18 +149,36 @@ class AgentRef(BaseModel):
         return v
 
 
-class AdkConfig(BaseModel):
-    """ADK-specific configuration passed through to Agent constructor."""
+class AdkToolCode(BaseModel):
+    """ADK tool_code specification."""
 
-    generate_content_config: dict[str, Any] = Field(default_factory=dict)
-    disallow_transfer_to_parent: bool = False
-    disallow_transfer_to_peers: bool = False
-    include_contents: str = "default"
-    input_schema: str | None = None
-    output_schema: str | None = None
-    output_key: str | None = None
-    planner: str | None = None
-    code_executor: str | None = None
+    tool_code: str
+    fallback_instructions: str | None = None
+
+
+class AdkToolName(BaseModel):
+    """ADK tool_name specification."""
+
+    tool_name: str
+    fallback_instructions: str | None = None
+
+
+class AdkCode(BaseModel):
+    """ADK code specification."""
+
+    source: str
+
+
+class AdkCodeExecution(BaseModel):
+    """ADK code_execution specification."""
+
+    code_execution: AdkCode
+
+
+class AdkAgentRef(BaseModel):
+    """ADK agent reference by name."""
+
+    agent: str
 
 
 class InlineAgentSpec(BaseModel):
@@ -179,9 +197,30 @@ class YamlAgentSpec(BaseModel):
     model: str | None = None
     instruction: str | None = None
     global_instruction: str | None = None
-    adk: AdkConfig = Field(default_factory=AdkConfig)
-    tools: list[ToolSpec | AgentRef | InlineAgentSpec] = Field(default_factory=list)
-    sub_agents: list[AgentRef | InlineAgentSpec] = Field(default_factory=list)
+
+    # ADK fields
+    generate_content_config: dict[str, Any] = Field(default_factory=dict)
+    disallow_transfer_to_parent: bool = False
+    disallow_transfer_to_peers: bool = False
+    include_contents: str = "default"
+    input_schema: str | None = None
+    output_schema: str | None = None
+    output_key: str | None = None
+    planner: str | None = None
+    code_executor: str | None = None
+
+    tools: list[
+        ToolSpec
+        | AgentRef
+        | InlineAgentSpec
+        | AdkToolCode
+        | AdkToolName
+        | AdkCodeExecution
+        | AdkAgentRef
+    ] = Field(default_factory=list)
+    sub_agents: list[AgentRef | InlineAgentSpec | AdkAgentRef] = Field(
+        default_factory=list
+    )
 
     @field_validator("name")
     @classmethod
@@ -202,7 +241,7 @@ class YamlAgentSpec(BaseModel):
     def validate_output_schema_constraint(self) -> "YamlAgentSpec":
         """Validate ADK constraint: output_schema cannot coexist with tools."""
         # tools/sub_agents
-        if self.adk.output_schema and (self.tools or self.sub_agents):
+        if self.output_schema and (self.tools or self.sub_agents):
             msg = (
                 "Agent cannot have output_schema with tools or sub_agents "
                 "(ADK constraint)"

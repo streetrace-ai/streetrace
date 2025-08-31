@@ -7,7 +7,6 @@ import pytest
 from pydantic import ValidationError
 
 from streetrace.agents.yaml_models import (
-    AdkConfig,
     HttpServerConfig,
     McpToolSpec,
     StdioServerConfig,
@@ -268,7 +267,7 @@ class TestYamlAgentSpec:
             YamlAgentSpec(
                 name="test",
                 description="test",
-                adk=AdkConfig(output_schema="TestSchema"),
+                output_schema="TestSchema",
                 tools=[
                     ToolSpec(
                         streetrace=StreetraceToolSpec(module="test", function="test"),
@@ -284,7 +283,7 @@ class TestYamlAgentSpec:
             YamlAgentSpec(
                 name="test",
                 description="test",
-                adk=AdkConfig(output_schema="TestSchema"),
+                output_schema="TestSchema",
                 sub_agents=[
                     InlineAgentSpec(
                         agent=YamlAgentSpec(name="sub", description="sub"),
