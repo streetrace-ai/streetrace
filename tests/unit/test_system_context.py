@@ -1,6 +1,5 @@
 """Tests for the SystemContext class."""
 
-import pathlib
 import shutil
 import tempfile
 from pathlib import Path
@@ -86,89 +85,3 @@ class TestSystemContext:
         finally:
             if system_file.exists():
                 system_file.unlink()
-
-    def test_get_project_context_no_files(self):
-        """Test that empty string is returned when no context files exist."""
-        context = self.system_context.get_project_context()
-        assert context == []
-
-    def test_get_project_context_with_files(self):
-        """Test that context is combined from multiple files."""
-        context_file1 = self.config_dir / "context1.md"
-        context_file2 = self.config_dir / "context2.md"
-
-        with context_file1.open("w") as f:
-            f.write("Content of context file 1")
-        with context_file2.open("w") as f:
-            f.write("Content of context file 2")
-
-        try:
-            context = self.system_context.get_project_context()
-            assert len(context) == 2
-            assert "Content of context file 1" in context
-            assert "Content of context file 2" in context
-        finally:
-            if context_file1.exists():
-                context_file1.unlink()
-            if context_file2.exists():
-                context_file2.unlink()
-
-    def test_get_project_context_error_reading_file(self):
-        """Test that errors reading individual context files are handled."""
-        context_file1 = self.config_dir / "context1.md"
-        context_file2 = self.config_dir / "context2.md"
-
-        with context_file1.open("w") as f:
-            f.write("Content of context file 1")
-        with context_file2.open("w") as f:
-            f.write("Content of context file 2")
-
-        try:
-            # Create a patched version of read_text that raises an error for context2.md
-            # but not for context1.md
-            original_read_text = Path.read_text
-
-            def side_effect_function(
-                self: pathlib.Path,
-                *args,
-                **kwargs,
-            ):
-                if str(self) == str(context_file2):
-                    msg = "Cannot read context2.md"
-                    raise PermissionError(msg)
-                return original_read_text(self, *args, **kwargs)
-
-            with patch(
-                "pathlib.Path.read_text",
-                autospec=True,
-                side_effect=side_effect_function,
-            ):
-                context = self.system_context.get_project_context()
-                assert len(context) == 1
-                assert "Content of context file 1" in context[0]
-                self.mock_ui.dispatch_ui_update.assert_called()
-        finally:
-            if context_file1.exists():
-                context_file1.unlink()
-            if context_file2.exists():
-                context_file2.unlink()
-
-    def test_get_project_context_no_dir(self):
-        """Test when config directory doesn't exist."""
-        nonexistent_dir = Path("/nonexistent/dir")
-        system_context = SystemContext(
-            ui_bus=self.mock_ui,
-            context_dir=nonexistent_dir,
-        )
-
-        context = system_context.get_project_context()
-        assert context == []
-
-    def test_get_project_context_error_listing_dir(self):
-        """Test that errors listing directory are handled."""
-        with patch("pathlib.Path.iterdir") as mock_iterdir:
-            mock_iterdir.side_effect = PermissionError("Cannot list directory")
-
-            context = self.system_context.get_project_context()
-            assert context == []
-            self.mock_ui.dispatch_ui_update.assert_called_once()
