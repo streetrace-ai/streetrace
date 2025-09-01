@@ -1,8 +1,8 @@
 """Config inspector agent implementation.
 
-A safety-first agent that inspects Kubernetes and infrastructure-as-code changes before 
-they reach production. It helps prevent outages by validating configuration changes, analyzing past incidents, 
-and surfacing risks so engineers can deploy with confidence.
+A safety-first agent that inspects Kubernetes and infrastructure-as-code changes before
+they reach production. It helps prevent outages by validating configuration changes,
+analyzing past incidents, and surfacing risks so engineers can deploy with confidence.
 """
 
 import os
@@ -22,28 +22,20 @@ from streetrace.tools.tool_refs import (
     StreetraceToolRef,
 )
 
-# from phoenix.otel import register
-
 # Get with default value
-AWS_REGION = os.environ.get('AWS_REGION', 'us-east-1')
-AWS_PROFILE = os.environ.get('AWS_PROFILE', 'default')
-#PHOENIX_COLLECTOR_ENDPOINT = os.environ.get('PHOENIX_COLLECTOR_ENDPOINT', 'http://localhost:6006/v1/traces')
-
-# # Configure the Phoenix tracer
-# tracer_provider = register(
-#     project_name="streetrace_config_inspector_agent",
-#     endpoint=PHOENIX_COLLECTOR_ENDPOINT,
-#     auto_instrument=True
-# )
+AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")
+AWS_PROFILE = os.environ.get("AWS_PROFILE", "default")
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
 CONFIG_INSPECTOR_AGENT = """
-You are a Configuration Inspector Agent that prevents production outages by analyzing configuration changes before deployment.
+You are a Configuration Inspector Agent that prevents production outages by analyzing
+configuration changes before deployment.
 
 # ROLE
-Your mission is to validate configuration changes and identify risks using historical data and enterprise context.
+Your mission is to validate configuration changes and identify risks using historical
+data and enterprise context.
 
 # TONE
 Use formal technical and business tone.
@@ -51,7 +43,8 @@ Use formal technical and business tone.
 # WORKFLOW
 ## 1. Enterprise Context Metadata Setup
 - List tables to find enterprise metadata table
-- Query metadata using: table_name, key_condition_expression='AgentId' (case-sensitive), expression_attribute_values={':agentId': {'S': '<agent_id>'}}
+- Query metadata using: table_name, key_condition_expression='AgentId' (case-sensitive),
+expression_attribute_values={':agentId': {'S': '<agent_id>'}}
 
 ## 2. Configuration Analysis
 Perform these validations in order:
@@ -112,21 +105,22 @@ GITHUB_PERSONAL_ACCESS_TOKEN = (
 class ConfigInspectorAgent(StreetRaceAgent):
     """Config inspector agent that implements the StreetRaceAgent interface."""
 
-
     @override
     def get_agent_card(self) -> StreetRaceAgentCard:
         """Provide an A2A AgentCard."""
         skill = AgentSkill(
             id="config_inspector",
             name="Config Inspector",
-            description="A safety-first agent that inspects Kubernetes and infrastructure-as-code changes before they reach production.",
+            description="""A safety-first agent that inspects Kubernetes and
+                        infrastructure-as-code changes before they reach production.""",
             tags=["config", "kubernetes", "infrastructure", "safety"],
             examples=["Help me to analyse configuration changes in pull request."],
         )
 
         return StreetRaceAgentCard(
             name="config_inspector",
-            description="A safety-first agent that inspects Kubernetes and infrastructure-as-code changes before they reach production.",
+            description="""A safety-first agent that inspects Kubernetes and
+                        infrastructure-as-code changes before they reach production.""",
             version="0.2.0",
             defaultInputModes=["text"],
             defaultOutputModes=["text"],
@@ -157,7 +151,7 @@ class ConfigInspectorAgent(StreetRaceAgent):
                     args=["awslabs.dynamodb-mcp-server@latest"],
                     env={
                         "DDB-MCP-READONLY": "true",
-#                        "AWS_PROFILE": AWS_PROFILE,
+                        "AWS_PROFILE": AWS_PROFILE,
                         "AWS_REGION": AWS_REGION,
                         "FASTMCP_LOG_LEVEL": "ERROR",
                     },
@@ -215,7 +209,6 @@ class ConfigInspectorAgent(StreetRaceAgent):
             name=agent_card.name,
             model=model_factory.get_current_model(),
             description=agent_card.description,
-        #    global_instruction=system_context.get_system_message(),
             instruction=CONFIG_INSPECTOR_AGENT,
             tools=tools,
         )
