@@ -77,7 +77,6 @@ Provide structured output:
 
 # TOOLS
 - Use GitHub CLI tool to retrieve the pull requests information.
-- Use 'profile' parameter for Amazon or AWS services.
 - Use 'yamllint' or 'jsonlint' tools for syntax validation when required.
 - Use 'context7' tool to retrieve relevant documentation and best practices.
 - Use tool from enterprise metadata to retrieve relevant incidents.
