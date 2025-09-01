@@ -1,5 +1,6 @@
-CoderAgent  # unused class (src/streetrace/agents/coder/agent.py:99)
-GenericAgent  # unused class (src/streetrace/agents/example/agent.py:38)
+CoderAgent  # unused class (src/streetrace/agents/coder/agent.py:103)
+ConfigInspectorAgent  # unused class (src/streetrace/agents/config_inspector/agent.py:104)
+GenericAgent  # unused class (src/streetrace/agents/example/agent.py:42)
 AgentCard  # unused import (src/streetrace/agents/street_race_agent.py:8)
 _.get_extended_agent_card  # unused method (src/streetrace/agents/street_race_agent.py:27)
 _.process_request  # unused method (src/streetrace/agents/street_race_agent.py:66)

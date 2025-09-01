@@ -28,7 +28,7 @@ async with agent_manager.create_agent("Config inspector") as agent:
 
 ## Implementation
 
-The Hello World agent implements the `StreetRaceAgent` interface, which requires:
+The Config Inspector agent implements the `StreetRaceAgent` interface, which requires:
 
 1. `get_agent_card()` - Provides metadata about the agent
 2. `get_required_tools()` - Lists the tools needed by the agent
