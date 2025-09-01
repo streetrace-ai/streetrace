@@ -4,7 +4,7 @@ import importlib
 import sys
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from google.adk.tools.base_tool import BaseTool
@@ -57,17 +57,6 @@ def _is_base_toolset(tool: AnyTool | str) -> bool:
     return False
 
 
-def _as_mcp_toolset(tool: AnyTool | str) -> "MCPToolset | None":
-    if isinstance(tool, str):
-        return None
-    if "google.adk.tools.mcp_tool.mcp_toolset" in sys.modules and isinstance(
-        tool,
-        sys.modules["google.adk.tools.mcp_tool.mcp_toolset"].MCPToolset,
-    ):
-        return cast("MCPToolset", tool)
-    return None
-
-
 def _args_with_allowed_dirs(
     transport: StdioTransport,
     work_dir: Path,
@@ -112,18 +101,7 @@ class ToolProvider:
         """Initialize ToolProvider."""
         self.work_dir = work_dir
 
-    async def release_tools(self, tools: list[AdkTool]) -> None:
-        """Release all tools."""
-        # reversed is important to allow proper order of MCP sessions cleanup.
-        for tool in reversed(tools):
-            try:
-                mcp_tool = _as_mcp_toolset(tool)
-                if mcp_tool:
-                    await mcp_tool.close()
-            except:  # noqa: E722
-                logger.exception("Failed to close mcp_tool, ignoring cleanup failure")
-
-    async def get_tools(
+    def get_tools(
         self,
         tool_refs: Sequence[AnyTool],
     ) -> list[AdkTool]:

@@ -79,8 +79,12 @@ StreetRace follows a modular, layered architecture with clear separation of conc
 
 ## Code Style Guidelines
 
+When implementing code, produce a clean final implementation that is ready for testing
+and production.
+
 ### Python Standards
 
+- NEVER use the word Legacy.
 - Use type annotations for all functions
 - Provide docstrings for public symbols
 - Use imperative mood for the first line of docstrings.
@@ -100,6 +104,143 @@ StreetRace follows a modular, layered architecture with clear separation of conc
 - When raising exceptions, assign the message to a variable first.
 - Create small clearly isolated and testable modules with dependency injection.
 - Avoid boolean positional arguments in method definitions - use keyword-only arguments or enums instead.
+
+### Common Ruff Errors to Avoid
+
+**W293 - Blank line contains whitespace**
+
+- Remove all spaces/tabs from blank lines in docstrings and code
+- Use completely empty lines (no whitespace characters)
+- Example:
+
+  ```python
+  def func():
+      """Function description.
+
+      Args:  # <- This line should be completely empty above
+          param: Description
+      """
+  ```
+
+**E501 - Line too long (exceeds 88 characters)**
+
+- Break long lines at logical points (function parameters, operators)
+- Use parentheses for implicit line continuation
+- Example:
+
+  ```python
+  # Bad
+  msg = "This is a very long error message that exceeds the line length limit"
+
+  # Good
+  msg = (
+      "This is a very long error message that has been broken "
+      "into multiple lines for readability"
+  )
+  ```
+
+**ANN401 - Dynamically typed expressions (typing.Any)**
+
+- Avoid `Any` type annotations; use specific types instead
+- For Pydantic validators, use `object` or specific union types
+- Example:
+
+  ```python
+  # Bad
+  def validator(cls, v: Any) -> Any:
+
+  # Good
+  def validator(cls, v: object) -> str | dict[str, str]:
+  ```
+
+**ANN001 - Missing type annotation**
+
+- Always provide type annotations for function parameters
+- Use appropriate types from `typing` module when needed
+- Example:
+
+  ```python
+  # Bad
+  def process_tool(self, tool_spec) -> AnyTool:
+
+  # Good
+  def process_tool(self, tool_spec: ToolSpec) -> AnyTool:
+  ```
+
+**BLE001 - Do not catch blind exception**
+
+- Catch specific exception types instead of bare `except Exception:`
+- Use specific exceptions that are actually expected
+- Example:
+
+  ```python
+  # Bad
+  try:
+      risky_operation()
+  except Exception:
+      handle_error()
+
+  # Good
+  try:
+      risky_operation()
+  except (ValueError, ImportError) as e:
+      handle_specific_error(e)
+  ```
+
+**UP007 - Use X | Y for type annotations**
+
+- Use modern union syntax `X | Y` instead of `Union[X, Y]`
+- Available in Python 3.10+, which this project uses
+- Example:
+
+  ```python
+  # Bad
+  from typing import Union
+  ServerConfig = Union[StdioServerConfig, HttpServerConfig]
+
+  # Good
+  ServerConfig = StdioServerConfig | HttpServerConfig
+  ```
+
+**SIM117 - Use a single `with` statement with multiple contexts instead of nested `with` statements**
+
+- Combine multiple context managers into a single `with` statement using parentheses
+- This includes combining `patch.object()` calls and `pytest.raises()` in tests
+- Example:
+
+  ```python
+  # Bad
+  with patch.object(obj, "method1"):
+      with patch.object(obj, "method2"):
+          with pytest.raises(ValueError):
+              # test code
+              pass
+
+  # Good
+  with (
+      patch.object(obj, "method1"),
+      patch.object(obj, "method2"), 
+      pytest.raises(ValueError),
+  ):
+      # test code
+      pass
+  ```
+
+**ARG002 - Unused method argument**
+
+- Remove unused parameters from function/method signatures
+- In tests, only include fixture parameters that are actually used
+- Example:
+
+  ```python
+  # Bad
+  def test_something(self, used_fixture, unused_fixture):
+      assert used_fixture.value == "expected"
+
+  # Good  
+  def test_something(self, used_fixture):
+      assert used_fixture.value == "expected"
+  ```
 
 ### Naming Conventions
 

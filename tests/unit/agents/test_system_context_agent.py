@@ -6,13 +6,12 @@ import pytest
 from a2a.types import AgentCapabilities
 from google.adk.agents import BaseAgent
 
-from streetrace.agents.agent_loader import AgentInfo
 from streetrace.agents.agent_manager import AgentManager
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
-from streetrace.tools.tool_provider import AnyTool
+from streetrace.tools.tool_provider import AnyTool, ToolProvider
 
 
 class SystemContextCapturingAgent(StreetRaceAgent):
@@ -37,21 +36,21 @@ class SystemContextCapturingAgent(StreetRaceAgent):
             version="1.0.0",
         )
 
-    async def get_required_tools(self) -> list[str | AnyTool]:
+    async def get_required_tools(self) -> list[AnyTool]:
         """Return an empty list of required tools."""
         return []
 
     async def create_agent(
         self,
         model_factory: ModelFactory,  # noqa: ARG002
-        tools: list[AnyTool],  # noqa: ARG002
+        tool_provider: ToolProvider,  # noqa: ARG002
         system_context: SystemContext,
     ) -> BaseAgent:
         """Create a mock agent and capture the system_context.
 
         Args:
             model_factory: Factory for creating models
-            tools: List of tools to use
+            tool_provider: List of tools to use
             system_context: The system context to capture
 
         Returns:
@@ -87,22 +86,16 @@ async def test_create_agent_passes_system_context(
     )
 
     agent_card = SystemContextCapturingAgent().get_agent_card()
-    agent_info = AgentInfo(
-        agent_card=agent_card,
-        module=MagicMock(),
-    )
 
     # Act
-    with patch(
-        "streetrace.agents.agent_manager.get_available_agents",
-    ) as mock_get_agents:
-        mock_get_agents.return_value = [agent_info]
-
-        with patch("streetrace.agents.agent_manager.get_agent_impl") as mock_get_impl:
-            mock_get_impl.return_value = SystemContextCapturingAgent
-
-            async with agent_manager.create_agent(agent_card.name) as agent:
-                assert agent is not None
+    # Mock the python loader to return our test agent
+    with patch.object(
+        agent_manager.python_loader,
+        "load_agent",
+        return_value=SystemContextCapturingAgent(),
+    ):
+        async with agent_manager.create_agent(agent_card.name) as agent:
+            assert agent is not None
 
     # Assert
     assert SystemContextCapturingAgent.received_system_context is mock_system_context, (

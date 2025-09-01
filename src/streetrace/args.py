@@ -41,7 +41,9 @@ class Args(tap.TypedArgs):
     user_id: str | None = tap.arg(help="User ID for the session", default=None)
     session_id: str | None = tap.arg(help="Session ID to use (or create)", default=None)
     list_sessions: bool = tap.arg(help="List available sessions", default=False)
+    list_agents: bool = tap.arg(help="List available agents", default=False)
     version: bool = tap.arg(help="Show version and exit", default=False)
+    cache: bool = tap.arg(help="Enable Redis caching for LLM responses", default=False)
 
     @property
     def non_interactive_prompt(self) -> tuple[str | None, bool]:

@@ -1,7 +1,11 @@
 """Key agent information to be published to the A2A network."""
 
-from a2a.types import AgentCapabilities, AgentProvider, AgentSkill, SecurityScheme
+from typing import TYPE_CHECKING
+
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from a2a.types import AgentCapabilities, AgentProvider, AgentSkill, SecurityScheme
 
 # ruff: noqa: N815 for compatibility with a2a.types.AgentCard
 
@@ -13,7 +17,7 @@ class StreetRaceAgentCard(BaseModel):
     details. Infra details are provided by the infrastructure code.
     """
 
-    capabilities: AgentCapabilities
+    capabilities: "AgentCapabilities"
     """
     Optional capabilities supported by the agent.
     """
@@ -40,7 +44,7 @@ class StreetRaceAgentCard(BaseModel):
     """
     Human readable name of the agent.
     """
-    provider: AgentProvider | None = None
+    provider: "AgentProvider | None" = None
     """
     The service provider of the agent
     """
@@ -48,11 +52,11 @@ class StreetRaceAgentCard(BaseModel):
     """
     Security requirements for contacting the agent.
     """
-    securitySchemes: dict[str, SecurityScheme] | None = None
+    securitySchemes: dict[str, "SecurityScheme"] | None = None
     """
     Security scheme details used for authenticating with this agent.
     """
-    skills: list[AgentSkill]
+    skills: list["AgentSkill"]
     """
     Skills are a unit of capability that an agent can perform.
     """
@@ -65,3 +69,20 @@ class StreetRaceAgentCard(BaseModel):
     """
     The version of the agent - format is up to the provider.
     """
+
+
+# Try to rebuild the model with a2a.types imports
+try:
+    # Attempt to import specific types to resolve forward references
+    # These imports are needed at runtime for model_rebuild(), not just type checking
+    from a2a.types import (  # noqa: TC002
+        AgentCapabilities,
+        AgentProvider,
+        AgentSkill,
+        SecurityScheme,
+    )
+
+    StreetRaceAgentCard.model_rebuild()
+except ImportError:
+    # a2a.types not available, model will need to be rebuilt later
+    pass

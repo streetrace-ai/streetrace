@@ -25,6 +25,7 @@ from streetrace.commands.definitions import (
 )
 from streetrace.costs import UsageAndCost
 from streetrace.input_handler import InputContext, InputHandler
+from streetrace.list_agents import list_available_agents
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger, lazy_setup_litellm_logging
 from streetrace.preload_deps import preload_dependencies
@@ -101,7 +102,8 @@ class Application:
     async def _process_input(self, user_input: str) -> None:
         lazy_setup_litellm_logging()
         ctx: InputContext = InputContext(
-            user_input=user_input, agent_name=self.args.agent,
+            user_input=user_input,
+            agent_name=self.args.agent,
         )
         for handler in self.input_handling_pipeline:
             if handler.long_running:
@@ -233,7 +235,7 @@ def create_app(args: Args) -> Application:
     )
 
     # Create model factory
-    model_factory = ModelFactory(args.model, ui_bus)
+    model_factory = ModelFactory(args.model, ui_bus, args)
 
     # Create agent manager
     agent_manager = AgentManager(
@@ -281,6 +283,10 @@ def create_app(args: Args) -> Application:
         prompt_processor,
         workflow_supervisor,
     ]
+
+    if args.list_agents:
+        list_available_agents(agent_manager, ui_bus)
+        raise SystemExit
 
     # Initialize the Application
     return Application(

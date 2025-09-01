@@ -1,5 +1,6 @@
 """Agent manager for the StreetRace application."""
 
+import contextlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -9,19 +10,28 @@ if TYPE_CHECKING:
 
     from google.adk.agents import BaseAgent
 
-from streetrace.agents.agent_loader import (
-    AgentInfo,
-    get_agent_impl,
-    get_available_agents,
-)
+    from streetrace.agents.street_race_agent import StreetRaceAgent
+
+
+from streetrace.agents.base_agent_loader import AgentInfo
+from streetrace.agents.py_agent_loader import PythonAgentLoader
+from streetrace.agents.yaml_agent_loader import YamlAgentLoader
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
 from streetrace.system_context import SystemContext
-from streetrace.tools.tool_provider import AdkTool, ToolProvider
+from streetrace.tools.tool_provider import ToolProvider
 
 logger = get_logger(__name__)
 
 _DEFAULT_AGENT = "Streetrace_Coding_Agent"
+
+# Default search paths for agent autodiscovery
+DEFAULT_AGENT_PATHS = [
+    "./agents",
+    ".",  # for *.agent.y{a,}ml files
+    "~/.streetrace/agents",
+    "/etc/streetrace/agents",  # Unix only
+]
 
 
 class AgentManager:
@@ -55,29 +65,29 @@ class AgentManager:
         self.system_context = system_context
         self.work_dir = work_dir
 
-    def list_available_agents(self) -> list[AgentInfo]:
-        """List all available agents in the system.
+        # Initialize agent loaders
+        agent_paths = [
+            (self.work_dir / Path(p).expanduser()).resolve()
+            for p in DEFAULT_AGENT_PATHS
+        ]
+        self.yaml_loader = YamlAgentLoader(agent_paths)
+        self.python_loader = PythonAgentLoader(agent_paths)
+
+    def discover(self) -> list[AgentInfo]:
+        """Discover all known agents.
 
         Returns:
             List of AgentInfo objects representing available agents
 
         """
-        base_dirs = [
-            # ./agents/ (relative to working directory)
-            self.work_dir / "agents",
-            # /agents/ (relative to repo root)
-            Path(__file__).parent,
-        ]
-
-        return get_available_agents(base_dirs)
+        return self.yaml_loader.discover() + self.python_loader.discover()
 
     @asynccontextmanager
     async def create_agent(self, agent_name: str) -> "AsyncGenerator[BaseAgent, None]":
         """Create an agent with the specified name and model.
 
         Args:
-            agent_name: Name of the agent to create
-            model_name: Name of the model to use (default: "default")
+            agent_name: Name of the agent to create or path to YAML file
 
         Yields:
             The created agent
@@ -87,36 +97,31 @@ class AgentManager:
 
         """
         agent_name = _DEFAULT_AGENT if agent_name == "default" else agent_name
-        agent_info = next(
-            (
-                agent_info
-                for agent_info in self.list_available_agents()
-                if agent_info.agent_card.name == agent_name
-            ),
-            None,
-        )
-        if not agent_info:
-            msg = f"Specified agent not found ({agent_name})."
+
+        agent_definition: StreetRaceAgent | None = None
+
+        with contextlib.suppress(ValueError):
+            agent_definition = self.yaml_loader.load_agent(agent_name)
+
+        if not agent_definition:
+            with contextlib.suppress(ValueError):
+                agent_definition = self.python_loader.load_agent(agent_name)
+
+        if not agent_definition:
+            msg = (
+                f"Specified agent not found ({agent_name}). "
+                "Try --list-agents to see available agents."
+            )
             raise ValueError(msg)
-        agent_type = get_agent_impl(agent_info)
-        agent_definition = agent_type()
-        required_tools = await agent_definition.get_required_tools()
-        tools: list[AdkTool] = []
+
+        agent: BaseAgent | None = None
         try:
-            tools = await self.tool_provider.get_tools(required_tools)
             agent = await agent_definition.create_agent(
                 self.model_factory,
-                tools,
+                self.tool_provider,
                 self.system_context,
             )
             yield agent
-        except:
-            if tools:
-                try:
-                    await self.tool_provider.release_tools(tools)
-                except:  # noqa: E722
-                    logger.exception("Failed to release tools after previous exception")
-            raise
-        else:
-            if tools:
-                await self.tool_provider.release_tools(tools)
+        finally:
+            if agent:
+                await agent_definition.close(agent)

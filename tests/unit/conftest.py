@@ -192,7 +192,6 @@ def shallow_prompt_processor(mock_ui_bus, mock_args) -> PromptProcessor:
 def mock_tool_provider(work_dir) -> ToolProvider:
     tool_provider = Mock(spec=ToolProvider)
     tool_provider.work_dir = work_dir
-    tool_provider.release_tools = AsyncMock()
     return tool_provider
 
 
