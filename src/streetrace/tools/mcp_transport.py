@@ -16,6 +16,7 @@ class StdioTransport(BaseModel):
         description="MCP Server cwd, overrides allowed dirs.",
     )
     env: dict[str, str] | None = None
+    timeout: float | None = None
 
 
 class HttpTransport(BaseModel):

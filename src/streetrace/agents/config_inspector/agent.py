@@ -154,6 +154,7 @@ class ConfigInspectorAgent(StreetRaceAgent):
                         "AWS_REGION": AWS_REGION,
                         "FASTMCP_LOG_LEVEL": "ERROR",
                     },
+                    timeout=120,
                 ),
                 tools=[
                     "list_tables",

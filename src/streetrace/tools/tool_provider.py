@@ -272,7 +272,10 @@ class ToolProvider:
                 cwd=transport.cwd or self.work_dir,
                 env=transport.env,
             )
-            return StdioConnectionParams(server_params=server_params)
+            stdio_params = StdioConnectionParams(server_params=server_params)
+            if transport.timeout is not None:
+                stdio_params.timeout = transport.timeout
+            return stdio_params
 
         if transport.type == "http":
             # Build kwargs excluding None values for Pydantic validation
