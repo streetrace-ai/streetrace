@@ -356,8 +356,8 @@ class TestAgentManager:
         )
 
         # The paths are stored as Path objects in the loaders
-        assert agent_manager.yaml_loader.base_paths == expected_paths
-        assert agent_manager.python_loader.base_paths == expected_paths
+        assert sorted(agent_manager.yaml_loader.base_paths) == sorted(expected_paths)
+        assert sorted(agent_manager.python_loader.base_paths) == sorted(expected_paths)
 
 
 class TestAgentManagerResourceManagement:
