@@ -4,6 +4,7 @@ import json
 
 import boto3
 from boto3.exceptions import Boto3Error
+from botocore.exceptions import ClientError
 
 from streetrace.tools.definitions.result import OpResult, op_error, op_success
 
@@ -71,6 +72,13 @@ def kendra_query(
             output=json.dumps(output_data, indent=2),
         )
 
+    except ClientError as e:
+        error_code = e.response["Error"]["Code"]
+        error_message = e.response["Error"]["Message"]
+        return op_error(
+            tool_name="kendra_query",
+            error=f"AWS {error_code}: {error_message}",
+        )
     except Boto3Error as e:
         return op_error(
             tool_name="kendra_query",
