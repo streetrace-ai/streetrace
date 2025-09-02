@@ -66,10 +66,18 @@ class AgentManager:
         self.work_dir = work_dir
 
         # Initialize agent loaders
-        agent_paths = [
-            (self.work_dir / Path(p).expanduser()).resolve()
-            for p in DEFAULT_AGENT_PATHS
-        ]
+        agent_paths = list(
+            set(
+                [
+                    (self.work_dir / Path(p).expanduser()).resolve()
+                    for p in DEFAULT_AGENT_PATHS
+                ]
+                + [
+                    (Path.cwd() / Path(p).expanduser()).resolve()
+                    for p in DEFAULT_AGENT_PATHS
+                ],
+            ),
+        )
         self.yaml_loader = YamlAgentLoader(agent_paths)
         self.python_loader = PythonAgentLoader(agent_paths)
 
