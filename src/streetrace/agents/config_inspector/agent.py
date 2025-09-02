@@ -16,7 +16,7 @@ from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
 from streetrace.tools.mcp_transport import HttpTransport, StdioTransport
-from streetrace.tools.tool_provider import AdkTool, AnyTool
+from streetrace.tools.tool_provider import AnyTool, ToolProvider
 from streetrace.tools.tool_refs import (
     McpToolRef,
     StreetraceToolRef,
@@ -189,7 +189,7 @@ class ConfigInspectorAgent(StreetRaceAgent):
     async def create_agent(
         self,
         model_factory: ModelFactory,
-        tools: list[AdkTool],
+        tool_provider: ToolProvider,
         system_context: SystemContext,
     ) -> BaseAgent:
         """Create the Config Inspector agent.
@@ -209,5 +209,5 @@ class ConfigInspectorAgent(StreetRaceAgent):
             model=model_factory.get_current_model(),
             description=agent_card.description,
             instruction=CONFIG_INSPECTOR_AGENT,
-            tools=tools,
+            tools=tool_provider.get_tools(await self.get_required_tools()),
         )
