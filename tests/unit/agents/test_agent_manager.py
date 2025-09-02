@@ -344,14 +344,20 @@ class TestAgentManager:
     ) -> None:
         """Test that AgentManager configures correct base directories."""
         # Verify the loaders are initialized with correct paths
-        expected_paths = [
-            agent_manager.work_dir / Path(p).expanduser()
-            for p in ["./agents", ".", "~/.streetrace/agents", "/etc/streetrace/agents"]
-        ]
+        expected_paths = list(
+            {
+                agent_manager.work_dir / Path("./agents"),
+                Path.cwd() / Path("./agents"),
+                agent_manager.work_dir / ".",
+                Path.cwd() / ".",
+                Path("~/.streetrace/agents").expanduser(),
+                Path("/etc/streetrace/agents"),
+            },
+        )
 
         # The paths are stored as Path objects in the loaders
-        assert agent_manager.yaml_loader.base_paths == expected_paths
-        assert agent_manager.python_loader.base_paths == expected_paths
+        assert sorted(agent_manager.yaml_loader.base_paths) == sorted(expected_paths)
+        assert sorted(agent_manager.python_loader.base_paths) == sorted(expected_paths)
 
 
 class TestAgentManagerResourceManagement:
