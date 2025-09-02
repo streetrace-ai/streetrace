@@ -15,7 +15,7 @@ from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
-from streetrace.tools.mcp_transport import HttpTransport, StdioTransport
+from streetrace.tools.mcp_transport import StdioTransport
 from streetrace.tools.tool_provider import AnyTool, ToolProvider
 from streetrace.tools.tool_refs import (
     McpToolRef,
@@ -176,13 +176,6 @@ class ConfigInspectorAgent(StreetRaceAgent):
                     "list_allowed_directories",
                 ],
             ),
-            McpToolRef(
-                name="context7",
-                server=HttpTransport(
-                    url="https://mcp.context7.com/mcp",
-                    timeout=10,
-                ),
-            ),
         ]
         return list(tools)
 
@@ -197,7 +190,7 @@ class ConfigInspectorAgent(StreetRaceAgent):
 
         Args:
             model_factory: Factory for creating and managing LLM models
-            tools: List of tools to provide to the agent
+            tool_provider: Provider for managing and accessing tools
             system_context: System context containing project-level instructions
 
         Returns:
