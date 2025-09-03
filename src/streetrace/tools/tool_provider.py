@@ -14,7 +14,6 @@ if TYPE_CHECKING:
         StdioConnectionParams,
         StreamableHTTPConnectionParams,
     )
-    from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
 
 from streetrace.log import get_logger
 from streetrace.tools.mcp_transport import (
@@ -152,9 +151,11 @@ class ToolProvider:
             msg = f"Unknown tool reference type: {type(tool_ref)}"
             raise TypeError(msg)
 
-    def _process_mcp_tool_ref(self, tool_ref: McpToolRef) -> "Iterable[MCPToolset]":
+    def _process_mcp_tool_ref(self, tool_ref: McpToolRef) -> "Iterable[BaseToolset]":
         """Process an MCP tool reference."""
         from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset
+
+        from streetrace.tools.named_toolset import NamedToolset
 
         server_def = tool_ref.server
         # Handle server configuration
@@ -166,9 +167,12 @@ class ToolProvider:
         if tool_ref.tools and not any(t in ["*", "all"] for t in tool_ref.tools):
             tool_filter = tool_ref.tools
 
-        toolset = MCPToolset(
-            connection_params=connection_params,
-            tool_filter=tool_filter,
+        toolset = NamedToolset(
+            name=tool_ref.name,
+            original_toolset=MCPToolset(
+                connection_params=connection_params,
+                tool_filter=tool_filter,
+            ),
         )
 
         logger.debug(

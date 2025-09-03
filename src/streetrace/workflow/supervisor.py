@@ -9,6 +9,9 @@ from streetrace.input_handler import (
     InputHandler,
 )
 from streetrace.log import get_logger
+from streetrace.tools.named_toolset import (
+    ToolsetLifecycleError,
+)
 from streetrace.ui import ui_events
 from streetrace.ui.adk_event_renderer import Event
 from streetrace.ui.ui_bus import UiBus
@@ -112,13 +115,23 @@ class Supervisor(InputHandler):
                             final_response_text = f"Agent escalated: {error_msg}"
                         # Add more checks here if needed (e.g., specific error codes)
                         break  # Stop processing events once the final response is found
-        except:
-            self.ui_bus.dispatch_ui_update(
-                ui_events.Error(
-                    f"Error running agent '{agent_name}', see log for errors",
-                ),
+        except* ToolsetLifecycleError as lifecycle_err_group:
+            logger.exception(
+                "Failed to initialize or cleanup tools for agent '%s'",
+                agent_name,
             )
-            logger.exception("Error running agent")
+            err = next(
+                err
+                for err in lifecycle_err_group.exceptions
+                if isinstance(err, ToolsetLifecycleError)
+            )
+            self.ui_bus.dispatch_ui_update(ui_events.Error(f"'{agent_name}': {err}"))
+            raise
+        except* BaseException as err_group:
+            logger.exception("Error running agent '%s'", agent_name)
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Error(f"'{agent_name}': {err_group.exceptions[0]}"),
+            )
             raise
 
         # Add the agent's final message to the history

@@ -152,7 +152,8 @@ class Application:
             await self._process_input(user_input)
         except Exception as err:
             # in non-interactive we always leave the app when done or err.
-            self.ui_bus.dispatch_ui_update(ui_events.Error(str(err)))
+            # we don't update the UI state with error message, the handlers should
+            # do that properly.
             raise SystemExit(1) from err
         finally:
             raise SystemExit(return_code)
@@ -187,11 +188,7 @@ Enjoy the ride! 🏁
                 self.ui_bus.dispatch_ui_update(ui_events.Info("\nLeaving..."))
                 raise
             except Exception as loop_err:
-                self.ui_bus.dispatch_ui_update(
-                    ui_events.Error(
-                        f"\nAn unexpected error while processing input: {loop_err}",
-                    ),
-                )
+                # The error should be surfaced to the UI by underlying handlers.
                 logger.exception(
                     "Unexpected error in interactive loop.",
                     exc_info=loop_err,
