@@ -3,16 +3,11 @@
 import asyncio
 from typing import TYPE_CHECKING
 
+import httpx
 from google.adk.tools.base_toolset import BaseToolset
 from httpx import HTTPError
 
-try:
-    import httpx
-
-    ORIGINAL_HTTPX_INIT = httpx.HTTPError.__init__
-except ImportError:
-    httpx = None
-    ORIGINAL_HTTPX_INIT = None
+ORIGINAL_HTTPX_INIT = httpx.HTTPError.__init__
 
 if TYPE_CHECKING:
     from google.adk.agents.readonly_context import ReadonlyContext
@@ -33,24 +28,20 @@ class HttpErrorCapture:
 
     def start_capturing(self) -> None:
         """Start capturing HTTP errors by patching httpx constructors."""
-        if not httpx or not ORIGINAL_HTTPX_INIT:
-            return
-
         _capture = self
 
-        def patched_init(self: HTTPError, message: str, *args, **kwargs) -> None:
+        def patched_init(self: HTTPError, message: str, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+            """Patched constructor that captures the error message."""
             _capture.captured_errors.append(message)
 
             # Call original constructor
-            if ORIGINAL_HTTPX_INIT:
-                ORIGINAL_HTTPX_INIT(self, message, *args, **kwargs)
+            ORIGINAL_HTTPX_INIT(self, message, *args, **kwargs)
 
-        httpx.HTTPError.__init__ = patched_init
+        httpx.HTTPError.__init__ = patched_init  # type: ignore[method-assign]
 
     def stop_capturing(self) -> None:
         """Stop capturing HTTP errors by restoring original constructors."""
-        if httpx and ORIGINAL_HTTPX_INIT:
-            httpx.HTTPError.__init__ = ORIGINAL_HTTPX_INIT
+        httpx.HTTPError.__init__ = ORIGINAL_HTTPX_INIT  # type: ignore[method-assign]
 
     def get_recent_error(self) -> str | None:
         """Get the most recent captured HTTP error."""

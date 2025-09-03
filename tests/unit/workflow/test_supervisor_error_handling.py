@@ -42,7 +42,10 @@ class TestSupervisorErrorHandling:
         )
 
         # Act & Assert - Exception should propagate (fail-fast for core components)
-        with pytest.raises(Exception, match="Agent creation failed"):
+        with pytest.raises(
+            ExceptionGroup,
+            check=lambda eg: "Agent creation failed" in str(eg.exceptions[0]),
+        ):
             await shallow_supervisor.handle(input_context)
 
         # Assert session was retrieved but post_process was not called due to failure
@@ -107,7 +110,10 @@ class TestSupervisorErrorHandling:
         with (
             patch("google.adk.Runner", return_value=mock_runner),
             # Act & Assert - Exception should propagate (fail-fast for core components)
-            pytest.raises(Exception, match="Runner execution failed"),
+            pytest.raises(
+                ExceptionGroup,
+                check=lambda eg: "Runner execution failed" in str(eg.exceptions[0]),
+            ),
         ):
             await shallow_supervisor.handle(input_context)
 
@@ -250,7 +256,10 @@ class TestSupervisorErrorHandling:
         with (
             patch("google.adk.Runner", return_value=mock_runner),
             # Act & Assert - Exception should propagate (fail-fast for core components)
-            pytest.raises(Exception, match="Agent cleanup failed"),
+            pytest.raises(
+                ExceptionGroup,
+                check=lambda eg: "Agent cleanup failed" in str(eg.exceptions[0]),
+            ),
         ):
             await shallow_supervisor.handle(input_context)
 
@@ -279,7 +288,10 @@ class TestSupervisorErrorHandling:
                 side_effect=Exception("Runner init failed"),
             ),
             # Act & Assert - Exception should propagate (fail-fast for core components)
-            pytest.raises(Exception, match="Runner init failed"),
+            pytest.raises(
+                ExceptionGroup,
+                check=lambda eg: "Runner init failed" in str(eg.exceptions[0]),
+            ),
         ):
             await shallow_supervisor.handle(input_context)
 
