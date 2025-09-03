@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from streetrace.tools.mcp_transport import HttpTransport, StdioTransport
+from streetrace.tools.named_toolset import NamedToolset
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.tools.tool_refs import CallableToolRef, McpToolRef, StreetraceToolRef
 
@@ -38,7 +39,9 @@ class TestToolProviderToolRefProcessing:
             tools = list(tool_provider._process_mcp_tool_ref(tool_ref))  # noqa: SLF001
 
             assert len(tools) == 1
-            assert tools[0] == mock_toolset
+            toolset = tools[0]
+            assert isinstance(toolset, NamedToolset)
+            assert toolset._original_toolset == mock_toolset  # noqa: SLF001
             mock_toolset_class.assert_called_once()
 
             # Verify connection params and tool filter

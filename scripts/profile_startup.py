@@ -173,6 +173,7 @@ def measure_real_startup() -> float:
     result = None
     for cmd in commands_to_try:
         try:
+            start_time = time.perf_counter()
             result = subprocess.run(  # noqa: S603
                 cmd,
                 check=False,
