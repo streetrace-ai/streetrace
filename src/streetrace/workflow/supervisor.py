@@ -9,9 +9,6 @@ from streetrace.input_handler import (
     InputHandler,
 )
 from streetrace.log import get_logger
-from streetrace.tools.named_toolset import (
-    ToolsetLifecycleError,
-)
 from streetrace.ui import ui_events
 from streetrace.ui.adk_event_renderer import Event
 from streetrace.ui.ui_bus import UiBus
@@ -64,6 +61,10 @@ class Supervisor(InputHandler):
 
         """
         from google.genai import types as genai_types
+
+        from streetrace.tools.named_toolset import (
+            ToolsetLifecycleError,
+        )
 
         parts = [genai_types.Part.from_text(text=item) for item in ctx]
 
