@@ -1,5 +1,6 @@
 """Tests for the AgentManager class."""
 
+import re
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -518,3 +519,129 @@ class TestAgentManagerResourceManagement:
 
             # Verify that close was still called despite the exception
             mock_close.assert_awaited_once()
+
+
+class TestAgentManagerFilePath:
+    """Test cases for AgentManager file path functionality."""
+
+    async def test_create_agent_from_existing_file_path(
+        self,
+        agent_manager: AgentManager,
+        tmp_path: Path,
+    ) -> None:
+        """Test creating agent when agent_name is an existing file path."""
+        # Arrange
+        yaml_file = tmp_path / "test_agent.yaml"
+        yaml_file.write_text("test content")
+        mock_agent_instance = MockAgent("FileBasedAgent")
+
+        with (
+            patch.object(
+                agent_manager.yaml_loader,
+                "load_agent",
+                return_value=mock_agent_instance,
+            ) as mock_yaml_load,
+            patch.object(
+                agent_manager.python_loader,
+                "load_agent",
+                side_effect=ValueError("Should not be called"),
+            ) as mock_python_load,
+        ):
+            # Act
+            async with agent_manager.create_agent(str(yaml_file)) as agent:
+                # Assert
+                assert agent is not None
+                # Verify yaml_loader.load_agent was called with Path object
+                mock_yaml_load.assert_called_once_with(yaml_file)
+                # Verify python_loader.load_agent was not called
+                mock_python_load.assert_not_called()
+
+    async def test_create_agent_from_non_existing_file_path(
+        self,
+        agent_manager: AgentManager,
+        tmp_path: Path,
+    ) -> None:
+        """Test creating agent when agent_name is non-existing file path."""
+        # Arrange
+        non_existing_file = tmp_path / "non_existing.yaml"
+        # Ensure file does not exist
+        assert not non_existing_file.exists()
+
+        with (
+            patch.object(
+                agent_manager.yaml_loader,
+                "load_agent",
+                side_effect=ValueError("File not found"),
+            ),
+            patch.object(
+                agent_manager.python_loader,
+                "load_agent",
+                side_effect=ValueError("Agent not found"),
+            ),
+            pytest.raises(
+                ValueError,
+                match=(
+                    f"Specified agent not found "
+                    f"\\({re.escape(str(non_existing_file))}\\)"
+                ),
+            ),
+        ):
+            # Act & Assert
+            async with agent_manager.create_agent(str(non_existing_file)):
+                pass
+
+    async def test_create_agent_fallback_to_name_when_not_file(
+        self,
+        agent_manager: AgentManager,
+    ) -> None:
+        """Test that non-file agent_name falls back to name-based lookup."""
+        # Arrange
+        agent_name = "some_agent_name"
+        mock_agent_instance = MockAgent(agent_name)
+
+        with (
+            patch.object(
+                agent_manager.yaml_loader,
+                "load_agent",
+                return_value=mock_agent_instance,
+            ) as mock_yaml_load,
+            patch.object(
+                agent_manager.python_loader,
+                "load_agent",
+                side_effect=ValueError("Not found in python loader"),
+            ),
+        ):
+            # Act
+            async with agent_manager.create_agent(agent_name) as agent:
+                # Assert
+                assert agent is not None
+                # Verify yaml_loader.load_agent was called with string name
+                mock_yaml_load.assert_called_once_with(agent_name)
+
+    async def test_create_agent_error_message_includes_agent_name(
+        self,
+        agent_manager: AgentManager,
+    ) -> None:
+        """Test that error message includes the agent name when not found."""
+        # Arrange
+        agent_name = "non_existent_agent"
+
+        with (
+            patch.object(
+                agent_manager.yaml_loader,
+                "load_agent",
+                side_effect=ValueError("YAML loader error"),
+            ),
+            patch.object(
+                agent_manager.python_loader,
+                "load_agent",
+                side_effect=ValueError("Python loader error"),
+            ),
+            pytest.raises(
+                ValueError,
+                match=f"Specified agent not found \\({re.escape(agent_name)}\\)",
+            ),
+        ):
+            # Act & Assert
+            async with agent_manager.create_agent(agent_name):
+                pass
