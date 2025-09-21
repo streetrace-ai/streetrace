@@ -30,6 +30,7 @@ class InputContext:
     enrich_input: dict[str, str] = field(default_factory=dict)
     error: str | None = None
     agent_name: str | None = None
+    final_response: str | None = None
 
     def __iter__(self) -> Iterator[str]:
         """Iterate over the input context."""
@@ -42,6 +43,8 @@ class InputContext:
             yield f"{sep}Attached file `{k!s}`:\n\n{v}{sep}"
         if self.error:
             yield self.error
+        if self.final_response:
+            yield self.final_response
 
 
 class InputHandler(ABC):

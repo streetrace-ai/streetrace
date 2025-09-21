@@ -141,4 +141,6 @@ class Supervisor(InputHandler):
                 user_input=ctx.user_input,
                 original_session=session,
             )
+            # Store the final response in the context for output file handling
+            ctx.final_response = final_response_text
         return HANDLED_CONT

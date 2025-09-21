@@ -28,6 +28,7 @@ from streetrace.input_handler import InputContext, InputHandler
 from streetrace.list_agents import list_available_agents
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger, lazy_setup_litellm_logging
+from streetrace.output_file_handler import OutputFileHandler
 from streetrace.preload_deps import preload_dependencies
 from streetrace.prompt_processor import PromptProcessor
 from streetrace.session.session_manager import SessionManager
@@ -274,11 +275,15 @@ def create_app(args: Args) -> Application:
         HelpCommand(ui_bus=ui_bus, cmd_executor=cmd_executor),
     )
 
+    # Create OutputFileHandler if --out argument provided
+    output_file_handler = OutputFileHandler(args.out)
+
     input_handling_pipeline = [
         cmd_executor,
         BashHandler(work_dir=args.working_dir),
         prompt_processor,
         workflow_supervisor,
+        output_file_handler,  # Add at the end to write final response
     ]
 
     if args.list_agents:

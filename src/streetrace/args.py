@@ -44,6 +44,10 @@ class Args(tap.TypedArgs):
     list_agents: bool = tap.arg(help="List available agents", default=False)
     version: bool = tap.arg(help="Show version and exit", default=False)
     cache: bool = tap.arg(help="Enable Redis caching for LLM responses", default=False)
+    out: Path | None = tap.arg(
+        help="Output file path to save the final response",
+        default=None,
+    )
 
     @property
     def non_interactive_prompt(self) -> tuple[str | None, bool]:
