@@ -108,8 +108,16 @@ class AgentManager:
 
         agent_definition: StreetRaceAgent | None = None
 
-        with contextlib.suppress(ValueError):
-            agent_definition = self.yaml_loader.load_agent(agent_name)
+        # Check if agent_name is a file path first
+        agent_path = Path(agent_name)
+        if agent_path.is_file():
+            # Load directly from file
+            with contextlib.suppress(ValueError):
+                agent_definition = self.yaml_loader.load_agent(agent_path)
+        else:
+            # Try loading by name from discovered agents
+            with contextlib.suppress(ValueError):
+                agent_definition = self.yaml_loader.load_agent(agent_name)
 
         if not agent_definition:
             with contextlib.suppress(ValueError):
