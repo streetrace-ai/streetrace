@@ -179,6 +179,7 @@ class YamlAgentSpec(BaseModel):
     model: str | None = None
     instruction: str | None = None
     global_instruction: str | None = None
+    prompt: str | None = None
     adk: AdkConfig = Field(default_factory=AdkConfig)
     tools: list[ToolSpec | AgentRef | InlineAgentSpec] = Field(default_factory=list)
     sub_agents: list[AgentRef | InlineAgentSpec] = Field(default_factory=list)
@@ -192,7 +193,7 @@ class YamlAgentSpec(BaseModel):
             raise ValueError(msg)
         return v
 
-    @field_validator("instruction", "global_instruction", mode="before")
+    @field_validator("instruction", "global_instruction", "prompt", mode="before")
     @classmethod
     def expand_instruction_env_vars(cls, v: object) -> object:
         """Expand environment variables in instruction strings."""
