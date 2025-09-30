@@ -21,6 +21,7 @@ class TestConsoleUISpinnerIntegration:
             app_state=app_state,
             completer=mock_prompt_completer,
             ui_bus=mock_ui_bus,
+            skip_tty_check=True,
         )
 
     def test_spinner_initially_none(self, console_ui):

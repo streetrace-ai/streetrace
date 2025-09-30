@@ -151,9 +151,10 @@ def shallow_console_ui(
         app_state=app_state,
         completer=mock_prompt_completer,
         ui_bus=mock_ui_bus,
+        skip_tty_check=True,  # Skip TTY check in tests
     )
     console_ui.console = mock_rich_console
-    console_ui.prompt_session = mock_prompt_session
+    console_ui._prompt_session = mock_prompt_session  # noqa: SLF001
     return console_ui
 
 

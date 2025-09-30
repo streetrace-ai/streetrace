@@ -214,7 +214,14 @@ def create_app(args: Args) -> Application:
     prompt_completer = PromptCompleter([path_completer, command_completer])
 
     # Initialize ConsoleUI as soon as possible, so we can start showing something
-    ui = ConsoleUI(app_state=state, completer=prompt_completer, ui_bus=ui_bus)
+    # Pass non_interactive flag to avoid creating PromptSession in non-interactive mode
+    non_interactive = bool(args.prompt or args.arbitrary_prompt)
+    ui = ConsoleUI(
+        app_state=state,
+        completer=prompt_completer,
+        ui_bus=ui_bus,
+        non_interactive=non_interactive,
+    )
 
     context_dir = args.working_dir / CONTEXT_DIR
 

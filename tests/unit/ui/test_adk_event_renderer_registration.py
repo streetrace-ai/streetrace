@@ -180,6 +180,7 @@ class TestRendererRegistration:
             app_state=mock_app_state,
             completer=mock_completer,
             ui_bus=mock_ui_bus,
+            skip_tty_check=True,
         )
 
         # Mock the console.print method to verify calls
