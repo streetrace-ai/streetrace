@@ -28,6 +28,7 @@ class TestConsoleUIInitialization:
             app_state=app_state,
             completer=mock_completer,
             ui_bus=mock_ui_bus,
+            skip_tty_check=True,
         )
 
     def test_initialization_stores_dependencies(
@@ -41,6 +42,7 @@ class TestConsoleUIInitialization:
             app_state=app_state,
             completer=mock_completer,
             ui_bus=mock_ui_bus,
+            skip_tty_check=True,
         )
 
         assert console_ui.app_state is app_state
@@ -64,6 +66,7 @@ class TestConsoleUIInitialization:
             app_state=app_state,
             completer=mock_completer,
             ui_bus=mock_ui_bus,
+            skip_tty_check=True,
         )
 
         # Verify that the UI bus methods were called to register callbacks
@@ -79,8 +82,18 @@ class TestConsoleUIInitialization:
         mock_ui_bus,
     ):
         """Test that initialization creates a new Console instance."""
-        console_ui1 = ConsoleUI(app_state, mock_completer, mock_ui_bus)
-        console_ui2 = ConsoleUI(app_state, mock_completer, mock_ui_bus)
+        console_ui1 = ConsoleUI(
+            app_state,
+            mock_completer,
+            mock_ui_bus,
+            skip_tty_check=True,
+        )
+        console_ui2 = ConsoleUI(
+            app_state,
+            mock_completer,
+            mock_ui_bus,
+            skip_tty_check=True,
+        )
 
         # Each instance should have its own console
         assert console_ui1.console is not console_ui2.console
@@ -99,6 +112,7 @@ class TestConsoleUIInitialization:
             app_state=app_state,
             completer=mock_completer,
             ui_bus=mock_ui_bus,
+            skip_tty_check=True,
         )
         assert isinstance(console_ui, ConsoleUI)
 

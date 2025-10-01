@@ -38,6 +38,7 @@ class TestAgentLoading:
                 assert doc.get_name() == "test_agent"
                 assert doc.get_description() == "A test agent for unit tests"
                 assert doc.file_path == Path(f.name).resolve()
+                assert doc.spec.prompt is None  # No prompt in minimal spec
             finally:
                 Path(f.name).unlink()
 
@@ -72,6 +73,29 @@ class TestAgentLoading:
                 assert doc.spec.tools[0].streetrace is not None
                 assert isinstance(doc.spec.tools[1], ToolSpec)
                 assert doc.spec.tools[1].mcp is not None
+            finally:
+                Path(f.name).unlink()
+
+    def test_load_agent_with_prompt(self):
+        """Test loading agent with prompt field."""
+        agent_yaml = dedent("""
+            version: 1
+            kind: agent
+            name: prompt_agent
+            description: An agent with a default prompt
+            instruction: You are a helpful assistant
+            prompt: Analyze the provided code for best practices
+        """)
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
+            f.write(agent_yaml)
+            f.flush()
+
+            try:
+                doc = _load_agent_yaml(Path(f.name))
+                assert doc.get_name() == "prompt_agent"
+                assert doc.spec.instruction == "You are a helpful assistant"
+                assert doc.spec.prompt == "Analyze the provided code for best practices"
             finally:
                 Path(f.name).unlink()
 

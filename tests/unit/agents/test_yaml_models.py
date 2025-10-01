@@ -178,7 +178,7 @@ class TestToolSpecs:
 
     def test_tool_spec_validation_both(self):
         """Test that tool spec rejects both streetrace and mcp."""
-        with pytest.raises(ValidationError, match="cannot have both"):
+        with pytest.raises(ValidationError, match="cannot have both"):  # type: ignore[type-arg]
             ToolSpec(
                 streetrace=StreetraceToolSpec(module="test", function="test"),
                 mcp=McpToolSpec(
@@ -189,7 +189,7 @@ class TestToolSpecs:
 
     def test_tool_spec_validation_neither(self):
         """Test that tool spec requires one of streetrace or mcp."""
-        with pytest.raises(ValidationError, match="must have either"):
+        with pytest.raises(ValidationError, match="must have either"):  # type: ignore[type-arg]
             ToolSpec()
 
 
@@ -220,6 +220,7 @@ class TestYamlAgentSpec:
             model="gpt-4",
             instruction="You are a helpful assistant",
             global_instruction="Global system message",
+            prompt="Default user prompt for this agent",
             tools=[
                 ToolSpec(
                     streetrace=StreetraceToolSpec(
@@ -233,6 +234,7 @@ class TestYamlAgentSpec:
         assert spec.model == "gpt-4"
         assert spec.instruction == "You are a helpful assistant"
         assert spec.global_instruction == "Global system message"
+        assert spec.prompt == "Default user prompt for this agent"
         assert len(spec.tools) == 1
 
     def test_name_validation_valid(self):
@@ -246,25 +248,37 @@ class TestYamlAgentSpec:
         """Test invalid agent names."""
         invalid_names = ["", "123agent", "my-agent", "my.agent", "my agent"]
         for name in invalid_names:
-            with pytest.raises(ValidationError):
+            with pytest.raises(ValidationError):  # type: ignore[type-arg]
                 YamlAgentSpec(name=name, description="test")
 
     def test_instruction_env_expansion(self):
         """Test environment variable expansion in instructions."""
         os.environ["SYSTEM_MSG"] = "Be helpful"
+        os.environ["USER_PROMPT"] = "Analyze this code"
         spec = YamlAgentSpec(
             name="test",
             description="test",
             instruction="You are an assistant. ${SYSTEM_MSG:-Be nice}",
             global_instruction="${SYSTEM_MSG}",
+            prompt="${USER_PROMPT:-Review the code}",
         )
         assert spec.instruction is not None
         assert "Be helpful" in spec.instruction
         assert spec.global_instruction == "Be helpful"
+        assert spec.prompt == "Analyze this code"
+
+        # Test with default value when env var is not set
+        del os.environ["USER_PROMPT"]
+        spec2 = YamlAgentSpec(
+            name="test2",
+            description="test",
+            prompt="${USER_PROMPT:-Review the code}",
+        )
+        assert spec2.prompt == "Review the code"
 
     def test_output_schema_with_tools_validation(self):
         """Test that output_schema cannot coexist with tools."""
-        with pytest.raises(ValidationError, match="output_schema.*tools"):
+        with pytest.raises(ValidationError, match="output_schema.*tools"):  # type: ignore[type-arg]
             YamlAgentSpec(
                 name="test",
                 description="test",
@@ -280,7 +294,7 @@ class TestYamlAgentSpec:
         """Test that output_schema cannot coexist with sub_agents."""
         from streetrace.agents.yaml_models import InlineAgentSpec
 
-        with pytest.raises(ValidationError, match="output_schema.*sub_agents"):
+        with pytest.raises(ValidationError, match="output_schema.*sub_agents"):  # type: ignore[type-arg]
             YamlAgentSpec(
                 name="test",
                 description="test",

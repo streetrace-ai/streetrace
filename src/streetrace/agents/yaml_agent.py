@@ -111,3 +111,14 @@ class YamlAgent(StreetRaceAgent):
         """Deallocate all resources allocated by this agent."""
         if self._builder:
             await self._builder.close(agent_instance)
+
+    @property
+    @override
+    def user_prompt(self) -> str | None:
+        """Get the user prompt for this agent.
+
+        Returns:
+            User prompt from YAML specification or None if not defined
+
+        """
+        return self.agent_doc.spec.prompt

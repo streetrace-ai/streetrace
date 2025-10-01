@@ -20,6 +20,7 @@ class TestConsoleUIDisplayMethods:
             app_state=app_state,
             completer=mock_prompt_completer,
             ui_bus=mock_ui_bus,
+            skip_tty_check=True,
         )
 
     @patch("streetrace.ui.console_ui.render_using_registered_renderer")

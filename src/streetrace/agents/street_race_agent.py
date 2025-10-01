@@ -84,3 +84,13 @@ class StreetRaceAgent(ABC):
         """Send a message through the agent workflow."""
         msg = "This method should be implemented by subclasses."
         raise NotImplementedError(msg)
+
+    @property
+    def user_prompt(self) -> str | None:
+        """Get the user prompt for this agent.
+
+        Returns:
+            User prompt string or None if not defined
+
+        """
+        return None

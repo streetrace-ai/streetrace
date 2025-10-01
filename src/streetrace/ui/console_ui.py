@@ -112,6 +112,9 @@ class ConsoleUI:
         app_state: AppState,
         completer: Completer,
         ui_bus: UiBus,
+        *,
+        non_interactive: bool = False,
+        skip_tty_check: bool = False,
     ) -> None:
         """Initialize the ConsoleUI.
 
@@ -119,13 +122,49 @@ class ConsoleUI:
             app_state: App State container.
             completer: An instance of a prompt_toolkit Completer implementation.
             ui_bus: UI event bus to exchange messages with the UI.
+            non_interactive: If True, skip creating PromptSession (for --prompt mode).
+            skip_tty_check: If True, skip TTY check (for testing).
 
         """
         self.app_state = app_state
         self.console = Console()
         self.completer = completer  # Use the generic completer instance
+        self.ui_bus = ui_bus
+        self.spinner: StatusSpinner | None = None  # Initialize spinner attribute
+        self.non_interactive = non_interactive
+        self.skip_tty_check = skip_tty_check
 
-        # Create custom key bindings for intuitive Enter behavior
+        # Lazy initialization of prompt_session - will be created when first needed
+        self._prompt_session: PromptSession[Any] | None = None
+
+        ui_bus.on_ui_update_requested(self.display)
+        ui_bus.on_prompt_token_count_estimate(self._update_rprompt)
+
+    @property
+    def prompt_session(self) -> PromptSession[Any]:
+        """Get or create the prompt session lazily.
+
+        This avoids the 'Input is not a terminal' warning in non-interactive mode
+        by only creating the PromptSession when it's actually needed.
+        """
+        if self._prompt_session:
+            return self._prompt_session
+
+        if self.non_interactive:
+            msg = "PromptSession cannot be used in non-interactive mode"
+            raise RuntimeError(msg)
+
+        # Check if stdin is a TTY in interactive mode (unless in test mode)
+        if not self.skip_tty_check:
+            import sys
+
+            if not sys.stdin.isatty():
+                msg = (
+                    "Interactive mode requires a TTY. "
+                    "Use --prompt for non-interactive execution."
+                )
+                raise RuntimeError(msg)
+
         kb = KeyBindings()
 
         @kb.add("escape", "enter")  # Alt+Enter fallback (works everywhere)
@@ -138,17 +177,15 @@ class ConsoleUI:
             """Submit input on plain Enter."""
             event.current_buffer.validate_and_handle()
 
-        self.prompt_session: PromptSession[Any] = PromptSession(
+        # Create the prompt session
+        self._prompt_session = PromptSession(
             completer=self.completer,  # Pass the completer here
             complete_while_typing=True,  # Suggest completions proactively
             multiline=True,  # Keep buffer capable of real newlines
             key_bindings=kb,  # Custom key bindings for Enter behavior
         )
-        self.ui_bus = ui_bus
-        self.spinner: StatusSpinner | None = None  # Initialize spinner attribute
 
-        ui_bus.on_ui_update_requested(self.display)
-        ui_bus.on_prompt_token_count_estimate(self._update_rprompt)
+        return self._prompt_session
 
     def display(self, obj: Any) -> None:  # noqa: ANN401
         """Display an object using a known renderer."""
@@ -165,6 +202,11 @@ class ConsoleUI:
             self.spinner.update_state()
 
     def _update_rprompt(self, token_count: int | None) -> None:
+        # In non-interactive mode, don't update rprompt
+        if self.non_interactive:
+            return
+
+        # Access the prompt_session property to ensure it's created if needed
         if token_count is None:
             self.prompt_session.rprompt = None
         else:

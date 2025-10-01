@@ -21,6 +21,7 @@ from litellm.types.utils import ModelResponse, Usage
 from tenacity import (
     AsyncRetrying,
     TryAgain,
+    retry_if_exception_type,
     stop_after_attempt,
     wait_incrementing,
 )
@@ -264,6 +265,7 @@ class RetryingLiteLlm(LiteLlm):
                 increment=_RETRY_WAIT_INCREMENT,
                 max=_RETRY_WAIT_MAX,
             ),
+            retry=retry_if_exception_type(TryAgain),
             reraise=True,  # Re-raise the last exception when retries are exhausted
         )
 

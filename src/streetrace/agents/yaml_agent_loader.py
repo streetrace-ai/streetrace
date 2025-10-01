@@ -172,6 +172,7 @@ def _resolve_agent_refs(
         model=spec.model,
         instruction=spec.instruction,
         global_instruction=spec.global_instruction,
+        prompt=spec.prompt,
         adk=spec.adk,
         tools=resolved_agent_tools,
         sub_agents=resolved_sub_agents,
