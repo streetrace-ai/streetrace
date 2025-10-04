@@ -1,6 +1,6 @@
 # Hello World Agent
 
-This is a simple example agent that demonstrates the basic structure required for a StreetRace agent. It responds to user input with a greeting message that includes the input text.
+This is a simple example agent that demonstrates the basic structure required for a Streetrace agent. It responds to user input with a greeting message that includes the input text.
 
 ## Features
 
@@ -10,7 +10,7 @@ This is a simple example agent that demonstrates the basic structure required fo
 
 ## Usage
 
-This agent can be run directly or through the StreetRace agent system:
+This agent can be run directly or through the Streetrace agent system:
 
 ```python
 from agents.hello_world.agent import run_agent

@@ -1,4 +1,4 @@
-# StreetRace🚗💨 Development Container
+# Streetrace🚗💨 Development Container
 
 Provides a consistent development environment with Python 3.12, Poetry, and all project dependencies pre-configured.
 
