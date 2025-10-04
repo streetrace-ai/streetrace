@@ -1,4 +1,4 @@
-# StreetRace🚗💨 Development Container
+# Streetrace🚗💨 Development Container
 
 Provides a consistent development environment with Python 3.12, Poetry, and all project dependencies pre-configured.
 
@@ -12,7 +12,7 @@ Provides a consistent development environment with Python 3.12, Poetry, and all 
 
 ### GitHub Codespaces
 
-1. Go to [repository](https://github.com/krmrn42/street-race)
+1. Go to [repository](git@github.com:streetrace-ai/streetrace.git)
 2. Click "Code" → "Codespaces" → "Create codespace on main"
 
 ## Features

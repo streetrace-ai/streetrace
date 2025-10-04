@@ -1,45 +1,55 @@
-StreetRace is an open-source platform for engineering-native AI agents that
-integrate with your tools, automate your workflows, and evolve with your development
-process.
+# Streetrace🚗💨🏁
 
-StreetRace is a new kind of teammate: one that runs linters, generates modules,
-monitors builds, or triages bugs the way you taught it.
+Streetrace is an open-source AI agent framework that lives in your terminal and speaks your dev stack. Built by engineers who got tired of context-switching between AI chat windows and actual work.
 
-We believe the future of development is peer-to-peer: engineer + agent. And we’re
-building the rails.
+**What it does:** Runs in your project directory, reads your code, executes commands, and maintains conversation context across sessions.
 
-If you want to help define that future - contribute code, build agents, or shape the
-platform - GitHub’s open. Jump in, clone it, and make agents your own.
+**What makes it different:** No proprietary APIs, no vendor lock-in. Just a CLI tool that integrates with your existing workflow and respects your local environment.
 
-# StreetRace🚗💨
+```bash
+# Install and run in any project
+pipx install streetrace
+cd your-project
+streetrace --model=gpt-4o
 
-Unlike generic agent frameworks or black-box AI engineers, StreetRace is:
+# Agent reads @files, runs commands, remembers context
+> @src/main.py review this and run the tests
+```
 
-## 🔧 Built for Developers, by Developers
+### 🔧 Built for the Terminal
 
-StreetRace integrates directly with your tools like the CLI and code editor
-(Dockerized environments will follow). Agents can operate in the same terminal and shell
-as their human counterparts, enabling seamless, trusted collaboration.
+Streetrace integrates directly with your tools like the CLI and IDE. Agents can operate in the same terminal and shell as their human counterparts, enabling seamless, trusted collaboration. Your agent isn't a shadow coder, it’s a co-worker you can inspect, guide, and evolve.
 
-## 🤝 Engineering Peer, Not Replacement
+**Technical Features:**
+- `rich` and `prompt-toolkit` based UI with syntax highlighting
+- File path autocompletion with `@file` and `@folder` syntax
+- Built-in command system (`/history`, `/compact`, `/reset` etc.)
+- Session persistence with JSON storage and in-memory caching
+- Real-time event streaming and status updates
 
-Where Devin and other agents aim to replace engineers, StreetRace empowers
-engineers. Your agent isn't a shadow coder, it’s a co-worker you can inspect, guide, and
-evolve.
+### 🧩 Hackable by Design
 
-## 🧩 Opinionated, Yet Extensible
+Streetrace is powered by Google ADK, provides built-in A2A publishing, and integrates with any MCP tools. It comes with tools for building high-performing agents. Engineers can publish reusable agents to automate routine tasks like onboarding codebases, responding to CI failures, incident response automation, security analysis or generating service templates.
 
-Unlike CrewAI’s generic orchestration layer, StreetRace comes powered by ADK,
-provides built-in A2A publishing, and integrates with any MCP tools. It comes with
-battle-tested patterns and tools for building high-performing agents. Developers can
-publish reusable agents to automate routine tasks like onboarding codebases, responding
-to CI failures, or generating service templates.
+**Technical Features:**
+- YAML-based agent configuration with `AgentConfig` dataclasses
+- Python agent development with `StreetRaceAgent` base class
+- MCP protocol support (STDIO, HTTP, SSE transports)
+- Automatic agent discovery from `./agents/` directories
+- Tool reference system (`McpToolRef`, `StreetraceToolRef`, `CallableToolRef`)
+- `@tool` decorator for native Python function exposure
 
-## 🛠 Open, Flexible, and Secure
+### 🛠 Model Agnostic
 
-Model-agnostic and open-source, StreetRace supports everything from local Ollama
-models to cloud APIs. Agents run in the local environment, with controlled APIs (A2A
-endpoints), giving teams full control, observability, and security.
+Model-agnostic and open-source, Streetrace supports local Ollama models and integrates with cloud providers like OpenAI, Azure, Anthropic, Amazon Bedrock etc. Agents run in the local environment, with controlled APIs (A2A endpoints), giving teams full control, observability, and security.
+
+**Technical Features:**
+- LiteLLM integration supporting 100+ providers
+- `ModelFactory` pattern for provider-specific configuration
+- Local model support (Ollama, OpenAI-compatible servers)
+- Optional Redis caching for LLM responses
+- Token usage tracking and cost monitoring
+- Environment variable based authentication
 
 ## Getting Started
 
@@ -57,9 +67,18 @@ To get started:
 3. Click "Reopen in Container" when prompted
 4. Type `help` in the terminal to see all available commands and aliases
 
-### Installation and usage
+## Getting Started
 
-### Install from PyPI
+### Prerequisites
+
+- **Python 3.12+** (required)
+- **Poetry** (for development) - [Installation Guide](https://python-poetry.org/docs/#installation)
+- **Node.js** (optional, for MCP filesystem server)
+- **Redis** (optional, for LLM response caching)
+
+### Installation
+
+#### Install from PyPI
 
 Using pipx (follow [pipx installation instructions here](https://pipx.pypa.io/stable/installation/).)
 
@@ -79,21 +98,65 @@ The code is managed by `poetry`. If it's not already installed, follow the [poet
 install guide](https://python-poetry.org/docs/#installation).
 
 ```bash
-$ git clone git@github.com:krmrn42/street-race.git
-$ cd street-race
+$ git clone git@github.com:streetrace-ai/streetrace.git
+$ cd streetrace
 $ poetry install
-$ poetry run streetrace --model=$YOUR_FAVORITE_MODEL
+$ poetry run streetrace --model=$MODEL
 ```
 
-Where `$YOUR_FAVORITE_MODEL` is the
+Where `$MODEL` is the
 [LiteLLM provider route](https://docs.litellm.ai/docs/providers) (`provider/model`).
 
 ### Environment Setup
 
-Follow relevant LiteLLM guides to set up environment for a specific model. For example,
-for commercial providers, set your regular API key in the environment
-(`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, etc), or `OLLAMA_API_URL` for
-local Ollama models.
+#### Model Configuration
+
+Streetrace uses [LiteLLM](https://docs.litellm.ai/docs/providers) for model access. Set up your environment based on your chosen provider:
+
+For detailed backend configuration including Azure, Vertex AI, and other providers, see [Backend Configuration Guide](docs/user/backend-configuration.md).
+
+**Cloud Model Providers:**
+```bash
+# OpenAI
+export OPENAI_API_KEY="your-api-key"
+
+# Anthropic
+export ANTHROPIC_API_KEY="your-api-key"
+
+# Google
+export GEMINI_API_KEY="your-api-key"
+
+# AWS Bedrock
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+export AWS_REGION="us-east-1"
+```
+
+**Local Models:**
+```bash
+# Ollama
+export OLLAMA_API_URL="http://localhost:11434"
+
+# Local OpenAI-compatible server
+export OPENAI_API_BASE="http://localhost:8000/v1"
+```
+
+#### Optional: Redis Caching
+
+Enable LLM response caching with Redis:
+```bash
+# Install Redis
+brew install redis  # macOS
+sudo apt install redis-server  # Ubuntu
+
+# Start Redis
+redis-server
+
+# Use caching
+streetrace --cache --model=gpt-4o
+```
+
+For detailed Redis setup including Docker configuration and monitoring, see [Redis Caching Guide](docs/user/redis_caching.md).
 
 ### Usage
 
@@ -104,13 +167,13 @@ You can optionally supply a `--path` argument to provide a different working dir
 path.
 
 ```bash
-$ streetrace --model=$YOUR_FAVORITE_MODEL
-You: Type your prompt
+$ streetrace --model=$MODEL
+> Type your prompt
 ```
 
 #### Try in your environment
 
-Currently, StreetRace includes one coding agent with a model of your choise. This
+Currently, Streetrace includes one coding agent with a model of your choise. This
 agent is a capable software engineering agent that can work with your technology stack.
 
 You can add more context to your prompts in two ways:
@@ -122,267 +185,330 @@ You can add more context to your prompts in two ways:
    - `SYSTEM.md` is used as your system instruction.
    - Any other files under `.streetrace` are added as initial conversation messages.
 
-### Command Line Arguments
+## Command Line Reference
 
-#### Help Information
+### Core Arguments
 
-You can view all available command-line arguments and their descriptions:
+| Argument | Description | Default |
+|----------|-------------|----------|
+| `--model` | LiteLLM model identifier (required for prompts) | None |
+| `--agent` | Specific agent to use | `default` |
+| `--path` | Working directory for file operations | Current directory |
+| `--prompt` | Non-interactive prompt mode | None |
+| `--verbose` | Enable DEBUG logging | `false` |
+| `--cache` | Enable Redis caching for LLM responses | `false` |
+| `--out` | Output file path for final response | None |
 
-```bash
-$ streetrace --help
-# or
-$ streetrace -h
-```
+### Session Management
 
-This displays the complete usage information, including all available options and their descriptions.
+| Argument | Description | Default |
+|----------|-------------|----------|
+| `--app-name` | Application name for session | Working directory name |
+| `--user-id` | User ID for session | Detected from Git/GitHub/OS |
+| `--session-id` | Session ID to use/create | Timestamp-based |
+| `--list-sessions` | List available sessions | `false` |
 
-#### Version Information
+### Information Commands
 
-You can check the installed version of StreetRace:
+| Argument | Description |
+|----------|-------------|
+| `--help`, `-h` | Show help and exit |
+| `--version` | Show version and exit |
+| `--list-agents` | List available agents and exit |
 
-```bash
-$ streetrace --version
-StreetRace🚗💨 0.1.13
-```
-
-#### Session Management
-
-StreetRace supports persistence of conversations through sessions. You can specify:
-
-- `--app-name` - Application name for the session (defaults to the current working
-  directory name)
-- `--user-id` - User ID for the session (defaults to your GitHub username, Git username,
-  or OS username)
-- `--session-id` - Session ID to use or create (defaults to current timestamp)
-- `--list-sessions` - List all available sessions for the current app and user
-
-Examples:
+### Usage Examples
 
 ```bash
-# List all sessions for the current app and user
-$ streetrace --list-sessions
+# Basic usage
+streetrace --model=gpt-4o
 
-# Create or continue a specific session
-$ streetrace --session-id my-project-refactoring
+# Non-interactive mode
+streetrace --model=claude-3-sonnet --prompt "Analyze this codebase"
 
-# Work with a specific app name and user
-$ streetrace --app-name my-project --user-id john.doe --session-id feature-x
+# Specific working directory
+streetrace --model=gpt-4o --path /path/to/project
+
+# Session management
+streetrace --model=gpt-4o --session-id my-feature-work
+streetrace --list-sessions
+
+# With caching and output file
+streetrace --model=gpt-4o --cache --out response.md
+
+# Using local models
+streetrace --model=ollama/llama2
+streetrace --model=openai/gpt-4o  # if using local OpenAI-compatible server
 ```
 
-If no session arguments are provided, StreetRace will:
+### Interactive Mode Features
 
-1. Use the current working directory name as the app name
-2. Use your detected user identity as the user ID
-3. Create a new session with a timestamp-based ID
+#### Built-in Commands
 
-This allows you to maintain separate conversation contexts for different projects or
-tasks.
-
-If you want to work with the same agent/context across multiple runs, use the same
-session ID.
-
-#### Working with Files in Another Directory
-
-The `--path` argument allows you to specify a different working directory for all file
-operations:
-
-```bash
-$ streetrace --path /path/to/your/project
-```
-
-This path will be used as the working directory (work_dir) for all tools that interact
-with the file system, including:
-
-- `list_directory`
-- `read_file`
-- `write_file`
-- `find_in_files`
-- as a cwd in cli commands.
-
-This feature makes it easier to work with files in another location without changing
-your current directory.
-
-### Interactive Mode
-
-When run without `--prompt`, StreetRace enters interactive mode.
+| Command | Description |
+|---------|-------------|
+| `/help`, `/h` | Show all available commands |
+| `/exit`, `/quit`, `/bye` | Exit the session |
+| `/history` | Display conversation history |
+| `/compact` | Summarize history to reduce tokens |
+| `/reset` | Start a new conversation |
 
 #### Autocompletion
 
-- Type `@` followed by characters to autocomplete file or directory paths relative to
-  the working directory.
-- Type `/` at the beginning of the line to autocomplete available internal commands.
-
-#### Internal Commands
-
-These commands can be typed directly into the prompt (with autocompletion support):
-
-- `/help`: Display a list of all available commands with their descriptions.
-- `/exit`: Exit the interactive session.
-- `/quit`: Quit the interactive session.
-- `/history`: Display the conversation history.
-- `/compact`: Summarize conversation history to reduce token count.
-- `/reset`: Reset the current session, clearing the conversation history.
-
-For detailed information about the `/compact` command, see
-[docs/commands/compact.md](docs/commands/compact.md).
+- **File Paths**: `@` + TAB for file/directory completion
+- **Commands**: `/` + TAB for command completion
+- **Smart Context**: Contextual suggestions based on current directory
 
 ### Non-interactive Mode
 
-You can use the `--prompt` argument to run StreetRace in non-interactive mode:
+Execute single prompts and exit:
 
 ```bash
-$ streetrace --prompt "List all Python files in the current directory"
+# Direct prompt
+streetrace --model=gpt-4o --prompt "Analyze this codebase structure"
+
+# Positional arguments (with confirmation)
+streetrace --model=gpt-4o "refactor the main.py file"
+
+# Save output to file
+streetrace --model=gpt-4o --prompt "Generate API docs" --out docs.md
 ```
 
-This will execute the prompt once and exit, which is useful for scripting or one-off
-commands.
+## Agent System
 
-### CLI Command Safety
+### Agent Architecture
 
-StreetRace includes an experimental safety mechanism for CLI command execution.
-Each command requested by the AI is analyzed and categorized into one of three safety
-levels:
+Streetrace features a modular agent system with automatic discovery and lifecycle management:
 
-- **Safe**: Commands from a pre-configured safe list with only relative paths
-- **Ambiguous**: Commands not in the safe list but without obvious risks
-- **Risky**: Commands with absolute paths, directory traversal attempts, or potentially
-  dangerous operations
+- **Agent Discovery**: Automatic scanning of `./agents/` directories
+- **Lifecycle Management**: Proper resource allocation and cleanup
+- **Tool Integration**: Seamless integration with Streetrace and MCP tools
+- **YAML Configuration**: Declarative agent definitions
 
-Risky commands are blocked by default to prevent unintended filesystem operations or
-system changes. This adds a layer of protection when working with AI-suggested commands.
+### Built-in Agents
 
-The safety checker uses `bashlex` to parse and analyze commands and arguments, checking
-for:
+| Agent | Description | Capabilities |
+|-------|-------------|-------------|
+| `GenericCodingAssistant` | Full-stack development partner | File operations, CLI execution, MCP tools |
+| `coder` | Specialized coding agent | Code generation, refactoring, debugging |
+| `code_reviewer` | Code review specialist | Static analysis, best practices, security |
+| `config_inspector` | Configuration analysis | Config validation, optimization |
 
-- Command presence in a predefined safe list
-- Use of absolute vs. relative paths
-- Directory traversal attempts (using `..` to move outside the working directory)
+### Creating Custom Agents
 
-This helps ensure that StreetRace operates within the intended working directory and
-with known-safe commands.
+#### YAML Agent (Recommended)
 
-### Agent System
+Create `./agents/my_agent.yml`:
 
-StreetRace includes a modular agent system that allows for specialized agents to be
-discovered and used.
+```yaml
+version: 1
+kind: agent
+name: MyCustomAgent
+description: A specialized agent for specific tasks
 
-#### Agent Discovery
+instruction: |
+  You are a specialized agent that helps with...
+  
+  Key principles:
+  - Be precise and helpful
+  - Follow best practices
+  - Provide clear explanations
 
-The `list_agents` tool allows the assistant to discover available agents in the system.
-Agents are searched for in the following locations:
+tools:
+  - streetrace:
+      module: fs_tool
+      function: read_file
+  - streetrace:
+      module: fs_tool
+      function: write_file
+  - mcp:
+      name: filesystem
+      server:
+        type: stdio
+        command: npx
+        args: ["-y", "@modelcontextprotocol/server-filesystem"]
+      tools: ["edit_file", "move_file"]
+```
 
-- `./agents/` (relative to the current working directory)
-- `../../agents/` (relative to the src/streetrace/app.py)
+#### Python Agent (Advanced)
 
-#### Creating Custom Agents
-
-StreetRace supports two ways to create custom agents:
-
-##### Option 1: Using the StreetRaceAgent Interface (Recommended)
-
-1. Create a directory for your agent in the `./agents/` folder (e.g.,
-   `./agents/my_agent/`)
-2. Create an `agent.py` file with a class that inherits from `StreetRaceAgent` and
-   implements:
-
-   - `get_agent_card()` - Returns metadata about the agent (name, description,
-     capabilities)
-   - `get_required_tools()` - Returns a list of tools the agent needs
-   - `create_agent()` - Creates the actual agent instance with the provided model and
-     tools
-
-3. Add a `README.md` file with documentation for your agent
-
-Example agent class:
+Create `./agents/my_agent/agent.py`:
 
 ```python
 from streetrace.agents.street_race_agent import StreetRaceAgent
-from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
+from streetrace.tools.tool_refs import StreetraceToolRef
 
 class MyAgent(StreetRaceAgent):
-    def get_agent_card(self) -> StreetRaceAgentCard:
-        return StreetRaceAgentCard(
-            name="My Agent",
-            description="A specialized agent that does something useful",
-            capabilities=["capability1", "capability2"],
-        )
+    def get_agent_card(self):
+        return {
+            "name": "My Agent",
+            "description": "Specialized functionality",
+            "capabilities": ["analysis", "generation"]
+        }
 
-    async def get_required_tools(self) -> list[str]:
+    async def get_required_tools(self):
         return [
-            "streetrace:fs_tool::read_file",
-            "streetrace:fs_tool::write_file",
+            StreetraceToolRef(module="fs_tool", function="read_file"),
+            StreetraceToolRef(module="fs_tool", function="write_file"),
         ]
 
-    async def create_agent(self, model_factory, tools) -> BaseAgent:
+    async def create_agent(self, model_factory, tool_provider, system_context):
         model = model_factory.get_default_model()
+        tools = tool_provider.get_tools(await self.get_required_tools())
+        
         return Agent(
             name="My Agent",
             model=model,
-            description="My specialized agent",
-            instruction="You are a specialized agent that does X, Y, and Z...",
+            instruction="Your specialized instructions...",
             tools=tools,
         )
 ```
 
-##### Option 2: Legacy Approach (Basic Functions)
+## Tool System
 
-1. Create a directory for your agent in the `./agents/` folder (e.g.,
-   `./agents/my_agent/`)
-2. Create an `agent.py` file with these required functions:
+### Available Tool Types
 
-   - `get_agent_metadata()` - Returns a dictionary with `name` and `description` keys
-   - `run_agent(input_text: str)` - Implements the agent's functionality
+#### Streetrace Native Tools
+- **File System**: `read_file`, `write_file`, `list_directory`, `find_in_files`
+- **CLI Execution**: `execute_cli_command` with safety analysis
+- **Agent Management**: `list_agents`, `run_agent`
 
-3. Add a `README.md` file with documentation for your agent
+For comprehensive tool configuration and usage examples, see [Using Tools Guide](docs/user/using_tools.md).
 
-#### Running Agents
+#### MCP (Model Context Protocol) Integration
 
-The `run_agent` tool allows the primary assistant to execute specialized agents:
+Streetrace supports [MCP](https://modelcontextprotocol.io/docs/getting-started/intro) servers for extended functionality:
 
-```python
-run_agent(
-    agent_name="Hello World",
-    input_text="What files are in this directory?",
-    model_name="default"  # Optional, defaults to the default model
-)
+**Filesystem Server:**
+```yaml
+mcp:
+  name: filesystem
+  server:
+    type: stdio
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem"]
+  tools: ["edit_file", "move_file", "get_file_info"]
 ```
 
-This enables a hierarchical agent system where the primary StreetRace assistant can
-delegate tasks to specialized agents.
+**GitHub Integration:**
+```yaml
+mcp:
+  name: github
+  server:
+    type: http
+    url: https://api.githubcopilot.com/mcp/
+    headers:
+      Authorization: "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
+```
 
-#### Tool Configuration
+**Context7 Documentation:**
+```yaml
+mcp:
+  name: context7
+  server:
+    type: http
+    url: https://mcp.context7.com/mcp
+```
 
-Tools available to agents are defined in the `./tools/tools.yaml` configuration file.
-This file specifies:
+### MCP Transport Protocols
 
-- Tool name and description
-- Source type (e.g., 'local' for Python modules or 'mcp' for external services)
-- Module and function name for local tools
-- Whether the tool requires agent capabilities
+| Protocol | Use Case | Configuration |
+|----------|----------|---------------|
+| **STDIO** | Local executables | `command`, `args`, `cwd`, `env` |
+| **HTTP** | REST APIs | `url`, `headers`, `timeout` |
+| **SSE** | Server-Sent Events | `url`, `headers`, `timeout` |
 
-The configuration makes it easy to add, modify, or disable tools without changing code.
+### Tool Safety Framework
 
-#### Tool Discovery
+Streetrace includes intelligent CLI command analysis:
 
-The `list_tools` tool provides information about available tools that can be provided to
-agents. This helps the assistant understand what capabilities are available in the
-system.
+- **Safe Commands**: Pre-approved commands with relative paths
+- **Ambiguous Commands**: Unknown commands without obvious risks  
+- **Risky Commands**: Commands with absolute paths, sudo, system modification
 
-The tool returns a list of available tools with:
+**Safety Categories:**
+```python
+# Safe: Basic file operations with relative paths
+ls src/
+cat README.md
+git status
 
-- Tool name
-- Description
-- Whether the tool requires agent capabilities
+# Ambiguous: Unknown commands or unclear intent
+custom_script.py
+unknown_command
 
-## GitHub Workflow: Startup Profiling on PR
+# Risky: System modification or absolute paths
+sudo rm -rf /
+rm /etc/passwd
+dd if=/dev/zero of=/dev/sda
+```
 
-On every pull request, the project runs `scripts/profile_startup.py` on both the PR branch and the main branch and compares their startup performance. The results are posted as a comment on the PR for fast visibility and regression detection.
+## Project Context System
 
-How it works:
-- On each PR, the CI workflow:
-  - Checks out the PR branch, installs dependencies, and runs `profile_startup.py --json --save=profile_pr.json`.
-  - Checks out the main branch at HEAD, installs dependencies, and runs the profiler to `profile_main.json`.
-  - Uses `scripts/compare_profiles.py` to generate a Markdown summary showing deltas for startup performance key metrics.
-  - Posts the difference as a persistent, auto-updating PR comment.
+### Context Directory (`.streetrace/`)
 
-This ensures that startup regressions are caught early and remediation advice is visible to contributors and reviewers.
+Streetrace automatically loads project context from the `.streetrace/` directory:
+
+- **`SYSTEM.md`**: System instructions for the agent
+- **`project_overview.md`**: High-level project description
+- **`coding_guide.md`**: Project-specific coding standards
+- **Additional files**: Automatically included as conversation context
+
+### File Mentions
+
+Use `@` syntax to include files in your prompts:
+
+```bash
+# Include specific files
+@src/main.py @tests/test_main.py review these files
+
+# Include entire directories  
+@src/ @docs/ analyze the codebase structure
+
+# Autocomplete available
+@<TAB>  # Shows available files and directories
+```
+
+## Architecture
+
+### Agent System
+- **Discovery**: Filesystem-based agent loading from `./agents/` directories using Python module inspection
+- **Base Class**: `StreetRaceAgent` abstract class defining `create_agent()` and `get_required_tools()` methods
+- **Configuration**: YAML-based agent definitions parsed into `AgentConfig` dataclasses
+- **Lifecycle**: Agent instantiation, tool binding, and cleanup managed by `AgentManager`
+
+### Tool Integration
+- **Native Tools**: Python functions exposed via `@tool` decorator with type annotations
+- **MCP Protocol**: Model Context Protocol client supporting STDIO, HTTP, and SSE transports
+- **Tool References**: Typed references (`McpToolRef`, `StreetraceToolRef`, `CallableToolRef`) for tool resolution
+- **Provider Interface**: `ToolProvider` class handles tool discovery, instantiation, and method binding
+- **CLI Analysis**: `bashlex` AST parsing for command safety classification (safe/ambiguous/risky)
+
+### Session Persistence
+- **Storage**: JSON serialization with `SessionStore` interface and file-based implementation
+- **Isolation**: Sessions keyed by `(app_name, user_id, session_id)` tuple
+- **Caching**: In-memory session cache with lazy loading
+- **Compaction**: Token-aware conversation summarization using LLM-based compression
+
+### Terminal Interface
+- **UI Framework**: `rich` for rendering, `prompt-toolkit` for input handling
+- **Completion**: File path autocompletion using `pathlib` and fuzzy matching
+- **Parsing**: `@file` and `@folder` syntax parsing with path resolution
+- **Commands**: Built-in command dispatcher with `/` prefix routing
+
+### Security Model
+- **Command Parsing**: `bashlex` tokenization and AST analysis for risk assessment
+- **Path Validation**: Relative path enforcement and directory traversal prevention
+- **Sandboxing**: Working directory confinement with `os.chdir()` and path validation
+- **Command Filtering**: Configurable blocklist for high-risk operations
+
+### Model Abstraction
+- **LiteLLM**: Unified interface for 100+ LLM providers via HTTP APIs
+- **Factory Pattern**: `ModelFactory` class for provider-specific configuration
+- **Caching**: Optional Redis integration for response memoization
+- **Monitoring**: Token usage tracking and cost calculation per provider
+
+### Event Processing
+- **Supervisor Loop**: Main event loop handling user input and agent responses
+- **Event Types**: Structured events for UI updates, tool calls, and state changes
+- **Pipeline**: Modular input processing with configurable handler chain
+- **Error Handling**: Exception capture with user-facing error messages and recovery options
