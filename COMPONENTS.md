@@ -1,8 +1,8 @@
-# StreetRace🚗💨 Components Overview
+# Streetrace🚗💨 Components Overview
 
 ## ./workflow/supervisor.py
 
-Orchestrates the interaction loop between users and AI agents, forming the core workflow engine of StreetRace.
+Orchestrates the interaction loop between users and AI agents, forming the core workflow engine of Streetrace.
 
 The Supervisor class manages the complete execution lifecycle of AI agent interactions:
 
@@ -37,7 +37,7 @@ The Supervisor is instantiated in `app.py` with proper dependency injection of M
 
 ## ./agents/agent_manager.py
 
-Manages the discovery, validation, creation, and lifecycle of specialized AI agents in the StreetRace ecosystem.
+Manages the discovery, validation, creation, and lifecycle of specialized AI agents in the Streetrace ecosystem.
 
 The AgentManager class provides a comprehensive agent management system:
 
@@ -105,7 +105,7 @@ This architecture makes the UI layer extensible and testable, as components comm
 
 ## ./ui/console_ui.py
 
-Provides the terminal-based user interface for StreetRace, handling all user input and formatted output display with robust error handling.
+Provides the terminal-based user interface for Streetrace, handling all user input and formatted output display with robust error handling.
 
 The ConsoleUI class manages the terminal interaction experience:
 
@@ -223,7 +223,7 @@ The implementation carefully handles the complexities of:
 - Detailed token usage tracking for cost management
 - Graceful degradation during service disruptions
 
-These components form the foundation of StreetRace's reliable AI interaction capabilities, ensuring consistent behavior even when third-party services experience issues.
+These components form the foundation of Streetrace's reliable AI interaction capabilities, ensuring consistent behavior even when third-party services experience issues.
 
 Dependencies include Google's ADK framework for the base LLM interface and litellm for standardized access to multiple LLM providers.
 
@@ -233,7 +233,7 @@ Centralizes tool discovery and provisioning for AI agents, including MCP (Model 
 
 The ToolProvider class manages the entire tool ecosystem:
 
-1. **Tool Provisioning**: Collects and provides tools from multiple sources - static tools, StreetRace modules, and MCP servers.
+1. **Tool Provisioning**: Collects and provides tools from multiple sources - static tools, Streetrace modules, and MCP servers.
 
 2. **MCP Integration**: Creates and manages MCPToolset instances for external tool servers, with robust error handling for connection issues.
 
@@ -272,6 +272,74 @@ The implementation enforces strict security boundaries by:
 These tools are essential for enabling AI agents to understand and manipulate the local file system in a controlled manner, making them core to the project's ability to assist with coding tasks.
 
 The fs_tool module is wrapped by the ToolProvider in `app.py` and made available to AI agents through the Google ADK tool interface.
+
+## ./tools/definitions/
+
+Contains individual tool implementations that are exposed to AI agents through the tool system.
+
+The definitions directory includes specialized tool implementations:
+
+1. **File Operations**: `read_file.py`, `write_file.py`, `append_to_file.py` for file manipulation
+
+2. **Directory Operations**: `create_directory.py`, `list_directory.py` for directory management
+
+3. **Search Operations**: `find_in_files.py` for content discovery across the project
+
+4. **CLI Operations**: `cli.py` for command execution with safety checks
+
+5. **Agent Operations**: `list_agents.py`, `list_tools.py` for agent and tool discovery
+
+6. **Utility Functions**: `path_utils.py`, `result.py` for common operations and result handling
+
+Each tool implementation follows a consistent pattern with proper error handling, type annotations, and security validation. The tools are automatically discovered and made available to agents through the ToolProvider system.
+
+## ./agents/street_race_agent.py
+
+Defines the base interface and contract for all Streetrace agents, establishing the foundation for the agent ecosystem.
+
+The StreetRaceAgent abstract base class provides:
+
+1. **Agent Interface**: Defines the required methods that all agents must implement
+
+2. **Lifecycle Management**: Establishes patterns for agent creation and resource management
+
+3. **Tool Integration**: Provides the interface for agents to declare their required tools
+
+4. **Metadata Support**: Enables agents to provide descriptive information about their capabilities
+
+The implementation ensures consistency across all agent implementations while allowing for specialized functionality through inheritance and composition.
+
+## ./agents/yaml_agent_builder.py
+
+Enables declarative agent creation through YAML configuration files, supporting rapid agent development without Python coding.
+
+The YAML agent system provides:
+
+1. **Configuration Parsing**: Reads and validates YAML agent definitions
+
+2. **Agent Construction**: Builds functional agents from declarative specifications
+
+3. **Tool Binding**: Automatically resolves and binds tools specified in YAML configurations
+
+4. **Validation**: Ensures YAML configurations meet required schema and constraints
+
+This system enables non-programmers to create specialized agents by writing simple YAML files, democratizing agent development within the Streetrace ecosystem.
+
+## ./session/session_service.py
+
+Manages persistent conversation state and session lifecycle across application restarts.
+
+The session service provides:
+
+1. **Session Persistence**: Saves and restores conversation history between application runs
+
+2. **State Management**: Maintains session metadata and conversation context
+
+3. **Session Isolation**: Ensures proper separation between different user sessions
+
+4. **Cleanup Operations**: Manages session lifecycle and resource cleanup
+
+The implementation uses JSON serialization for cross-platform compatibility and supports multiple concurrent sessions for different users and projects.
 
 ## ./tools/cli_tool.py
 
@@ -349,7 +417,7 @@ The hide_args module offers a powerful decorator that:
 
 4. **Type Safety**: Preserves the original function's return type annotations for type checking compatibility.
 
-This utility is critical for the tool architecture in StreetRace, allowing tools to receive contextual information (like working directory) automatically without exposing these implementation details to the AI agent. It enables a clean interface while maintaining internal consistency.
+This utility is critical for the tool architecture in Streetrace, allowing tools to receive contextual information (like working directory) automatically without exposing these implementation details to the AI agent. It enables a clean interface while maintaining internal consistency.
 
 The implementation is used extensively in the ToolProvider to hide the working directory parameter from tool functions, ensuring tools always operate within the specified project directory without requiring the agent to specify this parameter explicitly.
 
@@ -365,9 +433,41 @@ The uid module implements a robust user identity resolution system that:
 
 3. **OS Identity**: Uses the operating system username as a final fallback method.
 
-This utility ensures that StreetRace can reliably identify users across different environments for session tracking and attribution, supporting the project's goal of maintaining coherent conversation history.
+This utility ensures that Streetrace can reliably identify users across different environments for session tracking and attribution, supporting the project's goal of maintaining coherent conversation history.
 
 The module is used in the Args class to determine the effective user ID for session management, providing a consistent way to identify sessions across different invocations of the application.
+## ./tools/tool_refs.py
+
+Provides typed references for tool resolution and binding in the agent system.
+
+The tool reference system includes:
+
+1. **Tool Reference Types**: Defines different types of tool references (MCP, StreetRace, Callable)
+
+2. **Resolution Logic**: Handles the mapping from tool references to actual tool implementations
+
+3. **Type Safety**: Ensures proper typing for tool references and their resolution
+
+4. **Validation**: Validates tool references before attempting resolution
+
+This system enables flexible tool binding while maintaining type safety and clear separation between different tool sources.
+
+## ./tools/mcp_transport.py
+
+Implements Model Context Protocol (MCP) transport layer for integrating external tool servers.
+
+The MCP transport system provides:
+
+1. **Protocol Implementation**: Handles MCP communication protocols (STDIO, HTTP, SSE)
+
+2. **Server Management**: Manages connections to external MCP servers
+
+3. **Tool Discovery**: Discovers and exposes tools from MCP servers
+
+4. **Error Handling**: Provides robust error handling for external service failures
+
+This component enables Streetrace to integrate with external tool ecosystems through the standardized MCP protocol.
+
 ---
 ### scripts/compare_profiles.py
 

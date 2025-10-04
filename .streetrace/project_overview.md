@@ -1,8 +1,8 @@
-# StreetRace🚗💨 Project Overview
+# Streetrace🚗💨 Project Overview
 
 ## Project Goal
 
-StreetRace🚗💨 is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software. It serves as a bridge between AI language models and local file systems, allowing AI to assist with coding tasks by reading, writing, and manipulating files in a local development environment.
+Streetrace🚗💨 is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software. It serves as a bridge between AI language models and local file systems, allowing AI to assist with coding tasks by reading, writing, and manipulating files in a local development environment.
 
 The primary goal is to create a seamless experience where developers can interact with an AI assistant that has access to necessary file system operations, enabling it to help write, modify, and debug code in real-time from the command line.
 
@@ -22,7 +22,7 @@ See COMPONENTS.md in repository rooot for core components structure.
 
 ## Integration
 
-StreetRace🚗💨 works with multiple AI providers:
+Streetrace🚗💨 works with multiple AI providers:
 
 - Anthropic's Anthropic (via `ANTHROPIC_API_KEY`)
 - Google's Gemini (via `GEMINI_API_KEY`)
@@ -39,7 +39,7 @@ The architecture (`src/streetrace/llm`) allows for easy switching between provid
 - Script execution and debugging
 - Documentation generation
 
-StreetRace🚗💨 bridges the gap between powerful AI language models and local development environments, making it easier for developers to leverage AI assistance in their daily workflow.
+Streetrace🚗💨 bridges the gap between powerful AI language models and local development environments, making it easier for developers to leverage AI assistance in their daily workflow.
 
 ## Instructions
 

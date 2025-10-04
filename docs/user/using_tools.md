@@ -1,4 +1,4 @@
-# Using Tools with StreetRace
+# Using Tools with Streetrace
 
 **Target Audience:** Senior Engineers  
 **Version:** 1.0  
@@ -10,7 +10,7 @@
 2. [Tool Architecture](#tool-architecture)
 3. [Tool Types](#tool-types)
 4. [Adding Tools to Agents](#adding-tools-to-agents)
-5. [StreetRace Internal Tools](#streetrace-internal-tools)
+5. [Streetrace Internal Tools](#streetrace-internal-tools)
 6. [Model Context Protocol (MCP) Tools](#model-context-protocol-mcp-tools)
 7. [Callable Tools](#callable-tools)
 8. [Tool Configuration Examples](#tool-configuration-examples)
@@ -20,12 +20,12 @@
 
 ## Overview
 
-StreetRace provides a powerful and extensible tool system that allows AI agents to interact with external systems, execute commands, and access various services. This manual covers how to configure, add, and manage tools for both Python-based agents and YAML-based agents.
+Streetrace provides a powerful and extensible tool system that allows AI agents to interact with external systems, execute commands, and access various services. This manual covers how to configure, add, and manage tools for both Python-based agents and YAML-based agents.
 
 The tool system is built around three core concepts:
 - **Tool References**: Structured descriptions of tools that agents need
 - **Tool Provider**: Centralized tool management and lifecycle handling
-- **Tool Types**: Different categories of tools (StreetRace internal, MCP, callable)
+- **Tool Types**: Different categories of tools (Streetrace internal, MCP, callable)
 
 ## Tool Architecture
 
@@ -46,9 +46,9 @@ The tool system is built around three core concepts:
 
 ## Tool Types
 
-StreetRace supports three types of tools:
+Streetrace supports three types of tools:
 
-### 1. StreetRace Internal Tools
+### 1. Streetrace Internal Tools
 - **Purpose**: Built-in tools for common operations (file I/O, CLI commands)
 - **Performance**: Fastest, no external dependencies
 - **Use Case**: Core functionality every agent needs
@@ -80,7 +80,7 @@ from streetrace.tools.mcp_transport import StdioTransport, HttpTransport
 class MyAgent(StreetRaceAgent):
     async def get_required_tools(self) -> list[AnyTool]:
         return [
-            # StreetRace internal tools
+            # Streetrace internal tools
             StreetraceToolRef(module="fs_tool", function="read_file"),
             StreetraceToolRef(module="cli_tool", function="execute_cli_command"),
             
@@ -109,7 +109,7 @@ kind: agent
 name: my_agent
 description: Example agent with various tools
 tools:
-  # StreetRace internal tools
+  # Streetrace internal tools
   - streetrace:
       module: fs_tool
       function: read_file
@@ -136,9 +136,9 @@ tools:
         timeout: 10
 ```
 
-## StreetRace Internal Tools
+## Streetrace Internal Tools
 
-StreetRace provides a comprehensive set of built-in tools optimized for common development tasks.
+Streetrace provides a comprehensive set of built-in tools optimized for common development tasks.
 
 ### File System Tools (`fs_tool` module)
 
@@ -203,7 +203,7 @@ tools:
 
 ## Model Context Protocol (MCP) Tools
 
-MCP tools connect to external services using standardized protocols. StreetRace supports three transport types:
+MCP tools connect to external services using standardized protocols. Streetrace supports three transport types:
 
 ### STDIO Transport
 For local command-line MCP servers:
@@ -561,7 +561,7 @@ if github_token:
 # Provide multiple tool options for similar functionality
 async def get_required_tools(self) -> list[AnyTool]:
     tools = [
-        # Always include StreetRace tools as fallback
+        # Always include Streetrace tools as fallback
         StreetraceToolRef(module="fs_tool", function="read_file"),
     ]
     
@@ -606,7 +606,7 @@ ValueError: Tool 'nonexistent_tool' not found
 ```
 **Solution:** Verify tool names and availability:
 ```python
-# Check available StreetRace tools
+# Check available Streetrace tools
 from streetrace.tools.definitions import list_tools
 available = list_tools(Path.cwd())
 
@@ -847,4 +847,4 @@ async def get_required_tools(self) -> list[AnyTool]:
     tools: ["read_file", "get_file_info"]  # No write operations
 ```
 
-This comprehensive manual provides senior engineers with everything needed to effectively configure and manage tools in StreetRace agents. The examples are based on real implementations from the codebase and follow established patterns for production use.
+This comprehensive manual provides senior engineers with everything needed to effectively configure and manage tools in Streetrace agents. The examples are based on real implementations from the codebase and follow established patterns for production use.

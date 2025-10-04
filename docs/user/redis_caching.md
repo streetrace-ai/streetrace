@@ -1,11 +1,11 @@
 # Redis Caching Setup
 
-StreetRace supports Redis caching for LLM responses to improve performance and reduce costs during local development. This guide shows how to set up and use Redis caching.
+Streetrace supports Redis caching for LLM responses to improve performance and reduce costs during local development. This guide shows how to set up and use Redis caching.
 
 ## Prerequisites
 
 - Docker installed on your system
-- StreetRace installed with dependencies
+- Streetrace installed with dependencies
 
 ## Quick Start
 
@@ -40,7 +40,7 @@ Available environment variables:
 
 ### 3. Enable Caching
 
-Run StreetRace with the `--cache` flag to enable Redis caching:
+Run Streetrace with the `--cache` flag to enable Redis caching:
 
 ```bash
 poetry run streetrace --model=your-model --cache
@@ -118,7 +118,7 @@ pip install redis
 ### Cache Not Working
 
 1. **Verify caching is enabled**: Check that you're using the `--cache` flag
-2. **Check logs**: StreetRace logs when Redis caching is enabled/disabled
+2. **Check logs**: Streetrace logs when Redis caching is enabled/disabled
 3. **Monitor Redis**: Use Redis Insight or CLI to verify keys are being created
 
 ## Production Considerations
