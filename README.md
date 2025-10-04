@@ -13,65 +13,43 @@ cd your-project
 streetrace --model=gpt-4o
 
 # Agent reads @files, runs commands, remembers context
-You: @src/main.py review this and run the tests
+> @src/main.py review this and run the tests
 ```
 
-## 🔧 Built for the Terminal
+### 🔧 Built for the Terminal
 
-Streetrace integrates directly with your tools like the CLI and code editor (Dockerized environments). Agents can operate in the same terminal and shell as their human counterparts, enabling seamless, trusted collaboration. Your agent isn't a shadow coder, it’s a co-worker you can inspect, guide, and evolve.
+Streetrace integrates directly with your tools like the CLI and IDE. Agents can operate in the same terminal and shell as their human counterparts, enabling seamless, trusted collaboration. Your agent isn't a shadow coder, it’s a co-worker you can inspect, guide, and evolve.
 
-## 🧩 Hackable by Design
+**Technical Features:**
+- `rich` and `prompt-toolkit` based UI with syntax highlighting
+- File path autocompletion with `@file` and `@folder` syntax
+- Built-in command system (`/history`, `/compact`, `/reset` etc.)
+- Session persistence with JSON storage and in-memory caching
+- Real-time event streaming and status updates
+
+### 🧩 Hackable by Design
 
 Streetrace is powered by Google ADK, provides built-in A2A publishing, and integrates with any MCP tools. It comes with tools for building high-performing agents. Engineers can publish reusable agents to automate routine tasks like onboarding codebases, responding to CI failures, incident response automation, security analysis or generating service templates.
 
-## 🛠 Model Agnostic
+**Technical Features:**
+- YAML-based agent configuration with `AgentConfig` dataclasses
+- Python agent development with `StreetRaceAgent` base class
+- MCP protocol support (STDIO, HTTP, SSE transports)
+- Automatic agent discovery from `./agents/` directories
+- Tool reference system (`McpToolRef`, `StreetraceToolRef`, `CallableToolRef`)
+- `@tool` decorator for native Python function exposure
+
+### 🛠 Model Agnostic
 
 Model-agnostic and open-source, Streetrace supports local Ollama models and integrates with cloud providers like OpenAI, Azure, Anthropic, Amazon Bedrock etc. Agents run in the local environment, with controlled APIs (A2A endpoints), giving teams full control, observability, and security.
 
-## Architecture
-
-### 🏗️ Modular Agent Architecture
-- **Agent Discovery System**: Automatic discovery of agents from `./agents/` directories
-- **Structured Agent Framework**: Base `StreetRaceAgent` class with standardized lifecycle management
-- **YAML Agent Configuration**: Declarative agent definitions with tools, instructions, and capabilities
-- **Agent Manager**: Centralized agent creation, lifecycle management, and resource cleanup
-
-### 🔧 Advanced Tool Integration
-- **Multi-Protocol Tool Support**: Native Streetrace tools, MCP (Model Context Protocol) servers, and callable functions
-- **Tool Provider System**: Unified interface for tool discovery, instantiation, and lifecycle management
-- **MCP Transport Layer**: Support for STDIO, HTTP, and SSE transport protocols
-- **CLI Safety Framework**: Intelligent command analysis with safe/ambiguous/risky categorization using `bashlex` parsing
-- **Tool Reference System**: Structured tool references (`McpToolRef`, `StreetraceToolRef`, `CallableToolRef`)
-
-### 💾 Session Management
-- **Persistent Sessions**: JSON-based session storage with in-memory caching
-- **Multi-User Support**: Session isolation by app name, user ID, and session ID
-- **Event Streaming**: Real-time event processing with ADK Runner integration
-- **Session Compaction**: Intelligent conversation history summarization to manage token limits
-
-### 🎯 Interactive Experience
-- **Rich Terminal UI**: Built on `rich` and `prompt-toolkit` with syntax highlighting and autocompletion
-- **File Mention System**: `@file` and `@folder` syntax for context inclusion
-- **Command System**: Built-in commands (`/help`, `/history`, `/compact`, `/reset`, `/exit`)
-- **Real-time Status**: Live status updates during long-running operations
-
-### 🔒 Security & Safety
-- **CLI Command Analysis**: Bashlex-powered command parsing with security categorization
-- **Path Traversal Protection**: Detection and prevention of directory escape attempts
-- **Risky Command Blocking**: Configurable blocking of potentially dangerous operations
-- **Working Directory Isolation**: All operations scoped to specified working directory
-
-### 🌐 Model & Provider Support
-- **LiteLLM Integration**: Support for 100+ LLM providers (OpenAI, Anthropic, Google, Ollama, etc.)
-- **Model Factory Pattern**: Centralized model configuration and instantiation
-- **Caching Support**: Optional Redis caching for LLM responses
-- **Usage Tracking**: Built-in cost and token usage monitoring
-
-### 🔄 Workflow Engine
-- **Supervisor Pattern**: Orchestrated user-agent interaction loops
-- **Event-Driven Architecture**: Reactive UI updates based on agent events
-- **Pipeline Processing**: Modular input handling pipeline with configurable handlers
-- **Error Recovery**: Graceful error handling with user feedback
+**Technical Features:**
+- LiteLLM integration supporting 100+ providers
+- `ModelFactory` pattern for provider-specific configuration
+- Local model support (Ollama, OpenAI-compatible servers)
+- Optional Redis caching for LLM responses
+- Token usage tracking and cost monitoring
+- Environment variable based authentication
 
 ## Getting Started
 
@@ -190,7 +168,7 @@ path.
 
 ```bash
 $ streetrace --model=$MODEL
-You: Type your prompt
+> Type your prompt
 ```
 
 #### Try in your environment
@@ -261,8 +239,6 @@ streetrace --model=gpt-4o --cache --out response.md
 streetrace --model=ollama/llama2
 streetrace --model=openai/gpt-4o  # if using local OpenAI-compatible server
 ```
-
-
 
 ### Interactive Mode Features
 
@@ -492,29 +468,47 @@ Use `@` syntax to include files in your prompts:
 @<TAB>  # Shows available files and directories
 ```
 
-## Development & CI
+## Architecture
 
-### Quality Assurance
+### Agent System
+- **Discovery**: Filesystem-based agent loading from `./agents/` directories using Python module inspection
+- **Base Class**: `StreetRaceAgent` abstract class defining `create_agent()` and `get_required_tools()` methods
+- **Configuration**: YAML-based agent definitions parsed into `AgentConfig` dataclasses
+- **Lifecycle**: Agent instantiation, tool binding, and cleanup managed by `AgentManager`
 
-- **Automated Testing**: Comprehensive test suite with pytest
-- **Code Quality**: Ruff linting, MyPy type checking, Bandit security analysis
-- **Performance Monitoring**: Startup profiling on every PR
-- **Coverage Tracking**: Code coverage reporting
+### Tool Integration
+- **Native Tools**: Python functions exposed via `@tool` decorator with type annotations
+- **MCP Protocol**: Model Context Protocol client supporting STDIO, HTTP, and SSE transports
+- **Tool References**: Typed references (`McpToolRef`, `StreetraceToolRef`, `CallableToolRef`) for tool resolution
+- **Provider Interface**: `ToolProvider` class handles tool discovery, instantiation, and method binding
+- **CLI Analysis**: `bashlex` AST parsing for command safety classification (safe/ambiguous/risky)
 
-### GitHub Workflows
+### Session Persistence
+- **Storage**: JSON serialization with `SessionStore` interface and file-based implementation
+- **Isolation**: Sessions keyed by `(app_name, user_id, session_id)` tuple
+- **Caching**: In-memory session cache with lazy loading
+- **Compaction**: Token-aware conversation summarization using LLM-based compression
 
-- **Quality Checks**: Automated linting, testing, and security scanning
-- **Startup Profiling**: Performance regression detection on PRs
-- **Release Automation**: Automated versioning and PyPI publishing
-- **Code Review**: Automated code review suggestions
+### Terminal Interface
+- **UI Framework**: `rich` for rendering, `prompt-toolkit` for input handling
+- **Completion**: File path autocompletion using `pathlib` and fuzzy matching
+- **Parsing**: `@file` and `@folder` syntax parsing with path resolution
+- **Commands**: Built-in command dispatcher with `/` prefix routing
 
-### Development Environment
+### Security Model
+- **Command Parsing**: `bashlex` tokenization and AST analysis for risk assessment
+- **Path Validation**: Relative path enforcement and directory traversal prevention
+- **Sandboxing**: Working directory confinement with `os.chdir()` and path validation
+- **Command Filtering**: Configurable blocklist for high-risk operations
 
-Use the provided Dev Container for the best experience:
+### Model Abstraction
+- **LiteLLM**: Unified interface for 100+ LLM providers via HTTP APIs
+- **Factory Pattern**: `ModelFactory` class for provider-specific configuration
+- **Caching**: Optional Redis integration for response memoization
+- **Monitoring**: Token usage tracking and cost calculation per provider
 
-```bash
-# VS Code with Dev Containers extension
-# 1. Open project in VS Code
-# 2. Click "Reopen in Container" when prompted
-# 3. Use built-in shortcuts: gs, pi, check, help
-```
+### Event Processing
+- **Supervisor Loop**: Main event loop handling user input and agent responses
+- **Event Types**: Structured events for UI updates, tool calls, and state changes
+- **Pipeline**: Modular input processing with configurable handler chain
+- **Error Handling**: Exception capture with user-facing error messages and recovery options
