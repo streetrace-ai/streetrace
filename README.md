@@ -120,13 +120,13 @@ The code is managed by `poetry`. If it's not already installed, follow the [poet
 install guide](https://python-poetry.org/docs/#installation).
 
 ```bash
-$ git clone git@github.com:krmrn42/street-race.git
-$ cd street-race
+$ git clone git@github.com:streetrace-ai/streetrace.git
+$ cd streetrace
 $ poetry install
-$ poetry run streetrace --model=$YOUR_FAVORITE_MODEL
+$ poetry run streetrace --model=$MODEL
 ```
 
-Where `$YOUR_FAVORITE_MODEL` is the
+Where `$MODEL` is the
 [LiteLLM provider route](https://docs.litellm.ai/docs/providers) (`provider/model`).
 
 ### Environment Setup
@@ -137,7 +137,7 @@ Streetrace uses [LiteLLM](https://docs.litellm.ai/docs/providers) for model acce
 
 For detailed backend configuration including Azure, Vertex AI, and other providers, see [Backend Configuration Guide](docs/user/backend-configuration.md).
 
-**Commercial Providers:**
+**Cloud Model Providers:**
 ```bash
 # OpenAI
 export OPENAI_API_KEY="your-api-key"
@@ -175,7 +175,7 @@ sudo apt install redis-server  # Ubuntu
 redis-server
 
 # Use caching
-streetrace --cache --model=gpt-4
+streetrace --cache --model=gpt-4o
 ```
 
 For detailed Redis setup including Docker configuration and monitoring, see [Redis Caching Guide](docs/user/redis_caching.md).
@@ -189,7 +189,7 @@ You can optionally supply a `--path` argument to provide a different working dir
 path.
 
 ```bash
-$ streetrace --model=$YOUR_FAVORITE_MODEL
+$ streetrace --model=$MODEL
 You: Type your prompt
 ```
 
@@ -242,24 +242,24 @@ You can add more context to your prompts in two ways:
 
 ```bash
 # Basic usage
-streetrace --model=gpt-4
+streetrace --model=gpt-4o
 
 # Non-interactive mode
 streetrace --model=claude-3-sonnet --prompt "Analyze this codebase"
 
 # Specific working directory
-streetrace --model=gpt-4 --path /path/to/project
+streetrace --model=gpt-4o --path /path/to/project
 
 # Session management
-streetrace --model=gpt-4 --session-id my-feature-work
+streetrace --model=gpt-4o --session-id my-feature-work
 streetrace --list-sessions
 
 # With caching and output file
-streetrace --model=gpt-4 --cache --out response.md
+streetrace --model=gpt-4o --cache --out response.md
 
 # Using local models
 streetrace --model=ollama/llama2
-streetrace --model=openai/gpt-4  # if using local OpenAI-compatible server
+streetrace --model=openai/gpt-4o  # if using local OpenAI-compatible server
 ```
 
 
@@ -288,13 +288,13 @@ Execute single prompts and exit:
 
 ```bash
 # Direct prompt
-streetrace --model=gpt-4 --prompt "Analyze this codebase structure"
+streetrace --model=gpt-4o --prompt "Analyze this codebase structure"
 
 # Positional arguments (with confirmation)
-streetrace --model=gpt-4 "refactor the main.py file"
+streetrace --model=gpt-4o "refactor the main.py file"
 
 # Save output to file
-streetrace --model=gpt-4 --prompt "Generate API docs" --out docs.md
+streetrace --model=gpt-4o --prompt "Generate API docs" --out docs.md
 ```
 
 ## Agent System
@@ -400,7 +400,7 @@ For comprehensive tool configuration and usage examples, see [Using Tools Guide]
 
 #### MCP (Model Context Protocol) Integration
 
-Streetrace supports MCP servers for extended functionality:
+Streetrace supports [MCP](https://modelcontextprotocol.io/docs/getting-started/intro) servers for extended functionality:
 
 **Filesystem Server:**
 ```yaml
