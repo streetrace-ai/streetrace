@@ -1,5 +1,9 @@
 """StreetRace🚗💨 CLI entry point."""
 
+# Set protobuf implementation before any imports
+import os
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+
 import asyncio
 import sys
 from importlib.metadata import version
@@ -10,6 +14,7 @@ from dotenv import load_dotenv
 from streetrace.app import create_app
 from streetrace.args import Args, bind_and_run
 from streetrace.log import get_logger, init_logging
+from streetrace.telemetry import init_telemetry
 
 
 def show_version() -> None:
@@ -36,6 +41,10 @@ def run(args: Args) -> None:
         dotenv_path=cwd / ".env",
         override=True,
     )  # Load environment variables from .env file in the current directory
+    
+    # Initialize telemetry after loading environment variables
+    init_telemetry()
+    
     init_logging(args)
     logger = get_logger(__name__)
 
