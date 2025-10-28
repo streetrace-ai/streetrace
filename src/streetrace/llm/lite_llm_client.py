@@ -12,6 +12,10 @@ from typing import Any, override
 
 import litellm
 from google.adk.models.lite_llm import LiteLlm, LiteLLMClient
+
+# Initialize Langfuse callbacks globally
+litellm.callbacks = ["langfuse_otel"]
+
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from litellm.cost_calculator import completion_cost
