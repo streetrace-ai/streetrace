@@ -114,8 +114,6 @@ class Supervisor(InputHandler):
                         ):  # Handle potential errors/escalations
                             error_msg = event.error_message or "No specific message."
                             final_response_text = f"Agent escalated: {error_msg}"
-                        # Add more checks here if needed (e.g., specific error codes)
-                        break  # Stop processing events once the final response is found
         except* ToolsetLifecycleError as lifecycle_err_group:
             logger.exception(
                 "Failed to initialize or cleanup tools for agent '%s'",
