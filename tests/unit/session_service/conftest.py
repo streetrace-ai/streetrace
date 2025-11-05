@@ -63,7 +63,6 @@ def system_context(ui_bus: UiBus, context_dir: Path) -> SystemContext:
     system_context = Mock(spec=SystemContext)
     system_context.ui_bus = ui_bus
     system_context.config_dir = context_dir
-    system_context.get_project_context.return_value = ["Test project context"]
     return system_context
 
 
