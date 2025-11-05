@@ -33,6 +33,8 @@ class TestConsoleUIPromptFunctionality:
         """Test _update_rprompt method with token count."""
         token_count = 150
 
+        # Ensure session exists (simulating an active prompt)
+        _ = console_ui.prompt_session
         console_ui._update_rprompt(token_count)  # noqa: SLF001
 
         assert console_ui.prompt_session.rprompt == f"~{token_count}t"
@@ -49,6 +51,8 @@ class TestConsoleUIPromptFunctionality:
 
     def test_update_rprompt_with_zero(self, console_ui):
         """Test _update_rprompt method with zero tokens."""
+        # Ensure session exists (simulating an active prompt)
+        _ = console_ui.prompt_session
         console_ui._update_rprompt(0)  # noqa: SLF001
 
         assert console_ui.prompt_session.rprompt == "~0t"
