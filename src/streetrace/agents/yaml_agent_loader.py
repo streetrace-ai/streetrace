@@ -15,7 +15,7 @@ from streetrace.agents.base_agent_loader import (
     AgentLoader,
     AgentValidationError,
 )
-from streetrace.agents.resolver import AgentResolution, AgentResolver, SourceType
+from streetrace.agents.resolver import AgentResolver
 from streetrace.agents.yaml_models import (
     AgentRef,
     InlineAgentSpec,
@@ -245,7 +245,7 @@ def _resolve_agent_refs(
 
 def _load_agent_yaml(
     file_path: Path,
-    visited: set[Path] | None = None,
+    visited: set[Path | str] | None = None,
     depth: int = 0,
     resolver: AgentResolver | None = None,
 ) -> YamlAgentDocument:
@@ -253,7 +253,7 @@ def _load_agent_yaml(
 
     Args:
         file_path: Path to the agent YAML file
-        visited: Set of visited files for cycle detection
+        visited: Set of visited identifiers (paths, URLs, names) for cycle detection
         depth: Current recursion depth
         resolver: Agent resolver for $ref resolution
 

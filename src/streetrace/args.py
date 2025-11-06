@@ -27,8 +27,11 @@ class Args(tap.TypedArgs):
         help="Specific agent to use (default: Streetrace_Coding_Agent)",
         default=None,
     )
-    agent_uri_auth: str | None = tap.arg(
-        help="Authorization header value for HTTP agent URIs (or use STREETRACE_AGENT_URI_AUTH env)",
+    agent_uri_auth_var: str | None = tap.arg(
+        help=(
+            "Environment variable name containing auth for HTTP agent URIs "
+            "(default: STREETRACE_AGENT_URI_AUTH)"
+        ),
         default=None,
     )
     prompt: str | None = tap.arg(help="Non-interactive prompt mode", default=None)
@@ -129,16 +132,15 @@ class Args(tap.TypedArgs):
     def effective_agent_uri_auth(self) -> str | None:
         """Get the agent URI auth to use for HTTP agent requests.
 
-        If agent_uri_auth is provided by the user, use that.
-        Otherwise, check STREETRACE_AGENT_URI_AUTH environment variable.
+        Reads the authorization value from the environment variable specified
+        by agent_uri_auth_var, or defaults to STREETRACE_AGENT_URI_AUTH.
 
         Returns:
             str | None: The authorization header value or None
 
         """
-        if self.agent_uri_auth:
-            return self.agent_uri_auth
-        return os.environ.get("STREETRACE_AGENT_URI_AUTH")
+        env_var_name = self.agent_uri_auth_var or "STREETRACE_AGENT_URI_AUTH"
+        return os.environ.get(env_var_name)
 
 
 def bind_and_run(app_main: Callable[[Args], None]) -> None:

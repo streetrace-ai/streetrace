@@ -65,7 +65,11 @@ class AgentResolver:
         self.discovered_agents = discovered_agents or []
         self.http_auth = http_auth
 
-    def resolve(self, identifier: str, base_path: Path | None = None) -> AgentResolution:
+    def resolve(
+        self,
+        identifier: str,
+        base_path: Path | None = None,
+    ) -> AgentResolution:
         """Resolve an agent identifier to YAML content.
 
         Resolution order:
@@ -125,7 +129,12 @@ class AgentResolver:
             headers["Authorization"] = self.http_auth
 
         try:
-            response = httpx.get(url, headers=headers, timeout=30.0, follow_redirects=True)
+            response = httpx.get(
+                url,
+                headers=headers,
+                timeout=30.0,
+                follow_redirects=True,
+            )
             response.raise_for_status()
             content = response.text
             logger.info("Fetched agent from HTTP URL: %s", url)
@@ -206,4 +215,3 @@ class AgentResolver:
             if agent.name.lower() == name_lower:
                 return agent
         return None
-

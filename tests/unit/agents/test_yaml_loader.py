@@ -195,7 +195,10 @@ class TestReferenceResolution:
             f.flush()
 
             try:
-                with pytest.raises(AgentValidationError, match="not found"):
+                with pytest.raises(
+                    AgentValidationError,
+                    match="Could not resolve agent identifier",
+                ):
                     _load_agent_yaml(Path(f.name))
             finally:
                 Path(f.name).unlink()
@@ -336,5 +339,5 @@ class TestAgentFinding:
         agents = YamlAgentLoader([]).discover()
         assert len(agents) == 0
 
-        with pytest.raises(ValueError, match="Yaml agent not found"):
+        with pytest.raises(ValueError, match="Failed to load YAML agent"):
             YamlAgentLoader([]).load_agent("nonexistent_agent")

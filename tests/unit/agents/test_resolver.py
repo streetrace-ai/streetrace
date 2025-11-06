@@ -95,7 +95,9 @@ class TestAgentResolver:
                 resolver.resolve("https://example.com/agent.yaml")
 
     def test_resolve_absolute_path(
-        self, temp_agent_file: Path, sample_yaml_content: str
+        self,
+        temp_agent_file: Path,
+        sample_yaml_content: str,
     ) -> None:
         """Test resolving an absolute file path."""
         resolver = AgentResolver()
@@ -108,7 +110,9 @@ class TestAgentResolver:
         assert result.file_path == temp_agent_file
 
     def test_resolve_home_directory_path(
-        self, tmp_path: Path, sample_yaml_content: str
+        self,
+        tmp_path: Path,
+        sample_yaml_content: str,
     ) -> None:
         """Test resolving a path with ~/ prefix."""
         resolver = AgentResolver()
@@ -127,7 +131,9 @@ class TestAgentResolver:
             assert result.source_type == SourceType.FILE_PATH
 
     def test_resolve_relative_path(
-        self, tmp_path: Path, sample_yaml_content: str
+        self,
+        tmp_path: Path,
+        sample_yaml_content: str,
     ) -> None:
         """Test resolving a relative file path."""
         resolver = AgentResolver()
@@ -144,7 +150,9 @@ class TestAgentResolver:
         assert result.source_type == SourceType.FILE_PATH
 
     def test_resolve_discovered_agent_name(
-        self, discovered_agents: list[AgentInfo], sample_yaml_content: str
+        self,
+        discovered_agents: list[AgentInfo],
+        sample_yaml_content: str,
     ) -> None:
         """Test resolving by discovered agent name."""
         resolver = AgentResolver(discovered_agents=discovered_agents)
@@ -155,7 +163,9 @@ class TestAgentResolver:
         assert result.source_type == SourceType.FILE_PATH
 
     def test_resolve_discovered_agent_name_case_insensitive(
-        self, discovered_agents: list[AgentInfo], sample_yaml_content: str
+        self,
+        discovered_agents: list[AgentInfo],
+        sample_yaml_content: str,
     ) -> None:
         """Test resolving by discovered agent name is case-insensitive."""
         resolver = AgentResolver(discovered_agents=discovered_agents)
@@ -176,11 +186,12 @@ class TestAgentResolver:
         """Test resolution failure when file doesn't exist."""
         resolver = AgentResolver()
 
-        with pytest.raises(ValueError, match="Failed to read agent file"):
+        with pytest.raises(ValueError, match="Could not resolve agent identifier"):
             resolver.resolve("/nonexistent/path/agent.yaml")
 
     def test_resolve_priority_http_over_file(
-        self, temp_agent_file: Path, sample_yaml_content: str
+        self,
+        sample_yaml_content: str,
     ) -> None:
         """Test that HTTP URLs are tried before file paths."""
         resolver = AgentResolver()
@@ -224,4 +235,3 @@ class TestAgentResolution:
         )
 
         assert resolution.file_path is None
-

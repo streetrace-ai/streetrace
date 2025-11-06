@@ -40,7 +40,8 @@ def test_get_available_agents_with_non_directory_items():
 
         # Verify _load_agent_yaml was called only once (for the YAML file)
         assert mock_load_yaml.call_count == 1
-        mock_load_yaml.assert_called_once_with(mock_yaml_file)
+        # Now called with resolver parameter
+        assert mock_load_yaml.call_args[0][0] == mock_yaml_file
 
         # We expect one agent since only the YAML file is processed
         assert len(result) == 1

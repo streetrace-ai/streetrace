@@ -4,7 +4,7 @@ import os
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -123,7 +123,7 @@ class ToolSpec(BaseModel):
     mcp: McpToolSpec | None = None
 
     @model_validator(mode="after")
-    def validate_tool_spec(self) -> "ToolSpec":
+    def validate_tool_spec(self) -> Self:
         """Ensure exactly one tool type is specified."""
         if self.streetrace and self.mcp:
             msg = "Tool specification cannot have both 'streetrace' and 'mcp' fields"
@@ -201,7 +201,7 @@ class YamlAgentSpec(BaseModel):
         return expand_env_vars(v) if isinstance(v, str) else v
 
     @model_validator(mode="after")
-    def validate_output_schema_constraint(self) -> "YamlAgentSpec":
+    def validate_output_schema_constraint(self) -> Self:
         """Validate ADK constraint: output_schema cannot coexist with tools."""
         # tools/sub_agents
         if self.adk.output_schema and (self.tools or self.sub_agents):
@@ -213,7 +213,7 @@ class YamlAgentSpec(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def validate_global_instruction_at_root_only(self) -> "YamlAgentSpec":
+    def validate_global_instruction_at_root_only(self) -> Self:
         """Validate that global_instruction is only used at root level."""
         # Note: This validation will be enforced during loading when we know the context
         return self
