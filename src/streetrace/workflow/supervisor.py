@@ -119,6 +119,13 @@ class Supervisor(InputHandler):
                         ):  # Handle potential errors/escalations
                             error_msg = event.error_message or "No specific message."
                             final_response_text = f"Agent escalated: {error_msg}"
+            # Add the agent's final message to the history
+            if final_response_text:
+                await self.session_manager.post_process(
+                    user_input=ctx.user_input,
+                    original_session=session,
+                )
+                ctx.final_response = final_response_text
         except* ToolsetLifecycleError as lifecycle_err_group:
             logger.exception(
                 "Failed to initialize or cleanup tools for agent '%s'",
@@ -138,12 +145,4 @@ class Supervisor(InputHandler):
             )
             raise
 
-        # Add the agent's final message to the history
-        if final_response_text:
-            await self.session_manager.post_process(
-                user_input=ctx.user_input,
-                original_session=session,
-            )
-            # Store the final response in the context for output file handling
-            ctx.final_response = final_response_text
         return HANDLED_CONT
