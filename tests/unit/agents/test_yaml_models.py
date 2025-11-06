@@ -306,6 +306,49 @@ class TestYamlAgentSpec:
                 ],
             )
 
+    def test_attributes_default(self):
+        """Test that attributes default to empty dict."""
+        spec = YamlAgentSpec(name="test", description="test")
+        assert spec.attributes == {}
+
+    def test_attributes_custom(self):
+        """Test custom attributes."""
+        spec = YamlAgentSpec(
+            name="test",
+            description="test",
+            attributes={
+                "streetrace.org.id": "my-org",
+                "streetrace.agent.tags": ["red_team", "security"],
+                "custom.property": "value",
+            },
+        )
+        assert spec.attributes["streetrace.org.id"] == "my-org"
+        assert spec.attributes["streetrace.agent.tags"] == ["red_team", "security"]
+        assert spec.attributes["custom.property"] == "value"
+
+    def test_attributes_various_types(self):
+        """Test attributes with various value types."""
+        spec = YamlAgentSpec(
+            name="test",
+            description="test",
+            attributes={
+                "string": "value",
+                "number": 42,
+                "float": 3.14,
+                "boolean": True,
+                "list": [1, 2, 3],
+                "dict": {"nested": "value"},
+                "null": None,
+            },
+        )
+        assert spec.attributes["string"] == "value"
+        assert spec.attributes["number"] == 42
+        assert spec.attributes["float"] == 3.14
+        assert spec.attributes["boolean"] is True
+        assert spec.attributes["list"] == [1, 2, 3]
+        assert spec.attributes["dict"] == {"nested": "value"}
+        assert spec.attributes["null"] is None
+
 
 class TestAgentDocument:
     """Test agent document model."""

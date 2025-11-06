@@ -50,6 +50,7 @@ class AgentManager:
         tool_provider: ToolProvider,
         system_context: SystemContext,
         work_dir: Path,
+        http_auth: str | None = None,
     ) -> None:
         """Initialize the AgentManager.
 
@@ -58,6 +59,7 @@ class AgentManager:
             tool_provider: Provider of tools for the agents
             system_context: System context containing project-level instructions
             work_dir: Current working directory
+            http_auth: Authorization header value for HTTP agent URIs
 
         """
         self.model_factory = model_factory
@@ -78,7 +80,7 @@ class AgentManager:
                 ],
             ),
         )
-        self.yaml_loader = YamlAgentLoader(agent_paths)
+        self.yaml_loader = YamlAgentLoader(agent_paths, http_auth=http_auth)
         self.python_loader = PythonAgentLoader(agent_paths)
 
     def discover(self) -> list[AgentInfo]:

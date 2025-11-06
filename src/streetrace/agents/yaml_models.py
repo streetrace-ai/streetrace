@@ -135,18 +135,18 @@ class ToolSpec(BaseModel):
 
 
 class AgentRef(BaseModel):
-    """Reference to another agent file."""
+    """Reference to another agent (name, path, or URL)."""
 
     ref: str = Field(alias="$ref")
 
     @field_validator("ref")
     @classmethod
-    def validate_ref_path(cls, v: str) -> str:
-        """Validate that ref is a reasonable file path."""
-        if not v or v.startswith("http"):
-            msg = f"Agent reference must be a local file path, got: {v}"
+    def validate_ref(cls, v: str) -> str:
+        """Validate that ref is non-empty."""
+        if not v or not v.strip():
+            msg = "Agent reference cannot be empty"
             raise ValueError(msg)
-        return v
+        return v.strip()
 
 
 class AdkConfig(BaseModel):
@@ -180,6 +180,7 @@ class YamlAgentSpec(BaseModel):
     instruction: str | None = None
     global_instruction: str | None = None
     prompt: str | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
     adk: AdkConfig = Field(default_factory=AdkConfig)
     tools: list[ToolSpec | AgentRef | InlineAgentSpec] = Field(default_factory=list)
     sub_agents: list[AgentRef | InlineAgentSpec] = Field(default_factory=list)

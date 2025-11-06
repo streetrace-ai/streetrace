@@ -1,5 +1,6 @@
 """Parse and organize app args."""
 
+import os
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,10 @@ class Args(tap.TypedArgs):
     )
     agent: str | None = tap.arg(
         help="Specific agent to use (default: Streetrace_Coding_Agent)",
+        default=None,
+    )
+    agent_uri_auth: str | None = tap.arg(
+        help="Authorization header value for HTTP agent URIs (or use STREETRACE_AGENT_URI_AUTH env)",
         default=None,
     )
     prompt: str | None = tap.arg(help="Non-interactive prompt mode", default=None)
@@ -119,6 +124,21 @@ class Args(tap.TypedArgs):
         if self.user_id:
             return self.user_id
         return get_user_identity()
+
+    @property
+    def effective_agent_uri_auth(self) -> str | None:
+        """Get the agent URI auth to use for HTTP agent requests.
+
+        If agent_uri_auth is provided by the user, use that.
+        Otherwise, check STREETRACE_AGENT_URI_AUTH environment variable.
+
+        Returns:
+            str | None: The authorization header value or None
+
+        """
+        if self.agent_uri_auth:
+            return self.agent_uri_auth
+        return os.environ.get("STREETRACE_AGENT_URI_AUTH")
 
 
 def bind_and_run(app_main: Callable[[Args], None]) -> None:

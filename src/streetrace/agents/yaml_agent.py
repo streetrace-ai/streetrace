@@ -122,3 +122,13 @@ class YamlAgent(StreetRaceAgent):
 
         """
         return self.agent_doc.spec.prompt
+
+    @property
+    def attributes(self) -> dict[str, any]:
+        """Get custom attributes for this agent.
+
+        Returns:
+            Dictionary of custom attributes for telemetry/organization
+
+        """
+        return self.agent_doc.spec.attributes
