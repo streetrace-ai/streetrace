@@ -10,7 +10,7 @@ version = "0.1.21"
 description = "StreetRace is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software."
 authors = [{ name = "Street Race Team" }]
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12,<4.0"
 license = { file = "LICENSE" }
 dynamic = ["dependencies"]
 
