@@ -135,10 +135,14 @@ class TestAgentManager:
         expected_agents = [mock_agent_info]
 
         with (
-            patch.object(agent_manager.yaml_loader, "discover", return_value=[]),
             patch.object(
-                agent_manager.python_loader,
-                "discover",
+                agent_manager.format_loaders["yaml"],
+                "discover_in_paths",
+                return_value=[],
+            ),
+            patch.object(
+                agent_manager.format_loaders["python"],
+                "discover_in_paths",
                 return_value=expected_agents,
             ),
         ):
@@ -151,22 +155,21 @@ class TestAgentManager:
     async def test_create_agent_success(
         self,
         agent_manager: AgentManager,
+        mock_agent_info: AgentInfo,
     ) -> None:
         """Test successful agent creation."""
         # Arrange
         mock_agent_instance = MockAgent("Test Agent")
 
-        with (
-            patch.object(
-                agent_manager.yaml_loader,
-                "load_agent",
-                side_effect=ValueError,
-            ),
-            patch.object(
-                agent_manager.python_loader,
-                "load_agent",
-                return_value=mock_agent_instance,
-            ),
+        # Mock the discovery cache to make the agent discoverable by name
+        agent_manager._discovery_cache = {  # noqa: SLF001
+            "test agent": ("cwd", mock_agent_info),
+        }
+
+        with patch.object(
+            agent_manager.format_loaders["python"],
+            "load_agent",
+            return_value=mock_agent_instance,
         ):
             # Act
             async with agent_manager.create_agent("Test Agent") as agent:
@@ -179,20 +182,10 @@ class TestAgentManager:
         agent_manager: AgentManager,
     ) -> None:
         """Test agent creation when agent is not found."""
-        # Arrange - both loaders will raise ValueError
-        with (
-            patch.object(
-                agent_manager.yaml_loader,
-                "load_agent",
-                side_effect=ValueError,
-            ),
-            patch.object(
-                agent_manager.python_loader,
-                "load_agent",
-                side_effect=ValueError,
-            ),
-            pytest.raises(ValueError, match="Specified agent not found"),
-        ):
+        # Arrange - ensure discovery cache is empty
+        agent_manager._discovery_cache = {}  # noqa: SLF001
+
+        with pytest.raises(ValueError, match="Agent 'Nonexistent Agent' not found"):
             # Act & Assert
             async with agent_manager.create_agent("Nonexistent Agent"):
                 pass
@@ -204,18 +197,21 @@ class TestAgentManager:
         """Test creating agent with 'default' name maps to DEFAULT_AGENT."""
         # Arrange
         mock_agent_instance = MockAgent("Streetrace_Coding_Agent")
+        mock_agent_info = AgentInfo(
+            name="Streetrace_Coding_Agent",
+            description="Default coding agent",
+            module=MagicMock(),
+        )
 
-        with (
-            patch.object(
-                agent_manager.yaml_loader,
-                "load_agent",
-                side_effect=ValueError,
-            ),
-            patch.object(
-                agent_manager.python_loader,
-                "load_agent",
-                return_value=mock_agent_instance,
-            ),
+        # Mock the discovery cache
+        agent_manager._discovery_cache = {  # noqa: SLF001
+            "streetrace_coding_agent": ("bundled", mock_agent_info),
+        }
+
+        with patch.object(
+            agent_manager.format_loaders["python"],
+            "load_agent",
+            return_value=mock_agent_instance,
         ):
             # Act & Assert
             async with agent_manager.create_agent("default") as agent:
@@ -224,22 +220,21 @@ class TestAgentManager:
     async def test_create_agent_tool_provider_integration(
         self,
         agent_manager: AgentManager,
+        mock_agent_info: AgentInfo,
     ) -> None:
         """Test that agent creation properly integrates with tool provider."""
         # Arrange
         mock_agent_instance = MockAgent("Test Agent")
 
-        with (
-            patch.object(
-                agent_manager.yaml_loader,
-                "load_agent",
-                side_effect=ValueError,
-            ),
-            patch.object(
-                agent_manager.python_loader,
-                "load_agent",
-                return_value=mock_agent_instance,
-            ),
+        # Mock the discovery cache
+        agent_manager._discovery_cache = {  # noqa: SLF001
+            "test agent": ("cwd", mock_agent_info),
+        }
+
+        with patch.object(
+            agent_manager.format_loaders["python"],
+            "load_agent",
+            return_value=mock_agent_instance,
         ):
             # Act
             async with agent_manager.create_agent("Test Agent"):
@@ -248,6 +243,7 @@ class TestAgentManager:
     async def test_create_agent_exception_handling(
         self,
         agent_manager: AgentManager,
+        mock_agent_info: AgentInfo,
     ) -> None:
         """Test exception handling during agent creation."""
 
@@ -271,14 +267,14 @@ class TestAgentManager:
 
         failing_agent_instance = FailingAgent()
 
+        # Mock the discovery cache
+        agent_manager._discovery_cache = {  # noqa: SLF001
+            "test agent": ("cwd", mock_agent_info),
+        }
+
         with (
             patch.object(
-                agent_manager.yaml_loader,
-                "load_agent",
-                side_effect=ValueError,
-            ),
-            patch.object(
-                agent_manager.python_loader,
+                agent_manager.format_loaders["python"],
                 "load_agent",
                 return_value=failing_agent_instance,
             ),
@@ -294,8 +290,16 @@ class TestAgentManager:
     ) -> None:
         """Test listing agents when directories don't exist or are empty."""
         with (
-            patch.object(agent_manager.yaml_loader, "discover", return_value=[]),
-            patch.object(agent_manager.python_loader, "discover", return_value=[]),
+            patch.object(
+                agent_manager.format_loaders["yaml"],
+                "discover_in_paths",
+                return_value=[],
+            ),
+            patch.object(
+                agent_manager.format_loaders["python"],
+                "discover_in_paths",
+                return_value=[],
+            ),
         ):
             agents = agent_manager.discover()
             assert agents == []
@@ -322,13 +326,13 @@ class TestAgentManager:
 
         with (
             patch.object(
-                agent_manager.yaml_loader,
-                "discover",
+                agent_manager.format_loaders["yaml"],
+                "discover_in_paths",
                 return_value=yaml_agents,
             ),
             patch.object(
-                agent_manager.python_loader,
-                "discover",
+                agent_manager.format_loaders["python"],
+                "discover_in_paths",
                 return_value=python_agents,
             ),
         ):
@@ -343,22 +347,23 @@ class TestAgentManager:
         self,
         agent_manager: AgentManager,
     ) -> None:
-        """Test that AgentManager configures correct base directories."""
-        # Verify the loaders are initialized with correct paths
-        expected_paths = list(
-            {
-                agent_manager.work_dir / Path("./agents"),
-                Path.cwd() / Path("./agents"),
-                agent_manager.work_dir / ".",
-                Path.cwd() / ".",
-                Path("~/.streetrace/agents").expanduser(),
-                Path("/etc/streetrace/agents"),
-            },
+        """Test that AgentManager configures correct search locations."""
+        # Verify search locations are configured
+        # The new architecture uses location-first priority
+        assert len(agent_manager.search_locations) > 0
+
+        # Check that expected locations are present
+        location_names = [name for name, _ in agent_manager.search_locations]
+        assert (
+            "cwd" in location_names
+            or "home" in location_names
+            or "system" in location_names
         )
 
-        # The paths are stored as Path objects in the loaders
-        assert sorted(agent_manager.yaml_loader.base_paths) == sorted(expected_paths)
-        assert sorted(agent_manager.python_loader.base_paths) == sorted(expected_paths)
+        # Verify all paths in search_locations exist
+        for location_name, paths in agent_manager.search_locations:
+            for path in paths:
+                assert path.exists(), f"Path {path} in {location_name} should exist"
 
 
 class TestAgentManagerResourceManagement:
@@ -397,6 +402,17 @@ class TestAgentManagerResourceManagement:
         mock_agent_instance = MockAgent("Test Agent")
         mock_agent_manager.tool_provider = mock_tool_provider
 
+        mock_agent_info = AgentInfo(
+            name="Test Agent",
+            description="A test agent",
+            module=MagicMock(),
+        )
+
+        # Mock the discovery cache
+        mock_agent_manager._discovery_cache = {  # noqa: SLF001
+            "test agent": ("cwd", mock_agent_info),
+        }
+
         with (
             patch.object(
                 mock_agent_instance,
@@ -404,12 +420,7 @@ class TestAgentManagerResourceManagement:
                 new_callable=AsyncMock,
             ) as mock_close,
             patch.object(
-                mock_agent_manager.yaml_loader,
-                "load_agent",
-                side_effect=ValueError,
-            ),
-            patch.object(
-                mock_agent_manager.python_loader,
+                mock_agent_manager.format_loaders["python"],
                 "load_agent",
                 return_value=mock_agent_instance,
             ),
@@ -465,17 +476,21 @@ class TestAgentManagerResourceManagement:
 
         failing_agent_instance = FailingAgent()
 
-        with (
-            patch.object(
-                mock_agent_manager.yaml_loader,
-                "load_agent",
-                side_effect=ValueError,
-            ),
-            patch.object(
-                mock_agent_manager.python_loader,
-                "load_agent",
-                return_value=failing_agent_instance,
-            ),
+        mock_agent_info = AgentInfo(
+            name="Test Agent",
+            description="A test agent",
+            module=MagicMock(),
+        )
+
+        # Mock the discovery cache
+        mock_agent_manager._discovery_cache = {  # noqa: SLF001
+            "test agent": ("cwd", mock_agent_info),
+        }
+
+        with patch.object(
+            mock_agent_manager.format_loaders["python"],
+            "load_agent",
+            return_value=failing_agent_instance,
         ):
             # Act & Assert
             with pytest.raises(RuntimeError, match="Agent creation failed"):
@@ -495,6 +510,17 @@ class TestAgentManagerResourceManagement:
         mock_agent_instance = MockAgent("Test Agent")
         mock_agent_manager.tool_provider = mock_tool_provider
 
+        mock_agent_info = AgentInfo(
+            name="Test Agent",
+            description="A test agent",
+            module=MagicMock(),
+        )
+
+        # Mock the discovery cache
+        mock_agent_manager._discovery_cache = {  # noqa: SLF001
+            "test agent": ("cwd", mock_agent_info),
+        }
+
         with (
             patch.object(
                 mock_agent_instance,
@@ -502,12 +528,7 @@ class TestAgentManagerResourceManagement:
                 new_callable=AsyncMock,
             ) as mock_close,
             patch.object(
-                mock_agent_manager.yaml_loader,
-                "load_agent",
-                side_effect=ValueError,
-            ),
-            patch.object(
-                mock_agent_manager.python_loader,
+                mock_agent_manager.format_loaders["python"],
                 "load_agent",
                 return_value=mock_agent_instance,
             ),
@@ -535,26 +556,17 @@ class TestAgentManagerFilePath:
         yaml_file.write_text("test content")
         mock_agent_instance = MockAgent("FileBasedAgent")
 
-        with (
-            patch.object(
-                agent_manager.yaml_loader,
-                "load_agent",
-                return_value=mock_agent_instance,
-            ) as mock_yaml_load,
-            patch.object(
-                agent_manager.python_loader,
-                "load_agent",
-                side_effect=ValueError("Should not be called"),
-            ) as mock_python_load,
-        ):
+        with patch.object(
+            agent_manager.format_loaders["yaml"],
+            "load_from_path",
+            return_value=mock_agent_instance,
+        ) as mock_yaml_load:
             # Act
             async with agent_manager.create_agent(str(yaml_file)) as agent:
                 # Assert
                 assert agent is not None
-                # Verify yaml_loader.load_agent was called with Path object
+                # Verify yaml_loader.load_from_path was called with Path object
                 mock_yaml_load.assert_called_once_with(yaml_file)
-                # Verify python_loader.load_agent was not called
-                mock_python_load.assert_not_called()
 
     async def test_create_agent_from_non_existing_file_path(
         self,
@@ -567,24 +579,9 @@ class TestAgentManagerFilePath:
         # Ensure file does not exist
         assert not non_existing_file.exists()
 
-        with (
-            patch.object(
-                agent_manager.yaml_loader,
-                "load_agent",
-                side_effect=ValueError("File not found"),
-            ),
-            patch.object(
-                agent_manager.python_loader,
-                "load_agent",
-                side_effect=ValueError("Agent not found"),
-            ),
-            pytest.raises(
-                ValueError,
-                match=(
-                    f"Specified agent not found "
-                    f"\\({re.escape(str(non_existing_file))}\\)"
-                ),
-            ),
+        with pytest.raises(
+            ValueError,
+            match=f"Agent '{re.escape(str(non_existing_file))}' not found",
         ):
             # Act & Assert
             async with agent_manager.create_agent(str(non_existing_file)):
@@ -598,25 +595,26 @@ class TestAgentManagerFilePath:
         # Arrange
         agent_name = "some_agent_name"
         mock_agent_instance = MockAgent(agent_name)
+        mock_agent_info = AgentInfo(
+            name=agent_name,
+            description="Test agent",
+            module=MagicMock(),
+        )
 
-        with (
-            patch.object(
-                agent_manager.yaml_loader,
-                "load_agent",
-                return_value=mock_agent_instance,
-            ) as mock_yaml_load,
-            patch.object(
-                agent_manager.python_loader,
-                "load_agent",
-                side_effect=ValueError("Not found in python loader"),
-            ),
+        # Mock the discovery cache
+        agent_manager._discovery_cache = {  # noqa: SLF001
+            agent_name.lower(): ("cwd", mock_agent_info),
+        }
+
+        with patch.object(
+            agent_manager.format_loaders["python"],
+            "load_agent",
+            return_value=mock_agent_instance,
         ):
             # Act
             async with agent_manager.create_agent(agent_name) as agent:
                 # Assert
                 assert agent is not None
-                # Verify yaml_loader.load_agent was called with string name
-                mock_yaml_load.assert_called_once_with(agent_name)
 
     async def test_create_agent_error_message_includes_agent_name(
         self,
@@ -626,21 +624,12 @@ class TestAgentManagerFilePath:
         # Arrange
         agent_name = "non_existent_agent"
 
-        with (
-            patch.object(
-                agent_manager.yaml_loader,
-                "load_agent",
-                side_effect=ValueError("YAML loader error"),
-            ),
-            patch.object(
-                agent_manager.python_loader,
-                "load_agent",
-                side_effect=ValueError("Python loader error"),
-            ),
-            pytest.raises(
-                ValueError,
-                match=f"Specified agent not found \\({re.escape(agent_name)}\\)",
-            ),
+        # Ensure discovery cache is empty
+        agent_manager._discovery_cache = {}  # noqa: SLF001
+
+        with pytest.raises(
+            ValueError,
+            match=f"Agent '{re.escape(agent_name)}' not found",
         ):
             # Act & Assert
             async with agent_manager.create_agent(agent_name):

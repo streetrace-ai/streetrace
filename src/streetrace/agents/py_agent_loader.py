@@ -129,28 +129,38 @@ def _validate_impl(agent_dir: Path) -> AgentInfo:
 
 
 class PythonAgentLoader(AgentLoader):
-    """Python agent loader implementing the AgentLoader interface."""
+    """Python agent loader with location-first support."""
 
-    def __init__(self, base_paths: list[Path | str] | list[Path] | list[str]) -> None:
+    def __init__(
+        self,
+        base_paths: list[Path | str] | list[Path] | list[str] | None = None,
+    ) -> None:
         """Initialize the PythonAgentLoader.
 
         Args:
-            base_paths: List of base paths to search for agents
+            base_paths: List of base paths to search for agents (for legacy discover())
 
         """
-        self.base_paths = [p if isinstance(p, Path) else Path(p) for p in base_paths]
+        self.base_paths = (
+            [p if isinstance(p, Path) else Path(p) for p in base_paths]
+            if base_paths
+            else []
+        )
 
-    def discover(self) -> list[AgentInfo]:
-        """Discover Python agents in the given paths.
+    def discover_in_paths(self, paths: list[Path]) -> list[AgentInfo]:
+        """Discover Python agents in specific paths only.
+
+        Args:
+            paths: Specific paths to search in
 
         Returns:
-            List of discovered Python agents as AgentInfo objects
+            List of discovered Python agents in these paths
 
         """
         agents = []
 
-        # Find all agent.py files and get their parent directories
-        agent_py_files = find_files(self.base_paths, "agent.py")
+        # Find all agent.py files in these paths and get their parent directories
+        agent_py_files = find_files(paths, "agent.py")
         agent_dirs = [f.parent for f in agent_py_files]
 
         for agent_dir in agent_dirs:
@@ -159,6 +169,7 @@ class PythonAgentLoader(AgentLoader):
 
             try:
                 agent_metadata = _validate_impl(agent_dir)
+                agents.append(agent_metadata)
             except (
                 KeyError,
                 ValueError,
@@ -166,51 +177,81 @@ class PythonAgentLoader(AgentLoader):
                 AttributeError,
                 FileNotFoundError,
             ):
-                logger.exception(
-                    "Failed to get agent name or description from %s",
+                logger.debug(
+                    "Failed to load Python agent from %s",
                     agent_dir,
                 )
-            else:
-                agents.append(agent_metadata)
 
         return agents
 
-    def load_agent(self, agent: str | Path | AgentInfo) -> "StreetRaceAgent":
-        """Load a Python agent by name, path, or AgentInfo.
+    def load_from_path(self, path: Path) -> "StreetRaceAgent":
+        """Load Python agent from directory path.
 
         Args:
-            agent: Agent identifier
+            path: Directory containing agent.py
 
         Returns:
-            Loaded StreetRaceAgent implementation
+            Loaded Python agent
 
         Raises:
-            ValueError: If agent cannot be loaded
+            ValueError: If not a directory or cannot load
 
         """
-        if isinstance(agent, AgentInfo):
-            if not agent.module:
-                msg = f"AgentInfo does not contain Python agent data: {agent.name}"
-                raise ValueError(msg)
-            agent_class = _get_streetrace_agent_class(agent.module)
-            if agent_class is None:
-                err_msg = f"No StreetRaceAgent implementation found for {agent.name}"
-                raise ValueError(err_msg)
-            return cast("StreetRaceAgent", agent_class())
+        if not path.is_dir():
+            msg = f"Not a directory: {path}"
+            raise ValueError(msg)
 
-        if isinstance(agent, str):
-            known_agent = next(
-                (a for a in self.discover() if a.name.lower() == agent.lower()),
-                None,
-            )
-            if known_agent:
-                return self.load_agent(known_agent)
+        try:
+            agent_info = _validate_impl(path)
+            return self.load_agent(agent_info)
+        except (ValueError, FileNotFoundError) as e:
+            msg = f"Failed to load Python agent from {path}: {e}"
+            raise ValueError(msg) from e
 
-        if isinstance(agent, str) and Path(agent).is_dir():
-            return self.load_agent(Path(agent))
+    def load_from_url(self, url: str) -> "StreetRaceAgent":  # noqa: ARG002
+        """Load Python agent from HTTP URL.
 
-        if isinstance(agent, Path) and agent.is_dir():
-            return self.load_agent(_validate_impl(agent))
+        Python agents cannot be loaded from URLs.
 
-        msg = f"Python agent not found: {agent}"
+        Args:
+            url: HTTP(S) URL
+
+        Raises:
+            ValueError: Always, as Python agents cannot be loaded from URLs
+
+        """
+        msg = "Python agents cannot be loaded from HTTP URLs"
         raise ValueError(msg)
+
+    def load_agent(self, agent_info: AgentInfo) -> "StreetRaceAgent":
+        """Load agent from AgentInfo.
+
+        Args:
+            agent_info: Previously discovered agent info
+
+        Returns:
+            Loaded agent
+
+        Raises:
+            ValueError: If AgentInfo is not a Python agent
+
+        """
+        if not agent_info.module:
+            msg = f"AgentInfo {agent_info.name} is not a Python agent"
+            raise ValueError(msg)
+
+        agent_class = _get_streetrace_agent_class(agent_info.module)
+        if agent_class is None:
+            msg = f"No StreetRaceAgent implementation found for {agent_info.name}"
+            raise ValueError(msg)
+
+        return cast("StreetRaceAgent", agent_class())
+
+    def discover(self) -> list[AgentInfo]:
+        """Discover Python agents in configured base paths (legacy method).
+
+        Returns:
+            List of discovered Python agents
+
+        """
+        return self.discover_in_paths(self.base_paths)

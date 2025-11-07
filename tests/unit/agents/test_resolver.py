@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from streetrace.agents.base_agent_loader import AgentInfo
-from streetrace.agents.resolver import AgentResolution, AgentResolver, SourceType
+from streetrace.agents.resolver import SourceResolution, SourceResolver, SourceType
 
 
 @pytest.fixture
@@ -40,12 +40,12 @@ def discovered_agents(temp_agent_file: Path) -> list[AgentInfo]:
     ]
 
 
-class TestAgentResolver:
-    """Test suite for AgentResolver."""
+class TestSourceResolver:
+    """Test suite for SourceResolver."""
 
     def test_resolve_http_url(self, sample_yaml_content: str) -> None:
         """Test resolving an HTTP URL."""
-        resolver = AgentResolver(http_auth="Bearer token123")
+        resolver = SourceResolver(http_auth="Bearer token123")
 
         with patch("httpx.get") as mock_get:
             mock_response = Mock()
@@ -69,7 +69,7 @@ class TestAgentResolver:
 
     def test_resolve_http_url_without_auth(self, sample_yaml_content: str) -> None:
         """Test resolving an HTTP URL without authentication."""
-        resolver = AgentResolver()
+        resolver = SourceResolver()
 
         with patch("httpx.get") as mock_get:
             mock_response = Mock()
@@ -86,12 +86,12 @@ class TestAgentResolver:
 
     def test_resolve_http_url_failure(self) -> None:
         """Test HTTP URL resolution failure."""
-        resolver = AgentResolver()
+        resolver = SourceResolver()
 
         with patch("httpx.get") as mock_get:
             mock_get.side_effect = httpx.HTTPError("Connection failed")
 
-            with pytest.raises(ValueError, match="Failed to fetch agent"):
+            with pytest.raises(ValueError, match="Failed to fetch content"):
                 resolver.resolve("https://example.com/agent.yaml")
 
     def test_resolve_absolute_path(
@@ -100,7 +100,7 @@ class TestAgentResolver:
         sample_yaml_content: str,
     ) -> None:
         """Test resolving an absolute file path."""
-        resolver = AgentResolver()
+        resolver = SourceResolver()
 
         result = resolver.resolve(str(temp_agent_file))
 
@@ -115,7 +115,7 @@ class TestAgentResolver:
         sample_yaml_content: str,
     ) -> None:
         """Test resolving a path with ~/ prefix."""
-        resolver = AgentResolver()
+        resolver = SourceResolver()
 
         # Create a file in a temp location
         agent_file = tmp_path / "agent.yaml"
@@ -136,7 +136,7 @@ class TestAgentResolver:
         sample_yaml_content: str,
     ) -> None:
         """Test resolving a relative file path."""
-        resolver = AgentResolver()
+        resolver = SourceResolver()
 
         # Create a base file and a referenced file
         base_dir = tmp_path / "base"
@@ -155,7 +155,12 @@ class TestAgentResolver:
         sample_yaml_content: str,
     ) -> None:
         """Test resolving by discovered agent name."""
-        resolver = AgentResolver(discovered_agents=discovered_agents)
+        discovered_sources = {
+            agent.name.lower(): agent.file_path
+            for agent in discovered_agents
+            if agent.file_path
+        }
+        resolver = SourceResolver(discovered_sources=discovered_sources)
 
         result = resolver.resolve("TestAgent")
 
@@ -168,7 +173,12 @@ class TestAgentResolver:
         sample_yaml_content: str,
     ) -> None:
         """Test resolving by discovered agent name is case-insensitive."""
-        resolver = AgentResolver(discovered_agents=discovered_agents)
+        discovered_sources = {
+            agent.name.lower(): agent.file_path
+            for agent in discovered_agents
+            if agent.file_path
+        }
+        resolver = SourceResolver(discovered_sources=discovered_sources)
 
         result = resolver.resolve("testagent")
 
@@ -177,16 +187,16 @@ class TestAgentResolver:
 
     def test_resolve_not_found(self) -> None:
         """Test resolution failure when identifier cannot be resolved."""
-        resolver = AgentResolver()
+        resolver = SourceResolver()
 
-        with pytest.raises(ValueError, match="Could not resolve agent identifier"):
+        with pytest.raises(ValueError, match="Could not resolve identifier"):
             resolver.resolve("nonexistent_agent")
 
     def test_resolve_file_not_found(self) -> None:
         """Test resolution failure when file doesn't exist."""
-        resolver = AgentResolver()
+        resolver = SourceResolver()
 
-        with pytest.raises(ValueError, match="Could not resolve agent identifier"):
+        with pytest.raises(ValueError, match="Could not resolve identifier"):
             resolver.resolve("/nonexistent/path/agent.yaml")
 
     def test_resolve_priority_http_over_file(
@@ -194,7 +204,7 @@ class TestAgentResolver:
         sample_yaml_content: str,
     ) -> None:
         """Test that HTTP URLs are tried before file paths."""
-        resolver = AgentResolver()
+        resolver = SourceResolver()
 
         with patch("httpx.get") as mock_get:
             mock_response = Mock()
@@ -209,12 +219,12 @@ class TestAgentResolver:
             mock_get.assert_called_once()
 
 
-class TestAgentResolution:
-    """Test suite for AgentResolution dataclass."""
+class TestSourceResolution:
+    """Test suite for SourceResolution dataclass."""
 
     def test_agent_resolution_creation(self) -> None:
-        """Test creating an AgentResolution instance."""
-        resolution = AgentResolution(
+        """Test creating an SourceResolution instance."""
+        resolution = SourceResolution(
             content="test content",
             source="test.yaml",
             source_type=SourceType.FILE_PATH,
@@ -227,8 +237,8 @@ class TestAgentResolution:
         assert resolution.file_path == Path("test.yaml")
 
     def test_agent_resolution_without_file_path(self) -> None:
-        """Test creating an AgentResolution without file_path."""
-        resolution = AgentResolution(
+        """Test creating an SourceResolution without file_path."""
+        resolution = SourceResolution(
             content="test content",
             source="https://example.com/agent.yaml",
             source_type=SourceType.HTTP_URL,

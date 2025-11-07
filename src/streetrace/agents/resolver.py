@@ -1,12 +1,12 @@
-"""Agent identifier resolution supporting names, paths, and HTTP URLs."""
+"""Source identifier resolution supporting names, paths, and HTTP URLs.
+
+This module provides format-agnostic resolution of identifiers to raw content.
+It can be used for YAML, Markdown, or any other text-based agent definitions.
+"""
 
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from streetrace.agents.base_agent_loader import AgentInfo
 
 import httpx
 
@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 
 
 class SourceType(str, Enum):
-    """Type of agent source."""
+    """Type of source."""
 
     DISCOVERED_NAME = "discovered_name"
     FILE_PATH = "file_path"
@@ -24,14 +24,15 @@ class SourceType(str, Enum):
 
 
 @dataclass
-class AgentResolution:
-    """Result of agent identifier resolution.
+class SourceResolution:
+    """Result of source identifier resolution.
 
     Attributes:
-        content: Agent YAML content as string
+        content: Raw content as string (format-agnostic)
         source: Original identifier or resolved path/URL
         source_type: Type of source that was resolved
         file_path: Path object if source was a file, None otherwise
+        content_type: MIME type from HTTP response, if available
 
     """
 
@@ -39,50 +40,53 @@ class AgentResolution:
     source: str
     source_type: SourceType
     file_path: Path | None = None
+    content_type: str | None = None
 
 
-class AgentResolver:
-    """Resolves agent identifiers to YAML content.
+class SourceResolver:
+    """Resolves identifiers to raw content (format-agnostic).
 
     Supports:
-    - Discovered agent names (from agent discovery)
+    - Discovered source names (from discovery, mapped to paths)
     - File system paths (absolute, ~/, relative)
     - HTTP/HTTPS URLs with optional authentication
     """
 
     def __init__(
         self,
-        discovered_agents: list["AgentInfo"] | None = None,
+        discovered_sources: dict[str, Path] | None = None,
         http_auth: str | None = None,
     ) -> None:
-        """Initialize the agent resolver.
+        """Initialize the source resolver.
 
         Args:
-            discovered_agents: List of discovered agents for name resolution
+            discovered_sources: Mapping of names to file paths for name resolution
             http_auth: Authorization header value for HTTP requests
 
         """
-        self.discovered_agents = discovered_agents or []
+        self.discovered_sources = discovered_sources or {}
         self.http_auth = http_auth
 
     def resolve(
         self,
         identifier: str,
         base_path: Path | None = None,
-    ) -> AgentResolution:
-        """Resolve an agent identifier to YAML content.
+        accept_types: list[str] | None = None,
+    ) -> SourceResolution:
+        """Resolve an identifier to raw content.
 
         Resolution order:
         1. Check if it's an HTTP(S) URL
         2. Check if it's a file path (absolute, ~/, or relative)
-        3. Check if it matches a discovered agent name
+        3. Check if it matches a discovered source name
 
         Args:
-            identifier: Agent identifier (name, path, or URL)
+            identifier: Source identifier (name, path, or URL)
             base_path: Base path for resolving relative paths
+            accept_types: MIME types to accept for HTTP requests
 
         Returns:
-            AgentResolution with content and metadata
+            SourceResolution with content and metadata
 
         Raises:
             ValueError: If identifier cannot be resolved
@@ -92,39 +96,52 @@ class AgentResolver:
 
         # 1. Try HTTP URL
         if identifier.startswith(("http://", "https://")):
-            return self._resolve_http(identifier)
+            return self._resolve_http(identifier, accept_types)
 
         # 2. Try file path
         file_path = self._try_resolve_path(identifier, base_path)
         if file_path and file_path.exists():
             return self._resolve_file(file_path)
 
-        # 3. Try discovered agent name
-        agent_info = self._find_discovered_agent(identifier)
-        if agent_info and agent_info.file_path and agent_info.file_path.exists():
-            return self._resolve_file(agent_info.file_path)
+        # 3. Try discovered source name
+        discovered_path = self._find_discovered_source(identifier)
+        if discovered_path and discovered_path.exists():
+            return self._resolve_file(discovered_path)
 
         # Failed to resolve
         msg = (
-            f"Could not resolve agent identifier '{identifier}'. "
-            "Not found as HTTP URL, file path, or discovered agent name."
+            f"Could not resolve identifier '{identifier}'. "
+            "Not found as HTTP URL, file path, or discovered source name."
         )
         raise ValueError(msg)
 
-    def _resolve_http(self, url: str) -> AgentResolution:
-        """Fetch agent YAML from HTTP URL.
+    def _resolve_http(
+        self,
+        url: str,
+        accept_types: list[str] | None = None,
+    ) -> SourceResolution:
+        """Fetch content from HTTP URL.
 
         Args:
             url: HTTP(S) URL to fetch
+            accept_types: MIME types to accept (default: text/plain, text/yaml)
 
         Returns:
-            AgentResolution with fetched content
+            SourceResolution with fetched content
 
         Raises:
             ValueError: If HTTP request fails
 
         """
-        headers = {"Accept": "application/x-yaml, application/yaml, text/yaml"}
+        if accept_types is None:
+            accept_types = [
+                "text/plain",
+                "application/x-yaml",
+                "application/yaml",
+                "text/yaml",
+            ]
+
+        headers = {"Accept": ", ".join(accept_types)}
         if self.http_auth:
             headers["Authorization"] = self.http_auth
 
@@ -137,25 +154,27 @@ class AgentResolver:
             )
             response.raise_for_status()
             content = response.text
-            logger.info("Fetched agent from HTTP URL: %s", url)
-            return AgentResolution(
+            content_type = response.headers.get("Content-Type")
+            logger.info("Fetched content from HTTP URL: %s", url)
+            return SourceResolution(
                 content=content,
                 source=url,
                 source_type=SourceType.HTTP_URL,
                 file_path=None,
+                content_type=content_type,
             )
         except httpx.HTTPError as e:
-            msg = f"Failed to fetch agent from {url}: {e}"
+            msg = f"Failed to fetch content from {url}: {e}"
             raise ValueError(msg) from e
 
-    def _resolve_file(self, file_path: Path) -> AgentResolution:
-        """Read agent YAML from file.
+    def _resolve_file(self, file_path: Path) -> SourceResolution:
+        """Read content from file.
 
         Args:
-            file_path: Path to YAML file
+            file_path: Path to file
 
         Returns:
-            AgentResolution with file content
+            SourceResolution with file content
 
         Raises:
             ValueError: If file cannot be read
@@ -163,15 +182,15 @@ class AgentResolver:
         """
         try:
             content = file_path.read_text(encoding="utf-8")
-            logger.debug("Loaded agent from file: %s", file_path)
-            return AgentResolution(
+            logger.debug("Loaded content from file: %s", file_path)
+            return SourceResolution(
                 content=content,
                 source=str(file_path),
                 source_type=SourceType.FILE_PATH,
                 file_path=file_path,
             )
         except OSError as e:
-            msg = f"Failed to read agent file {file_path}: {e}"
+            msg = f"Failed to read file {file_path}: {e}"
             raise ValueError(msg) from e
 
     def _try_resolve_path(self, identifier: str, base_path: Path | None) -> Path | None:
@@ -200,18 +219,15 @@ class AgentResolver:
         # Try relative to cwd
         return Path(identifier).resolve()
 
-    def _find_discovered_agent(self, name: str) -> "AgentInfo | None":
-        """Find agent by name in discovered agents.
+    def _find_discovered_source(self, name: str) -> Path | None:
+        """Find source path by name in discovered sources.
 
         Args:
-            name: Agent name to find
+            name: Source name to find
 
         Returns:
-            AgentInfo if found, None otherwise
+            Path if found, None otherwise
 
         """
         name_lower = name.lower()
-        for agent in self.discovered_agents:
-            if agent.name.lower() == name_lower:
-                return agent
-        return None
+        return self.discovered_sources.get(name_lower)

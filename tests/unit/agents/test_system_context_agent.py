@@ -87,10 +87,26 @@ async def test_create_agent_passes_system_context(
 
     agent_card = SystemContextCapturingAgent().get_agent_card()
 
+    # Create mock AgentInfo
+    from unittest.mock import MagicMock
+
+    from streetrace.agents.yaml_agent_loader import AgentInfo
+
+    mock_agent_info = AgentInfo(
+        name=agent_card.name,
+        description=agent_card.description,
+        module=MagicMock(),
+    )
+
+    # Mock the discovery cache
+    agent_manager._discovery_cache = {  # noqa: SLF001
+        agent_card.name.lower(): ("cwd", mock_agent_info),
+    }
+
     # Act
     # Mock the python loader to return our test agent
     with patch.object(
-        agent_manager.python_loader,
+        agent_manager.format_loaders["python"],
         "load_agent",
         return_value=SystemContextCapturingAgent(),
     ):
