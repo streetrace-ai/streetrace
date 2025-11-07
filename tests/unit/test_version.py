@@ -4,12 +4,12 @@ from unittest.mock import patch
 
 import pytest
 
-from streetrace.main import show_version
+from streetrace.version import show_version
 
 
 def test_show_version_with_valid_version():
     """Test that show_version displays the correct version when package is found."""
-    with patch("streetrace.main.version") as mock_version:
+    with patch("streetrace.version.version") as mock_version:
         mock_version.return_value = "1.2.3"
 
         with patch("builtins.print") as mock_print:
@@ -23,7 +23,7 @@ def test_show_version_with_valid_version():
 
 def test_show_version_with_missing_package():
     """Test that show_version handles missing package gracefully."""
-    with patch("streetrace.main.version") as mock_version:
+    with patch("streetrace.version.version") as mock_version:
         mock_version.side_effect = Exception("Package not found")
 
         with patch("builtins.print") as mock_print:
@@ -38,7 +38,7 @@ def test_show_version_with_missing_package():
 def test_show_version_exit_code():
     """Test that show_version exits with code 0."""
     with (
-        patch("streetrace.main.version", return_value="1.0.0"),
+        patch("streetrace.version.version", return_value="1.0.0"),
         patch("builtins.print"),
     ):
         with pytest.raises(SystemExit) as exc_info:
