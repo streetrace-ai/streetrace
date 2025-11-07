@@ -661,11 +661,23 @@ class TestAgentManagerLocationPriority:
         # Mock discover_in_paths to return different agents for different locations
         def mock_discover_in_paths(paths: list[Path]) -> list[AgentInfo]:
             # Check if this is cwd or bundled based on paths
-            path_str = str(paths[0]) if paths else ""
-            if "cwd" in path_str or path_str == str(agent_manager.work_dir):
+            if not paths:
+                return []
+            
+            path = paths[0].resolve()  # Resolve symlinks
+            work_dir_resolved = agent_manager.work_dir.resolve()  # Resolve symlinks
+            
+            # Check if path is in work_dir (cwd location)
+            try:
+                path.relative_to(work_dir_resolved)
                 return [cwd_agent]
-            if "bundled" in path_str:
+            except ValueError:
+                pass
+            
+            # Check if path contains "agents" (bundled location)
+            if "agents" in str(path) and "streetrace" in str(path):
                 return [bundled_agent]
+            
             return []
 
         with (

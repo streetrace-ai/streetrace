@@ -3,14 +3,8 @@
 import os
 from typing import Optional
 
-from openinference.instrumentation.google_adk import GoogleADKInstrumentor
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.sdk import trace as trace_sdk
-from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
 
-
-def init_telemetry() -> Optional[trace_sdk.TracerProvider]:
+def init_telemetry() -> Optional["trace_sdk.TracerProvider"]:
     """Initialize OpenTelemetry tracing if configured.
     
     Returns:
@@ -20,6 +14,13 @@ def init_telemetry() -> Optional[trace_sdk.TracerProvider]:
     endpoint = os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") or os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if not endpoint:
         return None
+    
+    # Import OpenTelemetry modules only when needed
+    from openinference.instrumentation.google_adk import GoogleADKInstrumentor
+    from opentelemetry import trace
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk import trace as trace_sdk
+    from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
     
     # Create tracer provider
     tracer_provider = trace_sdk.TracerProvider()
