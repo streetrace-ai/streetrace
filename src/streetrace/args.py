@@ -140,7 +140,7 @@ class Args(tap.TypedArgs):
 
         """
         env_var_name = self.agent_uri_auth_var or "STREETRACE_AGENT_URI_AUTH"
-        return os.environ.get(env_var_name)
+        return os.environ.get(env_var_name) or os.environ.get("STREETRACE_API_KEY")
 
 
 def bind_and_run(app_main: Callable[[Args], None]) -> None:
