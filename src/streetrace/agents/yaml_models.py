@@ -172,7 +172,7 @@ class InlineAgentSpec(BaseModel):
 class YamlAgentSpec(BaseModel):
     """YAML agent specification model."""
 
-    version: Literal[1] = 1
+    version: str | None = None
     kind: Literal["agent"] = "agent"
     name: str
     description: str
@@ -184,6 +184,26 @@ class YamlAgentSpec(BaseModel):
     adk: AdkConfig = Field(default_factory=AdkConfig)
     tools: list[ToolSpec | AgentRef | InlineAgentSpec] = Field(default_factory=list)
     sub_agents: list[AgentRef | InlineAgentSpec] = Field(default_factory=list)
+
+    @field_validator("version", mode="before")
+    @classmethod
+    def convert_version_to_str(cls, v: object) -> str | None:
+        """Convert version to string format.
+
+        Args:
+            v: Version value (int or str or None)
+
+        Returns:
+            String version or None
+
+        """
+        if v is None:
+            return None
+        if isinstance(v, int):
+            # Convert schema version integers (like 1) to None for agent versioning
+            # Schema version is implicit and not used for agent versioning
+            return None
+        return str(v)
 
     @field_validator("name")
     @classmethod

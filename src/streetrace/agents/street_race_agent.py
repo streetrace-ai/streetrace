@@ -1,7 +1,7 @@
 """Base class for StreetRace agents."""
 
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     # Import only for type checking to avoid circular imports
@@ -84,6 +84,24 @@ class StreetRaceAgent(ABC):
         """Send a message through the agent workflow."""
         msg = "This method should be implemented by subclasses."
         raise NotImplementedError(msg)
+
+    def get_attributes(self) -> dict[str, "Any"]:
+        """Get custom attributes for this agent.
+
+        Returns:
+            Dictionary of custom attributes for telemetry/organization
+
+        """
+        return {}
+
+    def get_version(self) -> str | None:
+        """Get the version of this agent.
+
+        Returns:
+            Version string or None if not defined
+
+        """
+        return None
 
     @property
     def user_prompt(self) -> str | None:

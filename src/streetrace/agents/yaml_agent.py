@@ -112,6 +112,26 @@ class YamlAgent(StreetRaceAgent):
         if self._builder:
             await self._builder.close(agent_instance)
 
+    @override
+    def get_attributes(self) -> dict[str, Any]:
+        """Get custom attributes for this agent.
+
+        Returns:
+            Dictionary of custom attributes for telemetry/organization
+
+        """
+        return self.agent_doc.spec.attributes
+
+    @override
+    def get_version(self) -> str | None:
+        """Get the version of this agent.
+
+        Returns:
+            Version string from YAML specification or None if not defined
+
+        """
+        return self.agent_doc.spec.version
+
     @property
     @override
     def user_prompt(self) -> str | None:
@@ -122,13 +142,3 @@ class YamlAgent(StreetRaceAgent):
 
         """
         return self.agent_doc.spec.prompt
-
-    @property
-    def attributes(self) -> dict[str, Any]:
-        """Get custom attributes for this agent.
-
-        Returns:
-            Dictionary of custom attributes for telemetry/organization
-
-        """
-        return self.agent_doc.spec.attributes

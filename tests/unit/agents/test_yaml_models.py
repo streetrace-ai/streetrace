@@ -202,7 +202,7 @@ class TestYamlAgentSpec:
             name="test_agent",
             description="A test agent",
         )
-        assert spec.version == 1
+        assert spec.version is None  # No agent version specified
         assert spec.kind == "agent"
         assert spec.name == "test_agent"
         assert spec.description == "A test agent"
@@ -211,6 +211,26 @@ class TestYamlAgentSpec:
         assert spec.global_instruction is None
         assert spec.tools == []
         assert spec.sub_agents == []
+
+    def test_agent_version_string(self):
+        """Test that string versions are preserved as agent versions."""
+        spec = YamlAgentSpec(
+            version="1.0.0",
+            name="test_agent",
+            description="A test agent",
+        )
+        assert spec.version == "1.0.0"
+
+    def test_schema_version_int_converts_to_none(self):
+        """Test that integer version (schema version) converts to None."""
+        spec = YamlAgentSpec(
+            version=1,  # Schema version, not agent version
+            name="test_agent",
+            description="A test agent",
+        )
+        assert (
+            spec.version is None
+        )  # Int schema version is not used for agent versioning
 
     def test_full_spec(self):
         """Test full agent specification."""
