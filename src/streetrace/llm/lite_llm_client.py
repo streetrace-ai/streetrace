@@ -12,10 +12,6 @@ from typing import Any, override
 
 import litellm
 from google.adk.models.lite_llm import LiteLlm, LiteLLMClient
-
-# Initialize Langfuse callbacks globally
-litellm.callbacks = ["langfuse_otel"]
-
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
 from litellm.cost_calculator import completion_cost
@@ -34,6 +30,9 @@ from streetrace.costs import UsageAndCost
 from streetrace.log import get_logger
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
+
+# Initialize Langfuse callbacks globally
+litellm.callbacks = ["langfuse_otel"]
 
 logger = get_logger(__name__)
 

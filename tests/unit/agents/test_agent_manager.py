@@ -663,21 +663,22 @@ class TestAgentManagerLocationPriority:
             # Check if this is cwd or bundled based on paths
             if not paths:
                 return []
-            
+
             path = paths[0].resolve()  # Resolve symlinks
             work_dir_resolved = agent_manager.work_dir.resolve()  # Resolve symlinks
-            
+
             # Check if path is in work_dir (cwd location)
             try:
                 path.relative_to(work_dir_resolved)
-                return [cwd_agent]
             except ValueError:
                 pass
-            
+            else:
+                return [cwd_agent]
+
             # Check if path contains "agents" (bundled location)
             if "agents" in str(path) and "streetrace" in str(path):
                 return [bundled_agent]
-            
+
             return []
 
         with (

@@ -2,6 +2,7 @@
 
 # Set protobuf implementation before any imports
 import os
+
 os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 
 import asyncio
@@ -41,10 +42,10 @@ def run(args: Args) -> None:
         dotenv_path=cwd / ".env",
         override=True,
     )  # Load environment variables from .env file in the current directory
-    
+
     # Initialize telemetry after loading environment variables
     init_telemetry()
-    
+
     init_logging(args)
     logger = get_logger(__name__)
 
