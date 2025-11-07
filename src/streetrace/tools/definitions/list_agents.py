@@ -3,8 +3,16 @@
 Discovers and lists available agents in the system from predefined directories.
 """
 
-from pathlib import Path
-from typing import Literal, TypedDict
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Literal, TypedDict
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from streetrace.llm.model_factory import ModelFactory
+    from streetrace.system_context import SystemContext
+    from streetrace.tools.tool_provider import ToolProvider
 
 from streetrace.log import get_logger
 from streetrace.tools.definitions.result import OpResult, OpResultCode
@@ -41,15 +49,21 @@ def list_agents(work_dir: Path) -> AgentListResult:
         AgentListResult containing discovered agents
 
     """
-    from streetrace.agents.agent_manager import DEFAULT_AGENT_PATHS
-    from streetrace.agents.py_agent_loader import PythonAgentLoader
-    from streetrace.agents.yaml_agent_loader import YamlAgentLoader
+    from typing import cast
 
-    agent_paths = [work_dir / p for p in DEFAULT_AGENT_PATHS]
+    from streetrace.agents.agent_manager import AgentManager
 
-    yaml_loader = YamlAgentLoader(agent_paths)
-    python_loader = PythonAgentLoader(agent_paths)
-    agents = yaml_loader.discover() + python_loader.discover()
+    # Create a minimal AgentManager instance for discovery
+    # We don't need actual model_factory, tool_provider, or system_context for discovery
+    # We cast None to the required types since discovery doesn't use them
+    agent_manager = AgentManager(
+        model_factory=cast("ModelFactory", None),
+        tool_provider=cast("ToolProvider", None),
+        system_context=cast("SystemContext", None),
+        work_dir=work_dir,
+    )
+
+    agents = agent_manager.discover()
     return AgentListResult(
         tool_name="list_agents",
         result=OpResultCode.SUCCESS,

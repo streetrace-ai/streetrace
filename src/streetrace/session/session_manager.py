@@ -141,27 +141,12 @@ class SessionManager:
             session_id=session_id,
         )
         if not session:
-            from google.adk.events import Event
-            from google.genai import types as genai_types
-
             session = await self.session_service.create_session(
                 app_name=self.app_name,
                 user_id=self.user_id,
                 session_id=session_id,
                 state={},  # Initialize state during creation
             )
-            context = self.system_context.get_project_context()
-            context_event = Event(
-                author="user",
-                content=genai_types.Content(
-                    role="user",
-                    parts=[
-                        genai_types.Part.from_text(text=context_part)
-                        for context_part in context
-                    ],
-                ),
-            )
-            await self.session_service.append_event(session, context_event)
             session = await self.session_service.get_session(
                 app_name=self.app_name,
                 user_id=self.user_id,

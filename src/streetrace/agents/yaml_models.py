@@ -4,7 +4,7 @@ import os
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -123,7 +123,7 @@ class ToolSpec(BaseModel):
     mcp: McpToolSpec | None = None
 
     @model_validator(mode="after")
-    def validate_tool_spec(self) -> "ToolSpec":
+    def validate_tool_spec(self) -> Self:
         """Ensure exactly one tool type is specified."""
         if self.streetrace and self.mcp:
             msg = "Tool specification cannot have both 'streetrace' and 'mcp' fields"
@@ -135,18 +135,18 @@ class ToolSpec(BaseModel):
 
 
 class AgentRef(BaseModel):
-    """Reference to another agent file."""
+    """Reference to another agent (name, path, or URL)."""
 
     ref: str = Field(alias="$ref")
 
     @field_validator("ref")
     @classmethod
-    def validate_ref_path(cls, v: str) -> str:
-        """Validate that ref is a reasonable file path."""
-        if not v or v.startswith("http"):
-            msg = f"Agent reference must be a local file path, got: {v}"
+    def validate_ref(cls, v: str) -> str:
+        """Validate that ref is non-empty."""
+        if not v or not v.strip():
+            msg = "Agent reference cannot be empty"
             raise ValueError(msg)
-        return v
+        return v.strip()
 
 
 class AdkConfig(BaseModel):
@@ -180,6 +180,7 @@ class YamlAgentSpec(BaseModel):
     instruction: str | None = None
     global_instruction: str | None = None
     prompt: str | None = None
+    attributes: dict[str, Any] = Field(default_factory=dict)
     adk: AdkConfig = Field(default_factory=AdkConfig)
     tools: list[ToolSpec | AgentRef | InlineAgentSpec] = Field(default_factory=list)
     sub_agents: list[AgentRef | InlineAgentSpec] = Field(default_factory=list)
@@ -200,7 +201,7 @@ class YamlAgentSpec(BaseModel):
         return expand_env_vars(v) if isinstance(v, str) else v
 
     @model_validator(mode="after")
-    def validate_output_schema_constraint(self) -> "YamlAgentSpec":
+    def validate_output_schema_constraint(self) -> Self:
         """Validate ADK constraint: output_schema cannot coexist with tools."""
         # tools/sub_agents
         if self.adk.output_schema and (self.tools or self.sub_agents):
@@ -212,7 +213,7 @@ class YamlAgentSpec(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def validate_global_instruction_at_root_only(self) -> "YamlAgentSpec":
+    def validate_global_instruction_at_root_only(self) -> Self:
         """Validate that global_instruction is only used at root level."""
         # Note: This validation will be enforced during loading when we know the context
         return self

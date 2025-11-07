@@ -206,11 +206,15 @@ class ConsoleUI:
         if self.non_interactive:
             return
 
-        # Access the prompt_session property to ensure it's created if needed
+        # Only update rprompt if there's an active prompt session
+        # (no active session means we're not currently prompting the user)
+        if not self._prompt_session:
+            return
+
         if token_count is None:
-            self.prompt_session.rprompt = None
+            self._prompt_session.rprompt = None
         else:
-            self.prompt_session.rprompt = f"~{token_count}t"
+            self._prompt_session.rprompt = f"~{token_count}t"
 
     async def prompt_async(self, prompt_str: str = _PROMPT) -> str:
         """Get input from the user via the console with autocompletion.
@@ -223,6 +227,10 @@ class ConsoleUI:
 
         """
         from prompt_toolkit.styles import Style
+
+        # Create a fresh prompt session for each prompt to avoid stale state
+        # from background tasks (cursor position reporting, etc.)
+        session = self.prompt_session
 
         # --- prompt_toolkit setup ---
         def build_prompt() -> list[tuple[str, str]]:
@@ -259,7 +267,7 @@ class ConsoleUI:
         try:
             with patch_stdout():
                 self.console.print()
-                user_input = await self.prompt_session.prompt_async(
+                user_input = await session.prompt_async(
                     build_prompt,
                     style=Style.from_dict(Styles.PT_ANSI),
                     prompt_continuation=build_prompt_continuation,
@@ -272,8 +280,8 @@ class ConsoleUI:
         except EOFError:  # Handle Ctrl+D as a way to exit
             return "/exit"  # Consistent exit command
         except KeyboardInterrupt as kb_interrupt:  # Handle Ctrl+C
-            if self.prompt_session.app.current_buffer.text:
-                self.prompt_session.app.current_buffer.reset()
+            if session.app.current_buffer.text:
+                session.app.current_buffer.reset()
                 raise
 
             raise SystemExit from kb_interrupt
@@ -281,6 +289,8 @@ class ConsoleUI:
             return str(user_input)
         finally:
             self._update_rprompt(None)
+            # Clear the session to ensure a fresh one is created next time
+            self._prompt_session = None
 
     def confirm_with_user(self, message: str) -> str:
         """Ask the user to type something and return the typed string."""

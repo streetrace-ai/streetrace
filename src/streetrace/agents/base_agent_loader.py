@@ -83,28 +83,83 @@ class AgentInfo:
 
 
 class AgentLoader(ABC):
-    """Abstract base class for agent loaders."""
+    """Abstract base class for agent loaders.
+
+    Loaders are responsible for discovering and loading agents of a specific format
+    (e.g., YAML, Python, Markdown). They support location-scoped discovery for
+    implementing location-first priority in agent resolution.
+    """
 
     @abstractmethod
+    def discover_in_paths(self, paths: list[Path]) -> list[AgentInfo]:
+        """Discover agents in specific paths only.
+
+        This method is used by AgentManager to implement location-first priority.
+        It should only search within the provided paths, not all configured paths.
+
+        Args:
+            paths: Specific paths to search in
+
+        Returns:
+            List of discovered agents in these paths only
+
+        """
+
+    @abstractmethod
+    def load_from_path(self, path: Path) -> "StreetRaceAgent":
+        """Load agent from explicit file or directory path.
+
+        Args:
+            path: File or directory path
+
+        Returns:
+            Loaded agent
+
+        Raises:
+            ValueError: If cannot load from this path
+
+        """
+
+    @abstractmethod
+    def load_from_url(self, url: str) -> "StreetRaceAgent":
+        """Load agent from HTTP URL.
+
+        Args:
+            url: HTTP(S) URL
+
+        Returns:
+            Loaded agent
+
+        Raises:
+            ValueError: If cannot load from this URL
+
+        """
+
+    @abstractmethod
+    def load_agent(self, agent_info: AgentInfo) -> "StreetRaceAgent":
+        """Load agent from AgentInfo (from discovery).
+
+        Args:
+            agent_info: Previously discovered agent info
+
+        Returns:
+            Loaded agent
+
+        Raises:
+            ValueError: If cannot load this agent
+
+        """
+
     def discover(self) -> list[AgentInfo]:
-        """Discover known agents.
+        """Discover all known agents (legacy method).
+
+        This method is kept for backward compatibility. New code should use
+        discover_in_paths() for location-first priority.
 
         Returns:
             List of discovered agents
 
         """
-
-    @abstractmethod
-    def load_agent(self, agent: str | Path | AgentInfo) -> "StreetRaceAgent":
-        """Load an agent by name, path, or AgentInfo.
-
-        Args:
-            agent: Agent identifier - can be name (str), file path (Path), or AgentInfo
-
-        Returns:
-            Loaded StreetRaceAgent implementation
-
-        Raises:
-            ValueError: If agent cannot be loaded
-
-        """
+        # Default implementation: discover in all configured paths
+        # Subclasses can override if they have configured paths
+        return []

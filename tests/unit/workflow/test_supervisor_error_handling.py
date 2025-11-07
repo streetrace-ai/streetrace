@@ -178,7 +178,7 @@ class TestSupervisorErrorHandling:
         mock_session,
         mock_events_iterator,
     ) -> None:
-        """Test handling when post_process fails."""
+        """Test that post_process failures dispatch error to UI bus."""
         # Arrange
         input_context = InputContext(user_input="Test prompt")
 
@@ -191,9 +191,8 @@ class TestSupervisorErrorHandling:
         )
 
         # Mock post_process failure
-        shallow_supervisor.session_manager.post_process.side_effect = Exception(
-            "Post-process failed",
-        )
+        post_process_error = Exception("Post-process failed")
+        shallow_supervisor.session_manager.post_process.side_effect = post_process_error
 
         # Create custom event
         final_event = Mock()
@@ -209,14 +208,33 @@ class TestSupervisorErrorHandling:
         with (
             patch("google.adk.Runner", return_value=mock_runner),
             # Act & Assert - Exception should propagate (fail-fast for core components)
-            pytest.raises(Exception, match="Post-process failed"),
+            pytest.raises(
+                ExceptionGroup,
+                check=lambda eg: "Post-process failed" in str(eg.exceptions[0]),
+            ),
         ):
             await shallow_supervisor.handle(input_context)
 
-        # Assert that execution proceeded normally until post_process
-        shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
-            EventWrapper(final_event),
-        )
+        # Assert that error was dispatched to UI bus
+        # The UI should have been called twice:
+        # 1. For the event during processing
+        # 2. For the error when post_process failed
+        assert shallow_supervisor.ui_bus.dispatch_ui_update.call_count == 2
+
+        # First call: event wrapper
+        first_call = shallow_supervisor.ui_bus.dispatch_ui_update.call_args_list[0]
+        assert isinstance(first_call[0][0], EventWrapper)
+
+        # Second call: error event with the post_process failure message
+        from streetrace.ui import ui_events
+
+        second_call = shallow_supervisor.ui_bus.dispatch_ui_update.call_args_list[1]
+        error_event = second_call[0][0]
+        assert isinstance(error_event, ui_events.Error)
+        # The error message should contain both the agent name and the exception
+        error_str = str(error_event)
+        assert "default" in error_str
+        assert "Post-process failed" in error_str
 
     @pytest.mark.asyncio
     async def test_agent_context_manager_exit_failure(

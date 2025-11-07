@@ -105,7 +105,12 @@ class Supervisor(InputHandler):
                     #           -> missing parameter name is "content"
 
                     # Check if this is the final response from the agent
-                    if event.is_final_response():
+                    # Only capture the first final response if multiple are received
+                    if (
+                        event.is_final_response()
+                        and final_response_text
+                        == "Agent did not produce a final response."
+                    ):
                         if event.content and event.content.parts:
                             # Assuming text response in the first part
                             final_response_text = event.content.parts[0].text
@@ -114,8 +119,13 @@ class Supervisor(InputHandler):
                         ):  # Handle potential errors/escalations
                             error_msg = event.error_message or "No specific message."
                             final_response_text = f"Agent escalated: {error_msg}"
-                        # Add more checks here if needed (e.g., specific error codes)
-                        break  # Stop processing events once the final response is found
+            # Add the agent's final message to the history
+            if final_response_text:
+                await self.session_manager.post_process(
+                    user_input=ctx.user_input,
+                    original_session=session,
+                )
+                ctx.final_response = final_response_text
         except* ToolsetLifecycleError as lifecycle_err_group:
             logger.exception(
                 "Failed to initialize or cleanup tools for agent '%s'",
@@ -135,12 +145,4 @@ class Supervisor(InputHandler):
             )
             raise
 
-        # Add the agent's final message to the history
-        if final_response_text:
-            await self.session_manager.post_process(
-                user_input=ctx.user_input,
-                original_session=session,
-            )
-            # Store the final response in the context for output file handling
-            ctx.final_response = final_response_text
         return HANDLED_CONT

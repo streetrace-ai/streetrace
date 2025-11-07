@@ -261,6 +261,17 @@ class RetryingLiteLlm(LiteLlm):
         """
         logger.debug("Generating content with model %s (stream=%s)", self.model, stream)
 
+        # If streaming is requested, we delegate to the original implementation
+        # since it's more complex to handle retry logic with streaming
+        if stream:
+            logger.debug("Using streaming mode, delegating to original implementation")
+            async for response in super().generate_content_async(
+                llm_request,
+                stream=True,
+            ):
+                yield response
+            return
+
         # Define a retrying context that handles specific exceptions
         retrying = AsyncRetrying(
             stop=stop_after_attempt(_MAX_RETRIES),
@@ -272,17 +283,6 @@ class RetryingLiteLlm(LiteLlm):
             retry=retry_if_exception_type(TryAgain),
             reraise=True,  # Re-raise the last exception when retries are exhausted
         )
-
-        # If streaming is requested, we delegate to the original implementation
-        # since it's more complex to handle retry logic with streaming
-        if stream:
-            logger.debug("Using streaming mode, delegating to original implementation")
-            async for response in super().generate_content_async(
-                llm_request,
-                stream=True,
-            ):
-                yield response
-            return
 
         # For non-streaming, we use the retry logic
         attempt = 0
@@ -304,8 +304,6 @@ class RetryingLiteLlm(LiteLlm):
                         stream=False,
                     ):
                         yield response
-                        # Break after first response in non-streaming mode
-                        break
 
                 except RateLimitError as rate_limit_err:
                     # Log and display the rate limit error

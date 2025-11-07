@@ -248,6 +248,7 @@ def create_app(args: Args) -> Application:
         tool_provider,
         system_context,
         args.working_dir,
+        http_auth=args.effective_agent_uri_auth,
     )
 
     # Initialize Workflow Supervisor, passing the args

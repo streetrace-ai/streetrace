@@ -7,6 +7,7 @@ from logging import (
     Logger,
     StreamHandler,
     basicConfig,
+    captureWarnings,
     getLogger,
 )
 
@@ -28,6 +29,8 @@ def init_logging(args: Args) -> None:
         filename="streetrace.log",
         filemode="w",
     )
+
+    captureWarnings(True)  # noqa: FBT003
 
     # Console handler for user-facing logs
     console_handler = StreamHandler()
