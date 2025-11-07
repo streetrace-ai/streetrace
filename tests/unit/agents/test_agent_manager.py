@@ -634,3 +634,289 @@ class TestAgentManagerFilePath:
             # Act & Assert
             async with agent_manager.create_agent(agent_name):
                 pass
+
+
+class TestAgentManagerLocationPriority:
+    """Test cases for location-first priority in agent discovery."""
+
+    def test_location_priority_cwd_over_bundled(
+        self,
+        agent_manager: AgentManager,
+    ) -> None:
+        """Test that agents in cwd take priority over bundled agents."""
+        # Arrange - Create agents with same name in different locations
+        cwd_agent = AgentInfo(
+            name="TestAgent",
+            description="Agent from cwd",
+            file_path=Path("/cwd/agents/test.yaml"),
+            yaml_document=MagicMock(),  # Mark as YAML agent
+        )
+        bundled_agent = AgentInfo(
+            name="TestAgent",
+            description="Agent from bundled",
+            file_path=Path("/bundled/agents/test.yaml"),
+            yaml_document=MagicMock(),  # Mark as YAML agent
+        )
+
+        # Mock discover_in_paths to return different agents for different locations
+        def mock_discover_in_paths(paths: list[Path]) -> list[AgentInfo]:
+            # Check if this is cwd or bundled based on paths
+            path_str = str(paths[0]) if paths else ""
+            if "cwd" in path_str or path_str == str(agent_manager.work_dir):
+                return [cwd_agent]
+            if "bundled" in path_str:
+                return [bundled_agent]
+            return []
+
+        with (
+            patch.object(
+                agent_manager.format_loaders["yaml"],
+                "discover_in_paths",
+                side_effect=mock_discover_in_paths,
+            ),
+            patch.object(
+                agent_manager.format_loaders["python"],
+                "discover_in_paths",
+                return_value=[],
+            ),
+        ):
+            # Act
+            agents = agent_manager.discover()
+
+            # Assert - Only one agent with the name should be returned (from cwd)
+            agent_names = [agent.name for agent in agents]
+            assert "TestAgent" in agent_names
+            # Find the TestAgent
+            test_agent = next(a for a in agents if a.name == "TestAgent")
+            assert test_agent.description == "Agent from cwd"
+
+    def test_location_priority_home_over_bundled(
+        self,
+        mock_model_factory: ModelFactory,
+        mock_tool_provider: ToolProvider,
+        mock_system_context: SystemContext,
+        tmp_path: Path,
+    ) -> None:
+        """Test that agents in home directory take priority over bundled agents."""
+        # Arrange - Create a work_dir that doesn't contain the agent
+        work_dir = tmp_path / "work"
+        work_dir.mkdir()
+
+        agent_manager = AgentManager(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            work_dir=work_dir,
+        )
+
+        home_agent = AgentInfo(
+            name="TestAgent",
+            description="Agent from home",
+            file_path=Path.home() / ".streetrace/agents/test.yaml",
+            yaml_document=MagicMock(),  # Mark as YAML agent
+        )
+        bundled_agent = AgentInfo(
+            name="TestAgent",
+            description="Agent from bundled",
+            file_path=Path(__file__).parent / "test.yaml",
+            yaml_document=MagicMock(),  # Mark as YAML agent
+        )
+
+        def mock_discover_in_paths(paths: list[Path]) -> list[AgentInfo]:
+            path_str = str(paths[0]) if paths else ""
+            if ".streetrace" in path_str or "home" in path_str:
+                return [home_agent]
+            if "bundled" in path_str or "agents" in path_str:
+                return [bundled_agent]
+            return []
+
+        with (
+            patch.object(
+                agent_manager.format_loaders["yaml"],
+                "discover_in_paths",
+                side_effect=mock_discover_in_paths,
+            ),
+            patch.object(
+                agent_manager.format_loaders["python"],
+                "discover_in_paths",
+                return_value=[],
+            ),
+        ):
+            # Act
+            agents = agent_manager.discover()
+
+            # Assert - Agent from home should be returned
+            test_agent = next((a for a in agents if a.name == "TestAgent"), None)
+            assert test_agent is not None
+            assert test_agent.description == "Agent from home"
+
+    def test_custom_paths_have_highest_priority(
+        self,
+        mock_model_factory: ModelFactory,
+        mock_tool_provider: ToolProvider,
+        mock_system_context: SystemContext,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test that custom paths from STREETRACE_AGENT_PATHS have highest priority."""
+        # Arrange - Create custom path
+        custom_path = tmp_path / "custom_agents"
+        custom_path.mkdir()
+
+        # Set environment variable
+        monkeypatch.setenv("STREETRACE_AGENT_PATHS", str(custom_path))
+
+        agent_manager = AgentManager(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            work_dir=tmp_path / "work",
+        )
+
+        custom_agent = AgentInfo(
+            name="TestAgent",
+            description="Agent from custom path",
+            file_path=custom_path / "test.yaml",
+            yaml_document=MagicMock(),  # Mark as YAML agent
+        )
+        cwd_agent = AgentInfo(
+            name="TestAgent",
+            description="Agent from cwd",
+            file_path=Path("/cwd/test.yaml"),
+            yaml_document=MagicMock(),  # Mark as YAML agent
+        )
+
+        def mock_discover_in_paths(paths: list[Path]) -> list[AgentInfo]:
+            path_str = str(paths[0]) if paths else ""
+            if "custom_agents" in path_str:
+                return [custom_agent]
+            return [cwd_agent]
+
+        with (
+            patch.object(
+                agent_manager.format_loaders["yaml"],
+                "discover_in_paths",
+                side_effect=mock_discover_in_paths,
+            ),
+            patch.object(
+                agent_manager.format_loaders["python"],
+                "discover_in_paths",
+                return_value=[],
+            ),
+        ):
+            # Act
+            agents = agent_manager.discover()
+
+            # Assert - Agent from custom path should be returned
+            test_agent = next((a for a in agents if a.name == "TestAgent"), None)
+            assert test_agent is not None
+            assert test_agent.description == "Agent from custom path"
+
+    def test_format_discovery_within_location(
+        self,
+        agent_manager: AgentManager,
+    ) -> None:
+        """Test that all formats are discovered within each location."""
+        # Arrange
+        yaml_agent = AgentInfo(
+            name="YamlAgent",
+            description="YAML agent",
+            file_path=Path("/cwd/yaml_agent.yaml"),
+            yaml_document=MagicMock(),  # Mark as YAML agent
+        )
+        python_agent = AgentInfo(
+            name="PythonAgent",
+            description="Python agent",
+            module=MagicMock(),
+        )
+
+        with (
+            patch.object(
+                agent_manager.format_loaders["yaml"],
+                "discover_in_paths",
+                return_value=[yaml_agent],
+            ),
+            patch.object(
+                agent_manager.format_loaders["python"],
+                "discover_in_paths",
+                return_value=[python_agent],
+            ),
+        ):
+            # Act
+            agents = agent_manager.discover()
+
+            # Assert - Both agents should be discovered
+            assert len(agents) == 2
+            agent_names = {agent.name for agent in agents}
+            assert agent_names == {"YamlAgent", "PythonAgent"}
+
+    def test_discovery_cache_populated_correctly(
+        self,
+        agent_manager: AgentManager,
+    ) -> None:
+        """Test that discovery cache is populated with location information."""
+        # Arrange
+        agent_info = AgentInfo(
+            name="TestAgent",
+            description="Test agent",
+            file_path=Path("/cwd/test.yaml"),
+            yaml_document=MagicMock(),  # Mark as YAML agent
+        )
+
+        with (
+            patch.object(
+                agent_manager.format_loaders["yaml"],
+                "discover_in_paths",
+                return_value=[agent_info],
+            ),
+            patch.object(
+                agent_manager.format_loaders["python"],
+                "discover_in_paths",
+                return_value=[],
+            ),
+        ):
+            # Act
+            agent_manager.discover()
+
+            # Assert - Cache should be populated
+            assert agent_manager._discovery_cache is not None  # noqa: SLF001
+            assert "testagent" in agent_manager._discovery_cache  # noqa: SLF001
+            location, cached_agent = agent_manager._discovery_cache["testagent"]  # noqa: SLF001
+            assert cached_agent.name == "TestAgent"
+            # Location should be one of the configured locations
+            assert location in ["cwd", "home", "bundled", "custom"]
+
+    def test_case_insensitive_agent_name_lookup(
+        self,
+        agent_manager: AgentManager,
+    ) -> None:
+        """Test that agent name lookup is case-insensitive."""
+        # Arrange
+        agent_info = AgentInfo(
+            name="TestAgent",
+            description="Test agent",
+            file_path=Path("/cwd/test.yaml"),
+            yaml_document=MagicMock(),  # Mark as YAML agent
+        )
+
+        with (
+            patch.object(
+                agent_manager.format_loaders["yaml"],
+                "discover_in_paths",
+                return_value=[agent_info],
+            ),
+            patch.object(
+                agent_manager.format_loaders["python"],
+                "discover_in_paths",
+                return_value=[],
+            ),
+        ):
+            # Act
+            agent_manager.discover()
+
+            # Assert - All variations should map to the same agent
+            assert agent_manager._discovery_cache is not None  # noqa: SLF001
+            assert "testagent" in agent_manager._discovery_cache  # noqa: SLF001
+            # The cache key should be lowercase
+            _, cached_agent = agent_manager._discovery_cache["testagent"]  # noqa: SLF001
+            assert cached_agent.name == "TestAgent"
