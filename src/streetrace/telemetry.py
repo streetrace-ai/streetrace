@@ -18,9 +18,9 @@ def init_telemetry() -> object | None:
         return None
 
     # Import OpenTelemetry modules only when needed
+    from openinference.instrumentation.google_adk import GoogleADKInstrumentor
     from opentelemetry import trace
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-    from openinference.instrumentation.google_adk import GoogleADKInstrumentor
     from opentelemetry.sdk import trace as trace_sdk
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
