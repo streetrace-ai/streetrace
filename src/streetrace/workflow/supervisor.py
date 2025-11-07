@@ -2,6 +2,8 @@
 
 from typing import TYPE_CHECKING, override
 
+from opentelemetry import trace
+
 from streetrace.input_handler import (
     HANDLED_CONT,
     HandlerResult,
@@ -12,12 +14,46 @@ from streetrace.log import get_logger
 from streetrace.ui import ui_events
 from streetrace.ui.adk_event_renderer import Event
 from streetrace.ui.ui_bus import UiBus
+from streetrace.version import get_streetrace_version
 
 if TYPE_CHECKING:
     from streetrace.agents.agent_manager import AgentManager
     from streetrace.session.session_manager import SessionManager
 
 logger = get_logger(__name__)
+tracer = trace.get_tracer(__name__)
+
+
+def _set_agent_telemetry_attributes(
+    span: trace.Span,
+    agent: object,
+    agent_name: str,
+) -> None:
+    """Set telemetry attributes on the agent run span.
+
+    Args:
+        span: OpenTelemetry span to set attributes on
+        agent: Agent instance to extract attributes from
+        agent_name: Name of the agent being run
+
+    """
+    from streetrace.agents.street_race_agent import StreetRaceAgent
+
+    # Add custom attributes from agent definition (no prefix)
+    if isinstance(agent, StreetRaceAgent):
+        for key, value in agent.get_attributes().items():
+            span.set_attribute(key, value)
+
+        # Add agent version if available
+        agent_version = agent.get_version()
+        if agent_version is not None:
+            span.set_attribute("streetrace.agent.version", agent_version)
+
+    # Add streetrace-specific attributes
+    span.set_attribute("streetrace.agent.name", agent_name)
+
+    # Add streetrace binary version
+    span.set_attribute("streetrace.binary.version", get_streetrace_version())
 
 
 class Supervisor(InputHandler):
@@ -76,49 +112,61 @@ class Supervisor(InputHandler):
         # Use agent specified in args, or default if none specified
         agent_name = ctx.agent_name or "default"
         try:
-            async with self.agent_manager.create_agent(agent_name) as root_agent:
-                # Type cast needed because JSONSessionService uses duck typing at
-                # runtime but inherits from BaseSessionService only during TYPE_CHECKING
-                from google.adk import Runner
+            # Create parent telemetry span for the entire agent run
+            with tracer.start_as_current_span(
+                "streetrace_agent_run",
+            ) as parent_span:
+                async with self.agent_manager.create_agent(
+                    agent_name,
+                ) as root_agent:
+                    # Set telemetry attributes for the agent run
+                    _set_agent_telemetry_attributes(parent_span, root_agent, agent_name)
 
-                runner = Runner(
-                    app_name=session.app_name,
-                    session_service=self.session_manager.session_service,
-                    agent=root_agent,
-                )
-                # Key Concept: run_async executes the agent logic and yields Events
-                # while it goes through ReAct loop. We iterate through events to reach
-                # the final answer.
-                async for event in runner.run_async(
-                    user_id=session.user_id,
-                    session_id=session.id,
-                    new_message=content,  # type: ignore[arg-type] # base lacks precision
-                ):
-                    self.ui_bus.dispatch_ui_update(Event(event=event))
-                    await self.session_manager.manage_current_session()
+                    # Type cast needed because JSONSessionService uses
+                    # duck typing at runtime but inherits from
+                    # BaseSessionService only during TYPE_CHECKING
+                    from google.adk import Runner
 
-                    # TODO(krmrn42): Handle wrong tool calls. How to detect the root
-                    # cause is an attempt to store a large file? E.g.:
-                    # Tool signature doesn't match
-                    #   -> Parameters missing
-                    #       -> tool name is "write_file"
-                    #           -> missing parameter name is "content"
-
-                    # Check if this is the final response from the agent
-                    # Only capture the first final response if multiple are received
-                    if (
-                        event.is_final_response()
-                        and final_response_text
-                        == "Agent did not produce a final response."
+                    runner = Runner(
+                        app_name=session.app_name,
+                        session_service=self.session_manager.session_service,
+                        agent=root_agent,
+                    )
+                    # Key Concept: run_async executes the agent logic and
+                    # yields Events while it goes through ReAct loop.
+                    # We iterate through events to reach the final answer.
+                    async for event in runner.run_async(
+                        user_id=session.user_id,
+                        session_id=session.id,
+                        new_message=content,  # type: ignore[arg-type]
                     ):
-                        if event.content and event.content.parts:
-                            # Assuming text response in the first part
-                            final_response_text = event.content.parts[0].text
-                        elif (
-                            event.actions and event.actions.escalate
-                        ):  # Handle potential errors/escalations
-                            error_msg = event.error_message or "No specific message."
-                            final_response_text = f"Agent escalated: {error_msg}"
+                        self.ui_bus.dispatch_ui_update(Event(event=event))
+                        await self.session_manager.manage_current_session()
+
+                        # TODO(krmrn42): Handle wrong tool calls. How to
+                        # detect the root cause is an attempt to store a
+                        # large file? E.g.:
+                        # Tool signature doesn't match
+                        #   -> Parameters missing
+                        #       -> tool name is "write_file"
+                        #           -> missing parameter name is "content"
+
+                        # Check if this is the final response from the agent
+                        # Only capture first final response if multiple
+                        if (
+                            event.is_final_response()
+                            and final_response_text
+                            == "Agent did not produce a final response."
+                        ):
+                            if event.content and event.content.parts:
+                                # Assuming text response in first part
+                                final_response_text = event.content.parts[0].text
+                            elif event.actions and event.actions.escalate:
+                                # Handle potential errors/escalations
+                                error_msg = (
+                                    event.error_message or "No specific message."
+                                )
+                                final_response_text = f"Agent escalated: {error_msg}"
             # Add the agent's final message to the history
             if final_response_text:
                 await self.session_manager.post_process(

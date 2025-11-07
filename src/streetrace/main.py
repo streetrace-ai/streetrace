@@ -6,8 +6,6 @@ import os
 os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 
 import asyncio
-import sys
-from importlib.metadata import version
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -28,6 +26,7 @@ def show_version() -> None:
         # handle any version lookup failures (missing package, corrupted metadata, etc.)
         print("StreetRace🚗💨 (version unknown)")  # noqa: T201
     sys.exit(0)
+from streetrace.version import show_version
 
 
 def run(args: Args) -> None:
