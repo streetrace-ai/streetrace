@@ -15,6 +15,7 @@ from streetrace.agents.base_agent_loader import (
     AgentLoader,
     AgentValidationError,
 )
+from streetrace.agents.resolver import SourceResolver
 from streetrace.agents.yaml_models import (
     AgentRef,
     InlineAgentSpec,
@@ -31,38 +32,110 @@ logger = get_logger(__name__)
 MAX_REF_DEPTH = 5
 
 
-def _load_yaml_file(file_path: Path) -> dict[str, Any]:
-    """Load and parse YAML file."""
+def _parse_yaml_string(content: str, source: str) -> dict[str, Any]:
+    """Parse YAML content from string.
+
+    Args:
+        content: YAML content as string
+        source: Source identifier for error messages
+
+    Returns:
+        Parsed YAML data as dict
+
+    Raises:
+        AgentValidationError: If parsing fails
+
+    """
     try:
-        with file_path.open("r", encoding="utf-8") as f:
-            data = yaml.safe_load(f)
+        data = yaml.safe_load(content)
         if not isinstance(data, dict):
-            msg = f"YAML file must contain a mapping/object, got {type(data).__name__}"
-            raise AgentValidationError(msg, file_path)
+            msg = f"YAML must contain a mapping/object, got {type(data).__name__}"
+            raise AgentValidationError(msg)
     except yaml.YAMLError as e:
-        msg = f"Invalid YAML syntax: {e}"
-        raise AgentValidationError(msg, file_path, e) from e
-    except OSError as e:
-        msg = f"Failed to read file: {e}"
-        raise AgentValidationError(msg, file_path, e) from e
+        msg = f"Invalid YAML syntax in {source}: {e}"
+        raise AgentValidationError(msg, cause=e) from e
     else:
         return data
 
 
-def _resolve_ref_path(ref_path: str, current_file: Path) -> Path:
-    """Resolve a $ref path relative to the current file."""
-    ref_path = ref_path.strip()
+def _load_yaml_file(file_path: Path) -> dict[str, Any]:
+    """Load and parse YAML file."""
+    try:
+        with file_path.open("r", encoding="utf-8") as f:
+            content = f.read()
+        return _parse_yaml_string(content, str(file_path))
+    except OSError as e:
+        msg = f"Failed to read file: {e}"
+        raise AgentValidationError(msg, file_path, e) from e
 
-    # Handle absolute paths
-    if ref_path.startswith("/"):
-        return Path(ref_path)
 
-    # Handle home directory
-    if ref_path.startswith("~/"):
-        return Path(ref_path).expanduser().resolve()
+def _load_agent_by_identifier(
+    identifier: str,
+    resolver: SourceResolver,
+    current_file: Path | None,
+    visited: set[Path | str],
+    depth: int,
+) -> YamlAgentDocument:
+    """Load agent using resolver (supports names, paths, URLs).
 
-    # Handle relative paths
-    return (current_file.parent / ref_path).resolve()
+    Args:
+        identifier: Agent identifier (name, path, or URL)
+        resolver: Source resolver instance
+        current_file: Current file path for relative resolution
+        visited: Set of visited sources for cycle detection
+        depth: Current recursion depth
+
+    Returns:
+        YamlAgentDocument with resolved references
+
+    Raises:
+        AgentValidationError: If loading or validation fails
+        AgentCycleError: If circular references detected
+
+    """
+    # Resolve the identifier
+    try:
+        resolution = resolver.resolve(
+            identifier,
+            current_file,
+            accept_types=["application/x-yaml", "application/yaml", "text/yaml"],
+        )
+    except ValueError as e:
+        msg = f"Failed to resolve agent identifier '{identifier}': {e}"
+        raise AgentValidationError(msg, current_file, e) from e
+
+    # Check for cycles using source as key
+    source_key = resolution.file_path if resolution.file_path else resolution.source
+    if source_key in visited:
+        cycle_path = " -> ".join(str(p) for p in visited) + f" -> {source_key}"
+        msg = f"Circular reference detected: {cycle_path}"
+        raise AgentCycleError(msg, current_file)
+
+    # Parse YAML
+    data = _parse_yaml_string(resolution.content, resolution.source)
+
+    # Validate and parse with Pydantic
+    try:
+        spec = YamlAgentSpec.model_validate(data)
+    except ValidationError as e:
+        msg = f"Agent specification validation failed for {resolution.source}: {e}"
+        raise AgentValidationError(msg, resolution.file_path, e) from e
+
+    # Additional validation
+    _validate_agent_spec(spec, resolution.file_path or Path(resolution.source), depth)
+
+    # Resolve references
+    visited_copy = visited.copy()
+    visited_copy.add(source_key)
+    resolved_spec = _resolve_agent_refs(
+        spec,
+        resolution.file_path or Path.cwd(),
+        visited_copy,
+        depth,
+        resolver,
+    )
+
+    return YamlAgentDocument(spec=resolved_spec, file_path=resolution.file_path)
 
 
 def _validate_agent_spec(
@@ -80,16 +153,18 @@ def _validate_agent_spec(
 def _resolve_agent_refs(
     spec: YamlAgentSpec,
     current_file: Path,
-    visited: set[Path],
-    depth: int = 0,
+    visited: set[Path | str],
+    depth: int,
+    resolver: SourceResolver,
 ) -> YamlAgentSpec:
     """Recursively resolve $ref references in agent specification.
 
     Args:
         spec: Agent specification to resolve
         current_file: Path of the current file being processed
-        visited: Set of already visited files for cycle detection
+        visited: Set of already visited sources for cycle detection
         depth: Current recursion depth
+        resolver: Source resolver for loading references
 
     Returns:
         Agent specification with all references resolved
@@ -107,19 +182,14 @@ def _resolve_agent_refs(
     resolved_sub_agents: list[AgentRef | InlineAgentSpec] = []
     for sub_agent in spec.sub_agents:
         if isinstance(sub_agent, AgentRef):
-            ref_path = _resolve_ref_path(sub_agent.ref, current_file)
-
-            # Check for cycles
-            if ref_path in visited:
-                cycle_path = " -> ".join(str(p) for p in visited) + f" -> {ref_path}"
-                msg = f"Circular reference detected: {cycle_path}"
-                raise AgentCycleError(msg, current_file)
-
-            # Load and resolve referenced agent
-            visited_copy = visited.copy()
-            visited_copy.add(ref_path)
-
-            referenced_doc = _load_agent_yaml(ref_path, visited_copy, depth + 1)
+            # Use resolver to load by identifier (name, path, or URL)
+            referenced_doc = _load_agent_by_identifier(
+                sub_agent.ref,
+                resolver,
+                current_file,
+                visited,
+                depth + 1,
+            )
             resolved_sub_agents.append(InlineAgentSpec(agent=referenced_doc.spec))
         # Inline agent - resolve its references recursively
         elif isinstance(sub_agent, InlineAgentSpec):
@@ -128,6 +198,7 @@ def _resolve_agent_refs(
                 current_file,
                 visited,
                 depth + 1,
+                resolver,
             )
             resolved_sub_agents.append(InlineAgentSpec(agent=resolved_inline))
         else:
@@ -137,19 +208,14 @@ def _resolve_agent_refs(
     resolved_agent_tools: list[ToolSpec | AgentRef | InlineAgentSpec] = []
     for agent_tool in spec.tools:
         if isinstance(agent_tool, AgentRef):
-            ref_path = _resolve_ref_path(agent_tool.ref, current_file)
-
-            # Check for cycles
-            if ref_path in visited:
-                cycle_path = " -> ".join(str(p) for p in visited) + f" -> {ref_path}"
-                msg = f"Circular reference detected: {cycle_path}"
-                raise AgentCycleError(msg, current_file)
-
-            # Load and resolve referenced agent
-            visited_copy = visited.copy()
-            visited_copy.add(ref_path)
-
-            referenced_doc = _load_agent_yaml(ref_path, visited_copy, depth + 1)
+            # Use resolver to load by identifier (name, path, or URL)
+            referenced_doc = _load_agent_by_identifier(
+                agent_tool.ref,
+                resolver,
+                current_file,
+                visited,
+                depth + 1,
+            )
             resolved_agent_tools.append(InlineAgentSpec(agent=referenced_doc.spec))
         # Inline agent - resolve its references recursively
         elif isinstance(agent_tool, InlineAgentSpec):
@@ -158,6 +224,7 @@ def _resolve_agent_refs(
                 current_file,
                 visited,
                 depth + 1,
+                resolver,
             )
             resolved_agent_tools.append(InlineAgentSpec(agent=resolved_inline))
         else:
@@ -173,6 +240,7 @@ def _resolve_agent_refs(
         instruction=spec.instruction,
         global_instruction=spec.global_instruction,
         prompt=spec.prompt,
+        attributes=spec.attributes,
         adk=spec.adk,
         tools=resolved_agent_tools,
         sub_agents=resolved_sub_agents,
@@ -181,15 +249,17 @@ def _resolve_agent_refs(
 
 def _load_agent_yaml(
     file_path: Path,
-    visited: set[Path] | None = None,
+    visited: set[Path | str] | None = None,
     depth: int = 0,
+    resolver: SourceResolver | None = None,
 ) -> YamlAgentDocument:
     """Load an agent from a YAML file.
 
     Args:
         file_path: Path to the agent YAML file
-        visited: Set of visited files for cycle detection
+        visited: Set of visited identifiers (paths, URLs, names) for cycle detection
         depth: Current recursion depth
+        resolver: Source resolver for $ref resolution
 
     Returns:
         YamlAgentDocument with resolved references
@@ -200,6 +270,9 @@ def _load_agent_yaml(
     """
     if visited is None:
         visited = set()
+
+    if resolver is None:
+        resolver = SourceResolver()
 
     file_path = file_path.resolve()
 
@@ -222,45 +295,57 @@ def _load_agent_yaml(
 
     # Resolve references
     visited.add(file_path)
-    resolved_spec = _resolve_agent_refs(spec, file_path, visited, depth)
+    resolved_spec = _resolve_agent_refs(spec, file_path, visited, depth, resolver)
 
     return YamlAgentDocument(spec=resolved_spec, file_path=file_path)
 
 
 class YamlAgentLoader(AgentLoader):
-    """YAML agent loader implementing the AgentLoader interface."""
+    """YAML agent loader with location-first support."""
 
-    def __init__(self, base_paths: list[Path | str] | list[Path] | list[str]) -> None:
+    def __init__(
+        self,
+        base_paths: list[Path | str] | list[Path] | list[str] | None = None,
+        http_auth: str | None = None,
+    ) -> None:
         """Initialize the YAML agent loader.
 
         Args:
-            base_paths: List of base paths to search for agents
+            base_paths: List of base paths to search for agents (for legacy discover())
+            http_auth: Authorization header value for HTTP agent URIs
 
         """
-        self.base_paths = [p if isinstance(p, Path) else Path(p) for p in base_paths]
+        self.base_paths = (
+            [p if isinstance(p, Path) else Path(p) for p in base_paths]
+            if base_paths
+            else []
+        )
+        self.http_auth = http_auth
+        self._discovered_agents: list[AgentInfo] | None = None
 
-    def discover(self) -> list[AgentInfo]:
-        """Discover YAML agents in the given paths.
+    def discover_in_paths(self, paths: list[Path]) -> list[AgentInfo]:
+        """Discover YAML agents in specific paths only.
 
         Args:
-            paths: List of paths to search for agents
+            paths: Specific paths to search in
 
         Returns:
-            List of discovered YAML agents as AgentInfo objects
+            List of discovered YAML agents in these paths
 
         """
         agents: list[AgentInfo] = []
-        # Discover both .yaml and .yml files
-        yaml_files = find_files(self.base_paths, "*.yaml")
-        yml_files = find_files(self.base_paths, "*.yml")
+
+        # Find YAML files in these paths only
+        yaml_files = find_files(paths, "*.yaml")
+        yml_files = find_files(paths, "*.yml")
         agent_files = yaml_files + yml_files
+
+        # Create resolver for discovery
+        resolver = SourceResolver(discovered_sources={}, http_auth=self.http_auth)
 
         for agent_file in agent_files:
             try:
-                agent_doc = _load_agent_yaml(agent_file)
-                # TODO(agents): Figure out a way to handle agents with the same name
-                # There can be multiple agents with the same name, which creates an
-                # inconsistent behavior.
+                agent_doc = _load_agent_yaml(agent_file, resolver=resolver)
                 agent_info = AgentInfo(
                     name=agent_doc.get_name(),
                     description=agent_doc.get_description(),
@@ -269,52 +354,108 @@ class YamlAgentLoader(AgentLoader):
                 )
                 agents.append(agent_info)
             except AgentValidationError as e:
-                logger.warning("Doesn't look like agent: %s\n%s", agent_file, e)
+                logger.debug("Skipping invalid YAML agent %s: %s", agent_file, e)
+
         return agents
 
-    def load_agent(self, agent: "str | Path | AgentInfo") -> "StreetRaceAgent":
-        """Load a YAML agent by name, path, or AgentInfo.
+    def load_from_path(self, path: Path) -> "StreetRaceAgent":
+        """Load YAML agent from file path.
 
         Args:
-            agent: Agent identifier
+            path: Path to YAML file
 
         Returns:
-            Loaded StreetRaceAgent implementation
+            Loaded YAML agent
 
         Raises:
-            ValueError: If agent cannot be loaded
+            ValueError: If not a YAML file or cannot load
 
         """
-        from streetrace.agents.base_agent_loader import AgentInfo
         from streetrace.agents.yaml_agent import YamlAgent
 
-        yaml_document: YamlAgentDocument
+        if path.suffix not in [".yaml", ".yml"]:
+            msg = f"Not a YAML file: {path}"
+            raise ValueError(msg)
 
-        if isinstance(agent, AgentInfo):
-            if not agent.yaml_document:
-                msg = f"AgentInfo does not contain YAML agent data: {agent.name}"
-                raise ValueError(msg)
-            return YamlAgent(agent.yaml_document)
+        try:
+            resolver = SourceResolver(discovered_sources={}, http_auth=self.http_auth)
+            doc = _load_agent_yaml(path, resolver=resolver)
+            return YamlAgent(doc)
+        except AgentValidationError as e:
+            msg = f"Failed to load YAML agent from {path}: {e}"
+            raise ValueError(msg) from e
 
-        if isinstance(agent, str):
-            known_agent = next(
-                (a for a in self.discover() if a.name.lower() == agent.lower()),
-                None,
+    def load_from_url(self, url: str) -> "StreetRaceAgent":
+        """Load YAML agent from HTTP URL.
+
+        Args:
+            url: HTTP(S) URL
+
+        Returns:
+            Loaded YAML agent
+
+        Raises:
+            ValueError: If cannot load from URL
+
+        """
+        from streetrace.agents.yaml_agent import YamlAgent
+
+        try:
+            resolver = SourceResolver(discovered_sources={}, http_auth=self.http_auth)
+            resolution = resolver.resolve(
+                url,
+                accept_types=["application/x-yaml", "application/yaml", "text/yaml"],
             )
-            if known_agent:
-                return self.load_agent(known_agent)
 
-        if isinstance(agent, str) and Path(agent).is_file():
-            return self.load_agent(Path(agent))
+            # Parse YAML from HTTP response
+            data = _parse_yaml_string(resolution.content, url)
+            spec = YamlAgentSpec.model_validate(data)
 
-        if isinstance(agent, Path):
-            try:
-                yaml_document = _load_agent_yaml(agent)
-            except AgentValidationError as e:
-                msg = f"Failed to load YAML agent from {agent}: {e}"
-                raise ValueError(msg) from e
-            else:
-                return YamlAgent(yaml_document)
+            # Resolve references (may fetch more HTTP resources)
+            resolved_spec = _resolve_agent_refs(
+                spec,
+                Path.cwd(),  # No file context for HTTP
+                set(),
+                0,
+                resolver,
+            )
 
-        msg = f"Yaml agent not found: {agent}"
-        raise ValueError(msg)
+            doc = YamlAgentDocument(spec=resolved_spec, file_path=None)
+            return YamlAgent(doc)
+        except (ValueError, ValidationError, AgentValidationError) as e:
+            msg = f"Failed to load YAML agent from {url}: {e}"
+            raise ValueError(msg) from e
+
+    def load_agent(self, agent_info: AgentInfo) -> "StreetRaceAgent":
+        """Load agent from AgentInfo.
+
+        Args:
+            agent_info: Previously discovered agent info
+
+        Returns:
+            Loaded agent
+
+        Raises:
+            ValueError: If AgentInfo is not a YAML agent
+
+        """
+        from streetrace.agents.yaml_agent import YamlAgent
+
+        if not agent_info.yaml_document:
+            msg = f"AgentInfo {agent_info.name} is not a YAML agent"
+            raise ValueError(msg)
+
+        return YamlAgent(agent_info.yaml_document)
+
+    def discover(self) -> list[AgentInfo]:
+        """Discover YAML agents in configured base paths (legacy method).
+
+        Returns:
+            List of discovered YAML agents
+
+        """
+        if self._discovered_agents is not None:
+            return self._discovered_agents
+
+        self._discovered_agents = self.discover_in_paths(self.base_paths)
+        return self._discovered_agents

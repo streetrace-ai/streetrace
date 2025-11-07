@@ -1,6 +1,6 @@
 """YAML-based agent implementation."""
 
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Any, override
 
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
@@ -122,3 +122,13 @@ class YamlAgent(StreetRaceAgent):
 
         """
         return self.agent_doc.spec.prompt
+
+    @property
+    def attributes(self) -> dict[str, Any]:
+        """Get custom attributes for this agent.
+
+        Returns:
+            Dictionary of custom attributes for telemetry/organization
+
+        """
+        return self.agent_doc.spec.attributes

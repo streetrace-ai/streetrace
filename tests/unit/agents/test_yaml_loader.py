@@ -195,7 +195,10 @@ class TestReferenceResolution:
             f.flush()
 
             try:
-                with pytest.raises(AgentValidationError, match="not found"):
+                with pytest.raises(
+                    AgentValidationError,
+                    match="Could not resolve identifier",
+                ):
                     _load_agent_yaml(Path(f.name))
             finally:
                 Path(f.name).unlink()
@@ -321,11 +324,13 @@ class TestAgentFinding:
             tmppath = Path(tmpdir)
             (tmppath / "agent.yml").write_text(agent_yaml)
 
-            agents = YamlAgentLoader([tmppath]).discover()
+            loader = YamlAgentLoader([tmppath])
+            agents = loader.discover()
             assert len(agents) == 1
             assert agents[0].name == "findable_agent"
 
-            agent = YamlAgentLoader([tmppath]).load_agent("findable_agent")
+            # Load using the discovered AgentInfo
+            agent = loader.load_agent(agents[0])
             assert agent is not None
             assert agent.get_agent_card().name == "findable_agent"
 
@@ -336,5 +341,13 @@ class TestAgentFinding:
         agents = YamlAgentLoader([]).discover()
         assert len(agents) == 0
 
-        with pytest.raises(ValueError, match="Yaml agent not found"):
-            YamlAgentLoader([]).load_agent("nonexistent_agent")
+        # Try to load from a non-existent path
+        from streetrace.agents.base_agent_loader import AgentInfo
+        fake_agent_info = AgentInfo(
+            name="nonexistent_agent",
+            description="Fake agent",
+            file_path=Path("/nonexistent/path.yaml"),
+        )
+
+        with pytest.raises(ValueError, match="AgentInfo .* is not a YAML agent"):
+            YamlAgentLoader([]).load_agent(fake_agent_info)
