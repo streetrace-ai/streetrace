@@ -103,6 +103,15 @@ class StreetRaceAgent(ABC):
         """
         return None
 
+    def get_system_prompt(self) -> str | None:
+        """Get the system prompt (instruction) for this agent.
+
+        Returns:
+            System prompt string or None if not defined
+
+        """
+        return None
+
     @property
     def user_prompt(self) -> str | None:
         """Get the user prompt for this agent.

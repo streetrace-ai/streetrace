@@ -132,6 +132,16 @@ class YamlAgent(StreetRaceAgent):
         """
         return self.agent_doc.spec.version
 
+    @override
+    def get_system_prompt(self) -> str | None:
+        """Get the system prompt (instruction) for this agent.
+
+        Returns:
+            System prompt from YAML specification or None if not defined
+
+        """
+        return self.agent_doc.spec.instruction
+
     @property
     @override
     def user_prompt(self) -> str | None:

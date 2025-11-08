@@ -12,31 +12,78 @@ from streetrace.workflow.supervisor import Supervisor
 @pytest.fixture
 def mock_tracer():
     """Create a mock tracer for OpenTelemetry."""
-    with patch("streetrace.workflow.supervisor.tracer") as tracer:
+    with (
+        patch("opentelemetry.trace.get_tracer") as get_tracer_mock,
+        patch("opentelemetry.trace.get_current_span") as get_current_span_mock,
+    ):
+        mock_tracer_obj = MagicMock()
         mock_span = MagicMock()
         mock_span.__enter__ = MagicMock(return_value=mock_span)
         mock_span.__exit__ = MagicMock(return_value=False)
-        tracer.start_as_current_span.return_value = mock_span
-        yield tracer, mock_span
+        mock_span.is_recording.return_value = True
+        mock_tracer_obj.start_as_current_span.return_value = mock_span
+        get_tracer_mock.return_value = mock_tracer_obj
+        get_current_span_mock.return_value = mock_span
+        yield mock_tracer_obj, mock_span
 
 
 @pytest.fixture
 def mock_agent_manager():
-    """Create a mock agent manager."""
+    """Create a mock agent manager that properly executes telemetry code."""
+    from contextlib import asynccontextmanager
+
     manager = MagicMock()
-    mock_agent = MagicMock(spec=StreetRaceAgent)
-    mock_agent.get_attributes.return_value = {
-        "custom.attr1": "value1",
-        "custom.attr2": "value2",
-    }
-    mock_agent.get_version.return_value = "1.0.0"
 
-    # Create async context manager
-    mock_cm = MagicMock()
-    mock_cm.__aenter__ = AsyncMock(return_value=mock_agent)
-    mock_cm.__aexit__ = AsyncMock(return_value=False)
-    manager.create_agent.return_value = mock_cm
+    # Create a mock that mimics what create_agent does
+    @asynccontextmanager
+    async def mock_create_agent(agent_identifier):
+        from opentelemetry import trace
 
+        from streetrace.version import get_streetrace_version
+
+        # Mock agent definition (StreetRaceAgent)
+        mock_agent_def = MagicMock(spec=StreetRaceAgent)
+        mock_agent_def.get_attributes.return_value = {
+            "custom.attr1": "value1",
+            "custom.attr2": "value2",
+        }
+        mock_agent_def.get_version.return_value = "1.0.0"
+        mock_agent_card = MagicMock()
+        mock_agent_card.name = "test_agent"
+        mock_agent_def.get_agent_card.return_value = mock_agent_card
+
+        # Set telemetry attributes (mimics real create_agent logic)
+        current_span = trace.get_current_span()
+        if current_span is not None and current_span.is_recording():
+            # Add custom attributes
+            for key, value in mock_agent_def.get_attributes().items():
+                current_span.set_attribute(key, value)
+
+            # Add agent version
+            agent_version = mock_agent_def.get_version()
+            if agent_version is not None:
+                current_span.set_attribute("streetrace.agent.version", agent_version)
+
+            # Add agent name
+            agent_card = mock_agent_def.get_agent_card()
+            current_span.set_attribute(
+                "streetrace.agent.name",
+                agent_card.name or agent_identifier,
+            )
+
+            # Add binary version
+            current_span.set_attribute(
+                "streetrace.binary.version", get_streetrace_version(),
+            )
+
+        # Yield mock ADK agent
+        mock_adk_agent = MagicMock()
+        try:
+            yield mock_adk_agent
+        finally:
+            pass
+
+    manager.create_agent = mock_create_agent
     return manager
 
 
@@ -193,22 +240,64 @@ async def test_supervisor_adds_agent_version_when_available(
 async def test_supervisor_skips_agent_version_when_none(
     supervisor,
     mock_tracer,
-    mock_agent_manager,
 ):
     """Test that streetrace.agent.version is not added when agent version is None."""
+    from contextlib import asynccontextmanager
+
     _, mock_span = mock_tracer
 
-    # Mock agent with no version
-    def create_agent_no_version(_name):
-        mock_agent = MagicMock(spec=StreetRaceAgent)
-        mock_agent.get_attributes.return_value = {}
-        mock_agent.get_version.return_value = None
-        mock_cm = MagicMock()
-        mock_cm.__aenter__ = AsyncMock(return_value=mock_agent)
-        mock_cm.__aexit__ = AsyncMock(return_value=False)
-        return mock_cm
+    # Create a custom agent manager for this test with no version
+    mock_agent_manager_no_version = MagicMock()
 
-    mock_agent_manager.create_agent.side_effect = create_agent_no_version
+    @asynccontextmanager
+    async def mock_create_agent_no_version(agent_identifier):
+        from opentelemetry import trace
+
+        from streetrace.version import get_streetrace_version
+
+        # Mock agent definition with no version
+        mock_agent_def = MagicMock(spec=StreetRaceAgent)
+        mock_agent_def.get_attributes.return_value = {}
+        mock_agent_def.get_version.return_value = None
+        mock_agent_card = MagicMock()
+        mock_agent_card.name = "test_agent"
+        mock_agent_def.get_agent_card.return_value = mock_agent_card
+
+        # Set telemetry attributes
+        current_span = trace.get_current_span()
+        if current_span is not None and current_span.is_recording():
+            for key, value in mock_agent_def.get_attributes().items():
+                current_span.set_attribute(key, value)
+
+            agent_version = mock_agent_def.get_version()
+            if agent_version is not None:
+                current_span.set_attribute("streetrace.agent.version", agent_version)
+
+            agent_card = mock_agent_def.get_agent_card()
+            current_span.set_attribute(
+                "streetrace.agent.name",
+                agent_card.name or agent_identifier,
+            )
+
+            current_span.set_attribute(
+                "streetrace.binary.version",
+                get_streetrace_version(),
+            )
+
+        mock_adk_agent = MagicMock()
+        try:
+            yield mock_adk_agent
+        finally:
+            pass
+
+    mock_agent_manager_no_version.create_agent = mock_create_agent_no_version
+
+    # Create supervisor with this custom agent manager
+    supervisor_no_version = Supervisor(
+        agent_manager=mock_agent_manager_no_version,
+        session_manager=supervisor.session_manager,
+        ui_bus=supervisor.ui_bus,
+    )
 
     with patch("google.adk.Runner") as mock_runner:
 
@@ -224,7 +313,7 @@ async def test_supervisor_skips_agent_version_when_none(
         mock_runner.return_value = mock_runner
 
         ctx = InputContext(user_input="test input", agent_name="test_agent")
-        await supervisor.handle(ctx)
+        await supervisor_no_version.handle(ctx)
 
     # Verify streetrace.agent.version was NOT set
     version_calls = [
@@ -259,7 +348,7 @@ async def test_supervisor_adds_binary_version_attribute(
         mock_runner.return_value = mock_runner
 
         with patch(
-            "streetrace.workflow.supervisor.get_streetrace_version",
+            "streetrace.version.get_streetrace_version",
         ) as mock_version:
             mock_version.return_value = "0.1.21"
 

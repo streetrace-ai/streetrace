@@ -77,6 +77,59 @@ logger = get_logger(__name__)
 _DEFAULT_AGENT = "Streetrace_Coding_Agent"
 
 
+def _set_agent_telemetry_attributes(
+    agent_definition: "StreetRaceAgent",
+    agent_identifier: str,
+) -> None:
+    """Set telemetry attributes on the current span from agent definition.
+
+    Args:
+        agent_definition: The agent definition to extract attributes from
+        agent_identifier: The agent identifier (name, path, or URL)
+
+    """
+    from opentelemetry import trace
+
+    current_span = trace.get_current_span()
+    if current_span is None or not current_span.is_recording():
+        return
+
+    from streetrace.version import get_streetrace_version
+
+    # Add custom attributes from agent definition (no prefix)
+    for key, value in agent_definition.get_attributes().items():
+        current_span.set_attribute(key, value)
+
+    # Add agent version if available
+    agent_version = agent_definition.get_version()
+    if agent_version is not None:
+        current_span.set_attribute(
+            "streetrace.agent.version",
+            agent_version,
+        )
+
+    # Add system prompt if available
+    system_prompt = agent_definition.get_system_prompt()
+    if system_prompt is not None:
+        current_span.set_attribute(
+            "streetrace.agent.system_prompt",
+            system_prompt,
+        )
+
+    # Add streetrace-specific attributes
+    agent_card = agent_definition.get_agent_card()
+    current_span.set_attribute(
+        "streetrace.agent.name",
+        agent_card.name or agent_identifier,
+    )
+
+    # Add streetrace binary version
+    current_span.set_attribute(
+        "streetrace.binary.version",
+        get_streetrace_version(),
+    )
+
+
 class AgentManager:
     """Manages agent discovery and creation with location-first priority.
 
@@ -300,6 +353,9 @@ class AgentManager:
                 f"Try --list-agents to see available agents."
             )
             raise ValueError(msg)
+
+        # Set telemetry attributes from agent definition
+        _set_agent_telemetry_attributes(agent_definition, agent_identifier)
 
         # Create and yield agent
         agent: BaseAgent | None = None
