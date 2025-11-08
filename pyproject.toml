@@ -10,7 +10,7 @@ version = "0.1.21"
 description = "StreetRace is an agentic AI coding partner designed to help engineers leverage AI capabilities directly from the command line to create software."
 authors = [{ name = "Street Race Team" }]
 readme = "README.md"
-requires-python = ">=3.12,<4.0"
+requires-python = ">=3.12,<3.14"
 license = { file = "LICENSE" }
 dynamic = ["dependencies"]
 
@@ -139,4 +139,7 @@ deprecated = "^1.2.18"
 dotenv = "^0.9.9"
 botocore = "^1.29.0"
 httpx = "^0.28.1"
-opentelemetry-api = "^1.20.0"
+openinference-instrumentation-google-adk = "*"
+opentelemetry-sdk = "*"
+opentelemetry-exporter-otlp = "*"
+
