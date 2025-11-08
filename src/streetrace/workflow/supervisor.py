@@ -14,46 +14,12 @@ from streetrace.log import get_logger
 from streetrace.ui import ui_events
 from streetrace.ui.adk_event_renderer import Event
 from streetrace.ui.ui_bus import UiBus
-from streetrace.version import get_streetrace_version
 
 if TYPE_CHECKING:
     from streetrace.agents.agent_manager import AgentManager
     from streetrace.session.session_manager import SessionManager
 
 logger = get_logger(__name__)
-tracer = trace.get_tracer(__name__)
-
-
-def _set_agent_telemetry_attributes(
-    span: trace.Span,
-    agent: object,
-    agent_name: str,
-) -> None:
-    """Set telemetry attributes on the agent run span.
-
-    Args:
-        span: OpenTelemetry span to set attributes on
-        agent: Agent instance to extract attributes from
-        agent_name: Name of the agent being run
-
-    """
-    from streetrace.agents.street_race_agent import StreetRaceAgent
-
-    # Add custom attributes from agent definition (no prefix)
-    if isinstance(agent, StreetRaceAgent):
-        for key, value in agent.get_attributes().items():
-            span.set_attribute(key, value)
-
-        # Add agent version if available
-        agent_version = agent.get_version()
-        if agent_version is not None:
-            span.set_attribute("streetrace.agent.version", agent_version)
-
-    # Add streetrace-specific attributes
-    span.set_attribute("streetrace.agent.name", agent_name)
-
-    # Add streetrace binary version
-    span.set_attribute("streetrace.binary.version", get_streetrace_version())
 
 
 class Supervisor(InputHandler):
@@ -113,15 +79,10 @@ class Supervisor(InputHandler):
         agent_name = ctx.agent_name or "default"
         try:
             # Create parent telemetry span for the entire agent run
-            with tracer.start_as_current_span(
-                "streetrace_agent_run",
-            ) as parent_span:
-                async with self.agent_manager.create_agent(
-                    agent_name,
-                ) as root_agent:
-                    # Set telemetry attributes for the agent run
-                    _set_agent_telemetry_attributes(parent_span, root_agent, agent_name)
-
+            # Get tracer lazily to ensure we use the configured tracer provider
+            tracer = trace.get_tracer(__name__)
+            with tracer.start_as_current_span("streetrace_agent_run"):
+                async with self.agent_manager.create_agent(agent_name) as root_agent:
                     # Type cast needed because JSONSessionService uses
                     # duck typing at runtime but inherits from
                     # BaseSessionService only during TYPE_CHECKING
