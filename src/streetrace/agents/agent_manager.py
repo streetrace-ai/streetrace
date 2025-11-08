@@ -99,6 +99,11 @@ def _set_agent_telemetry_attributes(
     # Add custom attributes from agent definition (no prefix)
     for key, value in agent_definition.get_attributes().items():
         current_span.set_attribute(key, value)
+        if key == "streetrace.org.id":
+            org_id = str(value)
+            # set langfuse org id attribute
+            current_span.set_attribute("langfuse.trace.metadata.org_id", org_id)
+            current_span.set_attribute("langfuse.trace.tags", [f"org:{org_id}"])
 
     # Add agent version if available
     agent_version = agent_definition.get_version()
