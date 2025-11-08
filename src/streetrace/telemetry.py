@@ -21,6 +21,7 @@ def init_telemetry() -> object | None:
     from openinference.instrumentation.google_adk import GoogleADKInstrumentor
     from opentelemetry import trace
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.instrumentation.mcp import McpInstrumentor
     from opentelemetry.sdk import trace as trace_sdk
     from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
@@ -45,6 +46,7 @@ def init_telemetry() -> object | None:
     tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
 
     GoogleADKInstrumentor().instrument(tracer_provider=tracer_provider)
+    McpInstrumentor().instrument(tracer_provider=tracer_provider) # type: ignore[no-untyped-call]
 
     # Set as global tracer provider
     trace.set_tracer_provider(tracer_provider)

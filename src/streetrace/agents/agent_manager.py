@@ -102,7 +102,6 @@ def _set_agent_telemetry_attributes(
         if key == "streetrace.org.id":
             org_id = str(value)
             # set langfuse org id attribute
-            current_span.set_attribute("langfuse.trace.metadata.org_id", org_id)
             current_span.set_attribute("langfuse.trace.tags", [f"org:{org_id}"])
 
     # Add agent version if available
