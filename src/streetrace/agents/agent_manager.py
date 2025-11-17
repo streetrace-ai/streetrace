@@ -96,9 +96,14 @@ def _set_agent_telemetry_attributes(
 
     from streetrace.version import get_streetrace_version
 
-    # Add custom attributes from agent definition (no prefix)
+    # Add custom attributes from agent definition
     for key, value in agent_definition.get_attributes().items():
-        current_span.set_attribute(key, value)
+        # Prefix with langfuse.trace. if not already present
+        if key.startswith("langfuse.trace."):
+            prefixed_key = key
+        else:
+            prefixed_key = f"langfuse.trace.{key}"
+        current_span.set_attribute(prefixed_key, value)
         if key == "streetrace.org.id":
             org_id = str(value)
             # set langfuse org id attribute
