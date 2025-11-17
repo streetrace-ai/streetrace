@@ -9,7 +9,10 @@ import pytest
 from a2a.types import AgentCapabilities
 from google.adk.agents import BaseAgent
 
-from streetrace.agents.agent_manager import AgentManager
+from streetrace.agents.agent_manager import (
+    AgentManager,
+    _set_agent_telemetry_attributes,
+)
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.agents.yaml_agent_loader import AgentInfo
@@ -933,3 +936,397 @@ class TestAgentManagerLocationPriority:
             # The cache key should be lowercase
             _, cached_agent = agent_manager._discovery_cache["testagent"]  # noqa: SLF001
             assert cached_agent.name == "TestAgent"
+
+
+class TestSetAgentTelemetryAttributes:
+    """Test cases for _set_agent_telemetry_attributes function."""
+
+    @pytest.fixture
+    def mock_agent_definition(self) -> MagicMock:
+        """Create a mock agent definition."""
+        agent_def = MagicMock(spec=StreetRaceAgent)
+        agent_def.get_attributes.return_value = {}
+        agent_def.get_version.return_value = "1.0.0"
+        agent_def.get_system_prompt.return_value = "Test system prompt"
+        agent_def.get_agent_card.return_value = StreetRaceAgentCard(
+            name="Test Agent",
+            description="Test description",
+            capabilities=AgentCapabilities(streaming=False),
+            skills=[],
+            defaultInputModes=["text"],
+            defaultOutputModes=["text"],
+            version="1.0.0",
+        )
+        return agent_def
+
+    def test_no_span_available(self, mock_agent_definition: MagicMock) -> None:
+        """Test that function exits gracefully when no span is available."""
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = None
+
+            # Should not raise any exceptions
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+    def test_span_not_recording(self, mock_agent_definition: MagicMock) -> None:
+        """Test that function exits gracefully when span is not recording."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = False
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            # Should not raise any exceptions
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Span should not have any attributes set
+            mock_span.set_attribute.assert_not_called()
+
+    def test_attributes_without_langfuse_prefix(
+        self,
+        mock_agent_definition: MagicMock,
+    ) -> None:
+        """Test that attributes without langfuse.trace. prefix get prefixed."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        # Set custom attributes without langfuse prefix
+        mock_agent_definition.get_attributes.return_value = {
+            "custom.attribute1": "value1",
+            "custom.attribute2": "value2",
+        }
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Verify attributes were prefixed
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            assert "langfuse.trace.custom.attribute1" in attribute_calls
+            assert attribute_calls["langfuse.trace.custom.attribute1"] == "value1"
+            assert "langfuse.trace.custom.attribute2" in attribute_calls
+            assert attribute_calls["langfuse.trace.custom.attribute2"] == "value2"
+
+    def test_attributes_with_langfuse_prefix_unchanged(
+        self,
+        mock_agent_definition: MagicMock,
+    ) -> None:
+        """Test that attributes with langfuse.trace. prefix are kept as is."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        # Set custom attributes with langfuse prefix
+        mock_agent_definition.get_attributes.return_value = {
+            "langfuse.trace.already.prefixed": "value1",
+            "langfuse.trace.metadata": "value2",
+        }
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Verify attributes were not double-prefixed
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            assert "langfuse.trace.already.prefixed" in attribute_calls
+            assert attribute_calls["langfuse.trace.already.prefixed"] == "value1"
+            assert "langfuse.trace.metadata" in attribute_calls
+            assert attribute_calls["langfuse.trace.metadata"] == "value2"
+
+            # Ensure no double-prefixing occurred
+            double_prefixed_key = "langfuse.trace.langfuse.trace.already.prefixed"
+            assert double_prefixed_key not in attribute_calls
+            assert "langfuse.trace.langfuse.trace.metadata" not in attribute_calls
+
+    def test_mixed_attributes_prefix_handling(
+        self,
+        mock_agent_definition: MagicMock,
+    ) -> None:
+        """Test handling of mixed attributes (with and without prefix)."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        # Mix of prefixed and non-prefixed attributes
+        mock_agent_definition.get_attributes.return_value = {
+            "langfuse.trace.already.prefixed": "value1",
+            "custom.attribute": "value2",
+            "langfuse.trace.metadata": "value3",
+            "another.custom": "value4",
+        }
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Verify all attributes are correctly set
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            # Already prefixed should remain unchanged
+            assert "langfuse.trace.already.prefixed" in attribute_calls
+            assert "langfuse.trace.metadata" in attribute_calls
+
+            # Non-prefixed should get prefixed
+            assert "langfuse.trace.custom.attribute" in attribute_calls
+            assert "langfuse.trace.another.custom" in attribute_calls
+
+    def test_org_id_special_handling(self, mock_agent_definition: MagicMock) -> None:
+        """Test special handling for streetrace.org.id attribute."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        # Set org id attribute
+        test_org_id = "test-org-123"
+        mock_agent_definition.get_attributes.return_value = {
+            "streetrace.org.id": test_org_id,
+        }
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Verify org id was prefixed and tag was set
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            # Org ID should be prefixed
+            assert "langfuse.trace.streetrace.org.id" in attribute_calls
+            assert attribute_calls["langfuse.trace.streetrace.org.id"] == test_org_id
+
+            # Tag should be set
+            assert "langfuse.trace.tags" in attribute_calls
+            assert attribute_calls["langfuse.trace.tags"] == [f"org:{test_org_id}"]
+
+    def test_agent_version_attribute(self, mock_agent_definition: MagicMock) -> None:
+        """Test that agent version is set correctly."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        test_version = "2.5.1"
+        mock_agent_definition.get_version.return_value = test_version
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Verify agent version was set
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            assert "streetrace.agent.version" in attribute_calls
+            assert attribute_calls["streetrace.agent.version"] == test_version
+
+    def test_agent_version_none(self, mock_agent_definition: MagicMock) -> None:
+        """Test that no version attribute is set when version is None."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        mock_agent_definition.get_version.return_value = None
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Verify agent version was not set
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            assert "streetrace.agent.version" not in attribute_calls
+
+    def test_system_prompt_attribute(self, mock_agent_definition: MagicMock) -> None:
+        """Test that system prompt is set correctly."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        test_prompt = "This is a test system prompt"
+        mock_agent_definition.get_system_prompt.return_value = test_prompt
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Verify system prompt was set
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            assert "streetrace.agent.system_prompt" in attribute_calls
+            assert attribute_calls["streetrace.agent.system_prompt"] == test_prompt
+
+    def test_system_prompt_none(self, mock_agent_definition: MagicMock) -> None:
+        """Test that no system prompt attribute is set when prompt is None."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        mock_agent_definition.get_system_prompt.return_value = None
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Verify system prompt was not set
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            assert "streetrace.agent.system_prompt" not in attribute_calls
+
+    def test_agent_name_attribute(self, mock_agent_definition: MagicMock) -> None:
+        """Test that agent name is set correctly from agent card."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        test_name = "Custom Agent Name"
+        mock_agent_definition.get_agent_card.return_value = StreetRaceAgentCard(
+            name=test_name,
+            description="Test description",
+            capabilities=AgentCapabilities(streaming=False),
+            skills=[],
+            defaultInputModes=["text"],
+            defaultOutputModes=["text"],
+            version="1.0.0",
+        )
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_identifier")
+
+            # Verify agent name was set from agent card
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            assert "streetrace.agent.name" in attribute_calls
+            assert attribute_calls["streetrace.agent.name"] == test_name
+
+    def test_agent_name_fallback_to_identifier(
+        self,
+        mock_agent_definition: MagicMock,
+    ) -> None:
+        """Test that agent name falls back to identifier when card name is empty."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        # Create an agent card with empty name (will fall back to identifier)
+        agent_card = MagicMock()
+        agent_card.name = None
+        mock_agent_definition.get_agent_card.return_value = agent_card
+
+        test_identifier = "fallback_identifier"
+
+        with patch("opentelemetry.trace.get_current_span") as mock_get_span:
+            mock_get_span.return_value = mock_span
+
+            _set_agent_telemetry_attributes(
+                mock_agent_definition,
+                test_identifier,
+            )
+
+            # Verify agent name falls back to identifier
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            assert "streetrace.agent.name" in attribute_calls
+            assert attribute_calls["streetrace.agent.name"] == test_identifier
+
+    def test_binary_version_attribute(self, mock_agent_definition: MagicMock) -> None:
+        """Test that binary version is set correctly."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        test_binary_version = "0.1.2"
+
+        with (
+            patch("opentelemetry.trace.get_current_span") as mock_get_span,
+            patch(
+                "streetrace.version.get_streetrace_version",
+            ) as mock_get_version,
+        ):
+            mock_get_span.return_value = mock_span
+            mock_get_version.return_value = test_binary_version
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Verify binary version was set
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            assert "streetrace.binary.version" in attribute_calls
+            assert attribute_calls["streetrace.binary.version"] == test_binary_version
+
+    def test_all_attributes_set_together(
+        self,
+        mock_agent_definition: MagicMock,
+    ) -> None:
+        """Test that all attributes are set correctly when used together."""
+        mock_span = MagicMock()
+        mock_span.is_recording.return_value = True
+
+        # Configure all attributes
+        test_org_id = "org-456"
+        test_version = "3.0.0"
+        test_prompt = "Complete system prompt"
+        test_name = "Full Test Agent"
+        test_binary_version = "0.2.0"
+
+        mock_agent_definition.get_attributes.return_value = {
+            "streetrace.org.id": test_org_id,
+            "custom.attr1": "val1",
+            "langfuse.trace.already.prefixed": "val2",
+        }
+        mock_agent_definition.get_version.return_value = test_version
+        mock_agent_definition.get_system_prompt.return_value = test_prompt
+        mock_agent_definition.get_agent_card.return_value = StreetRaceAgentCard(
+            name=test_name,
+            description="Test description",
+            capabilities=AgentCapabilities(streaming=False),
+            skills=[],
+            defaultInputModes=["text"],
+            defaultOutputModes=["text"],
+            version=test_version,
+        )
+
+        with (
+            patch("opentelemetry.trace.get_current_span") as mock_get_span,
+            patch(
+                "streetrace.version.get_streetrace_version",
+            ) as mock_get_version,
+        ):
+            mock_get_span.return_value = mock_span
+            mock_get_version.return_value = test_binary_version
+
+            _set_agent_telemetry_attributes(mock_agent_definition, "test_agent")
+
+            # Verify all attributes were set correctly
+            calls = mock_span.set_attribute.call_args_list
+            attribute_calls = {call[0][0]: call[0][1] for call in calls}
+
+            # Custom attributes
+            assert "langfuse.trace.streetrace.org.id" in attribute_calls
+            assert "langfuse.trace.custom.attr1" in attribute_calls
+            assert "langfuse.trace.already.prefixed" in attribute_calls
+
+            # Org tag
+            assert "langfuse.trace.tags" in attribute_calls
+
+            # Agent metadata
+            assert "streetrace.agent.version" in attribute_calls
+            assert "streetrace.agent.system_prompt" in attribute_calls
+            assert "streetrace.agent.name" in attribute_calls
+            assert "streetrace.binary.version" in attribute_calls
+
+            # Verify values
+            assert attribute_calls["langfuse.trace.streetrace.org.id"] == test_org_id
+            assert attribute_calls["langfuse.trace.tags"] == [f"org:{test_org_id}"]
+            assert attribute_calls["streetrace.agent.version"] == test_version
+            assert attribute_calls["streetrace.agent.system_prompt"] == test_prompt
+            assert attribute_calls["streetrace.agent.name"] == test_name
+            assert attribute_calls["streetrace.binary.version"] == test_binary_version
