@@ -1120,8 +1120,10 @@ class TestSetAgentTelemetryAttributes:
             calls = mock_span.set_attribute.call_args_list
             attribute_calls = {call[0][0]: call[0][1] for call in calls}
 
-            assert "streetrace.agent.version" in attribute_calls
-            assert attribute_calls["streetrace.agent.version"] == test_version
+            assert "langfuse.trace.streetrace.agent.version" in attribute_calls
+            assert (
+                attribute_calls["langfuse.trace.streetrace.agent.version"]
+                    == test_version)
 
     def test_agent_version_none(self, mock_agent_definition: MagicMock) -> None:
         """Test that no version attribute is set when version is None."""
@@ -1139,7 +1141,7 @@ class TestSetAgentTelemetryAttributes:
             calls = mock_span.set_attribute.call_args_list
             attribute_calls = {call[0][0]: call[0][1] for call in calls}
 
-            assert "streetrace.agent.version" not in attribute_calls
+            assert "langfuse.trace.streetrace.agent.version" not in attribute_calls
 
     def test_system_prompt_attribute(self, mock_agent_definition: MagicMock) -> None:
         """Test that system prompt is set correctly."""
@@ -1158,8 +1160,10 @@ class TestSetAgentTelemetryAttributes:
             calls = mock_span.set_attribute.call_args_list
             attribute_calls = {call[0][0]: call[0][1] for call in calls}
 
-            assert "streetrace.agent.system_prompt" in attribute_calls
-            assert attribute_calls["streetrace.agent.system_prompt"] == test_prompt
+            assert "langfuse.trace.streetrace.agent.system_prompt" in attribute_calls
+            assert (
+                attribute_calls["langfuse.trace.streetrace.agent.system_prompt"]
+                    == test_prompt)
 
     def test_system_prompt_none(self, mock_agent_definition: MagicMock) -> None:
         """Test that no system prompt attribute is set when prompt is None."""
@@ -1177,7 +1181,9 @@ class TestSetAgentTelemetryAttributes:
             calls = mock_span.set_attribute.call_args_list
             attribute_calls = {call[0][0]: call[0][1] for call in calls}
 
-            assert "streetrace.agent.system_prompt" not in attribute_calls
+            assert (
+                "langfuse.trace.streetrace.agent.system_prompt" not in attribute_calls
+                )
 
     def test_agent_name_attribute(self, mock_agent_definition: MagicMock) -> None:
         """Test that agent name is set correctly from agent card."""
@@ -1204,8 +1210,8 @@ class TestSetAgentTelemetryAttributes:
             calls = mock_span.set_attribute.call_args_list
             attribute_calls = {call[0][0]: call[0][1] for call in calls}
 
-            assert "streetrace.agent.name" in attribute_calls
-            assert attribute_calls["streetrace.agent.name"] == test_name
+            assert "langfuse.trace.streetrace.agent.name" in attribute_calls
+            assert attribute_calls["langfuse.trace.streetrace.agent.name"] == test_name
 
     def test_agent_name_fallback_to_identifier(
         self,
@@ -1234,8 +1240,11 @@ class TestSetAgentTelemetryAttributes:
             calls = mock_span.set_attribute.call_args_list
             attribute_calls = {call[0][0]: call[0][1] for call in calls}
 
-            assert "streetrace.agent.name" in attribute_calls
-            assert attribute_calls["streetrace.agent.name"] == test_identifier
+            assert "langfuse.trace.streetrace.agent.name" in attribute_calls
+            assert (
+                attribute_calls["langfuse.trace.streetrace.agent.name"]
+                    == test_identifier
+                )
 
     def test_binary_version_attribute(self, mock_agent_definition: MagicMock) -> None:
         """Test that binary version is set correctly."""
@@ -1259,8 +1268,11 @@ class TestSetAgentTelemetryAttributes:
             calls = mock_span.set_attribute.call_args_list
             attribute_calls = {call[0][0]: call[0][1] for call in calls}
 
-            assert "streetrace.binary.version" in attribute_calls
-            assert attribute_calls["streetrace.binary.version"] == test_binary_version
+            assert "langfuse.trace.streetrace.binary.version" in attribute_calls
+            assert (
+                attribute_calls["langfuse.trace.streetrace.binary.version"]
+                    == test_binary_version
+                )
 
     def test_all_attributes_set_together(
         self,
@@ -1318,15 +1330,27 @@ class TestSetAgentTelemetryAttributes:
             assert "langfuse.trace.tags" in attribute_calls
 
             # Agent metadata
-            assert "streetrace.agent.version" in attribute_calls
-            assert "streetrace.agent.system_prompt" in attribute_calls
-            assert "streetrace.agent.name" in attribute_calls
-            assert "streetrace.binary.version" in attribute_calls
+            assert "langfuse.trace.streetrace.agent.version" in attribute_calls
+            assert "langfuse.trace.streetrace.agent.system_prompt" in attribute_calls
+            assert "langfuse.trace.streetrace.agent.name" in attribute_calls
+            assert "langfuse.trace.streetrace.binary.version" in attribute_calls
 
             # Verify values
             assert attribute_calls["langfuse.trace.streetrace.org.id"] == test_org_id
             assert attribute_calls["langfuse.trace.tags"] == [f"org:{test_org_id}"]
-            assert attribute_calls["streetrace.agent.version"] == test_version
-            assert attribute_calls["streetrace.agent.system_prompt"] == test_prompt
-            assert attribute_calls["streetrace.agent.name"] == test_name
-            assert attribute_calls["streetrace.binary.version"] == test_binary_version
+            assert (
+                attribute_calls["langfuse.trace.streetrace.agent.version"]
+                    == test_version
+                )
+            assert (
+                attribute_calls["langfuse.trace.streetrace.agent.system_prompt"]
+                    == test_prompt
+                )
+            assert (
+                attribute_calls["langfuse.trace.streetrace.agent.name"]
+                    == test_name
+                )
+            assert (
+                attribute_calls["langfuse.trace.streetrace.binary.version"]
+                    == test_binary_version
+                )

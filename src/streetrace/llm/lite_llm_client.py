@@ -32,7 +32,7 @@ from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
 
 # Initialize Langfuse callbacks globally
-litellm.callbacks = ["langfuse_otel"]
+litellm.callbacks = ["otel"]
 
 logger = get_logger(__name__)
 

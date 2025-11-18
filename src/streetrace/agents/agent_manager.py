@@ -113,7 +113,7 @@ def _set_agent_telemetry_attributes(
     agent_version = agent_definition.get_version()
     if agent_version is not None:
         current_span.set_attribute(
-            "streetrace.agent.version",
+            "langfuse.trace.streetrace.agent.version",
             agent_version,
         )
 
@@ -121,20 +121,20 @@ def _set_agent_telemetry_attributes(
     system_prompt = agent_definition.get_system_prompt()
     if system_prompt is not None:
         current_span.set_attribute(
-            "streetrace.agent.system_prompt",
+            "langfuse.trace.streetrace.agent.system_prompt",
             system_prompt,
         )
 
     # Add streetrace-specific attributes
     agent_card = agent_definition.get_agent_card()
     current_span.set_attribute(
-        "streetrace.agent.name",
+        "langfuse.trace.streetrace.agent.name",
         agent_card.name or agent_identifier,
     )
 
     # Add streetrace binary version
     current_span.set_attribute(
-        "streetrace.binary.version",
+        "langfuse.trace.streetrace.binary.version",
         get_streetrace_version(),
     )
 
