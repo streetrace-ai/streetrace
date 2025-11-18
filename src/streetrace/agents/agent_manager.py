@@ -394,22 +394,12 @@ class AgentManager:
 
         # Case 1: HTTP URL (bypass location priority)
         if identifier.startswith(("http://", "https://")):
-            agent = self._load_from_http(identifier)
-            if not agent:
-                self._last_load_errors.append(
-                    f"Failed to load from HTTP URL: {identifier}",
-                )
-            return agent
+            return self._load_from_http(identifier)
 
         # Case 2: Explicit file path
         if self._is_file_path(identifier):
             path = Path(identifier)
-            agent = self._load_from_path(path)
-            if not agent:
-                self._last_load_errors.append(
-                    f"Failed to load from path: {path.resolve()}",
-                )
-            return agent
+            return self._load_from_path(path)
 
         # Case 3: Agent name (use location-first discovery)
         agent = self._load_by_name(identifier)
@@ -441,6 +431,8 @@ class AgentManager:
                 return loader.load_from_url(url)
             except ValueError as e:
                 logger.debug("Failed to load as %s from %s: %s", format_name, url, e)
+                # Store the actual error message for better user feedback
+                self._last_load_errors.append(f"Failed to load from {url}: {e}")
 
         return None
 
@@ -487,6 +479,10 @@ class AgentManager:
                                 path,
                                 e,
                             )
+                            # Store the actual error for better user feedback
+                            self._last_load_errors.append(
+                                f"Failed to load from {path}: {e}"
+                            )
                         else:
                             return agent
 
@@ -501,6 +497,8 @@ class AgentManager:
                 )
             except ValueError as e:
                 logger.debug("Failed to load as %s from %s: %s", format_name, path, e)
+                # Store the actual error for better user feedback
+                self._last_load_errors.append(f"Failed to load from {path}: {e}")
             else:
                 return agent
 
