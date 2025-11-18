@@ -94,7 +94,19 @@ sort = "name"
 autosave = false
 
 [tool.deptry.per_rule_ignores]
-DEP002 = ["anthropic", "ollama", "openai", "boto3", "deprecated"]
+# TODO: Remove "backoff", "orjson", "apscheduler", "fastapi-sso" after installing
+#       litellm[proxy] after updating deps (if conflicts resolved).
+DEP002 = [
+    "anthropic",
+    "ollama",
+    "openai",
+    "boto3",
+    "deprecated",
+    "backoff",
+    "orjson",
+    "apscheduler",
+    "fastapi-sso",
+]
 
 [tool.poetry.group.dev.dependencies]
 deptry = "^0.23.0"
@@ -120,7 +132,7 @@ anthropic = "^0.54.0"
 google-genai = "^1.12.1"
 ollama = "^0.5.1"
 openai = "^1.76.0"
-pydantic = "^2.11.7"
+pydantic = { extras = ["email"], version = "^2.12.4" }
 rich = "^14.0.0"
 pathspec = "^0.12.1"
 litellm = "^1.67.5"
@@ -143,3 +155,7 @@ openinference-instrumentation-google-adk = "*"
 opentelemetry-sdk = "*"
 opentelemetry-exporter-otlp = "*"
 opentelemetry-instrumentation-mcp = "^0.47.5"
+backoff = "^2.2.1"
+orjson = "^3.11.4"
+apscheduler = "^3.11.1"
+fastapi-sso = "^0.18.0"
