@@ -1,6 +1,7 @@
 """Builder for creating ADK agents from YAML specifications."""
 
 import inspect
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from streetrace.agents.yaml_models import (
@@ -23,6 +24,7 @@ from streetrace.tools.tool_refs import McpToolRef, StreetraceToolRef
 
 if TYPE_CHECKING:
     from google.adk.agents import BaseAgent
+    from google.adk.agents.readonly_context import ReadonlyContext
     from google.adk.models.base_llm import BaseLlm
 from typing import Any
 
@@ -42,6 +44,31 @@ class YamlAgentBuilder:
         self.model_factory = model_factory
         self.tool_provider = tool_provider
         self.system_context = system_context
+
+    def _create_instruction_provider(
+        self,
+        instruction: str,
+    ) -> Callable[["ReadonlyContext"], str]:
+        """Wrap instruction string in a callable to bypass ADK state injection.
+
+        ADK's state injection substitutes {variable_name} patterns in string
+        instructions with values from session state. When a referenced variable
+        doesn't exist, ADK raises KeyError. By wrapping instructions in a
+        callable (InstructionProvider), ADK skips state injection entirely,
+        allowing instructions to contain curly brace patterns without errors.
+
+        Args:
+            instruction: The instruction string to wrap
+
+        Returns:
+            A callable that returns the instruction unchanged
+
+        """
+
+        def instruction_provider(_ctx: "ReadonlyContext") -> str:
+            return instruction
+
+        return instruction_provider
 
     def _create_transport_from_server_config(
         self,
@@ -214,16 +241,22 @@ class YamlAgentBuilder:
         if sub_agents:
             agent_args["sub_agents"] = sub_agents
 
-        # Add instruction if provided
+        # Add instruction if provided (wrapped to bypass ADK state injection)
         if spec.instruction:
-            agent_args["instruction"] = spec.instruction
+            agent_args["instruction"] = self._create_instruction_provider(
+                spec.instruction,
+            )
 
-        # Add global_instruction only for root agent
+        # Add global_instruction only for root agent (wrapped to bypass state injection)
         if spec.global_instruction:
-            agent_args["global_instruction"] = spec.global_instruction
+            agent_args["global_instruction"] = self._create_instruction_provider(
+                spec.global_instruction,
+            )
         elif global_instruction:
             # Use system context for global instruction if not explicitly set
-            agent_args["global_instruction"] = global_instruction
+            agent_args["global_instruction"] = self._create_instruction_provider(
+                global_instruction,
+            )
 
         agent_args = {**self._adk_config(spec), **agent_args}
 
