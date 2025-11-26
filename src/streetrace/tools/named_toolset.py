@@ -3,7 +3,6 @@
 import asyncio
 from typing import TYPE_CHECKING
 
-import anyio
 import httpx
 from google.adk.tools.base_toolset import BaseToolset
 from httpx import HTTPError
@@ -109,7 +108,12 @@ class NamedToolset(BaseToolset):
         # MCP instrumentation wraps transports with async context managers
         # that can fail to clean up properly when cancelled from a different
         # async context (e.g., parent agent GeneratorExit).
-        # See: https://github.com/open-telemetry/opentelemetry-python-contrib/issues/XXX
+        #
+        # We use asyncio.shield with asyncio.wait_for instead of nested anyio
+        # cancel scopes. Nested anyio CancelScope + fail_after can cause
+        # "Attempted to exit a cancel scope that isn't the current task's
+        # current cancel scope" errors when async context switches occur
+        # during MCP transport initialization.
         #
         # We use a 60-second timeout to prevent indefinite blocking while
         # still allowing sufficient time for stdio servers to start (e.g.,
@@ -117,11 +121,14 @@ class NamedToolset(BaseToolset):
         toolset_init_timeout_seconds = 60.0
         tools: list[BaseTool] = []
         try:
-            with anyio.CancelScope(shield=True):
-                with anyio.fail_after(toolset_init_timeout_seconds):
-                    tools = await self._original_toolset.get_tools(
+            tools = await asyncio.wait_for(
+                asyncio.shield(
+                    self._original_toolset.get_tools(
                         readonly_context=readonly_context,
-                    )
+                    ),
+                ),
+                timeout=toolset_init_timeout_seconds,
+            )
         except TimeoutError as te:
             msg = (
                 f"Toolset '{self.name}' initialization timed out after "
