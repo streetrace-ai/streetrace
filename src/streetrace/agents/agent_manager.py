@@ -481,7 +481,7 @@ class AgentManager:
                             )
                             # Store the actual error for better user feedback
                             self._last_load_errors.append(
-                                f"Failed to load from {path}: {e}"
+                                f"Failed to load from {path}: {e}",
                             )
                         else:
                             return agent

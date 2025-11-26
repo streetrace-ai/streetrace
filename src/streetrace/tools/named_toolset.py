@@ -3,11 +3,16 @@
 import asyncio
 from typing import TYPE_CHECKING
 
+import anyio
 import httpx
 from google.adk.tools.base_toolset import BaseToolset
 from httpx import HTTPError
 
+from streetrace.log import get_logger
+
 ORIGINAL_HTTPX_INIT = httpx.HTTPError.__init__
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from google.adk.agents.readonly_context import ReadonlyContext
@@ -98,10 +103,31 @@ class NamedToolset(BaseToolset):
         _error_capture = HttpErrorCapture()
         _error_capture.start_capturing()
 
+        # Shield the toolset initialization from external cancellation.
+        # This prevents cancel scope mismatches when MCP stdio transports
+        # are initialized within nested agent contexts. The OpenTelemetry
+        # MCP instrumentation wraps transports with async context managers
+        # that can fail to clean up properly when cancelled from a different
+        # async context (e.g., parent agent GeneratorExit).
+        # See: https://github.com/open-telemetry/opentelemetry-python-contrib/issues/XXX
+        #
+        # We use a 60-second timeout to prevent indefinite blocking while
+        # still allowing sufficient time for stdio servers to start (e.g.,
+        # npx downloading packages on first run).
+        toolset_init_timeout_seconds = 60.0
+        tools: list[BaseTool] = []
         try:
-            return await self._original_toolset.get_tools(
-                readonly_context=readonly_context,
+            with anyio.CancelScope(shield=True):
+                with anyio.fail_after(toolset_init_timeout_seconds):
+                    tools = await self._original_toolset.get_tools(
+                        readonly_context=readonly_context,
+                    )
+        except TimeoutError as te:
+            msg = (
+                f"Toolset '{self.name}' initialization timed out after "
+                f"{toolset_init_timeout_seconds}s"
             )
+            raise ToolsetLifecycleError(self.name, msg) from te
         except asyncio.CancelledError as ae:
             # Check for captured HTTP errors that might have caused the cancellation
             msg = f"Toolset '{self.name}': {ae}"
@@ -116,6 +142,8 @@ class NamedToolset(BaseToolset):
         finally:
             # Always restore the original constructor
             _error_capture.stop_capturing()
+
+        return tools
 
     async def close(self) -> None:
         """Cleanup and releases resources held by the toolset."""
