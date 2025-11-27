@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from streetrace.tools.definitions.find_in_files import find_in_files
+from streetrace.tools.definitions.find_in_files import (
+    MAX_RESULTS,
+    MAX_SNIPPET_LENGTH,
+    find_in_files,
+)
 from streetrace.tools.definitions.result import OpResultCode
 
 
@@ -334,3 +338,78 @@ class TestFindInFilesGlobPatterns:
 
         assert result["result"] == OpResultCode.SUCCESS
         assert result["output"] == []
+
+
+class TestFindInFilesOutputLimits:
+    """Test output limiting functionality."""
+
+    def test_results_truncated_when_exceeding_max(self, work_dir: Path) -> None:
+        """Test that results are truncated when exceeding MAX_RESULTS."""
+        test_file = work_dir / "large.py"
+        lines = [f"# match line {i}\n" for i in range(MAX_RESULTS + 50)]
+        test_file.write_text("".join(lines))
+
+        result = find_in_files("*.py", "match", work_dir)
+
+        assert result["result"] == OpResultCode.SUCCESS
+        assert result["output"] is not None
+        assert len(result["output"]) == MAX_RESULTS
+        assert result["truncated"] is True
+
+    def test_truncated_flag_false_when_under_limit(self, work_dir: Path) -> None:
+        """Test that truncated flag is None when results are under limit."""
+        test_file = work_dir / "small.py"
+        test_file.write_text("match line 1\nmatch line 2\n")
+
+        result = find_in_files("*.py", "match", work_dir)
+
+        assert result["result"] == OpResultCode.SUCCESS
+        assert result["output"] is not None
+        assert len(result["output"]) == 2
+        assert result["truncated"] is None
+
+    def test_long_snippets_are_truncated(self, work_dir: Path) -> None:
+        """Test that long snippets are truncated with ellipsis."""
+        test_file = work_dir / "long_line.py"
+        long_line = "match" + "x" * (MAX_SNIPPET_LENGTH + 100) + "\n"
+        test_file.write_text(long_line)
+
+        result = find_in_files("*.py", "match", work_dir)
+
+        assert result["result"] == OpResultCode.SUCCESS
+        assert result["output"] is not None
+        assert len(result["output"]) == 1
+        snippet = result["output"][0]["snippet"]
+        assert len(snippet) == MAX_SNIPPET_LENGTH + 3  # +3 for "..."
+        assert snippet.endswith("...")
+
+    def test_short_snippets_not_truncated(self, work_dir: Path) -> None:
+        """Test that short snippets are not modified."""
+        test_file = work_dir / "short.py"
+        short_line = "match short line\n"
+        test_file.write_text(short_line)
+
+        result = find_in_files("*.py", "match", work_dir)
+
+        assert result["result"] == OpResultCode.SUCCESS
+        assert result["output"] is not None
+        assert len(result["output"]) == 1
+        assert result["output"][0]["snippet"] == "match short line"
+        assert not result["output"][0]["snippet"].endswith("...")
+
+    def test_truncation_across_multiple_files(self, work_dir: Path) -> None:
+        """Test truncation stops searching once limit is reached."""
+        num_files = 5
+        lines_per_file = MAX_RESULTS // num_files + 10
+
+        for i in range(num_files):
+            test_file = work_dir / f"file{i}.py"
+            lines = [f"# match in file {i} line {j}\n" for j in range(lines_per_file)]
+            test_file.write_text("".join(lines))
+
+        result = find_in_files("*.py", "match", work_dir)
+
+        assert result["result"] == OpResultCode.SUCCESS
+        assert result["output"] is not None
+        assert len(result["output"]) == MAX_RESULTS
+        assert result["truncated"] is True
