@@ -10,6 +10,12 @@ from streetrace.tools.definitions.path_utils import (
 )
 from streetrace.tools.definitions.result import OpResult, OpResultCode
 
+MAX_RESULTS = 100
+"""Maximum number of search results to return."""
+
+MAX_SNIPPET_LENGTH = 200
+"""Maximum length of each snippet in characters."""
+
 
 class SearchResult(TypedDict):
     """A single search result."""
@@ -23,6 +29,45 @@ class FindInFilesResult(OpResult):
     """Tool result to send to LLM."""
 
     output: list[SearchResult] | None  # type: ignore[misc]
+    truncated: bool | None
+
+
+def _search_file(
+    abs_filepath: Path,
+    work_dir: Path,
+    search_string: str,
+    matches: list[SearchResult],
+) -> bool:
+    """Search a single file for the search string.
+
+    Args:
+        abs_filepath: Absolute path to the file to search.
+        work_dir: Working directory for relative path display.
+        search_string: The string to search for.
+        matches: List to append matches to.
+
+    Returns:
+        True if the maximum number of results was reached.
+
+    """
+    with abs_filepath.open(encoding="utf-8") as f:
+        for i, line in enumerate(f):
+            if search_string in line:
+                if len(matches) >= MAX_RESULTS:
+                    return True
+
+                rel_path = abs_filepath.relative_to(work_dir)
+                snippet = line.strip()
+                if len(snippet) > MAX_SNIPPET_LENGTH:
+                    snippet = snippet[:MAX_SNIPPET_LENGTH] + "..."
+                matches.append(
+                    SearchResult(
+                        filepath=str(rel_path),
+                        line_number=i + 1,
+                        snippet=snippet,
+                    ),
+                )
+    return False
 
 
 def find_in_files(
@@ -54,42 +99,32 @@ def find_in_files(
 
     """
     matches: list[SearchResult] = []
+    truncated = False
 
     work_dir = work_dir.resolve()
     errors: list[str] = []
 
     for file_path in work_dir.glob(pattern):
-        # Validate each matching file is within work_dir
+        if len(matches) >= MAX_RESULTS:
+            truncated = True
+            break
+
         try:
             abs_filepath = normalize_and_validate_path(file_path, work_dir)
             if abs_filepath.is_dir():
                 continue
 
-            # Load gitignore patterns for the file's directory
-            # This ensures nested .gitignore files are properly respected
             file_dir = abs_filepath.parent
             gitignore_spec = load_gitignore_for_directory(file_dir)
 
-            # Skip files that are ignored by .gitignore
             if is_ignored(abs_filepath, work_dir, gitignore_spec):
                 continue
 
-            with abs_filepath.open(encoding="utf-8") as f:
-                for i, line in enumerate(f):
-                    if search_string in line:
-                        # Get path relative to work_dir for display
-                        rel_path = abs_filepath.relative_to(work_dir)
-                        matches.append(
-                            SearchResult(
-                                filepath=str(rel_path),
-                                line_number=i + 1,
-                                snippet=line.strip(),
-                            ),
-                        )
+            truncated = _search_file(abs_filepath, work_dir, search_string, matches)
+            if truncated:
+                break
         except (OSError, ValueError, UnicodeDecodeError) as err:
             errors.append(str(err))
-            # If the file is outside work_dir, can't be read, or is binary
-            # Just skip it and continue with other files
 
     if matches or len(errors) == 0:
         return FindInFilesResult(
@@ -97,10 +132,12 @@ def find_in_files(
             result=OpResultCode.SUCCESS,
             output=matches,
             error=None,
+            truncated=truncated if truncated else None,
         )
     return FindInFilesResult(
         tool_name="find_in_files",
         result=OpResultCode.FAILURE,
         output=None,
         error="\n\n".join(errors),
+        truncated=None,
     )
