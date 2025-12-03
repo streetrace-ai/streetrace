@@ -26,7 +26,7 @@ jobs:
           enable-cache: false
       
       - name: Run Regression Analysis
-        uses: streetrace-ai/github-action@main
+        uses: streetrace-ai/github-action@debug
         with:
           claims: |
             agent_name: "pr_regression_analyzer"
@@ -46,3 +46,4 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_PAT: ${{ secrets.GH_PAT }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DEBUG: "true"
