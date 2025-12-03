@@ -1,0 +1,50 @@
+name: PR Regression Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  regression-analysis:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write  # Required to post PR comments
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full git history for historical analysis
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: false
+      
+      - name: Run Regression Analysis
+        uses: streetrace-ai/github-action@debug
+        with:
+          claims: |
+            agent_name: "pr_regression_analyzer"
+          prompt: |
+            Analyze PR #${{ github.event.pull_request.number }} in repository ${{ github.repository }} for potential regressions.
+            
+            Perform comprehensive regression analysis including:
+            1. Current PR changes analysis
+            2. Historical context discovery
+            3. New requirements extraction
+            4. Alignment validation
+            5. Remediation recommendations
+            
+            Post the final regression report as a comment on the PR.
+        env:
+          STREETRACE_API_KEY: ${{ secrets.STREETRACE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_PAT: ${{ secrets.GH_PAT }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DEBUG: "true"
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
