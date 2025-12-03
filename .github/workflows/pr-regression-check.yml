@@ -47,3 +47,4 @@ jobs:
           GITHUB_PAT: ${{ secrets.GH_PAT }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEBUG: "true"
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
