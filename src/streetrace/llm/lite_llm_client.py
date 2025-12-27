@@ -8,7 +8,7 @@ the reliable foundation for StreetRace's interactions with various LLM providers
 
 import os
 from collections.abc import AsyncGenerator, Iterable
-from typing import Any, override
+from typing import Any, cast, override
 
 import litellm
 from google.adk.models.lite_llm import LiteLlm, LiteLLMClient
@@ -215,7 +215,7 @@ class LiteLLMClientWithUsage(LiteLLMClient):
         response = super().completion(model, messages, tools, stream, **kwargs)
         if not stream:
             self._process_usage_and_cost(model, messages, response)
-        return response
+        return cast("ModelResponse | CustomStreamWrapper", response)
 
 
 class RetryingLiteLlm(LiteLlm):
