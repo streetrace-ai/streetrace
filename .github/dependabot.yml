@@ -1,0 +1,132 @@
+version: 2
+
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+
+    # Group minor/patch updates to reduce PR noise
+    groups:
+      # Development tools (low risk, update together)
+      dev-tools:
+        patterns:
+          - "ruff"
+          - "mypy"
+          - "bandit"
+          - "vulture"
+          - "deptry"
+          - "coverage"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Test dependencies
+      testing:
+        patterns:
+          - "pytest*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # OpenTelemetry ecosystem (tightly coupled)
+      opentelemetry:
+        patterns:
+          - "opentelemetry-*"
+          - "openinference-*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Google Cloud libraries (tightly coupled)
+      google-cloud:
+        patterns:
+          - "google-cloud-*"
+          - "google-api-*"
+          - "google-auth*"
+          - "googleapis-*"
+          - "grpc*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # LLM provider SDKs
+      llm-providers:
+        patterns:
+          - "anthropic"
+          - "openai"
+          - "ollama"
+          - "google-genai"
+          - "litellm"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # AWS SDK
+      aws:
+        patterns:
+          - "boto3"
+          - "botocore"
+          - "s3transfer"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # All other minor/patch updates
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+        exclude-patterns:
+          - "ruff"
+          - "mypy"
+          - "bandit"
+          - "vulture"
+          - "deptry"
+          - "coverage"
+          - "pytest*"
+          - "opentelemetry-*"
+          - "openinference-*"
+          - "google-cloud-*"
+          - "google-api-*"
+          - "google-auth*"
+          - "googleapis-*"
+          - "grpc*"
+          - "anthropic"
+          - "openai"
+          - "ollama"
+          - "google-genai"
+          - "litellm"
+          - "boto3"
+          - "botocore"
+          - "s3transfer"
+
+    # Labels for easier triage
+    labels:
+      - "dependencies"
+      - "automated"
+
+    # Reviewers for dependency PRs
+    # reviewers:
+    #   - "streetrace-ai/maintainers"
+
+  # GitHub Actions updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "ci"
+      - "automated"
