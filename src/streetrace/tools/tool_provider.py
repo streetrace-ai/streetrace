@@ -169,7 +169,7 @@ class ToolProvider:
 
         toolset = NamedToolset(
             name=tool_ref.name,
-            original_toolset=MCPToolset(
+            original_toolset=MCPToolset(  # type: ignore[no-untyped-call]
                 connection_params=connection_params,
                 tool_filter=tool_filter,
             ),

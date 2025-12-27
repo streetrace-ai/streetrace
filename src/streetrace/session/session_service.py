@@ -145,6 +145,12 @@ class JSONSessionService(InMemorySessionService):
             The new session object.
 
         """
+        # ADK >=1.21.0 raises AlreadyExistsError if session exists, so delete first
+        await super().delete_session(
+            app_name=session.app_name,
+            user_id=session.user_id,
+            session_id=session.id,
+        )
         new_session = await super().create_session(
             app_name=session.app_name,
             user_id=session.user_id,
@@ -174,10 +180,14 @@ class JSONSessionService(InMemorySessionService):
         self,
         *,
         app_name: str,
-        user_id: str,
+        user_id: str | None = None,
     ) -> "ListSessionsResponse":
         """List sessions from the storage."""
         from google.adk.sessions.base_session_service import ListSessionsResponse
+
+        # If user_id is None, delegate to parent implementation
+        if user_id is None:
+            return await super().list_sessions(app_name=app_name, user_id=user_id)
 
         logger.debug("Listing sessions from storage for %s/%s.", app_name, user_id)
         sessions_iter = self.serializer.list_saved(app_name=app_name, user_id=user_id)

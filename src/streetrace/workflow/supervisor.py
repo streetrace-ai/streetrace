@@ -99,7 +99,7 @@ class Supervisor(InputHandler):
                     async for event in runner.run_async(
                         user_id=session.user_id,
                         session_id=session.id,
-                        new_message=content,  # type: ignore[arg-type]
+                        new_message=content,
                     ):
                         self.ui_bus.dispatch_ui_update(Event(event=event))
                         await self.session_manager.manage_current_session()
