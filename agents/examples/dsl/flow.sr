@@ -8,7 +8,7 @@ tool fs = builtin streetrace.fs
 
 prompt summarize_prompt using model "summarizer": """Summarize the analysis results into a final report. Highlight critical issues and provide recommendations."""
 
-prompt agent using model "analyzer": """Research this repository, find all *.sr files and analyze their contents."""
+prompt main_agent using model "analyzer": """Research this repository, find all *.sr files and analyze their contents."""
 
 agent summarizer:
     tools fs
@@ -17,7 +17,7 @@ agent summarizer:
 
 agent main_agent:
     tools fs
-    instruction agent
+    instruction main_agent
 
 flow process_document:
     $analysis = run agent main_agent

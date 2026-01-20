@@ -12,7 +12,7 @@ You are an ORCHESTRATOR and your role is to follow this process. NEVER implement
 
 First, read all provided design documents and extract file references.
 
-**Design documents provided**: $ARGUMENTS
+**Documents provided**: $ARGUMENTS
 
 Scan these documents for references to other design docs, RFCs, or specifications.
 
@@ -66,6 +66,8 @@ Use the Task tool with `subagent_type: implementer` to:
 3. Follow DRY and SOLID principles
 
 Update the todo file with status as implementation progresses.
+
+Run the implementation in phases - for each plan phase, run the implementer agent scoped to that phase.
 
 ## Step 5: Validate Implementation
 
