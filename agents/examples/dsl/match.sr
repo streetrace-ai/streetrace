@@ -1,0 +1,16 @@
+# Pattern Matching Example
+# Demonstrates basic agent definitions (simplified for now)
+
+model main = anthropic/claude-sonnet
+
+tool fs = builtin streetrace.fs
+
+prompt classify_prompt: """Classify the user request into one of these categories: billing (payment, invoice, subscription issues), technical (bugs, errors, technical support), sales (pricing, plans, upgrades), or feedback (suggestions, complaints, praise). Return only the category name."""
+
+agent classifier:
+    instruction classify_prompt
+    description "Classifies user requests"
+
+agent:
+    tools fs
+    instruction classify_prompt

@@ -62,7 +62,38 @@ No specific environment variables are required for basic DSL compilation. Howeve
 
 ### 1.3 Test File Location
 
-Create test `.sr` files in a temporary directory or use the examples from the design documentation:
+The repository includes pre-built example DSL files for testing:
+
+```bash
+# Example DSL files demonstrating various features
+agents/examples/dsl/
+
+# Converted production agents
+agents/*.sr
+```
+
+**Available Example Files:**
+
+| File | Features Demonstrated |
+|------|----------------------|
+| `agents/examples/dsl/minimal.sr` | Basic agent structure |
+| `agents/examples/dsl/handlers.sr` | Event handlers, guardrails |
+| `agents/examples/dsl/flow.sr` | Agent definitions |
+| `agents/examples/dsl/parallel.sr` | Multiple agents |
+| `agents/examples/dsl/schema.sr` | Structured outputs |
+| `agents/examples/dsl/policies.sr` | Retry/timeout policies |
+| `agents/examples/dsl/match.sr` | Request classification |
+| `agents/examples/dsl/complete.sr` | Combined features |
+
+**Converted Production Agents:**
+
+| File | Original |
+|------|----------|
+| `agents/generic.sr` | `agents/generic.yml` |
+| `agents/reviewer.sr` | `agents/reviewer.yml` |
+| `agents/orchestrator.sr` | `agents/orchestrator.yml` |
+
+Alternatively, create test files in a temporary directory:
 
 ```bash
 mkdir -p /tmp/dsl-test
@@ -101,26 +132,24 @@ Options:
 
 #### Test Scenario: Validate a Valid File
 
-**Input:** Create file `minimal_agent.sr`:
+**Input:** Use the pre-built example `agents/examples/dsl/minimal.sr`:
 
 ```streetrace
-streetrace v1
+# Minimal Agent Example
+# Demonstrates the simplest possible DSL agent definition
 
 model main = anthropic/claude-sonnet
 
-tool github = mcp "https://api.github.com/mcp/"
-
-prompt my_prompt: """You are a helpful assistant."""
+prompt greeting: """You are a helpful assistant. Greet the user warmly and offer to help with their questions."""
 
 agent:
-    tools github
-    instruction my_prompt
+    instruction greeting
 ```
 
 **Command:**
 
 ```bash
-poetry run streetrace check minimal_agent.sr
+poetry run streetrace check agents/examples/dsl/minimal.sr
 ```
 
 **Expected Output:**
@@ -136,26 +165,26 @@ valid (1 model, 1 agent)
 **Command:**
 
 ```bash
-poetry run streetrace check minimal_agent.sr --verbose
+poetry run streetrace check agents/examples/dsl/minimal.sr --verbose
 ```
 
 **Expected Output:**
 
 ```
-minimal_agent.sr: valid (1 model, 1 agent)
+agents/examples/dsl/minimal.sr: valid (1 model, 1 agent)
 ```
 
 #### Test Scenario: Validate a Directory
 
-**Setup:** Create multiple `.sr` files in `/tmp/dsl-test/agents/`
+**Setup:** Use the pre-built example directory `agents/examples/dsl/`
 
 **Command:**
 
 ```bash
-poetry run streetrace check /tmp/dsl-test/agents/
+poetry run streetrace check agents/examples/dsl/
 ```
 
-**Expected Output:** Validation results for each `.sr` file found.
+**Expected Output:** Validation results for each `.sr` file found (8 files total).
 
 #### Test Scenario: JSON Output Format
 
@@ -289,34 +318,277 @@ poetry run streetrace run minimal_agent.sr --model anthropic/claude-sonnet
 
 ## 3. Example DSL Files for Testing
 
-The following examples are derived from `017-dsl-examples.md`. Each should be validated using `streetrace check`.
+The following examples are available in the `agents/examples/dsl/` directory. Each should be validated using `streetrace check`.
 
 ### 3.1 Minimal Agent
 
+**File:** `agents/examples/dsl/minimal.sr`
+
 ```streetrace
-streetrace v1
+# Minimal Agent Example
+# Demonstrates the simplest possible DSL agent definition
 
 model main = anthropic/claude-sonnet
 
-tool github = mcp "https://api.github.com/mcp/" with auth bearer ${env:GITHUB_PAT}
-
-prompt my_prompt: """You are a helpful assistant..."""
+prompt greeting: """You are a helpful assistant. Greet the user warmly and offer to help with their questions."""
 
 agent:
-    tools github, streetrace.fs
-    instruction my_prompt
+    instruction greeting
+```
+
+**Validation:**
+
+```bash
+poetry run streetrace check agents/examples/dsl/minimal.sr
+# Expected: valid (1 model, 1 agent)
 ```
 
 ### 3.2 Agent with Event Handlers
 
+**File:** `agents/examples/dsl/handlers.sr`
+
 ```streetrace
-streetrace v1
+# Event Handlers Example
+# Demonstrates event handlers with guardrail actions
 
 model main = anthropic/claude-sonnet
 
 tool fs = builtin streetrace.fs
 
-prompt greeting: """You are a helpful assistant."""
+# Input guardrails - protect against harmful inputs
+on input do
+    mask pii
+    block if jailbreak
+end
+
+# Output guardrails - ensure safe outputs
+on output do
+    mask pii
+end
+
+prompt assistant: """You are a helpful coding assistant. Help the user with their programming questions and tasks. Be concise and provide code examples when helpful."""
+
+agent:
+    tools fs
+    instruction assistant
+```
+
+**Validation:**
+
+```bash
+poetry run streetrace check agents/examples/dsl/handlers.sr
+# Expected: valid (1 model, 1 agent, 2 handlers)
+```
+
+### 3.3 Agent with Multiple Definitions
+
+**File:** `agents/examples/dsl/flow.sr`
+
+```streetrace
+# Flow Example
+# Demonstrates basic flow definition
+
+model main = anthropic/claude-sonnet
+
+tool fs = builtin streetrace.fs
+
+prompt summarize_prompt: """Summarize the analysis results into a final report. Highlight critical issues and provide recommendations."""
+
+agent summarizer:
+    tools fs
+    instruction summarize_prompt
+    description "Summarizes analysis results"
+
+agent:
+    tools fs
+    instruction summarize_prompt
+```
+
+**Validation:**
+
+```bash
+poetry run streetrace check agents/examples/dsl/flow.sr
+# Expected: valid (1 model, 2 agents)
+```
+
+### 3.4 Agent with Parallel Execution
+
+**File:** `agents/examples/dsl/parallel.sr`
+
+```streetrace
+# Parallel Execution Example
+# Demonstrates basic agent definitions
+
+model main = anthropic/claude-sonnet
+
+tool fs = builtin streetrace.fs
+
+prompt synthesize_prompt: """Combine the research results from multiple sources. Provide a comprehensive summary with all relevant information. Cite sources and highlight key findings."""
+
+agent synthesizer:
+    tools fs
+    instruction synthesize_prompt
+    description "Synthesizes research results"
+
+agent:
+    tools fs
+    instruction synthesize_prompt
+```
+
+**Validation:**
+
+```bash
+poetry run streetrace check agents/examples/dsl/parallel.sr
+# Expected: valid (1 model, 2 agents)
+```
+
+### 3.5 Agent with Schema (Structured Output)
+
+**File:** `agents/examples/dsl/schema.sr`
+
+```streetrace
+# Schema Example
+# Demonstrates structured outputs with schemas
+
+model main = anthropic/claude-sonnet
+
+schema CodeReviewResult:
+    approved: bool
+    severity: string
+    issues: list[string]
+    suggestions: list[string]
+    confidence: float
+
+schema TaskAnalysis:
+    priority: string
+    estimated_hours: float
+    dependencies: list[string]
+    risks: list[string]
+    recommended_approach: string
+
+prompt review_code expecting CodeReviewResult: """You are an expert code reviewer. Analyze the provided code for bugs, security issues, and code quality. Evaluate logic errors, security vulnerabilities, performance issues, and code style. Provide your assessment in the structured format."""
+
+prompt analyze_task expecting TaskAnalysis: """Analyze the given task and provide a structured assessment. Consider priority level (high, medium, low), estimated time to complete, dependencies on other tasks or systems, potential risks and challenges, and recommended implementation approach."""
+
+agent code_reviewer:
+    instruction review_code
+    description "Reviews code and provides structured feedback"
+
+agent task_analyst:
+    instruction analyze_task
+    description "Analyzes tasks and provides structured estimates"
+
+agent:
+    instruction review_code
+```
+
+**Validation:**
+
+```bash
+poetry run streetrace check agents/examples/dsl/schema.sr
+# Expected: valid (1 model, 4 agents)
+```
+
+### 3.6 Agent with Policies
+
+**File:** `agents/examples/dsl/policies.sr`
+
+```streetrace
+# Policies Example
+# Demonstrates retry and timeout policies
+
+model main = anthropic/claude-sonnet
+model fast = anthropic/haiku
+
+retry default = 3 times, exponential backoff
+retry simple = 2 times, fixed backoff
+
+timeout default = 2 minutes
+timeout short = 30 seconds
+
+tool fs = builtin streetrace.fs
+
+prompt reliable_task: """Perform the requested task reliably. If you encounter errors, report them clearly."""
+
+agent reliable_worker:
+    instruction reliable_task
+    retry default
+    timeout default
+    description "Reliable worker with standard retry and timeout"
+
+agent quick_responder:
+    instruction reliable_task
+    retry simple
+    timeout short
+    description "Fast responder for quick queries"
+
+agent:
+    tools fs
+    instruction reliable_task
+    retry default
+    timeout default
+```
+
+**Validation:**
+
+```bash
+poetry run streetrace check agents/examples/dsl/policies.sr
+# Expected: valid (2 models, 3 agents)
+```
+
+### 3.7 Agent with Pattern Matching
+
+**File:** `agents/examples/dsl/match.sr`
+
+```streetrace
+# Pattern Matching Example
+# Demonstrates request classification agents
+
+model main = anthropic/claude-sonnet
+
+tool fs = builtin streetrace.fs
+
+prompt classify_prompt: """Classify the user request into one of these categories: billing (payment, invoice, subscription issues), technical (bugs, errors, technical support), sales (pricing, plans, upgrades), or feedback (suggestions, complaints, praise). Return only the category name."""
+
+agent classifier:
+    instruction classify_prompt
+    description "Classifies user requests"
+
+agent:
+    tools fs
+    instruction classify_prompt
+```
+
+**Validation:**
+
+```bash
+poetry run streetrace check agents/examples/dsl/match.sr
+# Expected: valid (1 model, 2 agents)
+```
+
+### 3.8 Complete Example (Combined Features)
+
+**File:** `agents/examples/dsl/complete.sr`
+
+This example combines multiple DSL features: models, schemas, tools, policies, event handlers, and agents.
+
+```streetrace
+# Complete Example
+# Demonstrates major DSL features
+
+model main = anthropic/claude-sonnet
+model fast = anthropic/haiku
+
+schema AnalysisResult:
+    summary: string
+    score: float
+    issues: list[string]
+    recommendations: list[string]
+
+tool fs = builtin streetrace.fs
+
+retry default = 3 times, exponential backoff
+timeout default = 2 minutes
 
 on input do
     mask pii
@@ -324,120 +596,71 @@ on input do
 end
 
 on output do
-    warn if sensitive
+    mask pii
 end
+
+prompt analyze_code expecting AnalysisResult: """Analyze the provided code for quality issues. Look for security vulnerabilities, performance problems, code style issues, and logic errors. Provide a structured analysis result."""
+
+prompt main_instruction: """You are a code analysis assistant. Help users analyze their codebase for quality issues. Available commands: Analyze a file or directory, Get recommendations for improvement, Explain specific issues."""
+
+agent code_analyzer:
+    instruction analyze_code
+    description "Analyzes code quality"
 
 agent:
     tools fs
-    instruction greeting
-```
-
-### 3.3 Agent with Flow
-
-```streetrace
-streetrace v1
-
-model main = anthropic/claude-sonnet
-
-prompt fetch_prompt: """Fetch invoices from the system."""
-
-prompt process_prompt: """Process the invoice data."""
-
-agent fetch_invoices:
-    instruction fetch_prompt
-
-agent process_invoice:
-    instruction process_prompt
-
-flow my_workflow:
-    $invoices = run agent fetch_invoices
-    for $invoice in $invoices do
-        $result = run agent process_invoice $invoice
-    end
-    return $result
-```
-
-### 3.4 Agent with Parallel Execution
-
-```streetrace
-streetrace v1
-
-model main = anthropic/claude-opus
-
-tool web = mcp "https://search.api/mcp/"
-tool docs = builtin streetrace.docs
-
-prompt web_prompt: """Search the web."""
-
-prompt doc_prompt: """Search docs."""
-
-prompt combine_prompt: """Combine results."""
-
-agent web_search:
-    tools web
-    instruction web_prompt
-
-agent doc_search:
-    tools docs
-    instruction doc_prompt
-
-agent synthesize:
-    instruction combine_prompt
-
-flow research:
-    parallel do
-        $web_results = run agent web_search
-        $doc_results = run agent doc_search
-    end
-    $combined = run agent synthesize
-    return $combined
-```
-
-### 3.5 Agent with Schema (Structured Output)
-
-```streetrace
-streetrace v1
-
-model main = anthropic/claude-sonnet
-
-schema ReviewResult:
-    approved: bool
-    comments: list[string]
-    severity: string
-
-prompt review_prompt expecting ReviewResult: """
-You are an expert code reviewer. Analyze the pull request
-for bugs, security issues, and code quality.
-"""
-
-agent code_reviewer:
-    instruction review_prompt
-```
-
-### 3.6 Agent with Policies
-
-```streetrace
-streetrace v1
-
-model main = anthropic/claude-sonnet
-model compact = anthropic/claude-opus
-
-retry default = 3 times, exponential backoff
-timeout default = 2 minutes
-
-policy compaction:
-    trigger: token_usage > 0.8
-    strategy: summarize_with_goal
-    preserve: [$goal, last 3 messages, tool results]
-    use model: "compact"
-
-prompt greeting: """Hello, I am your assistant."""
-
-agent:
-    instruction greeting
+    instruction main_instruction
     retry default
     timeout default
 ```
+
+**Validation:**
+
+```bash
+poetry run streetrace check agents/examples/dsl/complete.sr
+# Expected: valid (2 models, 2 agents, 2 handlers)
+```
+
+### 3.9 Converted Production Agents
+
+The following production agents have been converted from YAML to DSL format:
+
+#### Generic Coding Assistant
+
+**File:** `agents/generic.sr` (converted from `agents/generic.yml`)
+
+```bash
+poetry run streetrace check agents/generic.sr
+# Expected: valid (1 model, 1 agent)
+```
+
+#### Code Reviewer
+
+**File:** `agents/reviewer.sr` (converted from `agents/reviewer.yml`)
+
+```bash
+poetry run streetrace check agents/reviewer.sr
+# Expected: valid (1 model, 1 agent)
+```
+
+#### Orchestrator
+
+**File:** `agents/orchestrator.sr` (converted from `agents/orchestrator.yml`)
+
+```bash
+poetry run streetrace check agents/orchestrator.sr
+# Expected: valid (1 model, 1 agent)
+```
+
+### 3.10 Validate All Example Files
+
+To validate all example DSL files at once:
+
+```bash
+poetry run streetrace check agents/examples/dsl/ agents/*.sr --verbose
+```
+
+**Expected Output:** All 11 files should report as valid.
 
 ---
 
@@ -907,7 +1130,11 @@ The specification requires compilation under 100ms for typical agents.
 **Test Approach:**
 
 ```bash
-time poetry run streetrace check minimal_agent.sr
+# Test with minimal agent
+time poetry run streetrace check agents/examples/dsl/minimal.sr
+
+# Test with complex agent (multiple features)
+time poetry run streetrace check agents/examples/dsl/complete.sr
 ```
 
 **Expected:** Real time should be under 300ms including process startup overhead.
@@ -920,11 +1147,11 @@ poetry run pytest tests/dsl/test_performance.py -v --no-header
 
 ### 7.2 Performance Thresholds
 
-| Agent Type | Target Time | Test Threshold |
-|------------|-------------|----------------|
-| Minimal (typical) | < 100ms | < 300ms |
-| Complex (multiple features) | < 200ms | < 500ms |
-| Cache hit | < 5ms | < 10ms |
+| Agent Type | Example File | Target Time | Test Threshold |
+|------------|--------------|-------------|----------------|
+| Minimal (typical) | `agents/examples/dsl/minimal.sr` | < 100ms | < 300ms |
+| Complex (multiple features) | `agents/examples/dsl/complete.sr` | < 200ms | < 500ms |
+| Cache hit | Any `.sr` file (second run) | < 5ms | < 10ms |
 
 ### 7.3 Testing with Large Files
 
@@ -954,11 +1181,41 @@ time poetry run streetrace check large_agent.sr
 
 ### 8.1 End-to-End Workflow
 
-1. **Create DSL file** with all major features
-2. **Validate** with `streetrace check`
-3. **Inspect** with `streetrace dump-python`
-4. **Execute** with `streetrace run`
-5. **Verify** runtime behavior matches specification
+Use the complete example to test the full pipeline:
+
+1. **Validate DSL file** with all major features:
+   ```bash
+   poetry run streetrace check agents/examples/dsl/complete.sr
+   ```
+
+2. **Inspect generated Python code**:
+   ```bash
+   poetry run streetrace dump-python agents/examples/dsl/complete.sr
+   ```
+
+3. **Verify Python code compiles**:
+   ```bash
+   poetry run streetrace dump-python agents/examples/dsl/complete.sr -o /tmp/complete.py
+   python -m py_compile /tmp/complete.py
+   ```
+
+4. **Load workflow class programmatically**:
+   ```python
+   from pathlib import Path
+   from streetrace.dsl.loader import DslAgentLoader
+
+   loader = DslAgentLoader()
+   workflow_class = loader.load(Path('agents/examples/dsl/complete.sr'))
+   print(f'Loaded: {workflow_class.__name__}')
+   ```
+
+5. **Verify workflow instantiation**:
+   ```python
+   workflow = workflow_class()
+   ctx = workflow.create_context()
+   print(f'Models: {workflow_class._models}')
+   print(f'Agents: {workflow_class._agents}')
+   ```
 
 ### 8.2 Automated Test Verification
 
@@ -977,6 +1234,135 @@ This covers:
 - CLI tests (`test_cli.py`)
 - Example validation tests (`test_examples.py`)
 - Performance tests (`test_performance.py`)
+
+---
+
+## 9. Known Compiler Issues
+
+This section documents known issues in the DSL compiler that testers should be aware of.
+These issues have workarounds but require fixes in future iterations.
+
+### 9.1 Comma-Separated Name Lists
+
+**Issue**: Commas in tool/agent lists are parsed as tool names.
+
+**Test to reproduce**:
+```bash
+echo 'model main = anthropic/claude-sonnet
+tool fs = builtin streetrace.fs
+tool cli = builtin streetrace.cli
+agent:
+    tools fs, cli
+    instruction test_prompt
+prompt test_prompt: """Test"""' > /tmp/comma_test.sr
+poetry run streetrace check /tmp/comma_test.sr
+```
+
+**Expected behavior**: Should accept `tools fs, cli` as two tools.
+
+**Actual behavior**: Error `undefined reference to tool ','`.
+
+**Root cause**: `name_list` transformer in `ast/transformer.py` returns comma tokens.
+
+**Workaround**: Use single tool per agent definition:
+```streetrace
+agent:
+    tools fs
+    instruction test_prompt
+```
+
+### 9.2 Flow Parameter Variable Scoping
+
+**Issue**: Flow parameters cause "variable used before definition" errors.
+
+**Test to reproduce**:
+```bash
+echo 'model main = anthropic/claude-sonnet
+prompt process_prompt: """Process the input."""
+agent processor:
+    instruction process_prompt
+flow process $input:
+    $result = run agent processor $input
+    return $result' > /tmp/flow_test.sr
+poetry run streetrace check /tmp/flow_test.sr
+```
+
+**Expected behavior**: `$input` should be in scope within the flow body.
+
+**Actual behavior**: Error about `$input` (or `input`) used before definition.
+
+**Root cause**: `flow_params` stores names with `$` prefix but `VarRef.name` doesn't
+include the prefix, causing scope lookup mismatch.
+
+**Workaround**: Avoid flow parameters; use simpler agent-based patterns.
+
+### 9.3 Policy Property Transformation
+
+**Issue**: Some policy properties cause transformation errors.
+
+**Test to reproduce**:
+```bash
+echo 'model main = anthropic/claude-sonnet
+prompt test: """Test"""
+agent:
+    instruction test
+policy compaction:
+    trigger: token_usage > 0.8
+    strategy: summarize_with_goal
+    preserve: [$goal, last 3 messages]' > /tmp/policy_test.sr
+poetry run streetrace check /tmp/policy_test.sr
+```
+
+**Expected behavior**: Policy should parse and validate correctly.
+
+**Actual behavior**: May produce `unhashable type` or transformation errors.
+
+**Root cause**: `policy_property` transformer doesn't consistently return dicts.
+
+**Workaround**: Use only `trigger` property or omit complex policy blocks.
+
+### 9.4 Double Dollar Sign in Error Messages
+
+**Issue**: Error messages show `$$variable` instead of `$variable`.
+
+**Test to reproduce**: Trigger any undefined variable error and observe the message format.
+
+**Root cause**: Error formatter adds `$` prefix but `VarRef.name` may already include it.
+
+**Workaround**: None needed; cosmetic issue only.
+
+### 9.5 Runtime Integration
+
+**Issue**: DSL agents cannot be run with `streetrace --agent`.
+
+**Test to reproduce**:
+```bash
+poetry run streetrace --agent agents/examples/dsl/minimal.sr \
+    --model anthropic/claude-sonnet-4-5 --prompt "Hello"
+```
+
+**Expected behavior**: Agent should load and run.
+
+**Actual behavior**: Error about unsupported agent format or file not found.
+
+**Root cause**: `agent_manager.py` doesn't use `DslAgentLoader`.
+
+**Workaround**: Load DSL agents programmatically:
+```python
+from pathlib import Path
+from streetrace.dsl.loader import DslAgentLoader
+
+loader = DslAgentLoader()
+workflow_class = loader.load(Path('agents/examples/dsl/minimal.sr'))
+workflow = workflow_class()
+ctx = workflow.create_context()
+```
+
+### 9.6 Issue Tracking
+
+For detailed root cause analysis and fix requirements, see:
+- Developer documentation: `docs/dev/dsl/architecture.md` (Known Issues section)
+- User documentation: `docs/user/dsl/getting-started.md` (Known Limitations section)
 
 ---
 

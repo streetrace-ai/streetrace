@@ -1,0 +1,23 @@
+# Event Handlers Example
+# Demonstrates event handlers with guardrail actions (simplified)
+
+model main = anthropic/claude-sonnet
+
+tool fs = builtin streetrace.fs
+
+# Input guardrails - protect against harmful inputs
+on input do
+    mask pii
+    block if jailbreak
+end
+
+# Output guardrails - ensure safe outputs
+on output do
+    mask pii
+end
+
+prompt assistant: """You are a helpful coding assistant. Help the user with their programming questions and tasks. Be concise and provide code examples when helpful."""
+
+agent:
+    tools fs
+    instruction assistant

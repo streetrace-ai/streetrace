@@ -316,6 +316,115 @@ Separating semantic analysis from code generation:
 - Simplifies code generator logic
 - Supports future optimizations or alternative backends
 
+## Known Issues and Technical Debt
+
+The following issues are known and tracked for future resolution:
+
+### Issue: Comma-Separated Name Lists
+
+**Symptom**: Commas in `tools fs, cli, github` are parsed as tool names, causing
+semantic errors like `undefined reference to tool ','`.
+
+**Root cause**: The `name_list` transformer in `ast/transformer.py` returns all items
+without filtering commas:
+
+```python
+def name_list(self, items: TransformerItems) -> list[str]:
+    return list(items)  # Should filter commas
+```
+
+**Fix required**: Update `name_list` to filter comma tokens:
+
+```python
+def name_list(self, items: TransformerItems) -> list[str]:
+    filtered = _filter_children(items)
+    return [str(item) for item in filtered]
+```
+
+**Location**: `src/streetrace/dsl/ast/transformer.py`
+
+### Issue: Flow Parameter Variable Scoping
+
+**Symptom**: Flow parameters like `$input` in `flow process $input:` cause
+`variable used before definition` errors when referenced in the flow body.
+
+**Root cause**: The `flow_params` transformer stores parameters with `$` prefix
+(e.g., `$input`), but `VarRef.name` stores names without the prefix. The semantic
+analyzer defines `$input` in scope but looks up `input`, causing a mismatch.
+
+**Fix required**: Either:
+1. Store flow parameters without the `$` prefix in `flow_params`
+2. Or add `$` prefix when looking up VarRef names
+3. Or normalize both to use the same convention
+
+**Locations**:
+- `src/streetrace/dsl/ast/transformer.py:flow_params()`
+- `src/streetrace/dsl/semantic/analyzer.py:_validate_flow()`
+
+### Issue: Policy Property Transformation
+
+**Symptom**: Some policy properties like `strategy: summarize_with_goal` cause
+`unhashable type` errors during AST transformation.
+
+**Root cause**: The `policy_property` transformer handles some property types
+(like `trigger`) that return dicts, but other properties (like `strategy`) pass
+through raw tokens or strings. When `policy_body` tries to `update()` with
+non-dict items, it fails.
+
+**Fix required**: Update `policy_property` to return dicts for all property types:
+
+```python
+def policy_property(self, items: TransformerItems) -> dict:
+    # Handle each property type explicitly
+    if items[0] == "strategy":
+        return {"strategy": str(items[2])}
+    elif items[0] == "use" and items[1] == "model":
+        return {"model": items[3]}
+    # ... etc
+    return items[0]  # For items already returning dicts
+```
+
+**Location**: `src/streetrace/dsl/ast/transformer.py`
+
+### Issue: VarRef Name Including Dollar Sign
+
+**Symptom**: Error messages show `$$variable` (double dollar sign) instead of
+`$variable`.
+
+**Root cause**: The `undefined_variable` error formatter adds a `$` prefix:
+
+```python
+msg = f"variable '${name}' used before definition"
+```
+
+But in some code paths, `VarRef.name` already includes the `$` prefix.
+
+**Fix required**: Ensure consistent handling - either always include `$` in
+VarRef.name, or never include it, and adjust error formatting accordingly.
+
+**Locations**:
+- `src/streetrace/dsl/ast/transformer.py:var_ref()`
+- `src/streetrace/dsl/semantic/errors.py:undefined_variable()`
+
+### Issue: Runtime Integration Incomplete
+
+**Symptom**: DSL agents compile successfully but cannot be run with
+`streetrace --agent my_agent.sr`.
+
+**Root cause**: The main agent loading system in `agents/agent_manager.py` does
+not use `DslAgentLoader`. The DSL workflow classes (`DslAgentWorkflow`) also
+don't integrate with the ADK-based runtime.
+
+**Fix required**:
+1. Register `DslAgentLoader` with the agent manager
+2. Bridge `DslAgentWorkflow` with the ADK agent system
+3. Map DSL tools/models to runtime configurations
+
+**Locations**:
+- `src/streetrace/agents/agent_manager.py`
+- `src/streetrace/dsl/loader.py`
+- `src/streetrace/dsl/runtime/workflow.py`
+
 ## See Also
 
 - [Grammar Development Guide](grammar.md) - How to modify the DSL grammar

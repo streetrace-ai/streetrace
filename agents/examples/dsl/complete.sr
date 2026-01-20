@@ -1,0 +1,39 @@
+# Complete Example
+# Demonstrates major DSL features (simplified)
+
+model main = anthropic/claude-sonnet
+model fast = anthropic/haiku
+
+schema AnalysisResult:
+    summary: string
+    score: float
+    issues: list[string]
+    recommendations: list[string]
+
+tool fs = builtin streetrace.fs
+
+retry default = 3 times, exponential backoff
+timeout default = 2 minutes
+
+on input do
+    mask pii
+    block if jailbreak
+end
+
+on output do
+    mask pii
+end
+
+prompt analyze_code expecting AnalysisResult: """Analyze the provided code for quality issues. Look for security vulnerabilities, performance problems, code style issues, and logic errors. Provide a structured analysis result."""
+
+prompt main_instruction: """You are a code analysis assistant. Help users analyze their codebase for quality issues. Available commands: Analyze a file or directory, Get recommendations for improvement, Explain specific issues."""
+
+agent code_analyzer:
+    instruction analyze_code
+    description "Analyzes code quality"
+
+agent:
+    tools fs
+    instruction main_instruction
+    retry default
+    timeout default

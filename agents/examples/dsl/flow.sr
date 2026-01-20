@@ -1,0 +1,17 @@
+# Flow Example
+# Demonstrates basic flow definition (simplified)
+
+model main = anthropic/claude-sonnet
+
+tool fs = builtin streetrace.fs
+
+prompt summarize_prompt: """Summarize the analysis results into a final report. Highlight critical issues and provide recommendations."""
+
+agent summarizer:
+    tools fs
+    instruction summarize_prompt
+    description "Summarizes analysis results"
+
+agent:
+    tools fs
+    instruction summarize_prompt

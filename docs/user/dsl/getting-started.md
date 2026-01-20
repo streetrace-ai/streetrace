@@ -237,6 +237,72 @@ streetrace dump-python hello.sr
 
 This helps understand what your DSL compiles to and can aid debugging.
 
+## Known Limitations
+
+The DSL compiler is under active development. The following limitations are known:
+
+### Comma-Separated Tool Lists
+
+Multiple tools in an agent definition should use single tools for now:
+
+```streetrace
+# This may cause issues:
+agent:
+    tools fs, cli, github
+    instruction my_prompt
+
+# Use this instead:
+agent:
+    tools fs
+    instruction my_prompt
+```
+
+**Workaround**: Use a single tool per agent, or define multiple agents with different tools.
+
+### Flow Variables
+
+Flow parameters and variables have limited support. Complex flows with variable
+passing may not work as expected:
+
+```streetrace
+# Flow parameters may have scoping issues:
+flow process $input:
+    $result = run agent processor $input
+    return $result
+```
+
+**Workaround**: Use simpler agent definitions without flows for now.
+
+### Compaction Policies
+
+The `policy compaction:` block is parsed but properties like `strategy` and
+`preserve` have limited support:
+
+```streetrace
+# Full policy syntax is partially supported:
+policy compaction:
+    trigger: token_usage > 0.8
+    strategy: summarize_with_goal    # May not work
+    preserve: [$goal, last 3 messages]
+```
+
+**Workaround**: Omit complex policy blocks or use only the `trigger` property.
+
+### Runtime Integration
+
+DSL agents compile to Python workflow classes but are not yet integrated with
+the main `streetrace --agent` command. Use the programmatic API instead:
+
+```python
+from pathlib import Path
+from streetrace.dsl.loader import DslAgentLoader
+
+loader = DslAgentLoader()
+workflow_class = loader.load(Path('my_agent.sr'))
+workflow = workflow_class()
+ctx = workflow.create_context()
+```
+
 ## Next Steps
 
 - [Syntax Reference](syntax-reference.md) - Complete syntax documentation

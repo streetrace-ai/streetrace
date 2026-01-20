@@ -1,0 +1,33 @@
+# Policies Example
+# Demonstrates retry and timeout policies (simplified)
+
+model main = anthropic/claude-sonnet
+model fast = anthropic/haiku
+
+retry default = 3 times, exponential backoff
+retry simple = 2 times, fixed backoff
+
+timeout default = 2 minutes
+timeout short = 30 seconds
+
+tool fs = builtin streetrace.fs
+
+prompt reliable_task: """Perform the requested task reliably. If you encounter errors, report them clearly."""
+
+agent reliable_worker:
+    instruction reliable_task
+    retry default
+    timeout default
+    description "Reliable worker with standard retry and timeout"
+
+agent quick_responder:
+    instruction reliable_task
+    retry simple
+    timeout short
+    description "Fast responder for quick queries"
+
+agent:
+    tools fs
+    instruction reliable_task
+    retry default
+    timeout default

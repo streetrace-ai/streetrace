@@ -1,0 +1,17 @@
+# Parallel Execution Example
+# Demonstrates basic agent definitions (simplified)
+
+model main = anthropic/claude-sonnet
+
+tool fs = builtin streetrace.fs
+
+prompt synthesize_prompt: """Combine the research results from multiple sources. Provide a comprehensive summary with all relevant information. Cite sources and highlight key findings."""
+
+agent synthesizer:
+    tools fs
+    instruction synthesize_prompt
+    description "Synthesizes research results"
+
+agent:
+    tools fs
+    instruction synthesize_prompt
