@@ -1,17 +1,25 @@
 # Flow Example
 # Demonstrates basic flow definition (simplified)
 
-model main = anthropic/claude-sonnet
+model analyzer = anthropic/claude-opus-4-5
+model summarizer = anthropic/claude-sonnet-4-5
 
 tool fs = builtin streetrace.fs
 
-prompt summarize_prompt: """Summarize the analysis results into a final report. Highlight critical issues and provide recommendations."""
+prompt summarize_prompt using model "summarizer": """Summarize the analysis results into a final report. Highlight critical issues and provide recommendations."""
+
+prompt agent using model "analyzer": """Research this repository, find all *.sr files and analyze their contents."""
 
 agent summarizer:
     tools fs
     instruction summarize_prompt
     description "Summarizes analysis results"
 
-agent:
+agent main_agent:
     tools fs
-    instruction summarize_prompt
+    instruction agent
+
+flow process_document:
+    $analysis = run agent main_agent
+    $validated = run agent summarizer $analysis
+    return $validated

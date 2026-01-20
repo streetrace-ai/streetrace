@@ -1,0 +1,10 @@
+# Minimal Agent Example
+# Demonstrates the simplest possible DSL agent definition
+
+model main = anthropic/claude-haiku
+model agent = anthropic/claude-sonnet-4-5
+
+prompt greeting using model "agent": """You are a helpful assistant. Greet the user warmly and offer to help with their questions."""
+
+agent:
+    instruction greeting
