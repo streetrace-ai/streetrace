@@ -49,7 +49,7 @@ class VarRef:
 class PropertyAccess:
     """Property access node (e.g., $item.value.first)."""
 
-    base: "VarRef | PropertyAccess"
+    base: "VarRef | PropertyAccess | NameRef"
     properties: list[str]
     meta: SourcePosition | None = None
 

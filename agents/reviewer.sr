@@ -1,6 +1,6 @@
 # Code Reviewer Agent - DSL version of reviewer.yml
 
-model main = anthropic/claude-sonnet
+model main = anthropic/claude-sonnet-4-5
 
 tool fs = builtin streetrace.fs
 

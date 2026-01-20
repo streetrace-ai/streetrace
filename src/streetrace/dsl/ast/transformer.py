@@ -9,7 +9,7 @@ Transform Lark parse trees into typed AST node structures.
 
 from typing import Any
 
-from lark import Token, Transformer, Tree
+from lark import Token, Transformer, Tree, v_args
 
 from streetrace.dsl.ast.nodes import (
     AgentDef,
@@ -69,6 +69,27 @@ def _get_meta(tree: Tree[Token]) -> SourcePosition | None:
             column=tree.meta.column,
             end_line=tree.meta.end_line,
             end_column=tree.meta.end_column,
+        )
+    return None
+
+
+def _meta_to_position(meta: object) -> SourcePosition | None:
+    """Convert Lark meta object to SourcePosition.
+
+    Args:
+        meta: Lark meta object with line/column attributes.
+
+    Returns:
+        SourcePosition or None if meta has no line info.
+
+    """
+    line = getattr(meta, "line", None)
+    if meta is not None and line is not None:
+        return SourcePosition(
+            line=line,
+            column=getattr(meta, "column", 0),
+            end_line=getattr(meta, "end_line", None),
+            end_column=getattr(meta, "end_column", None),
         )
     return None
 
@@ -326,7 +347,8 @@ class AstTransformer(Transformer):
     # Models
     # =========================================================================
 
-    def model_short(self, items: TransformerItems) -> ModelDef:
+    @v_args(meta=True)
+    def model_short(self, meta: object, items: TransformerItems) -> ModelDef:
         """Transform model_short rule."""
         filtered = _filter_children(items)
         name = None
@@ -337,9 +359,14 @@ class AstTransformer(Transformer):
                 model_ref = val
             elif name is None:
                 name = val
-        return ModelDef(name=name or "", provider_model=model_ref)
+        return ModelDef(
+            name=name or "",
+            provider_model=model_ref,
+            meta=_meta_to_position(meta),
+        )
 
-    def model_long(self, items: TransformerItems) -> ModelDef:
+    @v_args(meta=True)
+    def model_long(self, meta: object, items: TransformerItems) -> ModelDef:
         """Transform model_long rule."""
         filtered = _filter_children(items)
         name = None
@@ -351,7 +378,11 @@ class AstTransformer(Transformer):
                 val = _get_token_value(item) if isinstance(item, Token) else item
                 if name is None and val:
                     name = val
-        return ModelDef(name=name or "", properties=properties)
+        return ModelDef(
+            name=name or "",
+            properties=properties,
+            meta=_meta_to_position(meta),
+        )
 
     def model_ref(self, items: TransformerItems) -> str:
         """Transform model_ref rule."""
@@ -419,7 +450,8 @@ class AstTransformer(Transformer):
     # Schemas
     # =========================================================================
 
-    def schema_def(self, items: TransformerItems) -> SchemaDef:
+    @v_args(meta=True)
+    def schema_def(self, meta: object, items: TransformerItems) -> SchemaDef:
         """Transform schema_def rule."""
         filtered = _filter_children(items)
         name = None
@@ -431,7 +463,7 @@ class AstTransformer(Transformer):
                 val = _get_token_value(item) if isinstance(item, Token) else item
                 if name is None and val:
                     name = val
-        return SchemaDef(name=name or "", fields=fields)
+        return SchemaDef(name=name or "", fields=fields, meta=_meta_to_position(meta))
 
     def schema_body(self, items: TransformerItems) -> list[SchemaField]:
         """Transform schema_body rule."""
@@ -519,7 +551,8 @@ class AstTransformer(Transformer):
     # Tools
     # =========================================================================
 
-    def tool_short(self, items: TransformerItems) -> ToolDef:
+    @v_args(meta=True)
+    def tool_short(self, meta: object, items: TransformerItems) -> ToolDef:
         """Transform tool_short rule."""
         filtered = _filter_children(items)
         name = None
@@ -531,9 +564,10 @@ class AstTransformer(Transformer):
                 name = item
             elif isinstance(item, Token):
                 name = _get_token_value(item)
-        return ToolDef(name=name or "", **tool_info)
+        return ToolDef(name=name or "", meta=_meta_to_position(meta), **tool_info)
 
-    def tool_long(self, items: TransformerItems) -> ToolDef:
+    @v_args(meta=True)
+    def tool_long(self, meta: object, items: TransformerItems) -> ToolDef:
         """Transform tool_long rule."""
         filtered = _filter_children(items)
         name = None
@@ -551,6 +585,7 @@ class AstTransformer(Transformer):
             url=properties.get("url"),
             headers=properties.get("headers"),
             properties=properties,
+            meta=_meta_to_position(meta),
         )
 
     def tool_short_expr(self, items: TransformerItems) -> AstNode:
@@ -901,11 +936,17 @@ class AstTransformer(Transformer):
     # Flows
     # =========================================================================
 
-    def flow_def(self, items: TransformerItems) -> FlowDef:
+    @v_args(meta=True)
+    def flow_def(self, meta: object, items: TransformerItems) -> FlowDef:
         """Transform flow_def rule."""
         filtered = _filter_children(items)
         name, params, body = self._extract_flow_components(filtered)
-        return FlowDef(name=name or "", params=params, body=body)
+        return FlowDef(
+            name=name or "",
+            params=params,
+            body=body,
+            meta=_meta_to_position(meta),
+        )
 
     def _extract_flow_components(
         self, filtered: list,
@@ -969,7 +1010,8 @@ class AstTransformer(Transformer):
     # Agents
     # =========================================================================
 
-    def agent_def(self, items: TransformerItems) -> AgentDef:
+    @v_args(meta=True)
+    def agent_def(self, meta: object, items: TransformerItems) -> AgentDef:
         """Transform agent_def rule."""
         filtered = _filter_children(items)
         name = None
@@ -993,6 +1035,7 @@ class AstTransformer(Transformer):
             timeout_value=body.get("timeout_value"),
             timeout_unit=body.get("timeout_unit"),
             description=body.get("description"),
+            meta=_meta_to_position(meta),
         )
 
     def agent_body(self, items: TransformerItems) -> dict:
@@ -1077,7 +1120,8 @@ class AstTransformer(Transformer):
     # Prompts
     # =========================================================================
 
-    def prompt_def(self, items: TransformerItems) -> PromptDef:
+    @v_args(meta=True)
+    def prompt_def(self, meta: object, items: TransformerItems) -> PromptDef:
         """Transform prompt_def rule."""
         filtered = _filter_children(items)
         name, body, modifiers = self._extract_prompt_components(filtered)
@@ -1088,6 +1132,7 @@ class AstTransformer(Transformer):
             model=modifiers.get("model"),
             expecting=modifiers.get("expecting"),
             inherit=modifiers.get("inherit"),
+            meta=_meta_to_position(meta),
         )
 
     def _extract_prompt_components(
@@ -1314,7 +1359,8 @@ class AstTransformer(Transformer):
         var_str = f"${var.name}" if isinstance(var, VarRef) else str(var)
         return Assignment(target=var_str, value=value)
 
-    def run_stmt(self, items: TransformerItems) -> RunStmt:  # noqa: C901, PLR0912
+    @v_args(meta=True)
+    def run_stmt(self, meta: object, items: TransformerItems) -> RunStmt:  # noqa: C901, PLR0912
         """Transform run_stmt rule.
 
         Handle run statement forms:
@@ -1359,9 +1405,15 @@ class AstTransformer(Transformer):
             agent = target.lstrip("$")
             target = None
 
-        return RunStmt(target=target, agent=agent or "", args=args)
+        return RunStmt(
+            target=target,
+            agent=agent or "",
+            args=args,
+            meta=_meta_to_position(meta),
+        )
 
-    def call_stmt(self, items: TransformerItems) -> CallStmt:  # noqa: C901
+    @v_args(meta=True)
+    def call_stmt(self, meta: object, items: TransformerItems) -> CallStmt:  # noqa: C901
         """Transform call_stmt rule.
 
         Handle call statement forms:
@@ -1399,15 +1451,22 @@ class AstTransformer(Transformer):
             elif prompt is not None and not isinstance(item, Token):
                 args.append(item)
 
-        return CallStmt(target=target, prompt=prompt or "", args=args, model=model)
+        return CallStmt(
+            target=target,
+            prompt=prompt or "",
+            args=args,
+            model=model,
+            meta=_meta_to_position(meta),
+        )
 
     def call_modifiers(self, items: TransformerItems) -> dict:
         """Transform call_modifiers rule."""
         return {"model": items[0]}
 
-    def return_stmt(self, items: TransformerItems) -> ReturnStmt:
+    @v_args(meta=True)
+    def return_stmt(self, meta: object, items: TransformerItems) -> ReturnStmt:
         """Transform return_stmt rule."""
-        return ReturnStmt(value=items[0])
+        return ReturnStmt(value=items[0], meta=_meta_to_position(meta))
 
     def push_stmt(self, items: TransformerItems) -> PushStmt:
         """Transform push_stmt rule."""
@@ -1553,7 +1612,8 @@ class AstTransformer(Transformer):
         """Transform object_entry rule."""
         return (items[0], items[1])
 
-    def var_ref(self, items: TransformerItems) -> VarRef:
+    @v_args(meta=True)
+    def var_ref(self, meta: object, items: TransformerItems) -> VarRef:
         """Transform var_ref rule."""
         filtered = _filter_children(items)
         name = None
@@ -1565,7 +1625,7 @@ class AstTransformer(Transformer):
                 # Skip the dollar sign token
                 if val != "$":
                     name = val
-        return VarRef(name=name or "")
+        return VarRef(name=name or "", meta=_meta_to_position(meta))
 
     def var_dotted(self, items: TransformerItems) -> PropertyAccess:
         """Transform var_dotted rule (e.g., $var.prop.nested)."""

@@ -65,6 +65,7 @@ if TYPE_CHECKING:
 
 
 from streetrace.agents.base_agent_loader import AgentInfo, AgentLoader
+from streetrace.agents.dsl_agent_loader import DslAgentLoader
 from streetrace.agents.py_agent_loader import PythonAgentLoader
 from streetrace.agents.yaml_agent_loader import YamlAgentLoader
 from streetrace.llm.model_factory import ModelFactory
@@ -193,6 +194,7 @@ class AgentManager:
         self.format_loaders: dict[str, AgentLoader] = {
             "yaml": YamlAgentLoader(http_auth=http_auth),
             "python": PythonAgentLoader(),
+            "dsl": DslAgentLoader(),
         }
 
         # Cache for discovered agents (name -> (location, AgentInfo))
@@ -455,6 +457,7 @@ class AgentManager:
             ".yml": ["yaml"],
             ".md": ["markdown"],
             ".py": ["python"],
+            ".sr": ["dsl"],
         }
 
         # Try format based on file extension first (if it's a file)

@@ -67,8 +67,42 @@ def run(args: Args) -> None:
             raise
 
 
+MIN_SUBCOMMAND_ARGS = 2
+"""Minimum argument count for subcommand detection (program name + subcommand)."""
+
+
+def _handle_dsl_subcommands() -> bool:
+    """Check for and handle DSL-related subcommands.
+
+    Returns:
+        True if a subcommand was handled (exit after), False otherwise.
+
+    """
+    if len(sys.argv) < MIN_SUBCOMMAND_ARGS:
+        return False
+
+    subcommand = sys.argv[1]
+
+    if subcommand == "check":
+        from streetrace.dsl.cli import run_check
+
+        exit_code = run_check(sys.argv[2:])
+        sys.exit(exit_code)
+
+    if subcommand == "dump-python":
+        from streetrace.dsl.cli import run_dump_python
+
+        exit_code = run_dump_python(sys.argv[2:])
+        sys.exit(exit_code)
+
+    return False
+
+
 def main() -> None:
     """Entry point for the CLI."""
+    # Check for DSL subcommands before normal argument parsing
+    _handle_dsl_subcommands()
+
     bind_and_run(run)
 
 

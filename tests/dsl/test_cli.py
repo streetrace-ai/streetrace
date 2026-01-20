@@ -313,3 +313,66 @@ class TestRunDumpPython:
 
         result = run_dump_python(["--no-comments", str(dsl_file)])
         assert result == EXIT_SUCCESS
+
+
+# =============================================================================
+# Main CLI Integration Tests
+# =============================================================================
+
+
+class TestMainCLIIntegration:
+    """Test DSL commands via main CLI entry point."""
+
+    def test_check_command_via_subprocess(self, tmp_path: Path) -> None:
+        """Check command works via streetrace CLI."""
+        import subprocess
+
+        dsl_file = tmp_path / "valid.sr"
+        dsl_file.write_text(VALID_DSL_SOURCE)
+
+        result = subprocess.run(  # noqa: S603
+            ["poetry", "run", "streetrace", "check", str(dsl_file)],  # noqa: S607
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        assert result.returncode == EXIT_SUCCESS
+
+    def test_check_command_with_invalid_file(self, tmp_path: Path) -> None:
+        """Check command returns error for invalid DSL."""
+        import subprocess
+
+        dsl_file = tmp_path / "invalid.sr"
+        dsl_file.write_text(INVALID_DSL_SOURCE)
+
+        result = subprocess.run(  # noqa: S603
+            ["poetry", "run", "streetrace", "check", str(dsl_file)],  # noqa: S607
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        assert result.returncode == EXIT_VALIDATION_ERRORS
+        assert "error" in result.stdout.lower() or "error" in result.stderr.lower()
+
+    def test_dump_python_command_via_subprocess(self, tmp_path: Path) -> None:
+        """dump-python command works via streetrace CLI."""
+        import subprocess
+
+        dsl_file = tmp_path / "valid.sr"
+        dsl_file.write_text(VALID_DSL_SOURCE)
+
+        result = subprocess.run(  # noqa: S603
+            ["poetry", "run", "streetrace", "dump-python", str(dsl_file)],  # noqa: S607
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+
+        assert result.returncode == EXIT_SUCCESS
+        assert "class" in result.stdout
+        assert "DslAgentWorkflow" in result.stdout

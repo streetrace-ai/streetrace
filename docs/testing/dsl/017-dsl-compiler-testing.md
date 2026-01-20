@@ -466,9 +466,20 @@ schema TaskAnalysis:
     risks: list[string]
     recommended_approach: string
 
+schema BugReport:
+    title: string
+    description: string
+    steps_to_reproduce: list[string]
+    expected_behavior: string
+    actual_behavior: string
+    severity: string
+    affected_files: list[string]
+
 prompt review_code expecting CodeReviewResult: """You are an expert code reviewer. Analyze the provided code for bugs, security issues, and code quality. Evaluate logic errors, security vulnerabilities, performance issues, and code style. Provide your assessment in the structured format."""
 
 prompt analyze_task expecting TaskAnalysis: """Analyze the given task and provide a structured assessment. Consider priority level (high, medium, low), estimated time to complete, dependencies on other tasks or systems, potential risks and challenges, and recommended implementation approach."""
+
+prompt report_bug expecting BugReport: """Document the bug based on the provided information. Include all relevant details for reproducing and fixing the bug. Be specific about steps to reproduce and expected vs actual behavior."""
 
 agent code_reviewer:
     instruction review_code
@@ -477,6 +488,10 @@ agent code_reviewer:
 agent task_analyst:
     instruction analyze_task
     description "Analyzes tasks and provides structured estimates"
+
+agent bug_reporter:
+    instruction report_bug
+    description "Creates structured bug reports"
 
 agent:
     instruction review_code

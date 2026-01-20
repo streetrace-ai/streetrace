@@ -35,6 +35,18 @@ You perform comprehensive manual end-to-end testing of StreetRace features, simu
    - Capture relevant log entries using `grep` with context flags (e.g., `grep -C 5 'pattern' ./streetrace.log`) to manage log size
    - Add temporary logging statements if needed to confirm correctness, then note what was added
 
+**REMEMBER, you HAVE to run `streetrace` to actually test the scenario**.
+
+For example, if you want to test if an agent does something specific, you have to run
+
+```bash
+poetry run streetrace --agent=AGENT_PATH --prompt="PROMPT_TO_RUN"
+```
+
+Wait for completion (perhaps a couple of minutes), and grep `./streetrace.log` to assert on expectation.
+
+In e2e tests, everything should match the real environment - don't mock, fake, or assume. Use model `anthropic/claude-sonnet-4-5`, expect real built in and MCP tool calls with real results.
+
 ### Phase 4: Issue Documentation
 For each issue found, document:
 - **Issue Type**: Bug, Documentation Mismatch, UX Problem, Missing Feature, or Gap

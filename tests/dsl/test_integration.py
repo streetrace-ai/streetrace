@@ -310,7 +310,10 @@ class TestSourceMapGeneration:
 
     def test_source_map_file_reference(self) -> None:
         """Source mappings should reference correct file."""
-        _, source_map = compile_dsl(MINIMAL_AGENT_SOURCE, "my_agent.sr")
+        # Disable cache to ensure this test gets correct filename in mappings
+        _, source_map = compile_dsl(
+            MINIMAL_AGENT_SOURCE, "my_agent.sr", use_cache=False,
+        )
 
         for mapping in source_map:
             assert mapping.source_file == "my_agent.sr"

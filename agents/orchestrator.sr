@@ -1,7 +1,7 @@
 # Orchestrator Agent - DSL version of orchestrator.yml
 # Note: Simplified version without flows/imports due to DSL limitations
 
-model main = anthropic/claude-sonnet
+model main = anthropic/claude-sonnet-4-5
 
 tool fs = builtin streetrace.fs
 

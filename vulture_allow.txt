@@ -373,3 +373,7 @@ _to_class_name  # unused function (loader.py) - utility for class name generatio
 _.can_load  # unused method (loader.py) - public API for checking file compatibility
 _.load  # unused method (loader.py) - public API for loading DSL files
 source_map  # unused variable (loader.py) - captured from compile_dsl for future use
+
+# DslStreetRaceAgent - internal state for agent lifecycle
+_._source_map  # unused attribute (dsl_agent_loader.py) - stored for error translation
+_._workflow_instance  # unused attribute (dsl_agent_loader.py) - internal workflow state
