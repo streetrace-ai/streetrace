@@ -1,0 +1,382 @@
+"""CLI commands for Streetrace DSL compiler.
+
+Provide command-line interface for DSL validation (check) and
+code inspection (dump-python) operations.
+"""
+
+import sys
+from pathlib import Path
+
+from streetrace.dsl.codegen.generator import CodeGenerator
+from streetrace.dsl.compiler import get_file_stats, validate_dsl
+from streetrace.dsl.errors.diagnostics import Diagnostic, Severity
+from streetrace.dsl.errors.reporter import DiagnosticReporter, format_success_message
+from streetrace.dsl.grammar.parser import ParserFactory
+from streetrace.log import get_logger
+
+logger = get_logger(__name__)
+
+# Exit codes
+EXIT_SUCCESS = 0
+"""Validation passed with no errors."""
+
+EXIT_VALIDATION_ERRORS = 1
+"""Validation failed with errors."""
+
+EXIT_FILE_ERROR = 2
+"""File not found or cannot be read."""
+
+
+def _report_file_error(
+    error_msg: str,
+    file_path: Path,
+    *,
+    json_output: bool,
+) -> None:
+    """Report a file error in the appropriate format.
+
+    Args:
+        error_msg: The error message to display.
+        file_path: Path to the file.
+        json_output: Whether to output as JSON.
+
+    """
+    if json_output:
+        reporter = DiagnosticReporter()
+        print(  # noqa: T201
+            reporter.format_json(
+                [],
+                str(file_path),
+                stats={"error": error_msg},
+            ),
+        )
+    else:
+        print(f"error: {error_msg}", file=sys.stderr)  # noqa: T201
+
+
+def _output_validation_results(
+    diagnostics: list[Diagnostic],
+    file_path: Path,
+    source: str,
+    *,
+    json_output: bool,
+    verbose: bool,
+) -> None:
+    """Output validation results in the appropriate format.
+
+    Args:
+        diagnostics: List of diagnostics from validation.
+        file_path: Path to the validated file.
+        source: Source code content.
+        json_output: Whether to output as JSON.
+        verbose: Whether to enable verbose output.
+
+    """
+    reporter = DiagnosticReporter()
+    reporter.add_source(str(file_path), source)
+
+    if json_output:
+        stats = get_file_stats(source, str(file_path))
+        print(reporter.format_json(diagnostics, str(file_path), stats=stats))  # noqa: T201
+    elif diagnostics:
+        print(reporter.format_diagnostics(diagnostics))  # noqa: T201
+    else:
+        stats = get_file_stats(source, str(file_path))
+        success_msg = format_success_message(
+            str(file_path),
+            models=stats.get("models", 0),
+            agents=stats.get("agents", 0),
+            flows=stats.get("flows", 0),
+            handlers=stats.get("handlers", 0),
+        )
+        if verbose:
+            print(f"{file_path}: {success_msg}")  # noqa: T201
+        else:
+            print(success_msg)  # noqa: T201
+
+
+def check_file(
+    file_path: Path,
+    *,
+    verbose: bool = False,
+    json_output: bool = False,
+    strict: bool = False,
+) -> int:
+    """Validate a single DSL file.
+
+    Args:
+        file_path: Path to the DSL file.
+        verbose: Enable verbose output.
+        json_output: Output results as JSON.
+        strict: Treat warnings as errors.
+
+    Returns:
+        Exit code (0=success, 1=errors, 2=file error).
+
+    """
+    # Check file exists
+    if not file_path.exists():
+        error_msg = f"file not found: {file_path}"
+        _report_file_error(error_msg, file_path, json_output=json_output)
+        return EXIT_FILE_ERROR
+
+    if not file_path.is_file():
+        error_msg = f"not a file: {file_path}"
+        _report_file_error(error_msg, file_path, json_output=json_output)
+        return EXIT_FILE_ERROR
+
+    # Read file
+    try:
+        source = file_path.read_text(encoding="utf-8")
+    except OSError as e:
+        _report_file_error(f"cannot read file: {e}", file_path, json_output=json_output)
+        return EXIT_FILE_ERROR
+
+    # Validate
+    diagnostics = validate_dsl(source, str(file_path))
+
+    # Count errors and warnings
+    errors = [d for d in diagnostics if d.severity == Severity.ERROR]
+    warnings = [d for d in diagnostics if d.severity == Severity.WARNING]
+
+    # In strict mode, warnings are errors
+    if strict:
+        errors.extend(warnings)
+
+    # Output results
+    _output_validation_results(
+        diagnostics,
+        file_path,
+        source,
+        json_output=json_output,
+        verbose=verbose,
+    )
+
+    if errors:
+        return EXIT_VALIDATION_ERRORS
+
+    return EXIT_SUCCESS
+
+
+def check_directory(
+    dir_path: Path,
+    *,
+    verbose: bool = False,
+    json_output: bool = False,
+    strict: bool = False,
+) -> int:
+    """Validate all DSL files in a directory.
+
+    Args:
+        dir_path: Path to the directory.
+        verbose: Enable verbose output.
+        json_output: Output results as JSON.
+        strict: Treat warnings as errors.
+
+    Returns:
+        Exit code (0=success, 1=errors, 2=file error).
+
+    """
+    if not dir_path.exists():
+        print(f"error: directory not found: {dir_path}", file=sys.stderr)  # noqa: T201
+        return EXIT_FILE_ERROR
+
+    if not dir_path.is_dir():
+        print(f"error: not a directory: {dir_path}", file=sys.stderr)  # noqa: T201
+        return EXIT_FILE_ERROR
+
+    # Find all .sr files
+    sr_files = list(dir_path.rglob("*.sr"))
+
+    if not sr_files:
+        if verbose:
+            print(f"no .sr files found in {dir_path}")  # noqa: T201
+        return EXIT_SUCCESS
+
+    # Validate each file
+    has_errors = False
+    for file_path in sr_files:
+        result = check_file(
+            file_path,
+            verbose=verbose,
+            json_output=json_output,
+            strict=strict,
+        )
+        if result == EXIT_VALIDATION_ERRORS:
+            has_errors = True
+        elif result == EXIT_FILE_ERROR:
+            # Continue on file errors but report them
+            has_errors = True
+
+    return EXIT_VALIDATION_ERRORS if has_errors else EXIT_SUCCESS
+
+
+def dump_python(
+    file_path: Path,
+    *,
+    include_comments: bool = True,
+    output_file: Path | None = None,
+) -> int:
+    """Generate Python code from DSL file and output it.
+
+    Args:
+        file_path: Path to the DSL file.
+        include_comments: Include source comments in output.
+        output_file: Optional output file path.
+
+    Returns:
+        Exit code (0=success, 2=error).
+
+    """
+    from streetrace.dsl.ast.transformer import transform
+
+    # Check file exists
+    if not file_path.exists():
+        print(f"error: file not found: {file_path}", file=sys.stderr)  # noqa: T201
+        return EXIT_FILE_ERROR
+
+    if not file_path.is_file():
+        print(f"error: not a file: {file_path}", file=sys.stderr)  # noqa: T201
+        return EXIT_FILE_ERROR
+
+    # Read file
+    try:
+        source = file_path.read_text(encoding="utf-8")
+    except OSError as e:
+        print(f"error: cannot read file: {e}", file=sys.stderr)  # noqa: T201
+        return EXIT_FILE_ERROR
+
+    # Parse and transform
+    try:
+        parser = ParserFactory.create()
+        tree = parser.parse(source)
+        ast = transform(tree)
+    except Exception as e:  # noqa: BLE001
+        print(f"error: failed to parse: {e}", file=sys.stderr)  # noqa: T201
+        return EXIT_FILE_ERROR
+
+    # Generate Python code
+    generator = CodeGenerator()
+    python_code, _ = generator.generate(ast, str(file_path))
+
+    # Optionally strip source comments
+    if not include_comments:
+        lines = python_code.split("\n")
+        filtered = [
+            line for line in lines
+            if not (line.strip().startswith("# ") and ":" in line.strip()[:30])
+        ]
+        python_code = "\n".join(filtered)
+
+    # Output
+    if output_file:
+        try:
+            output_file.write_text(python_code, encoding="utf-8")
+            print(f"wrote: {output_file}")  # noqa: T201
+        except OSError as e:
+            print(f"error: cannot write file: {e}", file=sys.stderr)  # noqa: T201
+            return EXIT_FILE_ERROR
+    else:
+        print(python_code)  # noqa: T201
+
+    return EXIT_SUCCESS
+
+
+def run_check(args: list[str]) -> int:
+    """Run the check command with given arguments.
+
+    Args:
+        args: Command line arguments after 'check'.
+
+    Returns:
+        Exit code.
+
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="streetrace check",
+        description="Validate Streetrace DSL files",
+    )
+    parser.add_argument(
+        "path",
+        type=Path,
+        help="DSL file or directory to validate",
+    )
+    parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Enable verbose output",
+    )
+    parser.add_argument(
+        "--format",
+        choices=["text", "json"],
+        default="text",
+        help="Output format (default: text)",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Treat warnings as errors",
+    )
+
+    parsed = parser.parse_args(args)
+
+    json_output = parsed.format == "json"
+
+    if parsed.path.is_dir():
+        return check_directory(
+            parsed.path,
+            verbose=parsed.verbose,
+            json_output=json_output,
+            strict=parsed.strict,
+        )
+
+    return check_file(
+        parsed.path,
+        verbose=parsed.verbose,
+        json_output=json_output,
+        strict=parsed.strict,
+    )
+
+
+def run_dump_python(args: list[str]) -> int:
+    """Run the dump-python command with given arguments.
+
+    Args:
+        args: Command line arguments after 'dump-python'.
+
+    Returns:
+        Exit code.
+
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="streetrace dump-python",
+        description="Generate Python code from DSL file",
+    )
+    parser.add_argument(
+        "path",
+        type=Path,
+        help="DSL file to convert",
+    )
+    parser.add_argument(
+        "--no-comments",
+        action="store_true",
+        help="Exclude source comments from output",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=Path,
+        default=None,
+        help="Output file path (default: stdout)",
+    )
+
+    parsed = parser.parse_args(args)
+
+    return dump_python(
+        parsed.path,
+        include_comments=not parsed.no_comments,
+        output_file=parsed.output,
+    )

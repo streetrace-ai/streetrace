@@ -78,6 +78,7 @@ asyncio_mode = "auto"
 # Performance test markers
 markers = [
     "performance: marks tests as performance tests (deselect with '-m \"not performance\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 
 # pytest-benchmark configuration
@@ -171,3 +172,4 @@ backoff = "^2.2.1"
 orjson = "^3.11.4"
 apscheduler = "^3.11.1"
 fastapi-sso = "^0.19.0"
+lark = "^1.2.0"

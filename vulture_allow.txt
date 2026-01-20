@@ -94,3 +94,282 @@ render_markdown  # unused function (src/streetrace/ui/ui_events.py:53)
 render_user_input  # unused function (src/streetrace/ui/ui_events.py:67)
 _.__signature__  # unused attribute (src/streetrace/utils/hide_args.py:79)
 _.__doc__  # unused attribute (src/streetrace/utils/hide_args.py:81)
+NL_type  # unused variable (src/streetrace/dsl/grammar/indenter.py:23) - used by Lark Indenter base class
+OPEN_PAREN_types  # unused variable (src/streetrace/dsl/grammar/indenter.py:26) - used by Lark Indenter base class
+CLOSE_PAREN_types  # unused variable (src/streetrace/dsl/grammar/indenter.py:29) - used by Lark Indenter base class
+INDENT_type  # unused variable (src/streetrace/dsl/grammar/indenter.py:32) - used by Lark Indenter base class
+DEDENT_type  # unused variable (src/streetrace/dsl/grammar/indenter.py:35) - used by Lark Indenter base class
+tab_len  # unused variable (src/streetrace/dsl/grammar/indenter.py:38) - used by Lark Indenter base class
+_.create  # unused method (src/streetrace/dsl/grammar/parser.py:47) - public API for creating parsers
+
+# AST Transformer methods - called dynamically by Lark based on grammar rule names
+_.statement  # unused method - called by Lark transformer
+_.import_stmt  # unused method - called by Lark transformer
+_.import_streetrace  # unused method - called by Lark transformer
+_.import_local  # unused method - called by Lark transformer
+_.import_pip  # unused method - called by Lark transformer
+_.import_mcp  # unused method - called by Lark transformer
+_.model_short  # unused method - called by Lark transformer
+_.model_long  # unused method - called by Lark transformer
+_.model_ref  # unused method - called by Lark transformer
+_.model_body  # unused method - called by Lark transformer
+_.model_provider  # unused method - called by Lark transformer
+_.model_name  # unused method - called by Lark transformer
+_.model_temperature  # unused method - called by Lark transformer
+_.model_max_tokens  # unused method - called by Lark transformer
+_.schema_def  # unused method - called by Lark transformer
+_.schema_body  # unused method - called by Lark transformer
+_.schema_field  # unused method - called by Lark transformer
+_.field_name  # unused method - called by Lark transformer
+_.type_expr  # unused method - called by Lark transformer
+_.simple_type  # unused method - called by Lark transformer
+_.list_type  # unused method - called by Lark transformer
+_.optional_type  # unused method - called by Lark transformer
+_.tool_short  # unused method - called by Lark transformer
+_.tool_long  # unused method - called by Lark transformer
+_.tool_short_expr  # unused method - called by Lark transformer
+_.tool_mcp  # unused method - called by Lark transformer
+_.tool_builtin  # unused method - called by Lark transformer
+_.tool_ref  # unused method - called by Lark transformer
+_.tool_options  # unused method - called by Lark transformer
+_.tool_option  # unused method - called by Lark transformer
+_.tool_auth_bearer  # unused method - called by Lark transformer
+_.tool_auth_basic  # unused method - called by Lark transformer
+_.tool_custom_option  # unused method - called by Lark transformer
+_.tool_body  # unused method - called by Lark transformer
+_.tool_property  # unused method - called by Lark transformer
+_.tool_type  # unused method - called by Lark transformer
+_.tool_url  # unused method - called by Lark transformer
+_.tool_headers  # unused method - called by Lark transformer
+_.tool_type_name  # unused method - called by Lark transformer
+_.header_list  # unused method - called by Lark transformer
+_.header_entry  # unused method - called by Lark transformer
+_.retry_policy_def  # unused method - called by Lark transformer
+_.backoff_exponential  # unused method - called by Lark transformer
+_.backoff_linear  # unused method - called by Lark transformer
+_.backoff_fixed  # unused method - called by Lark transformer
+_.timeout_policy_def  # unused method - called by Lark transformer
+_.time_unit  # unused method - called by Lark transformer
+_.policy_def  # unused method - called by Lark transformer
+_.policy_body  # unused method - called by Lark transformer
+_.policy_property  # unused method - called by Lark transformer
+_.policy_custom  # unused method - called by Lark transformer
+_.policy_trigger  # unused method - called by Lark transformer
+_.preserve_list  # unused method - called by Lark transformer
+_.preserve_item  # unused method - called by Lark transformer
+_.event_handler  # unused method - called by Lark transformer
+_.timing_on  # unused method - called by Lark transformer
+_.timing_after  # unused method - called by Lark transformer
+_.event_start  # unused method - called by Lark transformer
+_.event_input  # unused method - called by Lark transformer
+_.event_output  # unused method - called by Lark transformer
+_.event_tool_call  # unused method - called by Lark transformer
+_.event_tool_result  # unused method - called by Lark transformer
+_.handler_body  # unused method - called by Lark transformer
+_.handler_statement  # unused method - called by Lark transformer
+_.guardrail_action  # unused method - called by Lark transformer
+_.mask_action  # unused method - called by Lark transformer
+_.block_action  # unused method - called by Lark transformer
+_.warn_action  # unused method - called by Lark transformer
+_.retry_action  # unused method - called by Lark transformer
+_.flow_def  # unused method - called by Lark transformer
+_.flow_name  # unused method - called by Lark transformer
+_.flow_params  # unused method - called by Lark transformer
+_.flow_body  # unused method - called by Lark transformer
+_.flow_statement  # unused method - called by Lark transformer
+_.expression_stmt  # unused method - called by Lark transformer
+_.agent_def  # unused method - called by Lark transformer
+_.agent_body  # unused method - called by Lark transformer
+_.agent_property  # unused method - called by Lark transformer
+_.agent_tools  # unused method - called by Lark transformer
+_.agent_instruction  # unused method - called by Lark transformer
+_.agent_retry  # unused method - called by Lark transformer
+_.agent_timeout  # unused method - called by Lark transformer
+_.agent_description  # unused method - called by Lark transformer
+_.timeout_ref  # unused method - called by Lark transformer
+_.timeout_literal  # unused method - called by Lark transformer
+_.name_list  # unused method - called by Lark transformer
+_.tool_name  # unused method - called by Lark transformer
+_.prompt_def  # unused method - called by Lark transformer
+_.prompt_modifiers  # unused method - called by Lark transformer
+_.prompt_modifier  # unused method - called by Lark transformer
+_.prompt_using_model  # unused method - called by Lark transformer
+_.prompt_expecting  # unused method - called by Lark transformer
+_.prompt_inherit  # unused method - called by Lark transformer
+_.prompt_body  # unused method - called by Lark transformer
+_.for_loop  # unused method - called by Lark transformer
+_.parallel_block  # unused method - called by Lark transformer
+_.match_block  # unused method - called by Lark transformer
+_.match_cases  # unused method - called by Lark transformer
+_.match_case  # unused method - called by Lark transformer
+_.match_else  # unused method - called by Lark transformer
+_.if_block  # unused method - called by Lark transformer
+_.if_stmt  # unused method - called by Lark transformer
+_.flow_control  # unused method - called by Lark transformer
+_.failure_block  # unused method - called by Lark transformer
+_.failure_body  # unused method - called by Lark transformer
+_.statement_body  # unused method - called by Lark transformer
+_.assignment  # unused method - called by Lark transformer
+_.run_stmt  # unused method - called by Lark transformer
+_.call_stmt  # unused method - called by Lark transformer
+_.call_modifiers  # unused method - called by Lark transformer
+_.return_stmt  # unused method - called by Lark transformer
+_.push_stmt  # unused method - called by Lark transformer
+_.escalate_stmt  # unused method - called by Lark transformer
+_.log_stmt  # unused method - called by Lark transformer
+_.notify_stmt  # unused method - called by Lark transformer
+_.or_expr  # unused method - called by Lark transformer
+_.and_expr  # unused method - called by Lark transformer
+_.not_op  # unused method - called by Lark transformer
+_.comparison  # unused method - called by Lark transformer
+_.comparison_op  # unused method - called by Lark transformer
+_.additive  # unused method - called by Lark transformer
+_.multiplicative  # unused method - called by Lark transformer
+_.neg  # unused method - called by Lark transformer
+_.atom  # unused method - called by Lark transformer
+_.literal  # unused method - called by Lark transformer
+_.string_lit  # unused method - called by Lark transformer
+_.number_lit  # unused method - called by Lark transformer
+_.int_lit  # unused method - called by Lark transformer
+_.true_lit  # unused method - called by Lark transformer
+_.false_lit  # unused method - called by Lark transformer
+_.null_lit  # unused method - called by Lark transformer
+_.initial_prompt  # unused method - called by Lark transformer
+_.list_literal  # unused method - called by Lark transformer
+_.object_literal  # unused method - called by Lark transformer
+_.object_entry  # unused method - called by Lark transformer
+_.var_ref  # unused method - called by Lark transformer
+_.var_dotted  # unused method - called by Lark transformer
+_.variable  # unused method - called by Lark transformer
+_.var_name  # unused method - called by Lark transformer
+_.identifier  # unused method - called by Lark transformer
+_.contextual_keyword  # unused method - called by Lark transformer
+_.contextual_name  # unused method - called by Lark transformer
+_.property_access  # unused method - called by Lark transformer
+_.function_call  # unused method - called by Lark transformer
+_.named_function_call  # unused method - called by Lark transformer
+_.bare_function_call  # unused method - called by Lark transformer
+_.detect_drift  # unused method - called by Lark transformer
+_.get_goal  # unused method - called by Lark transformer
+_.process_call  # unused method - called by Lark transformer
+_.paren_expr  # unused method - called by Lark transformer
+_.name_ref  # unused method - called by Lark transformer
+_.interpolated_string  # unused method - called by Lark transformer
+_.version_decl  # unused method - called by Lark transformer
+_.start  # unused method - called by Lark transformer
+
+# AST Transformer terminal methods - called dynamically by Lark for token transformations
+_.NAME  # unused method - called by Lark transformer for NAME tokens
+_.STRING  # unused method - called by Lark transformer for STRING tokens
+_.INT  # unused method - called by Lark transformer for INT tokens
+_.NUMBER  # unused method - called by Lark transformer for NUMBER tokens
+_.VERSION  # unused method - called by Lark transformer for VERSION tokens
+_.PROVIDER_MODEL  # unused method - called by Lark transformer for PROVIDER_MODEL tokens
+_.DOTTED_NAME  # unused method - called by Lark transformer for DOTTED_NAME tokens
+_.TRIPLE_QUOTED_STRING  # unused method - called by Lark transformer for TRIPLE_QUOTED_STRING tokens
+_.LOCAL_PATH  # unused method - called by Lark transformer for LOCAL_PATH tokens
+_.PIP_URI  # unused method - called by Lark transformer for PIP_URI tokens
+_.MCP_URI  # unused method - called by Lark transformer for MCP_URI tokens
+_.INTERPOLATED_STRING  # unused method - called by Lark transformer for INTERPOLATED_STRING tokens
+_get_meta  # unused function - helper for extracting source positions from Lark trees
+
+# AST Node dataclass fields - these are used when processing/analyzing AST nodes
+literal_type  # unused variable (nodes.py) - dataclass field for Literal node
+left  # unused variable (nodes.py) - dataclass field for BinaryOp node
+operand  # unused variable (nodes.py) - dataclass field for UnaryOp node
+elements  # unused variable (nodes.py) - dataclass field for ListLiteral node
+expression  # unused variable (nodes.py) - dataclass field for MatchBlock node
+guardrail  # unused variable (nodes.py) - dataclass field for MaskAction node
+contains_expr  # unused variable (nodes.py) - dataclass field for WarnAction node
+contains_pattern  # unused variable (nodes.py) - dataclass field for WarnAction node
+provider_model  # unused variable (nodes.py) - dataclass field for ModelDef node
+auth_type  # unused variable (nodes.py) - dataclass field for ToolDef node
+auth_value  # unused variable (nodes.py) - dataclass field for ToolDef node
+builtin_ref  # unused variable (nodes.py) - dataclass field for ToolDef node
+retry  # unused variable (nodes.py) - dataclass field for AgentDef node
+timeout_value  # unused variable (nodes.py) - dataclass field for AgentDef node
+timeout_unit  # unused variable (nodes.py) - dataclass field for AgentDef node
+expecting  # unused variable (nodes.py) - dataclass field for PromptDef node
+inherit  # unused variable (nodes.py) - dataclass field for PromptDef node
+backoff_strategy  # unused variable (nodes.py) - dataclass field for RetryPolicyDef node
+
+# AST Node classes - used by semantic analyzer and code generator
+ContinueStmt  # unused class (nodes.py) - AST node for continue statements
+AbortStmt  # unused class (nodes.py) - AST node for abort statements
+RetryStepStmt  # unused class (nodes.py) - AST node for retry step statements
+PolicyTrigger  # unused class (nodes.py) - AST node for policy triggers
+
+# Semantic Analyzer - public API and dataclass fields
+_.analyze  # unused method (analyzer.py) - public API entry point
+is_valid  # unused variable (analyzer.py) - dataclass field for AnalysisResult
+symbols  # unused variable (analyzer.py) - dataclass field for AnalysisResult
+_._current_scope  # unused attribute (analyzer.py) - internal state tracking
+defined_at  # unused variable (scope.py) - dataclass field for Symbol
+_.lookup_local  # unused method (scope.py) - public API for local-only lookups
+_.is_defined_locally  # unused method (scope.py) - public API for checking local scope
+_.all_symbols  # unused method (scope.py) - public API for getting all symbols
+_.symbols_of_kind  # unused method (scope.py) - public API for filtering symbols by kind
+context_lines  # unused variable (errors.py) - dataclass field for SemanticError
+
+# Semantic Error codes - defined for future use
+E0004  # unused variable (errors.py) - error code for type mismatch
+E0005  # unused variable (errors.py) - error code for circular reference
+E0006  # unused variable (errors.py) - error code for invalid import
+E0007  # unused variable (errors.py) - error code for missing field
+E0008  # unused variable (errors.py) - error code for invalid expression
+E0009  # unused variable (errors.py) - error code for scope error
+E0010  # unused variable (errors.py) - error code for invalid operation
+
+# Code Generator - public API and runtime classes
+_.emit_comment  # unused method (emitter.py) - public API for adding comments to generated code
+_.get_indent_level  # unused method (emitter.py) - public API for getting current indentation level
+_.generate  # unused method (generator.py) - public API entry point for code generation
+
+# Source Map Registry - public API and dataclass fields
+generated_column  # unused variable (registry.py) - dataclass field for SourceMapping
+source_column  # unused variable (registry.py) - dataclass field for SourceMapping
+source_end_line  # unused variable (registry.py) - dataclass field for SourceMapping
+source_end_column  # unused variable (registry.py) - dataclass field for SourceMapping
+_.add_mapping  # unused method (registry.py) - public API for adding source mappings
+_.get_mappings  # unused method (registry.py) - public API for getting all mappings
+
+# DSL Runtime - base class methods for generated workflows to override
+_.mask  # unused method (context.py) - public API for guardrail masking
+_.check  # unused method (context.py) - public API for guardrail checking
+guardrails  # unused attribute (context.py) - public attribute for guardrail provider
+_.run_agent  # unused method (context.py) - public API for running agents
+_.call_llm  # unused method (context.py) - public API for LLM calls
+_.log  # unused method (context.py) - public API for workflow logging
+_.warn  # unused method (context.py) - public API for workflow warnings
+_.notify  # unused method (context.py) - public API for workflow notifications
+_.escalate_to_human  # unused method (context.py) - public API for human escalation
+_._context  # unused attribute (workflow.py) - internal context storage
+_.create_context  # unused method (workflow.py) - public API for context creation
+_.on_start  # unused method (workflow.py) - event handler override point
+_.on_input  # unused method (workflow.py) - event handler override point
+_.on_output  # unused method (workflow.py) - event handler override point
+_.on_tool_call  # unused method (workflow.py) - event handler override point
+_.on_tool_result  # unused method (workflow.py) - event handler override point
+_.after_start  # unused method (workflow.py) - event handler override point
+_.after_input  # unused method (workflow.py) - event handler override point
+_.after_output  # unused method (workflow.py) - event handler override point
+_.after_tool_call  # unused method (workflow.py) - event handler override point
+_.after_tool_result  # unused method (workflow.py) - event handler override point
+
+# CLI commands - public API entry points
+run_check  # unused function (cli.py) - CLI entry point for check command
+run_dump_python  # unused function (cli.py) - CLI entry point for dump-python command
+
+# BytecodeCache - public API
+_.invalidate  # unused method (cache.py) - public API for cache invalidation
+
+# Error codes and diagnostics - public API
+format_error_message  # unused function (codes.py) - public API for formatting error messages
+_.with_help  # unused method (diagnostics.py) - public API for adding help text
+_.with_note  # unused method (diagnostics.py) - public API for adding related notes
+
+# DslAgentLoader - public API for loading DSL agent files
+_to_class_name  # unused function (loader.py) - utility for class name generation
+_.can_load  # unused method (loader.py) - public API for checking file compatibility
+_.load  # unused method (loader.py) - public API for loading DSL files
+source_map  # unused variable (loader.py) - captured from compile_dsl for future use
