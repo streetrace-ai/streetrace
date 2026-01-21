@@ -1369,11 +1369,494 @@ This covers:
 
 ---
 
-## 9. Known Compiler Issues
+## 9. Multi-Agent Pattern Testing
+
+This section covers testing for the multi-agent patterns defined in the [Agentic Patterns documentation](../../tasks/017-dsl-compiler/agentic-patterns.md).
+
+### 9.1 Coordinator/Dispatcher Pattern Tests
+
+#### Test: Validate `delegate` Keyword Parsing
+
+**Input:** `coordinator.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt billing_instruction:
+    Handle billing inquiries.
+
+agent billing_agent:
+    instruction billing_instruction
+    description "Handles billing"
+
+prompt support_instruction:
+    Handle technical support.
+
+agent support_agent:
+    instruction support_instruction
+    description "Handles support"
+
+prompt coordinator_instruction:
+    Route requests: billing issues to billing_agent, tech issues to support_agent.
+
+agent coordinator:
+    instruction coordinator_instruction
+    description "Routes requests"
+    delegate billing_agent, support_agent
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check coordinator.sr
+```
+
+**Expected Output:** `valid (1 model, 3 agents)`
+
+**Expected Exit Code:** `0`
+
+#### Test: Validate `delegate` Reference to Undefined Agent
+
+**Input:** `delegate_undefined.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt coordinator_instruction:
+    Route requests.
+
+agent coordinator:
+    instruction coordinator_instruction
+    delegate nonexistent_agent
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check delegate_undefined.sr
+```
+
+**Expected Output:**
+
+```
+error[E0001]: undefined reference to agent 'nonexistent_agent'
+  --> delegate_undefined.sr:9:14
+   |
+ 9 |     delegate nonexistent_agent
+   |              ^^^^^^^^^^^^^^^^^^
+```
+
+**Expected Exit Code:** `1`
+
+#### Test: Coordinator E2E Execution
+
+**Setup:** Create `coordinator_e2e.sr` and use it with Streetrace.
+
+**Manual Test:**
+
+1. Start Streetrace with coordinator agent
+2. Send "I have a billing question"
+3. Verify LLM routes to billing_agent
+4. Send "I can't login"
+5. Verify LLM routes to support_agent
+
+### 9.2 Hierarchical Task Decomposition Tests
+
+#### Test: Validate `use` Keyword Parsing
+
+**Input:** `hierarchical.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt searcher_instruction:
+    Search for information.
+
+agent searcher:
+    instruction searcher_instruction
+    description "Searches for info"
+
+prompt summarizer_instruction:
+    Summarize content.
+
+agent summarizer:
+    instruction summarizer_instruction
+    description "Summarizes content"
+
+prompt researcher_instruction:
+    Research topics using available tools.
+
+agent researcher:
+    instruction researcher_instruction
+    description "Researches topics"
+    use searcher, summarizer
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check hierarchical.sr
+```
+
+**Expected Output:** `valid (1 model, 3 agents)`
+
+**Expected Exit Code:** `0`
+
+#### Test: Validate `use` Reference to Undefined Agent
+
+**Input:** `use_undefined.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt researcher_instruction:
+    Research topics.
+
+agent researcher:
+    instruction researcher_instruction
+    use nonexistent_agent
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check use_undefined.sr
+```
+
+**Expected Output:**
+
+```
+error[E0001]: undefined reference to agent 'nonexistent_agent'
+  --> use_undefined.sr:8:9
+   |
+ 8 |     use nonexistent_agent
+   |         ^^^^^^^^^^^^^^^^^^
+```
+
+**Expected Exit Code:** `1`
+
+#### Test: Circular `use` Detection
+
+**Input:** `circular_use.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt agent_a_instruction:
+    Agent A.
+
+agent agent_a:
+    instruction agent_a_instruction
+    use agent_b
+
+prompt agent_b_instruction:
+    Agent B.
+
+agent agent_b:
+    instruction agent_b_instruction
+    use agent_a
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check circular_use.sr
+```
+
+**Expected Output:**
+
+```
+error[E0011]: circular agent reference detected
+  --> circular_use.sr:8:9
+   |
+ 8 |     use agent_b
+   |         ^^^^^^^
+   |
+   = note: agent_a -> agent_b -> agent_a
+```
+
+**Expected Exit Code:** `1`
+
+#### Test: Hierarchical E2E Execution
+
+**Setup:** Create `hierarchical_e2e.sr`.
+
+**Manual Test:**
+
+1. Start Streetrace with researcher agent
+2. Send "Research the history of AI"
+3. Verify researcher invokes searcher as tool
+4. Verify researcher invokes summarizer as tool
+5. Verify results are aggregated in response
+
+### 9.3 Iterative Refinement Pattern Tests
+
+#### Test: Validate `loop` Block Parsing
+
+**Input:** `loop.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt improver_instruction:
+    Improve the text.
+
+agent improver:
+    instruction improver_instruction
+
+prompt checker_instruction:
+    Check quality. Return done=true when quality is good.
+
+agent checker:
+    instruction checker_instruction
+
+flow iterative_refinement $text:
+    $current = $text
+
+    loop max 5 do
+        $quality = run agent checker $current
+        if $quality.done:
+            return $current
+        $current = run agent improver $current $quality.feedback
+    end
+
+    return $current
+
+on start do
+    $input_prompt = initial user prompt
+    $result = run iterative_refinement $input_prompt
+end
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check loop.sr
+```
+
+**Expected Output:** `valid (1 model, 2 agents, 1 flow, 1 handler)`
+
+**Expected Exit Code:** `0`
+
+#### Test: Loop Without Max Iterations
+
+**Input:** `loop_infinite.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt worker_instruction:
+    Process data.
+
+agent worker:
+    instruction worker_instruction
+
+flow continuous_process $input:
+    $data = $input
+
+    loop do
+        $data = run agent worker $data
+        if $data.complete:
+            return $data
+    end
+
+on start do
+    $input_prompt = initial user prompt
+    $result = run continuous_process $input_prompt
+end
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check loop_infinite.sr
+```
+
+**Expected Output:** `valid (1 model, 1 agent, 1 flow, 1 handler)`
+
+**Expected Exit Code:** `0`
+
+**Note:** Infinite loops without exit conditions should generate a warning but not an error.
+
+#### Test: Iterative Refinement E2E Execution
+
+**Setup:** Create `refinement_e2e.sr` with quality-based iteration.
+
+**Manual Test:**
+
+1. Start Streetrace with refinement flow
+2. Send "Write a summary of quantum computing"
+3. Verify loop executes multiple times
+4. Verify quality improves with each iteration
+5. Verify loop exits when quality threshold met or max iterations reached
+
+### 9.4 Combined Pattern Tests
+
+#### Test: Coordinator with Hierarchical Agents
+
+**Input:** `combined_patterns.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+# Low-level agents
+prompt fetcher_instruction:
+    Fetch data.
+
+agent fetcher:
+    instruction fetcher_instruction
+
+prompt validator_instruction:
+    Validate data.
+
+agent validator:
+    instruction validator_instruction
+
+# Mid-level agent using low-level agents
+prompt processor_instruction:
+    Process data using available tools.
+
+agent processor:
+    instruction processor_instruction
+    use fetcher, validator
+
+# Specialized agents using processor
+prompt report_agent_instruction:
+    Generate reports.
+
+agent report_agent:
+    instruction report_agent_instruction
+    use processor
+
+prompt analysis_agent_instruction:
+    Analyze data.
+
+agent analysis_agent:
+    instruction analysis_agent_instruction
+    use processor
+
+# Coordinator routing to specialized agents
+prompt coordinator_instruction:
+    Route: reports to report_agent, analysis to analysis_agent.
+
+agent coordinator:
+    instruction coordinator_instruction
+    delegate report_agent, analysis_agent
+
+on start do
+    $input_prompt = initial user prompt
+    $result = run agent coordinator $input_prompt
+end
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check combined_patterns.sr
+```
+
+**Expected Output:** `valid (1 model, 6 agents, 1 handler)`
+
+**Expected Exit Code:** `0`
+
+### 9.5 Code Generation Tests
+
+#### Test: Verify `delegate` Generates `sub_agents`
+
+**Command:**
+
+```bash
+poetry run streetrace dump-python coordinator.sr
+```
+
+**Expected Output Contains:**
+
+```python
+coordinator = LlmAgent(
+    name="coordinator",
+    instruction="...",
+    sub_agents=[billing_agent, support_agent]
+)
+```
+
+#### Test: Verify `use` Generates `AgentTool`
+
+**Command:**
+
+```bash
+poetry run streetrace dump-python hierarchical.sr
+```
+
+**Expected Output Contains:**
+
+```python
+from google.adk.tools import agent_tool
+
+researcher = LlmAgent(
+    name="researcher",
+    instruction="...",
+    tools=[
+        agent_tool.AgentTool(agent=searcher),
+        agent_tool.AgentTool(agent=summarizer)
+    ]
+)
+```
+
+#### Test: Verify `loop` Generates `LoopAgent`
+
+**Command:**
+
+```bash
+poetry run streetrace dump-python loop.sr
+```
+
+**Expected Output Contains:**
+
+```python
+from google.adk.agents import LoopAgent
+
+iterative_refinement_loop = LoopAgent(
+    name="iterative_refinement_loop",
+    max_iterations=5,
+    sub_agents=[...]
+)
+```
+
+### 9.6 Example Files for Multi-Agent Patterns
+
+The following example files should be created in `agents/examples/dsl/`:
+
+| File | Pattern | Features Demonstrated |
+|------|---------|----------------------|
+| `agents/examples/dsl/coordinator.sr` | Coordinator/Dispatcher | `delegate` keyword, LLM routing |
+| `agents/examples/dsl/hierarchical.sr` | Hierarchical | `use` keyword, agent-as-tool |
+| `agents/examples/dsl/iterative.sr` | Iterative Refinement | `loop` block, quality checking |
+| `agents/examples/dsl/combined.sr` | Combined | Multiple patterns together |
+
+### 9.7 Automated Test Coverage
+
+Add the following test modules to `tests/dsl/`:
+
+| Module | Tests |
+|--------|-------|
+| `test_delegate.py` | Parser, AST, semantic analysis, codegen for `delegate` |
+| `test_use.py` | Parser, AST, semantic analysis, codegen for `use` |
+| `test_loop.py` | Parser, AST, semantic analysis, codegen for `loop` |
+| `test_patterns.py` | Integration tests for combined patterns |
+
+**Run pattern-specific tests:**
+
+```bash
+poetry run pytest tests/dsl/test_delegate.py tests/dsl/test_use.py tests/dsl/test_loop.py -v --no-header
+```
+
+---
+
+## 10. Known Compiler Issues
 
 This section documents known issues in the DSL compiler that testers should be aware of.
 
-### 9.1 Double Dollar Sign in Error Messages
+### 10.1 Double Dollar Sign in Error Messages
 
 **Issue**: Error messages show `$$variable` instead of `$variable`.
 
@@ -1383,13 +1866,13 @@ This section documents known issues in the DSL compiler that testers should be a
 
 **Workaround**: None needed; cosmetic issue only.
 
-### 9.2 Issue Tracking
+### 10.2 Issue Tracking
 
 For detailed root cause analysis and fix requirements, see:
 - Developer documentation: `docs/dev/dsl/architecture.md` (Known Issues section)
 - User documentation: `docs/user/dsl/getting-started.md` (Known Limitations section)
 
-### 9.3 Resolved Issues
+### 10.3 Resolved Issues
 
 The following issues from earlier versions have been fixed:
 
