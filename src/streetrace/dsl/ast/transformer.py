@@ -1674,6 +1674,93 @@ class AstTransformer(Transformer):
         )
 
     @v_args(meta=True)
+    def run_flow_assign(  # noqa: C901, PLR0912
+        self, meta: object, items: TransformerItems,
+    ) -> RunStmt:
+        """Transform run_flow_assign rule.
+
+        Handle: variable "=" "run" identifier expression*
+        This is for calling user-defined flows with assignment.
+        """
+        target = None
+        flow_name = None
+        args: list[AstNode] = []
+
+        skip_tokens = {"=", "run"}
+
+        for i, item in enumerate(items):
+            if isinstance(item, VarRef) and target is None and i == 0:
+                target = f"${item.name}"
+            elif isinstance(item, NameRef):
+                if flow_name is None:
+                    flow_name = item.name
+                else:
+                    args.append(item)
+            elif isinstance(item, Token):
+                if str(item) in skip_tokens:
+                    continue
+                if flow_name is None:
+                    flow_name = str(item)
+                else:
+                    args.append(NameRef(name=str(item)))
+            elif isinstance(item, str) and item not in skip_tokens:
+                if flow_name is None:
+                    flow_name = item
+                else:
+                    args.append(NameRef(name=item))
+            elif flow_name is not None and not isinstance(item, Token):
+                args.append(item)
+
+        return RunStmt(
+            target=target,
+            agent=flow_name or "",
+            args=args,
+            meta=_meta_to_position(meta),
+            is_flow=True,
+        )
+
+    @v_args(meta=True)
+    def run_flow(self, meta: object, items: TransformerItems) -> RunStmt:
+        """Transform run_flow rule.
+
+        Handle: "run" identifier expression*
+        This is for calling user-defined flows without assignment.
+        """
+        flow_name = None
+        args: list[AstNode] = []
+
+        skip_tokens = {"run"}
+
+        for item in items:
+            if isinstance(item, NameRef):
+                if flow_name is None:
+                    flow_name = item.name
+                else:
+                    args.append(item)
+            elif isinstance(item, Token):
+                if str(item) in skip_tokens:
+                    continue
+                if flow_name is None:
+                    flow_name = str(item)
+                else:
+                    args.append(NameRef(name=str(item)))
+            elif isinstance(item, str) and item not in skip_tokens:
+                if flow_name is None:
+                    flow_name = item
+                else:
+                    args.append(NameRef(name=item))
+            elif flow_name is not None and not isinstance(item, Token):
+                args.append(item)
+
+        return RunStmt(
+            target=None,
+            agent=flow_name or "",
+            args=args,
+            meta=_meta_to_position(meta),
+            is_flow=True,
+        )
+
+    @v_args(meta=True)
     def call_stmt(self, meta: object, items: TransformerItems) -> CallStmt:  # noqa: C901
         """Transform call_stmt rule.
 
@@ -1948,14 +2035,6 @@ class AstTransformer(Transformer):
         name = items[0]
         args = list(items[1:])
         return FunctionCall(name=name, args=args)
-
-    def detect_drift(self, items: TransformerItems) -> FunctionCall:
-        """Transform detect_drift rule."""
-        return FunctionCall(name="detect_trajectory_drift", args=list(items))
-
-    def get_goal(self, _items: TransformerItems) -> FunctionCall:
-        """Transform get_goal rule."""
-        return FunctionCall(name="get_agent_goal", args=[])
 
     def process_call(self, items: TransformerItems) -> FunctionCall:
         """Transform process_call rule."""

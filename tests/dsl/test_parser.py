@@ -372,9 +372,9 @@ flow transfer_money:
         tree = parser.parse(source)
         assert tree.data == "start"
 
-    def test_parses_flow_with_multiword_name(self, parser):
+    def test_parses_flow_with_underscored_name(self, parser):
         source = """
-flow get agent goal:
+flow get_agent_goal:
     $goal = call llm analyze_prompt $input
     return $goal
 """
@@ -383,8 +383,8 @@ flow get agent goal:
 
     def test_parses_flow_with_parameters(self, parser):
         source = """
-flow detect trajectory drift from $goal:
-    $drift = call llm detect_drift_prompt $goal
+flow detect_trajectory_drift $goal:
+    $drift = call llm drift_detection_prompt $goal
     return $drift
 """
         tree = parser.parse(source)
@@ -411,7 +411,7 @@ class TestEventHandlers:
         source = """
 on start do
     $input_prompt = initial user prompt
-    $goal = get agent goal
+    $goal = run get_agent_goal
 end
 """
         tree = parser.parse(source)
@@ -430,7 +430,7 @@ end
     def test_parses_on_output_handler(self, parser):
         source = """
 on output do
-    $drift = detect trajectory drift from $goal
+    $drift = run detect_trajectory_drift $goal
     retry with $drift.message if $drift.score > 0.2
 end
 """
@@ -927,7 +927,7 @@ policy compaction:
 
 on start do
     $input_prompt = initial user prompt
-    $goal = get agent goal
+    $goal = run get_agent_goal
     $adapted_history = []
     run my_workflow
 end
@@ -943,15 +943,18 @@ on tool-result do
 end
 
 on output do
-    $drift = detect trajectory drift from $goal
+    $drift = run detect_trajectory_drift $goal
     retry with $drift.message if $drift.score > 0.2
 end
 
-flow get agent goal:
-    $goal = call llm get_agent_goal_prompt $instruction $input_prompt $agent_context
+# Note: These flows are user-defined, not built-in features.
+# You can define any flows with any names.
+
+flow get_agent_goal:
+    $goal = call llm goal_analysis_prompt $instruction $input_prompt $agent_context
     return $goal
 
-prompt get_agent_goal_prompt using model "compact": """
+prompt goal_analysis_prompt using model "compact": """
 You are a work analyst. Given the agent instruction and input prompt,
 describe the conversation goal the agent needs to fulfill.
 
@@ -960,11 +963,11 @@ Input: $input_prompt
 Context: $context
 """
 
-flow detect trajectory drift from $goal:
-    $drift = call llm detect_drift_prompt $goal
+flow detect_trajectory_drift $goal:
+    $drift = call llm drift_detection_prompt $goal
     return $drift
 
-prompt detect_drift_prompt using model "compact" expecting Drift: """
+prompt drift_detection_prompt using model "compact" expecting Drift: """
 You are a work analyst. Detect if the agent work is aligned with the goal or drifted.
 
 Goal: $goal

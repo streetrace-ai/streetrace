@@ -191,12 +191,6 @@ class ExpressionVisitor:
         # Handle built-in functions
         if node.name == "initial_user_prompt":
             return "ctx.vars['input_prompt']"
-        if node.name == "get_agent_goal":
-            # Get agent goal from DSL examples (017-dsl-examples.md)
-            return "ctx.get_goal()"
-        if node.name == "detect_trajectory_drift":
-            # Detect drift from DSL examples (017-dsl-examples.md)
-            return f"ctx.detect_drift({args})"
         if node.name == "process":
             return f"ctx.process({args})"
 

@@ -198,11 +198,11 @@ class TestAstNodeCreation:
         from streetrace.dsl.ast.nodes import FlowDef
 
         flow = FlowDef(
-            name="detect trajectory drift",
+            name="detect_trajectory_drift",
             params=["$goal"],
             body=[],
         )
-        assert flow.name == "detect trajectory drift"
+        assert flow.name == "detect_trajectory_drift"
         assert flow.params == ["$goal"]
 
     def test_event_handler_creation(self):

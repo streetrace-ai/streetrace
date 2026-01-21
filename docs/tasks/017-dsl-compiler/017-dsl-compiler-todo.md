@@ -233,7 +233,6 @@ tests/dsl/test_context_methods.py
 ```
 
 **Implementation**:
-- [ ] `detect_drift`: Compare current state to goal using embedding similarity
 - [ ] `process`: Apply transformation pipeline (may require design clarification)
 - [ ] `escalate_to_human`: Integrate with UI/notification system
 

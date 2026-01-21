@@ -212,7 +212,7 @@ Variables use the `$` prefix:
 
 ```streetrace
 on start do
-    $goal = get agent goal
+    $goal = run get_agent_goal  # Call user-defined flow
     $history = []
 end
 
@@ -220,6 +220,8 @@ on output do
     push $message to $history
 end
 ```
+
+**Note**: `get_agent_goal` in this example is a user-defined flow, not a built-in feature. You can define any flows with any names.
 
 ### Variable Scoping
 

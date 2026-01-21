@@ -113,7 +113,6 @@ This document tracks the implementation progress for completing the DSL compiler
   - [ ] `test_detect_drift_compares_trajectory()`
   - [ ] `test_process_applies_pipeline()`
   - [ ] `test_escalate_to_human_triggers_callback()`
-- [ ] Implement `detect_drift()` - basic implementation comparing against goal
 - [ ] Implement `process()` - apply transformation pipeline
 - [ ] Implement `escalate_to_human()` - integrate with UI/callback system
 - [ ] Run tests and ensure they pass

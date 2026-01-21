@@ -131,12 +131,20 @@ class Assignment:
 
 @dataclass
 class RunStmt:
-    """Run agent statement node (e.g., $result = run agent fetch_data $input)."""
+    """Run statement node for agents and flows.
+
+    Examples:
+    - $result = run agent fetch_data $input  (agent call)
+    - $goal = run get_agent_goal  (flow call, is_flow=True)
+    - run my_workflow  (flow call without assignment)
+
+    """
 
     target: str | None  # None if no assignment
-    agent: str
+    agent: str  # Agent or flow name
     args: list[AstNode]
     meta: SourcePosition | None = None
+    is_flow: bool = False  # True for flow calls, False for agent calls
 
 
 @dataclass

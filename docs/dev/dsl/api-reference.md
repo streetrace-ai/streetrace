@@ -338,25 +338,6 @@ LLM response content, or None on error.
 
 **Location**: `src/streetrace/dsl/runtime/context.py:340`
 
-#### detect_drift
-
-```python
-def detect_drift(self, *args: object) -> bool
-```
-
-Detect trajectory drift from the current goal.
-
-Use keyword overlap between the current trajectory and the goal to determine if the agent
-has drifted off-topic.
-
-**Parameters**:
-- `*args`: Current trajectory text to check for drift.
-
-**Returns**:
-True if drift is detected (trajectory doesn't match goal).
-
-**Location**: `src/streetrace/dsl/runtime/context.py:425`
-
 #### log / warn / notify
 
 ```python

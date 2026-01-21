@@ -24,7 +24,7 @@ policy compaction:
     trigger: token_usage > 0.8
 
 on start do
-    $goal = get agent goal
+    $goal = run get_agent_goal  # Call user-defined flow
 end
 
 flow my_workflow:
@@ -502,14 +502,14 @@ $a / $b
 $text contains "pattern"
 ```
 
-### Function Calls
+### Built-in Function Calls
 
 ```streetrace
-process($value)
-detect_trajectory_drift($goal)
-get_agent_goal()
-initial_user_prompt()
+process($value)              # Process a value
+initial_user_prompt()        # Get the initial user prompt
 ```
+
+User-defined flows are called using the `run` statement (see Flows section).
 
 ## Comments
 
@@ -551,7 +551,7 @@ timeout default = 2 minutes
 
 # Initialization
 on start do
-    $goal = get agent goal
+    $goal = run get_agent_goal  # User-defined flow
     $history = []
 end
 
@@ -562,7 +562,7 @@ on input do
 end
 
 on output do
-    $drift = detect_trajectory_drift($goal)
+    $drift = run detect_trajectory_drift $goal  # User-defined flow
     retry with $drift.message if $drift.score > 0.3
 end
 

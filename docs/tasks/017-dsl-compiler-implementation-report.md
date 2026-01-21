@@ -46,7 +46,6 @@ The DSL Compiler Runtime Integration feature has been successfully implemented. 
 - `call_llm()` - Direct LLM calls via LiteLLM
 - `mask_pii()` - Regex-based PII detection and masking
 - `check_jailbreak()` - Pattern-based jailbreak detection
-- `detect_drift()` - Keyword overlap algorithm for drift detection
 - `process()` - Pipeline transformation support
 - `escalate_to_human()` - Callback and UI event dispatch
 

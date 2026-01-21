@@ -510,8 +510,20 @@ class SemanticAnalyzer:
         scope.define(name=var_name, kind=SymbolKind.VARIABLE)
 
     def _validate_run_stmt(self, stmt: RunStmt, scope: Scope) -> None:
-        """Validate a run agent statement."""
-        if stmt.agent not in self._symbols.agents:
+        """Validate a run statement for agents or flows."""
+        if stmt.is_flow:
+            # Validate flow call
+            if stmt.agent not in self._symbols.flows:
+                self._add_error(
+                    SemanticError.undefined_reference(
+                        kind="flow",
+                        name=stmt.agent,
+                        position=stmt.meta,
+                        suggestion=self._suggest_similar("flow", stmt.agent),
+                    ),
+                )
+        elif stmt.agent not in self._symbols.agents:
+            # Validate agent call
             self._add_error(
                 SemanticError.undefined_reference(
                     kind="agent",
@@ -701,6 +713,8 @@ class SemanticAnalyzer:
             candidates = list(self._symbols.prompts.keys())
         elif kind == "agent":
             candidates = list(self._symbols.agents.keys())
+        elif kind == "flow":
+            candidates = list(self._symbols.flows.keys())
 
         if not candidates:
             return None

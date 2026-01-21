@@ -58,7 +58,6 @@ Implement placeholder methods in `WorkflowContext`:
 2. **`call_llm()`** - Make direct LLM calls
 3. **`mask_pii()`** - Implement PII masking
 4. **`check_jailbreak()`** - Implement jailbreak detection
-5. **`detect_drift()`** - Compare trajectory to goal
 6. **`process()`** - Apply transformation pipeline
 7. **`escalate_to_human()`** - Human escalation integration
 

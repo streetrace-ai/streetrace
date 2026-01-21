@@ -1,6 +1,6 @@
 """Tests for remaining WorkflowContext methods.
 
-Test detect_drift, process, and escalate_to_human methods.
+Test process, and escalate_to_human methods.
 """
 
 from typing import TYPE_CHECKING
@@ -10,67 +10,6 @@ import pytest
 
 if TYPE_CHECKING:
     from streetrace.dsl.runtime.context import WorkflowContext
-
-
-class TestDetectDrift:
-    """Test WorkflowContext.detect_drift() method."""
-
-    @pytest.fixture
-    def workflow_context(self) -> "WorkflowContext":
-        """Create a WorkflowContext with test configuration."""
-        from streetrace.dsl.runtime.context import WorkflowContext
-
-        ctx = WorkflowContext()
-        ctx.vars["goal"] = "Help the user write a Python function"
-        return ctx
-
-    def test_detect_drift_returns_false_when_on_track(
-        self,
-        workflow_context: "WorkflowContext",
-    ) -> None:
-        """detect_drift returns False when current trajectory matches goal."""
-        # When the trajectory aligns with the goal
-        current_trajectory = "Writing Python function to sort a list"
-        result = workflow_context.detect_drift(current_trajectory)
-        assert result is False
-
-    def test_detect_drift_returns_true_when_off_track(
-        self,
-        workflow_context: "WorkflowContext",
-    ) -> None:
-        """detect_drift returns True when trajectory diverges from goal."""
-        # When the trajectory significantly diverges
-        workflow_context.vars["goal"] = "Answer questions about Python"
-        off_topic = "I want to order a pizza"
-        result = workflow_context.detect_drift(off_topic)
-        assert result is True
-
-    def test_detect_drift_uses_context_goal(
-        self,
-        workflow_context: "WorkflowContext",
-    ) -> None:
-        """detect_drift compares against the goal in context."""
-        workflow_context.vars["goal"] = "Debug a JavaScript issue"
-        # Off-topic trajectory
-        result = workflow_context.detect_drift("Discussing weather patterns")
-        assert result is True
-
-    def test_detect_drift_returns_false_without_goal(self) -> None:
-        """detect_drift returns False when no goal is set."""
-        from streetrace.dsl.runtime.context import WorkflowContext
-
-        ctx = WorkflowContext()
-        # No goal set
-        result = ctx.detect_drift("Any trajectory")
-        assert result is False
-
-    def test_detect_drift_handles_empty_args(
-        self,
-        workflow_context: "WorkflowContext",
-    ) -> None:
-        """detect_drift handles empty arguments gracefully."""
-        result = workflow_context.detect_drift()
-        assert result is False
 
 
 class TestProcess:

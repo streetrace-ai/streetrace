@@ -227,7 +227,8 @@ retry_action: "retry" "with" expression "if" condition
 
 flow_def: "flow" flow_name flow_params? ":" _NL _INDENT flow_body _DEDENT
 
-// Flow names can be multi-word for readability (e.g., "get agent goal")
+// Flow names use underscores for consistency (e.g., "get_agent_goal")
+// Multi-word flows are supported but we recommend snake_case for clarity
 // Use identifier to allow keywords as part of flow names
 flow_name: identifier+
 
@@ -329,9 +330,11 @@ flow_control: "continue"
 assignment: variable "=" expression
 
 // Agent names and flow names can be keywords (identifier allows this)
+// Flows are called with "run flow_name [args]" syntax
 run_stmt: variable "=" "run" "agent" identifier expression*
         | "run" "agent" identifier expression*
-        | "run" identifier
+        | variable "=" "run" identifier expression*  -> run_flow_assign
+        | "run" identifier expression*  -> run_flow
 
 call_stmt: variable "=" "call" "llm" identifier expression* call_modifiers?
          | "call" "llm" identifier expression* call_modifiers?
@@ -455,11 +458,11 @@ contextual_name: NAME | contextual_keyword
 property_access: NAME "." contextual_name ("." contextual_name)*
                | variable "." contextual_name ("." contextual_name)*
 
+// Function calls for library functions and utility methods
+// User-defined flows are called using "run flow_name" syntax (see run_stmt)
 function_call: DOTTED_NAME LPAR [expression ("," expression)*] RPAR
              | NAME LPAR [expression ("," expression)*] RPAR  -> named_function_call
              | NAME expression+                       -> bare_function_call
-             | "detect" "trajectory" "drift" "from" expression -> detect_drift
-             | "get" "agent" "goal"                   -> get_goal
              | "process" expression                   -> process_call
 
 // Condition is a boolean expression

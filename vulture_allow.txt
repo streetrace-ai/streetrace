@@ -249,9 +249,9 @@ _.property_access  # unused method - called by Lark transformer
 _.function_call  # unused method - called by Lark transformer
 _.named_function_call  # unused method - called by Lark transformer
 _.bare_function_call  # unused method - called by Lark transformer
-_.detect_drift  # unused method - called by Lark transformer
-_.get_goal  # unused method - called by Lark transformer
 _.process_call  # unused method - called by Lark transformer
+_.run_flow_assign  # unused method - called by Lark transformer
+_.run_flow  # unused method - called by Lark transformer
 _.paren_expr  # unused method - called by Lark transformer
 _.name_ref  # unused method - called by Lark transformer
 _.interpolated_string  # unused method - called by Lark transformer
@@ -346,7 +346,6 @@ _.escalate_to_human  # unused method (context.py) - public API for human escalat
 _.set_prompt_models  # unused method (context.py) - public API for setting prompt-to-model mapping
 _.set_ui_bus  # unused method (context.py) - public API for setting UI bus
 _.set_escalation_callback  # unused method (context.py) - public API for setting escalation callback
-_.detect_drift  # unused method (context.py) - public API for detecting trajectory drift
 _.process  # unused method (context.py) - public API for pipeline processing
 _._context  # unused attribute (workflow.py) - internal context storage
 _.create_context  # unused method (workflow.py) - public API for context creation

@@ -78,12 +78,13 @@ agents/*.sr
 |------|----------------------|
 | `agents/examples/dsl/minimal.sr` | Basic agent structure |
 | `agents/examples/dsl/handlers.sr` | Event handlers, guardrails |
-| `agents/examples/dsl/flow.sr` | Agent definitions |
-| `agents/examples/dsl/parallel.sr` | Multiple agents |
+| `agents/examples/dsl/flow.sr` | Agent definitions, flows |
+| `agents/examples/dsl/parallel.sr` | Multiple agents, flows |
 | `agents/examples/dsl/schema.sr` | Structured outputs |
 | `agents/examples/dsl/policies.sr` | Retry/timeout policies |
-| `agents/examples/dsl/match.sr` | Request classification |
+| `agents/examples/dsl/match.sr` | Request classification, flows |
 | `agents/examples/dsl/complete.sr` | Combined features |
+| `agents/examples/dsl/specific_model.sr` | Model-specific prompts |
 
 **Converted Production Agents:**
 
@@ -184,7 +185,7 @@ agents/examples/dsl/minimal.sr: valid (1 model, 1 agent)
 poetry run streetrace check agents/examples/dsl/
 ```
 
-**Expected Output:** Validation results for each `.sr` file found (8 files total).
+**Expected Output:** Validation results for each `.sr` file found (9 files total).
 
 #### Test Scenario: JSON Output Format
 
@@ -408,8 +409,10 @@ agent:
 
 ```bash
 poetry run streetrace check agents/examples/dsl/flow.sr
-# Expected: valid (1 model, 2 agents)
+# Expected: valid (2 models, 3 agents, 1 flow)
 ```
+
+**Note:** The actual `flow.sr` file includes additional models, agents, and a flow definition beyond the simplified example shown above.
 
 ### 3.4 Agent with Parallel Execution
 
@@ -439,8 +442,10 @@ agent:
 
 ```bash
 poetry run streetrace check agents/examples/dsl/parallel.sr
-# Expected: valid (1 model, 2 agents)
+# Expected: valid (1 model, 4 agents, 1 flow)
 ```
+
+**Note:** The actual `parallel.sr` file includes additional agents and a flow definition beyond the simplified example shown above.
 
 ### 3.5 Agent with Schema (Structured Output)
 
@@ -578,8 +583,10 @@ agent:
 
 ```bash
 poetry run streetrace check agents/examples/dsl/match.sr
-# Expected: valid (1 model, 2 agents)
+# Expected: valid (1 model, 7 agents, 1 flow)
 ```
+
+**Note:** The actual `match.sr` file includes additional agents and a flow definition beyond the simplified example shown above.
 
 ### 3.8 Complete Example (Combined Features)
 
@@ -675,7 +682,117 @@ To validate all example DSL files at once:
 poetry run streetrace check agents/examples/dsl/ agents/*.sr --verbose
 ```
 
-**Expected Output:** All 11 files should report as valid.
+**Expected Output:** All 12 files should report as valid (9 examples + 3 production agents).
+
+### 3.11 Generic Flow Definition Tests
+
+**Important**: The DSL supports arbitrary user-defined flows. The following tests verify that flow definitions and calls are not limited to specific names.
+
+#### Test: Custom Flow with LLM Call
+
+This test verifies that users can define any flow that calls an LLM prompt:
+
+**Input:** `custom_flow.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+model analysis = anthropic/haiku
+
+schema SentimentResult:
+    sentiment: string
+    confidence: float
+    explanation: string
+
+prompt sentiment_analysis_prompt using model "analysis" expecting SentimentResult:
+    Analyze the sentiment of the following text.
+    Return sentiment (positive, negative, neutral), confidence (0-1), and explanation.
+
+    Text: $text
+
+flow analyze_sentiment $text:
+    $result = call llm sentiment_analysis_prompt $text
+    return $result
+
+on start do
+    $input_prompt = initial user prompt
+    run main_workflow
+end
+
+flow main_workflow:
+    $sentiment = run analyze_sentiment $input_prompt
+    return $sentiment
+
+agent:
+    instruction main_prompt
+
+prompt main_prompt:
+    You are a sentiment analysis assistant.
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check custom_flow.sr
+```
+
+**Expected Output:** `valid (2 models, 1 agent, 2 flows)`
+
+#### Test: Multiple Custom Flows with Different Names
+
+This test verifies that multiple flows with different naming patterns work correctly:
+
+**Input:** `multi_flow.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+# Note: These flows demonstrate that any names work - they are NOT built-in features
+
+flow extract_entities $text:
+    $entities = call llm entity_extraction_prompt $text
+    return $entities
+
+flow validate_format $data:
+    $validation = call llm format_validation_prompt $data
+    return $validation
+
+flow summarize_findings $entities $validation:
+    $summary = call llm summary_prompt $entities $validation
+    return $summary
+
+on start do
+    $input = initial user prompt
+    $entities = run extract_entities $input
+    $validated = run validate_format $entities
+    $summary = run summarize_findings $entities $validated
+end
+
+prompt entity_extraction_prompt:
+    Extract entities from the text.
+    Text: $text
+
+prompt format_validation_prompt:
+    Validate the data format.
+    Data: $data
+
+prompt summary_prompt:
+    Summarize the findings.
+    Entities: $entities
+    Validation: $validation
+
+agent:
+    instruction summary_prompt
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check multi_flow.sr
+```
+
+**Expected Output:** `valid (1 model, 1 agent, 3 flows, 1 handler)`
+
+**Note:** These tests demonstrate that flow names like `analyze_sentiment`, `extract_entities`, `validate_format`, and `summarize_findings` all work - proving the implementation is generic, not hardcoded to specific patterns.
 
 ---
 
@@ -1255,88 +1372,8 @@ This covers:
 ## 9. Known Compiler Issues
 
 This section documents known issues in the DSL compiler that testers should be aware of.
-These issues have workarounds but require fixes in future iterations.
 
-### 9.1 Comma-Separated Name Lists
-
-**Issue**: Commas in tool/agent lists are parsed as tool names.
-
-**Test to reproduce**:
-```bash
-echo 'model main = anthropic/claude-sonnet
-tool fs = builtin streetrace.fs
-tool cli = builtin streetrace.cli
-agent:
-    tools fs, cli
-    instruction test_prompt
-prompt test_prompt: """Test"""' > /tmp/comma_test.sr
-poetry run streetrace check /tmp/comma_test.sr
-```
-
-**Expected behavior**: Should accept `tools fs, cli` as two tools.
-
-**Actual behavior**: Error `undefined reference to tool ','`.
-
-**Root cause**: `name_list` transformer in `ast/transformer.py` returns comma tokens.
-
-**Workaround**: Use single tool per agent definition:
-```streetrace
-agent:
-    tools fs
-    instruction test_prompt
-```
-
-### 9.2 Flow Parameter Variable Scoping
-
-**Issue**: Flow parameters cause "variable used before definition" errors.
-
-**Test to reproduce**:
-```bash
-echo 'model main = anthropic/claude-sonnet
-prompt process_prompt: """Process the input."""
-agent processor:
-    instruction process_prompt
-flow process $input:
-    $result = run agent processor $input
-    return $result' > /tmp/flow_test.sr
-poetry run streetrace check /tmp/flow_test.sr
-```
-
-**Expected behavior**: `$input` should be in scope within the flow body.
-
-**Actual behavior**: Error about `$input` (or `input`) used before definition.
-
-**Root cause**: `flow_params` stores names with `$` prefix but `VarRef.name` doesn't
-include the prefix, causing scope lookup mismatch.
-
-**Workaround**: Avoid flow parameters; use simpler agent-based patterns.
-
-### 9.3 Policy Property Transformation
-
-**Issue**: Some policy properties cause transformation errors.
-
-**Test to reproduce**:
-```bash
-echo 'model main = anthropic/claude-sonnet
-prompt test: """Test"""
-agent:
-    instruction test
-policy compaction:
-    trigger: token_usage > 0.8
-    strategy: summarize_with_goal
-    preserve: [$goal, last 3 messages]' > /tmp/policy_test.sr
-poetry run streetrace check /tmp/policy_test.sr
-```
-
-**Expected behavior**: Policy should parse and validate correctly.
-
-**Actual behavior**: May produce `unhashable type` or transformation errors.
-
-**Root cause**: `policy_property` transformer doesn't consistently return dicts.
-
-**Workaround**: Use only `trigger` property or omit complex policy blocks.
-
-### 9.4 Double Dollar Sign in Error Messages
+### 9.1 Double Dollar Sign in Error Messages
 
 **Issue**: Error messages show `$$variable` instead of `$variable`.
 
@@ -1346,38 +1383,23 @@ poetry run streetrace check /tmp/policy_test.sr
 
 **Workaround**: None needed; cosmetic issue only.
 
-### 9.5 Runtime Integration
-
-**Issue**: DSL agents cannot be run with `streetrace --agent`.
-
-**Test to reproduce**:
-```bash
-poetry run streetrace --agent agents/examples/dsl/minimal.sr \
-    --model anthropic/claude-sonnet-4-5 --prompt "Hello"
-```
-
-**Expected behavior**: Agent should load and run.
-
-**Actual behavior**: Error about unsupported agent format or file not found.
-
-**Root cause**: `agent_manager.py` doesn't use `DslAgentLoader`.
-
-**Workaround**: Load DSL agents programmatically:
-```python
-from pathlib import Path
-from streetrace.dsl.loader import DslAgentLoader
-
-loader = DslAgentLoader()
-workflow_class = loader.load(Path('agents/examples/dsl/minimal.sr'))
-workflow = workflow_class()
-ctx = workflow.create_context()
-```
-
-### 9.6 Issue Tracking
+### 9.2 Issue Tracking
 
 For detailed root cause analysis and fix requirements, see:
 - Developer documentation: `docs/dev/dsl/architecture.md` (Known Issues section)
 - User documentation: `docs/user/dsl/getting-started.md` (Known Limitations section)
+
+### 9.3 Resolved Issues
+
+The following issues from earlier versions have been fixed:
+
+| Issue | Description | Status |
+|-------|-------------|--------|
+| Comma-Separated Name Lists | `tools fs, cli` syntax now works correctly | ✅ Fixed |
+| Flow Parameter Variable Scoping | Flow parameters (`$input`) are now properly scoped | ✅ Fixed |
+| Policy Property Transformation | Complex policy blocks parse correctly | ✅ Fixed |
+| Runtime Integration | DSL agents work with `streetrace --agent` flag | ✅ Fixed |
+| Flow Call Validation | Flow calls (`run my_flow`) validate against flows | ✅ Fixed |
 
 ---
 
