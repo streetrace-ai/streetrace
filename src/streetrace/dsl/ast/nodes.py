@@ -245,6 +245,19 @@ class ParallelBlock:
 
 
 @dataclass
+class LoopBlock:
+    """Loop block for iterative refinement pattern.
+
+    Used to execute a body of statements repeatedly until a condition
+    is met or maximum iterations are reached.
+    """
+
+    max_iterations: int | None  # None means unbounded loop
+    body: list[AstNode]
+    meta: SourcePosition | None = None
+
+
+@dataclass
 class MatchCase:
     """Match case node (e.g., when "standard" -> ...)."""
 
@@ -415,6 +428,8 @@ class AgentDef:
     timeout_value: int | None = None  # Literal timeout value
     timeout_unit: str | None = None  # seconds, minutes, hours
     description: str | None = None
+    delegate: list[str] | None = None  # Sub-agents for coordinator pattern
+    use: list[str] | None = None  # AgentTool for hierarchical pattern
     meta: SourcePosition | None = None
 
 

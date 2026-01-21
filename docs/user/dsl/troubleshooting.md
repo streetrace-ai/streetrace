@@ -286,6 +286,85 @@ agent my_agent:
     instruction my_prompt  # Required
 ```
 
+### E0011: Circular Agent Reference
+
+**Error message:**
+
+```
+error[E0011]: circular agent reference detected: agent_a -> agent_b -> agent_a
+  --> my_agent.sr:6:1
+```
+
+**Cause:** Agents reference each other through `delegate` or `use` in a cycle.
+
+**Solutions:**
+
+1. Reorganize the agent hierarchy to remove cycles
+2. Extract shared functionality to a separate agent
+3. Use flows instead of agent-to-agent references
+
+```streetrace
+# Problem: Circular reference
+agent agent_a:
+    instruction a_prompt
+    use agent_b
+
+agent agent_b:
+    instruction b_prompt
+    use agent_a  # Creates cycle!
+
+# Fix: Restructure to remove cycle
+agent shared_helper:
+    instruction helper_prompt
+
+agent agent_a:
+    instruction a_prompt
+    use shared_helper
+
+agent agent_b:
+    instruction b_prompt
+    use shared_helper
+```
+
+### W0002: Agent Has Both delegate and use
+
+**Warning message:**
+
+```
+warning[W0002]: agent 'my_agent' has both delegate and use - this is unusual
+  --> my_agent.sr:10:1
+```
+
+**Cause:** An agent uses both `delegate` (coordinator pattern) and `use` (hierarchical pattern).
+
+**Why this warning?** Having both patterns on the same agent is unusual because:
+- `delegate` makes the LLM decide which sub-agent handles the request
+- `use` gives the agent tools to explicitly call other agents
+
+These are typically separate concerns that belong on different agents.
+
+**Solutions:**
+
+1. Split into separate agents (recommended)
+2. If intentional, you can ignore the warning
+
+```streetrace
+# Problem: Both delegate and use
+agent mixed:
+    instruction mixed_prompt
+    delegate billing_agent
+    use helper_agent
+
+# Fix: Split responsibilities
+agent coordinator:
+    instruction coordinator_prompt
+    delegate billing_agent, support_agent
+
+agent support_agent:
+    instruction support_prompt
+    use helper_agent  # Support uses helper
+```
+
 ## Common Parse Errors
 
 ### Missing Colon
@@ -458,4 +537,5 @@ If you encounter an error not covered here:
 
 - [Getting Started](getting-started.md) - Introduction to Streetrace DSL
 - [Syntax Reference](syntax-reference.md) - Complete language reference
+- [Multi-Agent Patterns](multi-agent-patterns.md) - Coordinator, hierarchical, and iterative patterns
 - [CLI Reference](cli-reference.md) - Command-line tools

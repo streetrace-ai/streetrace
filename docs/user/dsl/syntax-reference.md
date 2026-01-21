@@ -298,6 +298,25 @@ end
 # Both $result1 and $result2 available here
 ```
 
+**Iterative Loop**:
+
+```streetrace
+# Bounded loop (recommended)
+loop max 5 do
+    $quality = call llm quality_check $current
+    if $quality.passed:
+        return $current
+    $current = call llm improve $current
+end
+
+# Unbounded loop (requires exit condition)
+loop do
+    $result = run agent process $data
+    if $result.done:
+        return $result
+end
+```
+
 **Pattern Matching**:
 
 ```streetrace
@@ -371,6 +390,32 @@ agent code_reviewer:
 | `description` | Human-readable description |
 | `retry` | Retry policy name |
 | `timeout` | Timeout policy name or literal |
+| `delegate` | Comma-separated agent names for coordinator pattern |
+| `use` | Comma-separated agent names for hierarchical pattern |
+
+### Multi-Agent Patterns
+
+**Coordinator Pattern (delegate)**:
+
+```streetrace
+agent coordinator:
+    instruction coordinator_prompt
+    delegate billing_agent, support_agent, sales_agent
+```
+
+The coordinator's LLM decides which sub-agent handles each request.
+
+**Hierarchical Pattern (use)**:
+
+```streetrace
+agent researcher:
+    instruction researcher_prompt
+    use searcher, summarizer
+```
+
+The parent agent calls referenced agents as tools.
+
+See [Multi-Agent Patterns](multi-agent-patterns.md) for detailed usage.
 
 ## Prompts
 
@@ -617,5 +662,6 @@ prompt summarize_prompt:
 ## See Also
 
 - [Getting Started](getting-started.md) - Introduction to Streetrace DSL
+- [Multi-Agent Patterns](multi-agent-patterns.md) - Coordinator, hierarchical, and iterative patterns
 - [CLI Reference](cli-reference.md) - Command-line tools
 - [Troubleshooting](troubleshooting.md) - Error resolution

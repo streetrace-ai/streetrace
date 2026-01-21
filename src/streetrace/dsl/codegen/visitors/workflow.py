@@ -330,11 +330,27 @@ class WorkflowVisitor:
             source_line = agent.meta.line if agent.meta else None
             name = agent.name or "default"
             tools_str = repr(agent.tools)
-            self._emitter.emit(
-                f"'{name}': {{'tools': {tools_str}, "
-                f"'instruction': '{agent.instruction}'}},",
-                source_line=source_line,
-            )
+
+            # Start agent dict entry
+            self._emitter.emit(f"'{name}': {{", source_line=source_line)
+            self._emitter.indent()
+
+            # Required fields
+            self._emitter.emit(f"'tools': {tools_str},")
+            self._emitter.emit(f"'instruction': '{agent.instruction}',")
+
+            # Optional: sub_agents for delegate pattern
+            if agent.delegate:
+                sub_agents_str = ", ".join(f"'{a}'" for a in agent.delegate)
+                self._emitter.emit(f"'sub_agents': [{sub_agents_str}],")
+
+            # Optional: agent_tools for use pattern
+            if agent.use:
+                agent_tools_str = ", ".join(f"'{a}'" for a in agent.use)
+                self._emitter.emit(f"'agent_tools': [{agent_tools_str}],")
+
+            self._emitter.dedent()
+            self._emitter.emit("},")
 
         self._emitter.dedent()
         self._emitter.emit("}")

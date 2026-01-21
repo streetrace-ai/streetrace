@@ -1,0 +1,102 @@
+# Combined Multi-Agent Patterns Example
+# Demonstrates using delegate, use, and loop together
+#
+# This example shows a sophisticated multi-agent system with:
+# - A coordinator that delegates to specialists
+# - Specialists that use helper agents as tools
+# - Iterative refinement loops for quality assurance
+
+# Integrate the refinement loops with review to produce a single
+# agent that runs a review max 3 times enhancing the result on each run.
+
+streetrace v1
+
+model main = anthropic/claude-sonnet
+model fast = anthropic/haiku
+
+schema ReviewResult:
+    approved: bool
+    feedback: list[string]
+    score: int
+
+tool fs = builtin streetrace.fs
+tool web = builtin streetrace.web
+
+retry default = 3 times, exponential backoff
+timeout default = 2 minutes
+
+# --- Helper Agents (leaf level) ---
+
+prompt formatter_prompt: """Format code according to style guidelines.
+Return properly formatted code."""
+
+agent formatter:
+    instruction formatter_prompt
+    description "Formats code to style standards"
+
+prompt linter_prompt: """Check code for common errors and style issues.
+Return list of findings."""
+
+agent linter:
+    instruction linter_prompt
+    description "Lints code for issues"
+
+prompt security_scanner_prompt: """Scan code for security vulnerabilities.
+Focus on injection, XSS, auth issues."""
+
+agent security_scanner:
+    instruction security_scanner_prompt
+    description "Scans for security vulnerabilities"
+
+# --- Specialist Agents (use helpers as tools) ---
+
+prompt code_reviewer_prompt: """You are a code reviewer.
+Use the formatter, linter, and security_scanner tools to
+thoroughly review code. Synthesize findings into a review."""
+
+agent code_reviewer:
+    tools fs
+    instruction code_reviewer_prompt
+    use formatter, linter, security_scanner
+    description "Comprehensive code reviewer"
+
+prompt doc_writer_prompt: """Write documentation for code.
+Create clear, comprehensive documentation."""
+
+agent doc_writer:
+    tools fs
+    instruction doc_writer_prompt
+    description "Documentation specialist"
+
+# --- Coordinator Agent (delegates to specialists) ---
+
+prompt coordinator_prompt using model "fast": """You are a development team coordinator.
+Delegate tasks to the appropriate specialist:
+- Code review tasks go to code_reviewer
+- Documentation tasks go to doc_writer
+
+Ensure all work meets quality standards before completion."""
+
+agent:
+    tools fs
+    instruction coordinator_prompt
+    delegate code_reviewer, doc_writer
+    retry default
+    timeout default
+    description "Development team coordinator"
+
+# --- Quality Assurance Flow ---
+
+prompt review_check expecting ReviewResult: """Evaluate the work product.
+Score from 0-100, list any feedback items, approve if score >= 85."""
+
+flow quality_loop $work:
+    $current = $work
+
+    # Bounded iteration for quality checks
+    loop max 3 do
+        $current = call llm review_check $current
+        log "Quality check iteration complete"
+    end
+
+    return { result: $current }

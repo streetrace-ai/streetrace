@@ -18,6 +18,7 @@ from streetrace.dsl.ast.nodes import (
     FunctionCall,
     IfBlock,
     ListLiteral,
+    LoopBlock,
     MatchBlock,
     ModelDef,
     ObjectLiteral,
@@ -120,8 +121,10 @@ class SemanticAnalyzer:
         # Second pass: validate references and scoping
         self._validate_references(ast)
 
+        # Validation passes if there are no actual errors (warnings don't fail)
+        actual_errors = [e for e in self._errors if not e.is_warning]
         return AnalysisResult(
-            is_valid=len(self._errors) == 0,
+            is_valid=len(actual_errors) == 0,
             errors=self._errors,
             symbols=self._symbols,
         )
@@ -355,6 +358,9 @@ class SemanticAnalyzer:
             elif isinstance(stmt, EventHandler):
                 self._validate_event_handler(stmt)
 
+        # After validating all individual references, detect circular references
+        self._detect_circular_agent_refs()
+
     def _validate_prompt_refs(self, prompt: PromptDef) -> None:
         """Validate references in a prompt definition."""
         # Check model reference if specified
@@ -385,7 +391,17 @@ class SemanticAnalyzer:
         """Validate references in an agent definition."""
         agent_name = agent.name or "default"
 
-        # Check required instruction property
+        self._validate_agent_instruction(agent, agent_name)
+        self._validate_agent_tool_refs(agent)
+        self._validate_agent_policy_refs(agent)
+        self._validate_agent_delegate_refs(agent, agent_name)
+
+    def _validate_agent_instruction(
+        self,
+        agent: AgentDef,
+        agent_name: str,
+    ) -> None:
+        """Validate agent instruction property."""
         if not agent.instruction:
             suggestion = (
                 "add 'instruction <prompt_name>' to specify the agent's "
@@ -401,7 +417,8 @@ class SemanticAnalyzer:
                 ),
             )
 
-        # Check tool references
+    def _validate_agent_tool_refs(self, agent: AgentDef) -> None:
+        """Validate agent tool references."""
         for tool_name in agent.tools:
             if tool_name not in self._symbols.tools:
                 self._add_error(
@@ -413,7 +430,8 @@ class SemanticAnalyzer:
                     ),
                 )
 
-        # Check retry policy reference
+    def _validate_agent_policy_refs(self, agent: AgentDef) -> None:
+        """Validate agent retry and timeout policy references."""
         if agent.retry is not None and agent.retry not in self._symbols.retry_policies:
             self._add_error(
                 SemanticError.undefined_reference(
@@ -423,7 +441,6 @@ class SemanticAnalyzer:
                 ),
             )
 
-        # Check timeout policy reference
         if (
             agent.timeout_ref is not None
             and agent.timeout_ref not in self._symbols.timeout_policies
@@ -432,6 +449,47 @@ class SemanticAnalyzer:
                 SemanticError.undefined_reference(
                     kind="timeout policy",
                     name=agent.timeout_ref,
+                    position=agent.meta,
+                ),
+            )
+
+    def _validate_agent_delegate_refs(
+        self,
+        agent: AgentDef,
+        agent_name: str,
+    ) -> None:
+        """Validate agent delegate and use references."""
+        # Check delegate references
+        if agent.delegate:
+            for delegate_name in agent.delegate:
+                if delegate_name not in self._symbols.agents:
+                    self._add_error(
+                        SemanticError.undefined_reference(
+                            kind="agent",
+                            name=delegate_name,
+                            position=agent.meta,
+                            suggestion=self._suggest_similar("agent", delegate_name),
+                        ),
+                    )
+
+        # Check use references
+        if agent.use:
+            for use_name in agent.use:
+                if use_name not in self._symbols.agents:
+                    self._add_error(
+                        SemanticError.undefined_reference(
+                            kind="agent",
+                            name=use_name,
+                            position=agent.meta,
+                            suggestion=self._suggest_similar("agent", use_name),
+                        ),
+                    )
+
+        # Warn if agent has both delegate and use
+        if agent.delegate and agent.use:
+            self._add_error(
+                SemanticError.agent_has_both_delegate_and_use(
+                    name=agent_name,
                     position=agent.meta,
                 ),
             )
@@ -498,7 +556,7 @@ class SemanticAnalyzer:
             self._validate_call_stmt(stmt, scope)
         elif isinstance(stmt, (ReturnStmt, PushStmt)):
             self._validate_return_or_push(stmt, scope)
-        elif isinstance(stmt, (ForLoop, IfBlock, MatchBlock, ParallelBlock)):
+        elif isinstance(stmt, (ForLoop, IfBlock, MatchBlock, ParallelBlock, LoopBlock)):
             self._validate_control_flow(stmt, scope)
         # Guardrail actions and other statements don't need special handling
 
@@ -587,7 +645,7 @@ class SemanticAnalyzer:
 
     def _validate_control_flow(
         self,
-        stmt: ForLoop | IfBlock | MatchBlock | ParallelBlock,
+        stmt: ForLoop | IfBlock | MatchBlock | ParallelBlock | LoopBlock,
         scope: Scope,
     ) -> None:
         """Validate control flow statements."""
@@ -599,6 +657,8 @@ class SemanticAnalyzer:
             self._validate_match_block(stmt, scope)
         elif isinstance(stmt, ParallelBlock):
             self._validate_statements(stmt.body, scope)
+        elif isinstance(stmt, LoopBlock):
+            self._validate_loop_block(stmt, scope)
 
     def _validate_for_loop(self, stmt: ForLoop, scope: Scope) -> None:
         """Validate a for loop statement."""
@@ -626,6 +686,129 @@ class SemanticAnalyzer:
             else_scope = Scope(scope_type=ScopeType.BLOCK, parent=scope)
             if isinstance(stmt.else_body, list):
                 self._validate_statements(stmt.else_body, else_scope)
+
+    def _validate_loop_block(self, stmt: LoopBlock, scope: Scope) -> None:
+        """Validate a loop block statement.
+
+        Args:
+            stmt: LoopBlock AST node.
+            scope: Current scope for variable resolution.
+
+        """
+        block_scope = Scope(scope_type=ScopeType.BLOCK, parent=scope)
+        self._validate_statements(stmt.body, block_scope)
+
+    def _detect_circular_agent_refs(self) -> None:
+        """Detect circular references in agent delegate/use relationships.
+
+        Build a directed graph of agent relationships and use DFS to detect
+        cycles. Report E0011 error for any circular agent references found.
+        """
+        graph = self._build_agent_graph()
+        cycle = self._find_cycle_in_graph(graph)
+        if cycle is not None:
+            first_agent = self._symbols.agents.get(cycle[0])
+            position = first_agent.meta if first_agent else None
+            self._add_error(
+                SemanticError.circular_agent_reference(
+                    agents=cycle,
+                    position=position,
+                ),
+            )
+
+    def _build_agent_graph(self) -> dict[str, list[str]]:
+        """Build adjacency list for agent delegate/use relationships.
+
+        Returns:
+            Dictionary mapping agent names to their referenced agents.
+
+        """
+        graph: dict[str, list[str]] = {}
+        for agent_name, agent in self._symbols.agents.items():
+            neighbors: list[str] = []
+            if agent.delegate:
+                neighbors.extend(agent.delegate)
+            if agent.use:
+                neighbors.extend(agent.use)
+            graph[agent_name] = neighbors
+        return graph
+
+    def _find_cycle_in_graph(
+        self,
+        graph: dict[str, list[str]],
+    ) -> list[str] | None:
+        """Find a cycle in the agent dependency graph using DFS.
+
+        Args:
+            graph: Adjacency list of agent relationships.
+
+        Returns:
+            List of agents forming a cycle, or None if no cycle found.
+
+        """
+        visited: set[str] = set()
+        rec_stack: set[str] = set()
+
+        for agent_name in self._symbols.agents:
+            if agent_name not in visited:
+                cycle = self._dfs_find_cycle(
+                    agent_name,
+                    graph,
+                    visited,
+                    rec_stack,
+                    [],
+                )
+                if cycle is not None:
+                    return cycle
+        return None
+
+    def _dfs_find_cycle(
+        self,
+        node: str,
+        graph: dict[str, list[str]],
+        visited: set[str],
+        rec_stack: set[str],
+        path: list[str],
+    ) -> list[str] | None:
+        """DFS helper to find cycles in agent graph.
+
+        Args:
+            node: Current node being visited.
+            graph: Adjacency list of agent relationships.
+            visited: Set of fully visited nodes.
+            rec_stack: Set of nodes in current recursion stack.
+            path: Current path from root.
+
+        Returns:
+            List of agents forming a cycle, or None if no cycle found.
+
+        """
+        if node in rec_stack:
+            cycle_start = path.index(node)
+            return [*path[cycle_start:], node]
+
+        if node in visited:
+            return None
+
+        visited.add(node)
+        rec_stack.add(node)
+        path.append(node)
+
+        for neighbor in graph.get(node, []):
+            if neighbor in self._symbols.agents:
+                cycle = self._dfs_find_cycle(
+                    neighbor,
+                    graph,
+                    visited,
+                    rec_stack,
+                    path,
+                )
+                if cycle is not None:
+                    return cycle
+
+        path.pop()
+        rec_stack.remove(node)
+        return None
 
     def _validate_expression(self, expr: object, scope: Scope) -> None:
         """Validate an expression.

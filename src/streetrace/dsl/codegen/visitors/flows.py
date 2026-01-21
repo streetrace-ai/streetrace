@@ -18,6 +18,7 @@ from streetrace.dsl.ast.nodes import (
     ForLoop,
     IfBlock,
     LogStmt,
+    LoopBlock,
     MatchBlock,
     NotifyStmt,
     ParallelBlock,
@@ -70,6 +71,7 @@ class FlowVisitor:
             ContinueStmt: self._visit_continue_stmt,  # type: ignore[dict-item]
             AbortStmt: self._visit_abort_stmt,  # type: ignore[dict-item]
             RetryStepStmt: self._visit_retry_step_stmt,  # type: ignore[dict-item]
+            LoopBlock: self._visit_loop_block,  # type: ignore[dict-item]
         }
 
     def visit(self, node: FlowDef) -> None:
@@ -512,3 +514,36 @@ class FlowVisitor:
             f"raise RetryStepError({message})",
             source_line=source_line,
         )
+
+    def _visit_loop_block(self, node: LoopBlock) -> None:
+        """Generate code for loop block.
+
+        Generate a while loop with optional iteration counter for the
+        iterative refinement pattern.
+
+        Args:
+            node: Loop block AST node.
+
+        """
+        source_line = node.meta.line if node.meta else None
+
+        if node.max_iterations is not None:
+            # Bounded loop with iteration counter
+            self._emitter.emit("_loop_count = 0", source_line=source_line)
+            self._emitter.emit(f"_max_iterations = {node.max_iterations}")
+            self._emitter.emit("while _loop_count < _max_iterations:")
+            self._emitter.indent()
+            self._emitter.emit("_loop_count += 1")
+        else:
+            # Unbounded loop (while True)
+            self._emitter.emit("while True:", source_line=source_line)
+            self._emitter.indent()
+
+        # Emit loop body
+        if node.body:
+            for stmt in node.body:
+                self.visit_statement(stmt)
+        else:
+            self._emitter.emit("pass")
+
+        self._emitter.dedent()

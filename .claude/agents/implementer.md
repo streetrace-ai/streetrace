@@ -29,7 +29,7 @@ You are a meticulous tracker when it comes to tech debt:
 
 ### Phase 2: Task Documentation
 
-If a task definition doesn't exist, create `./docs/tasks/{feature}-task.md` containing:
+If a task definition doesn't exist, create `./docs/tasks/{feature}/{task}/task.md` containing:
 - Feature overview (2-3 sentences)
 - Links to referenced design documents
 - Key implementation requirements extracted from the design
@@ -38,7 +38,7 @@ If a task definition doesn't exist, create `./docs/tasks/{feature}-task.md` cont
 
 ### Phase 3: Implementation Planning
 
-Create `./docs/tasks/{feature}-todo.md` with:
+Create `./docs/tasks/{feature}/{task}/todo.md` with:
 ```markdown
 # {Feature} Implementation Plan
 

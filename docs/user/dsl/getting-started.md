@@ -267,6 +267,7 @@ agent = loader.load_from_path(Path("my_agent.sr"))
 ## Next Steps
 
 - [Syntax Reference](syntax-reference.md) - Complete syntax documentation
+- [Multi-Agent Patterns](multi-agent-patterns.md) - Build coordinator, hierarchical, and iterative workflows
 - [CLI Reference](cli-reference.md) - Command-line options
 - [Troubleshooting](troubleshooting.md) - Common errors and solutions
 
@@ -317,5 +318,6 @@ prompt review_prompt expecting ReviewResult:
 ## See Also
 
 - [Syntax Reference](syntax-reference.md) - Complete language reference
+- [Multi-Agent Patterns](multi-agent-patterns.md) - Coordinator, hierarchical, and iterative patterns
 - [CLI Reference](cli-reference.md) - Command-line tools
 - [Troubleshooting](troubleshooting.md) - Error resolution

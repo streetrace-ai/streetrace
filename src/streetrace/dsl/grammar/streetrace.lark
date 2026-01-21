@@ -193,6 +193,7 @@ handler_statement: guardrail_action _NL
                  | if_block
                  | for_loop
                  | parallel_block
+                 | loop_block
 
 // Inline if statement (single line)
 if_stmt: "if" condition ":" statement_body
@@ -252,6 +253,7 @@ flow_statement: assignment _NL
               | expression_stmt _NL
               | failure_block
               | flow_control _NL
+              | loop_block
 
 // Expression as statement (for function calls like lib.convert)
 expression_stmt: function_call
@@ -270,6 +272,8 @@ agent_property: "tools" name_list _NL                 -> agent_tools
               | "retry" NAME _NL                      -> agent_retry
               | "timeout" timeout_value _NL           -> agent_timeout
               | "description" STRING _NL              -> agent_description
+              | "delegate" name_list _NL              -> agent_delegate
+              | "use" name_list _NL                   -> agent_use
 
 timeout_value: NAME                                   -> timeout_ref
              | INT time_unit                          -> timeout_literal
@@ -307,6 +311,10 @@ TRIPLE_QUOTED_STRING: /\"{3}[^\"]*\"{3}/ | /'{3}[^']*'{3}/
 for_loop: "for" variable "in" expression "do" _NL _INDENT flow_body _DEDENT "end" _NL?
 
 parallel_block: "parallel" "do" _NL _INDENT flow_body _DEDENT "end" _NL?
+
+// Loop block for iterative refinement pattern
+loop_block: "loop" "max" INT "do" _NL _INDENT flow_body _DEDENT "end" _NL?
+          | "loop" "do" _NL _INDENT flow_body _DEDENT "end" _NL?
 
 match_block: "match" expression _NL _INDENT match_cases _DEDENT "end" _NL?
 
@@ -447,7 +455,7 @@ contextual_keyword: "escalate" | "match" | "from" | "to" | "agent" | "model"
                   | "timeout" | "initial" | "user" | "llm" | "step"
                   | "fixed" | "exponential" | "linear" | "basic" | "bearer"
                   | "backoff" | "times" | "instruction" | "tools" | "description"
-                  | "expecting" | "using" | "inherit"
+                  | "expecting" | "using" | "inherit" | "delegate" | "loop" | "max"
 
 // Contextual names - includes NAME and contextual keywords
 // Used for property access where keywords can appear after dot

@@ -20,7 +20,7 @@ Read the referenced files to build complete implementation context.
 
 ## Step 2: Create Task Definition
 
-Create `./docs/tasks/{feature-id}-task.md` containing:
+Create `./docs/tasks/{feature}/{task}/task.md` containing:
 - Feature name and ID (derived from design doc name)
 - Links to all design documents
 - Summary of implementation requirements
@@ -29,7 +29,7 @@ Create `./docs/tasks/{feature-id}-task.md` containing:
 
 ## Step 3: Create Implementation Plan
 
-Create `./docs/tasks/{feature-id}-todo.md` with ordered implementation steps broken down into
+Create `./docs/tasks/{feature}/{task}/todo.md` with ordered implementation steps broken down into
 phases. Each phase should include TDD and validation steps. For example:
 
 ```markdown

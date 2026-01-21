@@ -186,6 +186,8 @@ _.agent_instruction  # unused method - called by Lark transformer
 _.agent_retry  # unused method - called by Lark transformer
 _.agent_timeout  # unused method - called by Lark transformer
 _.agent_description  # unused method - called by Lark transformer
+_.agent_delegate  # unused method - called by Lark transformer for delegate keyword
+_.agent_use  # unused method - called by Lark transformer for use keyword
 _.timeout_ref  # unused method - called by Lark transformer
 _.timeout_literal  # unused method - called by Lark transformer
 _.name_list  # unused method - called by Lark transformer
@@ -199,6 +201,7 @@ _.prompt_inherit  # unused method - called by Lark transformer
 _.prompt_body  # unused method - called by Lark transformer
 _.for_loop  # unused method - called by Lark transformer
 _.parallel_block  # unused method - called by Lark transformer
+_.loop_block  # unused method - called by Lark transformer for loop block pattern
 _.match_block  # unused method - called by Lark transformer
 _.match_cases  # unused method - called by Lark transformer
 _.match_case  # unused method - called by Lark transformer

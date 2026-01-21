@@ -29,6 +29,7 @@ from streetrace.dsl.ast.nodes import (
     ListLiteral,
     Literal,
     LogStmt,
+    LoopBlock,
     MaskAction,
     MatchBlock,
     MatchCase,
@@ -1264,6 +1265,8 @@ class AstTransformer(Transformer):
             timeout_value=body.get("timeout_value"),
             timeout_unit=body.get("timeout_unit"),
             description=body.get("description"),
+            delegate=body.get("delegate"),
+            use=body.get("use"),
             meta=_meta_to_position(meta),
         )
 
@@ -1328,6 +1331,38 @@ class AstTransformer(Transformer):
             if isinstance(item, Token):
                 return {"description": _get_token_value(item)}
         return {}
+
+    def agent_delegate(self, items: TransformerItems) -> dict:
+        """Transform agent_delegate rule.
+
+        Extract list of sub-agent names for the coordinator pattern.
+        """
+        filtered = _filter_children(items)
+        delegate = []
+        for item in filtered:
+            if isinstance(item, list):
+                delegate = item
+            elif isinstance(item, (str, Token)):
+                val = _get_token_value(item) if isinstance(item, Token) else item
+                if val:
+                    delegate.append(val)
+        return {"delegate": delegate}
+
+    def agent_use(self, items: TransformerItems) -> dict:
+        """Transform agent_use rule.
+
+        Extract list of agent names for hierarchical pattern (AgentTool).
+        """
+        filtered = _filter_children(items)
+        use = []
+        for item in filtered:
+            if isinstance(item, list):
+                use = item
+            elif isinstance(item, (str, Token)):
+                val = _get_token_value(item) if isinstance(item, Token) else item
+                if val:
+                    use.append(val)
+        return {"use": use}
 
     def timeout_ref(self, items: TransformerItems) -> dict:
         """Transform timeout_ref rule."""
@@ -1508,6 +1543,31 @@ class AstTransformer(Transformer):
 
         return ParallelBlock(body=body)
 
+    @v_args(meta=True)
+    def loop_block(self, meta: object, items: TransformerItems) -> LoopBlock:
+        """Transform loop_block rule.
+
+        Handle loop with max iterations: loop max 5 do ... end
+        Handle unbounded loop: loop do ... end
+        """
+        filtered = _filter_children(items)
+        max_iterations = None
+        body: list = []
+
+        for item in filtered:
+            if isinstance(item, int):
+                max_iterations = item
+            elif isinstance(item, list):
+                body = item
+            elif not isinstance(item, (str, Token)):
+                body.append(item)
+
+        return LoopBlock(
+            max_iterations=max_iterations,
+            body=body,
+            meta=_meta_to_position(meta),
+        )
+
     def match_block(self, items: TransformerItems) -> MatchBlock:
         """Transform match_block rule."""
         filtered = _filter_children(items)
@@ -1615,8 +1675,9 @@ class AstTransformer(Transformer):
 
     def assignment(self, items: TransformerItems) -> Assignment:
         """Transform assignment rule."""
-        var = items[0]
-        value = items[1]
+        filtered = _filter_children(items)
+        var = filtered[0]
+        value = filtered[1]
         var_str = f"${var.name}" if isinstance(var, VarRef) else str(var)
         return Assignment(target=var_str, value=value)
 
@@ -1965,7 +2026,8 @@ class AstTransformer(Transformer):
 
     def object_entry(self, items: TransformerItems) -> tuple[str, object]:
         """Transform object_entry rule."""
-        return (items[0], items[1])
+        filtered = _filter_children(items)
+        return (filtered[0], filtered[1])
 
     @v_args(meta=True)
     def var_ref(self, meta: object, items: TransformerItems) -> VarRef:
@@ -1984,7 +2046,8 @@ class AstTransformer(Transformer):
 
     def var_dotted(self, items: TransformerItems) -> PropertyAccess:
         """Transform var_dotted rule (e.g., $var.prop.nested)."""
-        dotted_name = items[0]
+        filtered = _filter_children(items)
+        dotted_name = filtered[0]
         parts = dotted_name.split(".")
         base = VarRef(name=parts[0])
         return PropertyAccess(base=base, properties=parts[1:])

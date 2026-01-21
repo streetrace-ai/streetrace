@@ -481,5 +481,6 @@ The parser uses Earley algorithm instead of LALR due to grammar ambiguities.
 
 - [Grammar Development Guide](grammar.md) - How to modify the DSL grammar
 - [Extension Guide](extending.md) - Adding new syntax and features
+- [Agentic Patterns](agentic-patterns.md) - Multi-agent pattern implementation
 - [API Reference](api-reference.md) - Complete API documentation
 - [CLI Reference](../../user/dsl/cli-reference.md) - Using compiler commands

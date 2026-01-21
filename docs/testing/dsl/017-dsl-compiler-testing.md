@@ -1371,7 +1371,10 @@ This covers:
 
 ## 9. Multi-Agent Pattern Testing
 
-This section covers testing for the multi-agent patterns defined in the [Agentic Patterns documentation](../../tasks/017-dsl-compiler/agentic-patterns.md).
+This section covers testing for the multi-agent patterns. See related documentation:
+- Design: `docs/tasks/017-dsl-compiler/agentic-patterns.md`: Section 1-11, Accessed 2026-01-21
+- Developer: `docs/dev/dsl/agentic-patterns.md`: All Sections, Accessed 2026-01-21
+- User: `docs/user/dsl/multi-agent-patterns.md`: All Sections, Accessed 2026-01-21
 
 ### 9.1 Coordinator/Dispatcher Pattern Tests
 
@@ -1566,16 +1569,58 @@ poetry run streetrace check circular_use.sr
 **Expected Output:**
 
 ```
-error[E0011]: circular agent reference detected
-  --> circular_use.sr:8:9
-   |
- 8 |     use agent_b
-   |         ^^^^^^^
-   |
-   = note: agent_a -> agent_b -> agent_a
+error[E0011]: circular agent reference detected: agent_a -> agent_b -> agent_a
+  --> circular_use.sr:6:1
 ```
 
 **Expected Exit Code:** `1`
+
+#### Test: Warning for Both delegate and use (W0002)
+
+**Input:** `both_delegate_use.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt helper_instruction:
+    Helper agent.
+
+agent helper:
+    instruction helper_instruction
+    description "Helper"
+
+prompt specialist_instruction:
+    Specialist agent.
+
+agent specialist:
+    instruction specialist_instruction
+    description "Specialist"
+
+prompt mixed_instruction:
+    Mixed pattern agent.
+
+agent mixed:
+    instruction mixed_instruction
+    delegate helper
+    use specialist
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check both_delegate_use.sr
+```
+
+**Expected Output:**
+
+```
+warning[W0002]: agent 'mixed' has both delegate and use - this is unusual
+  --> both_delegate_use.sr:19:1
+```
+
+**Expected Exit Code:** `0` (warnings do not cause failure)
+
+**Note:** This warning indicates an unusual design pattern. Consider reorganizing into separate agents.
 
 #### Test: Hierarchical E2E Execution
 
@@ -1824,7 +1869,7 @@ iterative_refinement_loop = LoopAgent(
 
 ### 9.6 Example Files for Multi-Agent Patterns
 
-The following example files should be created in `agents/examples/dsl/`:
+The following example files exist in `agents/examples/dsl/`:
 
 | File | Pattern | Features Demonstrated |
 |------|---------|----------------------|
@@ -1832,6 +1877,22 @@ The following example files should be created in `agents/examples/dsl/`:
 | `agents/examples/dsl/hierarchical.sr` | Hierarchical | `use` keyword, agent-as-tool |
 | `agents/examples/dsl/iterative.sr` | Iterative Refinement | `loop` block, quality checking |
 | `agents/examples/dsl/combined.sr` | Combined | Multiple patterns together |
+
+**Validate all example files:**
+
+```bash
+poetry run streetrace check agents/examples/dsl/coordinator.sr
+# Expected: valid (2 models, 3 agents)
+
+poetry run streetrace check agents/examples/dsl/hierarchical.sr
+# Expected: valid (2 models, 4 agents)
+
+poetry run streetrace check agents/examples/dsl/iterative.sr
+# Expected: valid (2 models, 1 agent, 1 flow)
+
+poetry run streetrace check agents/examples/dsl/combined.sr
+# Expected: valid (2 models, 7 agents, 1 flow)
+```
 
 ### 9.7 Automated Test Coverage
 

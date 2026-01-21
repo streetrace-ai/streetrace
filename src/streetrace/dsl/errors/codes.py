@@ -72,6 +72,13 @@ class ErrorCode(str, Enum):
     E0010 = "E0010"
     """Missing required property."""
 
+    E0011 = "E0011"
+    """Circular agent reference detected."""
+
+    # Warning codes (W0xxx)
+    W0002 = "W0002"
+    """Agent has both delegate and use properties (unusual pattern)."""
+
     @property
     def category(self) -> str:
         """Get the error category for this code.
@@ -104,6 +111,8 @@ ERROR_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.E0008: "mismatched indentation",
     ErrorCode.E0009: "invalid guardrail action '{action}' in {context} context",
     ErrorCode.E0010: "missing required property '{field}' in {kind}",
+    ErrorCode.E0011: "circular agent reference detected: {cycle}",
+    ErrorCode.W0002: "agent '{name}' has both delegate and use (unusual pattern)",
 }
 
 

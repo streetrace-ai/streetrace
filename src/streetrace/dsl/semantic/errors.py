@@ -25,6 +25,8 @@ class ErrorCode(Enum):
     E0008 = "mismatched indentation"
     E0009 = "scope error: {message}"
     E0010 = "missing required property '{property}' in {kind} '{name}'"
+    E0011 = "circular agent reference detected: {cycle}"
+    W0002 = "agent '{name}' has both delegate and use - this is unusual"
 
 
 @dataclass
@@ -49,6 +51,9 @@ class SemanticError:
 
     context_lines: list[str] | None = None
     """Optional source context lines for display."""
+
+    is_warning: bool = False
+    """Whether this is a warning (True) or error (False)."""
 
     @classmethod
     def undefined_reference(
@@ -158,6 +163,54 @@ class SemanticError:
             suggestion=suggestion,
         )
 
+    @classmethod
+    def circular_agent_reference(
+        cls,
+        agents: list[str],
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for circular agent reference.
+
+        Args:
+            agents: List of agent names forming the cycle.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        cycle = " -> ".join(agents)
+        msg = f"circular agent reference detected: {cycle}"
+        return cls(
+            code=ErrorCode.E0011,
+            message=msg,
+            position=position,
+        )
+
+    @classmethod
+    def agent_has_both_delegate_and_use(
+        cls,
+        name: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create warning for agent with both delegate and use.
+
+        Args:
+            name: Name of the agent with both patterns.
+            position: Source position of the warning.
+
+        Returns:
+            SemanticError instance with is_warning=True.
+
+        """
+        msg = f"agent '{name}' has both delegate and use - this is unusual"
+        return cls(
+            code=ErrorCode.W0002,
+            message=msg,
+            position=position,
+            is_warning=True,
+        )
+
     def format(self) -> str:
         """Format the error for display.
 
@@ -165,7 +218,8 @@ class SemanticError:
             Formatted error string.
 
         """
-        parts = [f"error[{self.code.name}]: {self.message}"]
+        prefix = "warning" if self.is_warning else "error"
+        parts = [f"{prefix}[{self.code.name}]: {self.message}"]
 
         if self.position is not None:
             parts.append(f"  --> line {self.position.line}:{self.position.column}")
