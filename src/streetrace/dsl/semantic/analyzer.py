@@ -383,6 +383,24 @@ class SemanticAnalyzer:
 
     def _validate_agent_refs(self, agent: AgentDef) -> None:
         """Validate references in an agent definition."""
+        agent_name = agent.name or "default"
+
+        # Check required instruction property
+        if not agent.instruction:
+            suggestion = (
+                "add 'instruction <prompt_name>' to specify the agent's "
+                "instruction prompt"
+            )
+            self._add_error(
+                SemanticError.missing_required_property(
+                    kind="agent",
+                    name=agent_name,
+                    prop="instruction",
+                    position=agent.meta,
+                    suggestion=suggestion,
+                ),
+            )
+
         # Check tool references
         for tool_name in agent.tools:
             if tool_name not in self._symbols.tools:
@@ -427,8 +445,10 @@ class SemanticAnalyzer:
         )
 
         # Define parameters in flow scope
+        # Strip $ prefix for consistency with VarRef which uses name without $
         for param in flow.params:
-            flow_scope.define(name=param, kind=SymbolKind.PARAMETER)
+            param_name = param.lstrip("$")
+            flow_scope.define(name=param_name, kind=SymbolKind.PARAMETER)
 
         # Validate flow body with flow scope
         self._validate_statements(flow.body, flow_scope)
@@ -485,7 +505,9 @@ class SemanticAnalyzer:
     def _validate_assignment(self, stmt: Assignment, scope: Scope) -> None:
         """Validate an assignment statement."""
         self._validate_expression(stmt.value, scope)
-        scope.define(name=stmt.target, kind=SymbolKind.VARIABLE)
+        # Strip $ prefix for consistency with VarRef which uses name without $
+        var_name = stmt.target.lstrip("$")
+        scope.define(name=var_name, kind=SymbolKind.VARIABLE)
 
     def _validate_run_stmt(self, stmt: RunStmt, scope: Scope) -> None:
         """Validate a run agent statement."""
@@ -501,7 +523,9 @@ class SemanticAnalyzer:
         for arg in stmt.args:
             self._validate_expression(arg, scope)
         if stmt.target is not None:
-            scope.define(name=stmt.target, kind=SymbolKind.VARIABLE)
+            # Strip $ prefix for consistency with VarRef which uses name without $
+            var_name = stmt.target.lstrip("$")
+            scope.define(name=var_name, kind=SymbolKind.VARIABLE)
 
     def _validate_call_stmt(self, stmt: CallStmt, scope: Scope) -> None:
         """Validate a call LLM statement."""
@@ -525,7 +549,9 @@ class SemanticAnalyzer:
         for arg in stmt.args:
             self._validate_expression(arg, scope)
         if stmt.target is not None:
-            scope.define(name=stmt.target, kind=SymbolKind.VARIABLE)
+            # Strip $ prefix for consistency with VarRef which uses name without $
+            var_name = stmt.target.lstrip("$")
+            scope.define(name=var_name, kind=SymbolKind.VARIABLE)
 
     def _validate_return_or_push(
         self,
@@ -537,7 +563,9 @@ class SemanticAnalyzer:
             self._validate_expression(stmt.value, scope)
         elif isinstance(stmt, PushStmt):
             self._validate_expression(stmt.value, scope)
-            if scope.lookup(stmt.target) is None:
+            # Strip $ prefix for consistency with VarRef which uses name without $
+            var_name = stmt.target.lstrip("$")
+            if scope.lookup(var_name) is None:
                 self._add_error(
                     SemanticError.undefined_variable(
                         name=stmt.target,
@@ -563,7 +591,9 @@ class SemanticAnalyzer:
     def _validate_for_loop(self, stmt: ForLoop, scope: Scope) -> None:
         """Validate a for loop statement."""
         block_scope = Scope(scope_type=ScopeType.BLOCK, parent=scope)
-        block_scope.define(name=stmt.variable, kind=SymbolKind.VARIABLE)
+        # Strip $ prefix for consistency with VarRef which uses name without $
+        var_name = stmt.variable.lstrip("$")
+        block_scope.define(name=var_name, kind=SymbolKind.VARIABLE)
         self._validate_expression(stmt.iterable, scope)
         self._validate_statements(stmt.body, block_scope)
 

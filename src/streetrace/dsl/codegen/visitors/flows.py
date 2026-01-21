@@ -102,12 +102,88 @@ class FlowVisitor:
     def _visit_flow_body(self, body: list[object]) -> None:
         """Visit and emit flow body statements.
 
+        Handle failure blocks by wrapping preceding statements in try/except.
+        If a FailureBlock is present, all statements before it are wrapped
+        in a try block, and the failure block becomes the except handler.
+
         Args:
             body: List of flow body statements.
 
         """
-        for stmt in body:
+        # Find if there's a failure block in the body
+        failure_idx = self._find_failure_block_index(body)
+
+        if failure_idx is not None:
+            self._emit_with_failure_handler(body, failure_idx)
+        else:
+            # No failure block - emit statements normally
+            for stmt in body:
+                self.visit_statement(stmt)
+
+    def _find_failure_block_index(self, body: list[object]) -> int | None:
+        """Find the index of a FailureBlock in the body, if any.
+
+        Args:
+            body: List of flow body statements.
+
+        Returns:
+            Index of the FailureBlock or None if not found.
+
+        """
+        for i, stmt in enumerate(body):
+            if isinstance(stmt, FailureBlock):
+                return i
+        return None
+
+    def _emit_with_failure_handler(
+        self,
+        body: list[object],
+        failure_idx: int,
+    ) -> None:
+        """Emit flow body with failure block as try/except.
+
+        Args:
+            body: List of flow body statements.
+            failure_idx: Index of the FailureBlock in the body.
+
+        """
+        failure_block_item = body[failure_idx]
+        # Type guard - we know it's FailureBlock from the index finding logic
+        if not isinstance(failure_block_item, FailureBlock):
+            self._emitter.emit("pass")
+            return
+
+        failure_block = failure_block_item
+        source_line = failure_block.meta.line if failure_block.meta else None
+
+        # Emit try block with preceding statements
+        self._emitter.emit("try:", source_line=source_line)
+        self._emitter.indent()
+        self._emit_statements_or_pass(body[:failure_idx])
+        self._emitter.dedent()
+
+        # Emit except block with failure block body
+        self._emitter.emit("except Exception as _e:")
+        self._emitter.indent()
+        self._emit_statements_or_pass(failure_block.body)
+        self._emitter.dedent()
+
+        # Emit statements after the failure block (if any)
+        for stmt in body[failure_idx + 1:]:
             self.visit_statement(stmt)
+
+    def _emit_statements_or_pass(self, statements: list[object]) -> None:
+        """Emit statements or pass if the list is empty.
+
+        Args:
+            statements: List of statements to emit.
+
+        """
+        if statements:
+            for stmt in statements:
+                self.visit_statement(stmt)
+        else:
+            self._emitter.emit("pass")
 
     def visit_statement(self, stmt: object) -> None:
         """Visit a single statement and generate code.
@@ -346,30 +422,23 @@ class FlowVisitor:
 
         self._emitter.dedent()
 
-    def _visit_failure_block(self, node: FailureBlock) -> None:
+    def _visit_failure_block(self, node: FailureBlock) -> None:  # noqa: ARG002
         """Generate code for failure block.
 
+        FailureBlock is handled specially in _visit_flow_body, which wraps
+        preceding statements in a try block. This method should not be called
+        directly from statement dispatch, but is kept for completeness.
+
         Args:
-            node: Failure block node.
+            node: Failure block node (not used, see _visit_flow_body).
 
         """
-        source_line = node.meta.line if node.meta else None
-
-        # Wrap previous code in try block and add except handler
-        self._emitter.emit("try:", source_line=source_line)
-        self._emitter.indent()
-        self._emitter.emit("pass  # Placeholder: move preceding code here")
-        self._emitter.dedent()
-        self._emitter.emit("except Exception as _e:")
-        self._emitter.indent()
-
-        if not node.body:
-            self._emitter.emit("pass")
-        else:
-            for stmt in node.body:
-                self.visit_statement(stmt)
-
-        self._emitter.dedent()
+        # FailureBlock is processed in _visit_flow_body by wrapping
+        # preceding statements in try/except. If we get here directly,
+        # something unexpected happened.
+        logger.warning(
+            "FailureBlock visited directly - should be handled in _visit_flow_body",
+        )
 
     def _visit_log_stmt(self, node: LogStmt) -> None:
         """Generate code for log statement.

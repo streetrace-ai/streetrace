@@ -593,6 +593,253 @@ class DslAgentWorkflow:
         return ctx
 ```
 
+## Agent Loader Integration
+
+When your feature affects how DSL agents are loaded or run, update the agent loader.
+
+### Integrating with DslStreetRaceAgent
+
+The `DslStreetRaceAgent` class in `src/streetrace/agents/dsl_agent_loader.py` wraps
+compiled workflows for the AgentManager. Key integration points:
+
+```python
+class DslStreetRaceAgent(StreetRaceAgent):
+    async def create_agent(
+        self,
+        model_factory: ModelFactory,
+        tool_provider: ToolProvider,
+        system_context: SystemContext,
+    ) -> BaseAgent:
+        """Create ADK agent from workflow."""
+
+        # Create workflow instance
+        self._workflow_instance = self._workflow_class()
+
+        # Get agent definition from _agents class variable
+        agent_def = self._get_default_agent_def()
+
+        # Resolve instruction from agent's instruction field
+        instruction = self._resolve_instruction(agent_def)
+
+        # Resolve model with priority:
+        # 1. Prompt's `using model` clause
+        # 2. Fall back to "main" model
+        # 3. CLI --model override (via model_factory)
+        model = self._resolve_model(model_factory, agent_def)
+
+        # Resolve tools from agent's tools list
+        tools = self._resolve_tools(tool_provider, agent_def)
+
+        return LlmAgent(
+            name=self._source_file.stem,
+            model=model,
+            instruction=instruction,
+            tools=tools,
+        )
+```
+
+### Adding New Resolution Methods
+
+Follow the existing patterns for model and tool resolution:
+
+```python
+def _resolve_custom_feature(
+    self,
+    agent_def: dict[str, object],
+) -> CustomConfig | None:
+    """Resolve custom feature from agent definition.
+
+    Args:
+        agent_def: Agent definition dict from _agents.
+
+    Returns:
+        Resolved configuration or None.
+
+    """
+    feature_ref = agent_def.get("custom_feature")
+    if not feature_ref:
+        return None
+
+    # Look up in workflow class variables
+    features = getattr(self._workflow_class, "_custom_features", {})
+    if feature_ref not in features:
+        logger.warning("Custom feature '%s' not found", feature_ref)
+        return None
+
+    return features[feature_ref]
+```
+
+### Wiring Up WorkflowContext
+
+Ensure the context is properly initialized in `create_context()`:
+
+```python
+# In DslAgentWorkflow.create_context()
+def create_context(self) -> WorkflowContext:
+    ctx = WorkflowContext()
+    ctx.set_models(self._models)
+    ctx.set_prompts(self._prompts)
+    ctx.set_agents(self._agents)
+    ctx.set_custom_features(self._custom_features)  # Add your feature
+    self._context = ctx
+    return ctx
+```
+
+## Runtime Integration Patterns
+
+### Pattern: Async Context Methods
+
+For features that need async run:
+
+```python
+class WorkflowContext:
+    async def run_custom_action(
+        self,
+        action_name: str,
+        *args: object,
+    ) -> object:
+        """Run a custom action.
+
+        Args:
+            action_name: Name of the action.
+            *args: Arguments for the action.
+
+        Returns:
+            Action result.
+
+        """
+        action_config = self._custom_actions.get(action_name)
+        if not action_config:
+            logger.warning("Action '%s' not found", action_name)
+            return None
+
+        # Run the action
+        return await self._run_action(action_config, args)
+```
+
+### Pattern: Guardrail Integration
+
+For features that intercept messages:
+
+```python
+class WorkflowContext:
+    async def apply_custom_guardrail(
+        self,
+        message: str,
+    ) -> tuple[str, bool]:
+        """Apply custom guardrail to message.
+
+        Args:
+            message: Message to check.
+
+        Returns:
+            Tuple of (possibly modified message, was_triggered).
+
+        """
+        for name, config in self._custom_guardrails.items():
+            triggered, result = await self._check_guardrail(config, message)
+            if triggered:
+                return result, True
+
+        return message, False
+```
+
+### Pattern: Code Generation for Runtime Calls
+
+Generate code that calls context methods:
+
+```python
+def visit_custom_action(self, node: CustomAction, source_line: int | None) -> None:
+    """Generate code for custom action."""
+    args = ", ".join(f'"{arg}"' for arg in node.args)
+
+    self._emitter.emit(
+        f'await ctx.run_custom_action("{node.name}", {args})',
+        source_line=source_line,
+    )
+```
+
+## Testing Best Practices
+
+### Unit Test Structure
+
+```python
+class TestCustomFeature:
+    """Tests for custom feature."""
+
+    def test_parse_feature(self) -> None:
+        """Test parsing the feature syntax."""
+        source = """
+custom_feature my_feature:
+    option1: value1
+"""
+        ast = parse_and_transform(source)
+        assert isinstance(ast.statements[0], CustomFeatureDef)
+
+    def test_semantic_validation(self) -> None:
+        """Test semantic validation."""
+        source = "..."
+        result = analyze(source)
+        assert result.is_valid
+
+    def test_codegen(self) -> None:
+        """Test code generation."""
+        source = "..."
+        python_code = generate(source)
+        assert "_custom_features[" in python_code
+```
+
+### Integration Test Structure
+
+```python
+class TestCustomFeatureIntegration:
+    """Integration tests for custom feature with agent loader."""
+
+    def test_agent_loader_integration(self, tmp_path: Path) -> None:
+        """Test feature works through agent loader."""
+        sr_file = tmp_path / "test_agent.sr"
+        sr_file.write_text("""
+model main = test/model
+
+custom_feature my_feature:
+    enabled: true
+
+agent:
+    instruction my_prompt
+    custom_feature my_feature
+
+prompt my_prompt:
+    You are a test agent.
+""")
+
+        loader = DslAgentLoader()
+        agent = loader.load_from_path(sr_file)
+
+        assert agent is not None
+        # Verify feature is properly configured
+```
+
+## Checklist for New Features
+
+Use this checklist when adding a new feature:
+
+- [ ] Grammar rule added to `streetrace.lark`
+- [ ] AST node defined in `nodes.py`
+- [ ] Transformer method in `transformer.py`
+- [ ] Error code added (if needed) in `codes.py`
+- [ ] Semantic validation in `analyzer.py`
+- [ ] Symbol table updated (if tracking needed)
+- [ ] Code visitor added or updated
+- [ ] Runtime support in `context.py` (if needed)
+- [ ] Base workflow class updated (if class variable needed)
+- [ ] Agent loader integration (if affects agent creation)
+- [ ] Unit tests for parsing
+- [ ] Unit tests for semantic analysis
+- [ ] Unit tests for code generation
+- [ ] Integration tests for runtime
+- [ ] User documentation updated (syntax-reference.md)
+- [ ] Error documentation updated (troubleshooting.md)
+
 ## Documentation Updates
 
 When adding new features, update:
@@ -600,9 +847,11 @@ When adding new features, update:
 1. **User syntax reference**: `docs/user/dsl/syntax-reference.md`
 2. **User getting started** (if applicable): `docs/user/dsl/getting-started.md`
 3. **Troubleshooting** (for new errors): `docs/user/dsl/troubleshooting.md`
+4. **API reference**: `docs/dev/dsl/api-reference.md`
 
 ## See Also
 
 - [Architecture Overview](architecture.md) - Compiler phase descriptions
+- [API Reference](api-reference.md) - Complete API documentation
 - [Grammar Development](grammar.md) - Grammar syntax and patterns
-- [Syntax Reference](../user/dsl/syntax-reference.md) - User-facing syntax docs
+- [Syntax Reference](../../user/dsl/syntax-reference.md) - User-facing syntax docs

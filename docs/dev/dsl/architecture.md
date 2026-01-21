@@ -36,7 +36,7 @@ flowchart LR
 
 ### Phase 1: Lexical Analysis and Parsing
 
-**Entry point**: `streetrace.dsl.grammar.parser:parse()`
+**Entry point**: `streetrace.dsl.grammar.parser:ParserFactory.create()`
 
 The parser uses [Lark](https://lark-parser.readthedocs.io/) with a custom indenter for
 Python-style significant whitespace. The grammar is defined in EBNF format.
@@ -90,6 +90,9 @@ indentation and source mapping.
 - Generator: `src/streetrace/dsl/codegen/generator.py`
 - Code emitter: `src/streetrace/dsl/codegen/emitter.py`
 - Workflow visitor: `src/streetrace/dsl/codegen/visitors/workflow.py`
+- Flow visitor: `src/streetrace/dsl/codegen/visitors/flows.py`
+- Handler visitor: `src/streetrace/dsl/codegen/visitors/handlers.py`
+- Expression visitor: `src/streetrace/dsl/codegen/visitors/expressions.py`
 
 Generated code extends `DslAgentWorkflow` and overrides event handler methods.
 
@@ -114,6 +117,7 @@ locations.
 
 **Key files**:
 - Source map registry: `src/streetrace/dsl/sourcemap/registry.py`
+- Exception hook: `src/streetrace/dsl/sourcemap/excepthook.py`
 
 ## Module Structure
 
@@ -183,6 +187,87 @@ C4Component
     Rel(generator, registry, "Creates mappings")
 ```
 
+## Runtime Integration
+
+The DSL compiler integrates with the Streetrace runtime through two loader classes and a
+runtime context system.
+
+### Runtime Architecture
+
+```mermaid
+C4Component
+    title DSL Runtime Integration
+
+    Container_Boundary(agents, "agents/") {
+        Component(agent_loader, "dsl_agent_loader.py", "DslAgentLoader", "Loads .sr files as StreetRaceAgent")
+        Component(agent_manager, "agent_manager.py", "AgentManager", "Coordinates agent discovery and loading")
+    }
+
+    Container_Boundary(dsl, "dsl/") {
+        Component(simple_loader, "loader.py", "DslAgentLoader", "Simple workflow class loading")
+        Component(workflow_base, "runtime/workflow.py", "DslAgentWorkflow", "Base workflow class")
+        Component(ctx, "runtime/context.py", "WorkflowContext", "Execution context")
+    }
+
+    Container_Boundary(adk, "Google ADK") {
+        Component(llm_agent, "LlmAgent", "LlmAgent", "ADK agent implementation")
+        Component(runner, "Runner", "Runner", "Agent execution runner")
+    }
+
+    Rel(agent_manager, agent_loader, "Uses")
+    Rel(agent_loader, simple_loader, "Uses compile_dsl")
+    Rel(agent_loader, workflow_base, "Loads")
+    Rel(workflow_base, ctx, "Creates")
+    Rel(agent_loader, llm_agent, "Creates")
+    Rel(ctx, runner, "Uses for run_agent")
+```
+
+### DslStreetRaceAgent
+
+The `DslStreetRaceAgent` class wraps a compiled DSL workflow to implement the
+`StreetRaceAgent` interface required by the AgentManager.
+
+**Location**: `src/streetrace/agents/dsl_agent_loader.py:290`
+
+Key responsibilities:
+- Load and compile `.sr` files to workflow classes
+- Create ADK `LlmAgent` instances with DSL-defined configuration
+- Resolve models following the priority: prompt's `using model` clause, then `main` model
+- Map DSL tool definitions to ADK tool objects
+
+### WorkflowContext
+
+The `WorkflowContext` provides runtime state and services to generated workflow code.
+
+**Location**: `src/streetrace/dsl/runtime/context.py:127`
+
+Key capabilities:
+- Variable storage (`ctx.vars`)
+- Agent execution via `run_agent()`
+- LLM calls via `call_llm()`
+- Guardrail operations (PII masking, jailbreak detection)
+- Drift detection
+- Human escalation
+
+### Model Resolution
+
+Model resolution follows a specific priority order:
+
+1. Model from prompt's `using model` clause (e.g., `prompt foo using model "fast":`)
+2. Fall back to model named `main`
+3. CLI `--model` argument overrides all (handled by ModelFactory)
+
+**Implementation**: `WorkflowContext._resolve_agent_model()` at `context.py:310`
+
+### Tool Resolution
+
+Tools are resolved from the agent's tools list and mapped to ADK tool objects:
+
+1. Builtin tools (e.g., `streetrace.fs`) map to `StreetraceToolRef`
+2. MCP tools map to `McpToolRef` with appropriate transport
+
+**Implementation**: `DslStreetRaceAgent._resolve_tools()` at `dsl_agent_loader.py:496`
+
 ## Key Classes
 
 ### DslFile
@@ -248,9 +333,39 @@ class DslAgentWorkflow:
 
 **Location**: `src/streetrace/dsl/runtime/workflow.py:14`
 
-### DslAgentLoader
+### WorkflowContext
 
-Runtime loader for `.sr` files.
+Execution context for DSL workflows providing runtime services.
+
+```python
+class WorkflowContext:
+    vars: dict[str, object]
+    message: str
+    guardrails: GuardrailProvider
+
+    async def run_agent(self, agent_name: str, *args: object) -> object: ...
+    async def call_llm(self, prompt_name: str, *args: object) -> object: ...
+    def detect_drift(self, *args: object) -> bool: ...
+```
+
+**Location**: `src/streetrace/dsl/runtime/context.py:127`
+
+### DslAgentLoader (agents/)
+
+Runtime loader that creates `StreetRaceAgent` instances from `.sr` files.
+
+```python
+class DslAgentLoader(AgentLoader):
+    def discover_in_paths(self, paths: list[Path]) -> list[AgentInfo]: ...
+    def load_from_path(self, path: Path) -> StreetRaceAgent: ...
+    def load_agent(self, agent_info: AgentInfo) -> StreetRaceAgent: ...
+```
+
+**Location**: `src/streetrace/agents/dsl_agent_loader.py:58`
+
+### DslAgentLoader (dsl/)
+
+Simple loader for workflow classes (used internally).
 
 ```python
 class DslAgentLoader:
@@ -284,7 +399,9 @@ Errors are formatted in rustc-style with source context:
 error[E0001]: undefined reference to model 'fast'
   --> my_agent.sr:15:18
      |
+  14 |
   15 |     using model "fast"
+  16 |
      |                  ^^^^
      |
      = help: defined models are: main, compact
@@ -316,117 +433,54 @@ Separating semantic analysis from code generation:
 - Simplifies code generator logic
 - Supports future optimizations or alternative backends
 
-## Known Issues and Technical Debt
+### Why two loader classes?
 
-The following issues are known and tracked for future resolution:
+The DSL has two loader classes serving different purposes:
 
-### Issue: Comma-Separated Name Lists
+1. **`dsl/loader.py:DslAgentLoader`**: Simple loader that returns workflow classes directly.
+   Used for programmatic access and testing.
 
-**Symptom**: Commas in `tools fs, cli, github` are parsed as tool names, causing
-semantic errors like `undefined reference to tool ','`.
+2. **`agents/dsl_agent_loader.py:DslAgentLoader`**: Full loader implementing `AgentLoader`
+   interface for integration with AgentManager. Wraps workflows in `DslStreetRaceAgent`.
 
-**Root cause**: The `name_list` transformer in `ast/transformer.py` returns all items
-without filtering commas:
+## Known Limitations
 
-```python
-def name_list(self, items: TransformerItems) -> list[str]:
-    return list(items)  # Should filter commas
-```
+The following limitations are tracked for future resolution:
 
-**Fix required**: Update `name_list` to filter comma tokens:
+### Comma-Separated Name Lists
 
-```python
-def name_list(self, items: TransformerItems) -> list[str]:
-    filtered = _filter_children(items)
-    return [str(item) for item in filtered]
-```
+**Status**: Known issue
 
-**Location**: `src/streetrace/dsl/ast/transformer.py`
+Commas in `tools fs, cli, github` are parsed as tool names, causing semantic errors.
 
-### Issue: Flow Parameter Variable Scoping
+**Root cause**: The `name_list` transformer returns all items without filtering commas.
 
-**Symptom**: Flow parameters like `$input` in `flow process $input:` cause
-`variable used before definition` errors when referenced in the flow body.
+**Workaround**: Use single tool per agent definition.
 
-**Root cause**: The `flow_params` transformer stores parameters with `$` prefix
-(e.g., `$input`), but `VarRef.name` stores names without the prefix. The semantic
-analyzer defines `$input` in scope but looks up `input`, causing a mismatch.
+### Flow Parameter Variable Scoping
 
-**Fix required**: Either:
-1. Store flow parameters without the `$` prefix in `flow_params`
-2. Or add `$` prefix when looking up VarRef names
-3. Or normalize both to use the same convention
+**Status**: Known issue
 
-**Locations**:
-- `src/streetrace/dsl/ast/transformer.py:flow_params()`
-- `src/streetrace/dsl/semantic/analyzer.py:_validate_flow()`
+Flow parameters like `$input` in `flow process $input:` cause variable scope errors.
 
-### Issue: Policy Property Transformation
+**Root cause**: `flow_params` stores names with `$` prefix but `VarRef.name` doesn't
+include the prefix.
 
-**Symptom**: Some policy properties like `strategy: summarize_with_goal` cause
-`unhashable type` errors during AST transformation.
+**Workaround**: Avoid flow parameters; use simpler agent-based patterns.
 
-**Root cause**: The `policy_property` transformer handles some property types
-(like `trigger`) that return dicts, but other properties (like `strategy`) pass
-through raw tokens or strings. When `policy_body` tries to `update()` with
-non-dict items, it fails.
+### Earley Parser
 
-**Fix required**: Update `policy_property` to return dicts for all property types:
+**Status**: Performance consideration
 
-```python
-def policy_property(self, items: TransformerItems) -> dict:
-    # Handle each property type explicitly
-    if items[0] == "strategy":
-        return {"strategy": str(items[2])}
-    elif items[0] == "use" and items[1] == "model":
-        return {"model": items[3]}
-    # ... etc
-    return items[0]  # For items already returning dicts
-```
+The parser uses Earley algorithm instead of LALR due to grammar ambiguities.
 
-**Location**: `src/streetrace/dsl/ast/transformer.py`
+**Impact**: Slower parsing than LALR but correct handling of all valid inputs.
 
-### Issue: VarRef Name Including Dollar Sign
-
-**Symptom**: Error messages show `$$variable` (double dollar sign) instead of
-`$variable`.
-
-**Root cause**: The `undefined_variable` error formatter adds a `$` prefix:
-
-```python
-msg = f"variable '${name}' used before definition"
-```
-
-But in some code paths, `VarRef.name` already includes the `$` prefix.
-
-**Fix required**: Ensure consistent handling - either always include `$` in
-VarRef.name, or never include it, and adjust error formatting accordingly.
-
-**Locations**:
-- `src/streetrace/dsl/ast/transformer.py:var_ref()`
-- `src/streetrace/dsl/semantic/errors.py:undefined_variable()`
-
-### Issue: Runtime Integration Incomplete
-
-**Symptom**: DSL agents compile successfully but cannot be run with
-`streetrace --agent my_agent.sr`.
-
-**Root cause**: The main agent loading system in `agents/agent_manager.py` does
-not use `DslAgentLoader`. The DSL workflow classes (`DslAgentWorkflow`) also
-don't integrate with the ADK-based runtime.
-
-**Fix required**:
-1. Register `DslAgentLoader` with the agent manager
-2. Bridge `DslAgentWorkflow` with the ADK agent system
-3. Map DSL tools/models to runtime configurations
-
-**Locations**:
-- `src/streetrace/agents/agent_manager.py`
-- `src/streetrace/dsl/loader.py`
-- `src/streetrace/dsl/runtime/workflow.py`
+**Future**: Grammar refactoring to enable LALR parsing.
 
 ## See Also
 
 - [Grammar Development Guide](grammar.md) - How to modify the DSL grammar
 - [Extension Guide](extending.md) - Adding new syntax and features
-- [CLI Reference](../user/dsl/cli-reference.md) - Using compiler commands
+- [API Reference](api-reference.md) - Complete API documentation
+- [CLI Reference](../../user/dsl/cli-reference.md) - Using compiler commands

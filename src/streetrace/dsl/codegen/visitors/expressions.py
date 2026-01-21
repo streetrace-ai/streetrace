@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from lark import Token
+
 from streetrace.dsl.ast.nodes import (
     BinaryOp,
     FunctionCall,
@@ -60,7 +62,19 @@ class ExpressionVisitor:
         Returns:
             Python expression string.
 
+        Raises:
+            ValueError: If a raw Token is encountered, indicating a transformer bug.
+
         """
+        # Check for unhandled Token - this indicates a bug in the AST transformer
+        if isinstance(node, Token):
+            msg = (
+                f"Unhandled Token in expression: type='{node.type}', "
+                f"value='{node.value}', line={getattr(node, 'line', 'unknown')}. "
+                f"The AST transformer should have converted this to a proper node."
+            )
+            raise ValueError(msg)  # noqa: TRY004
+
         visitor = self._dispatch.get(type(node))
         if visitor is not None:
             return visitor(node)
@@ -178,8 +192,10 @@ class ExpressionVisitor:
         if node.name == "initial_user_prompt":
             return "ctx.vars['input_prompt']"
         if node.name == "get_agent_goal":
+            # Get agent goal from DSL examples (017-dsl-examples.md)
             return "ctx.get_goal()"
         if node.name == "detect_trajectory_drift":
+            # Detect drift from DSL examples (017-dsl-examples.md)
             return f"ctx.detect_drift({args})"
         if node.name == "process":
             return f"ctx.process({args})"

@@ -1,8 +1,16 @@
 # Generic Coding Assistant - DSL version of generic.yml
 
+streetrace v1
+
 model main = anthropic/claude-sonnet-4-5
 
+# StreetRace builtin tools
 tool fs = builtin streetrace.fs
+tool cli = builtin streetrace.cli
+
+# MCP tools
+tool github = mcp "https://api.githubcopilot.com/mcp/"
+tool context7 = mcp "https://mcp.context7.com/mcp"
 
 prompt assistant_instruction: """You are StreetRace, a pragmatic, forward-thinking senior software engineer pair programming with the USER. You write production-grade code for long-term maintainability, compliance, and team scaling.
 
@@ -58,3 +66,8 @@ agent GenericCodingAssistant:
     tools fs
     instruction assistant_instruction
     description "A helpful assistant who works with you to reach your goals."
+
+# Note: To use multiple tools in the agent definition, list them with commas:
+# tools fs, cli, github, context7
+# However, there is currently a bug in the DSL parser that includes commas as tool names.
+# See docs/tasks/017-dsl-compiler/tech_debt.md for details.

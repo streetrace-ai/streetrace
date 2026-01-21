@@ -7,6 +7,7 @@ DSL source code into Python bytecode.
 from types import CodeType
 
 from lark import UnexpectedCharacters, UnexpectedEOF, UnexpectedToken
+from lark.indenter import DedentError
 
 from streetrace.dsl.ast.nodes import AgentDef, DslFile, EventHandler, FlowDef, ModelDef
 from streetrace.dsl.ast.transformer import transform
@@ -98,6 +99,10 @@ def compile_dsl(
     except (UnexpectedCharacters, UnexpectedEOF, UnexpectedToken) as e:
         logger.debug("Parse error in %s: %s", filename, e)
         raise DslSyntaxError(str(e), filename=filename, parse_error=e) from e
+    except DedentError as e:
+        msg = f"mismatched indentation: {e}"
+        logger.debug("Indentation error in %s: %s", filename, e)
+        raise DslSyntaxError(msg, filename=filename, parse_error=e) from e
 
     # Transform to AST
     ast = transform(tree)
@@ -200,6 +205,26 @@ def validate_dsl(
                 column=e.column,
                 code=ErrorCode.E0007,
                 help_text=f"expected one of: {', '.join(str(x) for x in e.expected)}",
+            ),
+        )
+        return diagnostics
+    except DedentError as e:
+        # Extract line info from the error message if possible
+        line = 1
+        help_text = str(e)
+        # Parse error message like "Unexpected dedent to column 2. Expected dedent to 0"
+        if "column" in str(e).lower():
+            help_text = (
+                f"{e} - check that all lines in the block have consistent indentation"
+            )
+        diagnostics.append(
+            Diagnostic.error(
+                message="mismatched indentation",
+                file=filename,
+                line=line,
+                column=0,
+                code=ErrorCode.E0008,
+                help_text=help_text,
             ),
         )
         return diagnostics

@@ -1,5 +1,5 @@
 # Policies Example
-# Demonstrates retry and timeout policies (simplified)
+# Demonstrates retry and timeout policies for reliable agent execution
 
 model main = anthropic/claude-sonnet
 model fast = anthropic/haiku

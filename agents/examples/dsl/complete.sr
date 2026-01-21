@@ -1,5 +1,5 @@
 # Complete Example
-# Demonstrates major DSL features (simplified)
+# Demonstrates major DSL features including schemas, handlers, and policies
 
 model main = anthropic/claude-sonnet
 model fast = anthropic/haiku

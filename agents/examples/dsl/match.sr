@@ -1,16 +1,61 @@
 # Pattern Matching Example
-# Demonstrates basic agent definitions (simplified for now)
+# Demonstrates pattern matching with match statement for routing
 
 model main = anthropic/claude-sonnet
 
 tool fs = builtin streetrace.fs
 
-prompt classify_prompt: """Classify the user request into one of these categories: billing (payment, invoice, subscription issues), technical (bugs, errors, technical support), sales (pricing, plans, upgrades), or feedback (suggestions, complaints, praise). Return only the category name."""
+prompt classify_prompt: """Classify the user request into one of these categories: billing, technical, sales, or feedback. Return only the category name."""
+
+prompt billing_prompt: """You are a billing specialist. Help with payment, invoice, and subscription issues. Be professional and helpful."""
+
+prompt technical_prompt: """You are a technical support specialist. Help with bugs, errors, and technical issues. Provide clear solutions."""
+
+prompt sales_prompt: """You are a sales representative. Help with pricing, plans, and upgrades. Be friendly and informative."""
+
+prompt feedback_prompt: """You are a feedback analyst. Handle suggestions, complaints, and praise. Be empathetic and thorough."""
+
+prompt default_prompt: """You are a general assistant. Help with any questions the user may have."""
 
 agent classifier:
     instruction classify_prompt
-    description "Classifies user requests"
+    description "Classifies user requests into categories"
+
+agent billing_agent:
+    tools fs
+    instruction billing_prompt
+    description "Handles billing inquiries"
+
+agent technical_agent:
+    tools fs
+    instruction technical_prompt
+    description "Handles technical support"
+
+agent sales_agent:
+    tools fs
+    instruction sales_prompt
+    description "Handles sales inquiries"
+
+agent feedback_agent:
+    tools fs
+    instruction feedback_prompt
+    description "Handles user feedback"
+
+agent default_agent:
+    tools fs
+    instruction default_prompt
+    description "Handles general inquiries"
+
+flow handle_request:
+    $category = run agent classifier $input_prompt
+    match $category
+        when "billing" -> run agent billing_agent $input_prompt
+        when "technical" -> run agent technical_agent $input_prompt
+        when "sales" -> run agent sales_agent $input_prompt
+        when "feedback" -> run agent feedback_agent $input_prompt
+        else -> run agent default_agent $input_prompt
+    end
 
 agent:
     tools fs
-    instruction classify_prompt
+    instruction default_prompt

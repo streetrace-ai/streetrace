@@ -220,6 +220,8 @@ class WorkflowVisitor:
         if not self._prompts:
             self._emitter.emit("_prompts: dict[str, str] = {}")
             self._emitter.emit_blank()
+            self._emitter.emit("_prompt_models: dict[str, str] = {}")
+            self._emitter.emit_blank()
             return
 
         self._emitter.emit("_prompts = {")
@@ -231,6 +233,27 @@ class WorkflowVisitor:
             body = self._process_prompt_body(prompt.body)
             self._emitter.emit(
                 f"'{prompt.name}': lambda ctx: {body},",
+                source_line=source_line,
+            )
+
+        self._emitter.dedent()
+        self._emitter.emit("}")
+        self._emitter.emit_blank()
+
+        # Emit prompt model associations
+        prompts_with_models = [p for p in self._prompts if p.model]
+        if not prompts_with_models:
+            self._emitter.emit("_prompt_models: dict[str, str] = {}")
+            self._emitter.emit_blank()
+            return
+
+        self._emitter.emit("_prompt_models = {")
+        self._emitter.indent()
+
+        for prompt in prompts_with_models:
+            source_line = prompt.meta.line if prompt.meta else None
+            self._emitter.emit(
+                f"'{prompt.name}': '{prompt.model}',",
                 source_line=source_line,
             )
 

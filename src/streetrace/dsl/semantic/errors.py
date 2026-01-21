@@ -22,9 +22,9 @@ class ErrorCode(Enum):
     E0005 = "circular reference detected in {kind} '{name}'"
     E0006 = "invalid import: {message}"
     E0007 = "missing required field '{field}' in {kind}"
-    E0008 = "invalid expression in context"
+    E0008 = "mismatched indentation"
     E0009 = "scope error: {message}"
-    E0010 = "invalid operation: {message}"
+    E0010 = "missing required property '{property}' in {kind} '{name}'"
 
 
 @dataclass
@@ -125,6 +125,37 @@ class SemanticError:
             code=ErrorCode.E0003,
             message=msg,
             position=position,
+        )
+
+    @classmethod
+    def missing_required_property(
+        cls,
+        kind: str,
+        name: str,
+        prop: str,
+        position: SourcePosition | None = None,
+        *,
+        suggestion: str | None = None,
+    ) -> "SemanticError":
+        """Create a missing required property error.
+
+        Args:
+            kind: Kind of definition (agent, prompt, etc.).
+            name: Name of the definition missing the property.
+            prop: Name of the missing required property.
+            position: Source position of the error.
+            suggestion: Optional suggestion for fixing.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"missing required property '{prop}' in {kind} '{name}'"
+        return cls(
+            code=ErrorCode.E0010,
+            message=msg,
+            position=position,
+            suggestion=suggestion,
         )
 
     def format(self) -> str:

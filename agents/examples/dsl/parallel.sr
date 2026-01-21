@@ -1,16 +1,37 @@
 # Parallel Execution Example
-# Demonstrates basic agent definitions (simplified)
+# Demonstrates parallel agent execution for concurrent research
 
 model main = anthropic/claude-sonnet
 
 tool fs = builtin streetrace.fs
 
+prompt code_search_prompt: """Search the codebase for relevant files and patterns. Focus on finding implementation details and code structure."""
+
+prompt doc_search_prompt: """Search documentation files for relevant information. Focus on README files, comments, and design docs."""
+
 prompt synthesize_prompt: """Combine the research results from multiple sources. Provide a comprehensive summary with all relevant information. Cite sources and highlight key findings."""
 
-agent synthesizer:
+agent code_searcher:
     tools fs
+    instruction code_search_prompt
+    description "Searches code for patterns"
+
+agent doc_searcher:
+    tools fs
+    instruction doc_search_prompt
+    description "Searches documentation"
+
+agent synthesizer:
     instruction synthesize_prompt
     description "Synthesizes research results"
+
+flow research:
+    parallel do
+        $code_results = run agent code_searcher $input_prompt
+        $doc_results = run agent doc_searcher $input_prompt
+    end
+    $combined = run agent synthesizer $code_results $doc_results
+    return $combined
 
 agent:
     tools fs

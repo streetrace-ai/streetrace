@@ -1,0 +1,231 @@
+"""Tests for remaining WorkflowContext methods.
+
+Test detect_drift, process, and escalate_to_human methods.
+"""
+
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
+
+import pytest
+
+if TYPE_CHECKING:
+    from streetrace.dsl.runtime.context import WorkflowContext
+
+
+class TestDetectDrift:
+    """Test WorkflowContext.detect_drift() method."""
+
+    @pytest.fixture
+    def workflow_context(self) -> "WorkflowContext":
+        """Create a WorkflowContext with test configuration."""
+        from streetrace.dsl.runtime.context import WorkflowContext
+
+        ctx = WorkflowContext()
+        ctx.vars["goal"] = "Help the user write a Python function"
+        return ctx
+
+    def test_detect_drift_returns_false_when_on_track(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """detect_drift returns False when current trajectory matches goal."""
+        # When the trajectory aligns with the goal
+        current_trajectory = "Writing Python function to sort a list"
+        result = workflow_context.detect_drift(current_trajectory)
+        assert result is False
+
+    def test_detect_drift_returns_true_when_off_track(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """detect_drift returns True when trajectory diverges from goal."""
+        # When the trajectory significantly diverges
+        workflow_context.vars["goal"] = "Answer questions about Python"
+        off_topic = "I want to order a pizza"
+        result = workflow_context.detect_drift(off_topic)
+        assert result is True
+
+    def test_detect_drift_uses_context_goal(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """detect_drift compares against the goal in context."""
+        workflow_context.vars["goal"] = "Debug a JavaScript issue"
+        # Off-topic trajectory
+        result = workflow_context.detect_drift("Discussing weather patterns")
+        assert result is True
+
+    def test_detect_drift_returns_false_without_goal(self) -> None:
+        """detect_drift returns False when no goal is set."""
+        from streetrace.dsl.runtime.context import WorkflowContext
+
+        ctx = WorkflowContext()
+        # No goal set
+        result = ctx.detect_drift("Any trajectory")
+        assert result is False
+
+    def test_detect_drift_handles_empty_args(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """detect_drift handles empty arguments gracefully."""
+        result = workflow_context.detect_drift()
+        assert result is False
+
+
+class TestProcess:
+    """Test WorkflowContext.process() method."""
+
+    @pytest.fixture
+    def workflow_context(self) -> "WorkflowContext":
+        """Create a WorkflowContext instance."""
+        from streetrace.dsl.runtime.context import WorkflowContext
+
+        return WorkflowContext()
+
+    def test_process_returns_input_unchanged(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """Process returns the input when no pipeline is specified."""
+        input_data = "Some input data"
+        result = workflow_context.process(input_data)
+        assert result == input_data
+
+    def test_process_applies_named_pipeline(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """Process can apply a named pipeline to transform data."""
+        # Register a simple pipeline
+        workflow_context.vars["uppercase_pipeline"] = lambda x: str(x).upper()
+
+        result = workflow_context.process("hello", pipeline="uppercase_pipeline")
+        assert result == "HELLO"
+
+    def test_process_chains_multiple_args(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """Process can handle multiple arguments."""
+        result = workflow_context.process("arg1", "arg2", "arg3")
+        # Default behavior: return first arg
+        assert result == "arg1"
+
+    def test_process_returns_none_for_empty_args(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """Process returns None when no arguments provided."""
+        result = workflow_context.process()
+        assert result is None
+
+
+class TestEscalateToHuman:
+    """Test WorkflowContext.escalate_to_human() method."""
+
+    @pytest.fixture
+    def workflow_context(self) -> "WorkflowContext":
+        """Create a WorkflowContext instance."""
+        from streetrace.dsl.runtime.context import WorkflowContext
+
+        return WorkflowContext()
+
+    @pytest.mark.asyncio
+    async def test_escalate_to_human_logs_message(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """escalate_to_human logs the escalation message."""
+        # This should not raise
+        await workflow_context.escalate_to_human("Need human help with this task")
+
+    @pytest.mark.asyncio
+    async def test_escalate_to_human_calls_callback(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """escalate_to_human calls the registered callback."""
+        callback = MagicMock()
+        workflow_context.set_escalation_callback(callback)
+
+        await workflow_context.escalate_to_human("Help needed")
+
+        callback.assert_called_once_with("Help needed")
+
+    @pytest.mark.asyncio
+    async def test_escalate_to_human_with_none_message(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """escalate_to_human handles None message gracefully."""
+        callback = MagicMock()
+        workflow_context.set_escalation_callback(callback)
+
+        await workflow_context.escalate_to_human()
+
+        # Should use default message
+        callback.assert_called_once()
+        assert callback.call_args[0][0] is not None
+
+    @pytest.mark.asyncio
+    async def test_escalate_to_human_without_callback(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """escalate_to_human works without a callback (just logs)."""
+        # Should not raise even without callback
+        await workflow_context.escalate_to_human("No callback registered")
+
+    @pytest.mark.asyncio
+    async def test_escalate_to_human_dispatches_ui_event(
+        self,
+        workflow_context: "WorkflowContext",
+    ) -> None:
+        """escalate_to_human dispatches a UI event when ui_bus is set."""
+        from streetrace.ui.ui_bus import UiBus
+
+        ui_bus = MagicMock(spec=UiBus)
+        workflow_context.set_ui_bus(ui_bus)
+
+        await workflow_context.escalate_to_human("UI escalation message")
+
+        ui_bus.dispatch_ui_update.assert_called_once()
+
+
+class TestContextConfiguration:
+    """Test WorkflowContext configuration methods."""
+
+    def test_set_ui_bus(self) -> None:
+        """set_ui_bus configures the UI bus."""
+        from streetrace.dsl.runtime.context import WorkflowContext
+        from streetrace.ui.ui_bus import UiBus
+
+        ctx = WorkflowContext()
+        ui_bus = MagicMock(spec=UiBus)
+
+        ctx.set_ui_bus(ui_bus)
+
+        assert ctx._ui_bus is ui_bus  # noqa: SLF001
+
+    def test_set_escalation_callback(self) -> None:
+        """set_escalation_callback configures the callback."""
+        from streetrace.dsl.runtime.context import WorkflowContext
+
+        ctx = WorkflowContext()
+        callback = MagicMock()
+
+        ctx.set_escalation_callback(callback)
+
+        assert ctx._escalation_callback is callback  # noqa: SLF001
+
+    def test_set_prompt_models(self) -> None:
+        """set_prompt_models configures prompt-to-model mapping."""
+        from streetrace.dsl.runtime.context import WorkflowContext
+
+        ctx = WorkflowContext()
+        prompt_models = {"greeting": "main", "analysis": "fast"}
+
+        ctx.set_prompt_models(prompt_models)
+
+        assert ctx._prompt_models == prompt_models  # noqa: SLF001

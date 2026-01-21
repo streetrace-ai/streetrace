@@ -362,43 +362,46 @@ tests/dsl/test_expression_visitor.py
 - `src/streetrace/dsl/semantic/analyzer.py`
 - `src/streetrace/dsl/semantic/errors.py`
 
-**Current State**: E0010 exists but not triggered for agents without instruction.
+**Status**: COMPLETED
 
-**Tests First**:
+**Tests**:
 ```
 tests/dsl/test_semantic_required_properties.py
 - test_agent_without_instruction_triggers_e0010()
 - test_agent_with_instruction_passes()
 - test_unnamed_agent_without_instruction_triggers_e0010()
+- test_multiple_agents_one_missing_instruction()
+- test_agent_missing_instruction_has_helpful_suggestion()
 ```
 
 **Implementation**:
-- [ ] In `_validate_agent_refs`, check if `agent.instruction` is None/empty
-- [ ] Add SemanticError.missing_required_property factory method
-- [ ] Emit E0010 error with helpful message
+- [x] In `_validate_agent_refs`, check if `agent.instruction` is None/empty
+- [x] Add SemanticError.missing_required_property factory method
+- [x] Emit E0010 error with helpful message
 
 ---
 
 ### 4.2 Add E0008 for Indentation Errors
 
 **Files**:
-- `src/streetrace/dsl/grammar/indenter.py`
 - `src/streetrace/dsl/compiler.py`
 
-**Current State**: Lark's IndentationError is caught but not mapped to E0008.
+**Status**: COMPLETED
 
-**Tests First**:
+**Tests**:
 ```
 tests/dsl/test_indentation_errors.py
 - test_inconsistent_indentation_triggers_e0008()
-- test_tab_space_mixing_triggers_e0008()
 - test_wrong_dedent_level_triggers_e0008()
+- test_proper_indentation_passes()
+- test_indentation_error_has_line_info()
+- test_indentation_error_has_helpful_message()
 ```
 
 **Implementation**:
-- [ ] Catch Lark indentation exceptions specifically
-- [ ] Map to E0008 with line/column information
-- [ ] Provide helpful suggestion (e.g., "expected 4 spaces, found 2")
+- [x] Catch Lark DedentError exception specifically
+- [x] Map to E0008 with line/column information
+- [x] Provide helpful suggestion about consistent indentation
 
 ---
 
@@ -408,9 +411,9 @@ tests/dsl/test_indentation_errors.py
 
 **File**: `src/streetrace/dsl/cli.py`
 
-**Current State**: Lines 263-269 use naive line filtering that may remove non-comment lines.
+**Status**: COMPLETED
 
-**Tests First**:
+**Tests**:
 ```
 tests/dsl/test_cli_dump_python.py
 - test_no_comments_removes_source_comments()
@@ -419,9 +422,9 @@ tests/dsl/test_cli_dump_python.py
 ```
 
 **Implementation**:
-- [ ] Track which lines are source comments during code generation
-- [ ] Pass comment line set to dump_python
-- [ ] Filter only marked comment lines
+- [x] Use regex pattern to identify source comments: `^\s*# .*\.sr:\d+$`
+- [x] Filter only lines matching the source comment pattern
+- [x] Preserve all other code, docstrings, and comments
 
 ---
 
@@ -602,9 +605,9 @@ From code review expectations:
   - [ ] `flows.py:361` - Failure block code gen
   - [ ] `expressions.py:69` - Token handling warning → error or fix
   - [ ] `match.sr:2` - Example file update
-- [ ] **E8**: --no-comments works correctly (Phase 5.1)
-- [ ] **E9**: Agents without instruction trigger E0010 (Phase 4.1)
-- [ ] **E10**: Indentation errors use E0008 (Phase 4.2)
+- [x] **E8**: --no-comments works correctly (Phase 5.1)
+- [x] **E9**: Agents without instruction trigger E0010 (Phase 4.1)
+- [x] **E10**: Indentation errors use E0008 (Phase 4.2)
 - [ ] **E11**: Flows execute with ADK integration (Phase 3)
 - [ ] **E12**: Known limitations resolved (Phase 6)
 

@@ -1,5 +1,5 @@
 # Event Handlers Example
-# Demonstrates event handlers with guardrail actions (simplified)
+# Demonstrates event handlers with guardrail actions for input and output
 
 model main = anthropic/claude-sonnet
 

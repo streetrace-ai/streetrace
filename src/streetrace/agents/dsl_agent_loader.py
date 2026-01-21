@@ -10,11 +10,13 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from google.adk.agents import BaseAgent
+    from google.adk.models.base_llm import BaseLlm
 
     from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
     from streetrace.llm.model_factory import ModelFactory
     from streetrace.system_context import SystemContext
-    from streetrace.tools.tool_provider import ToolProvider
+    from streetrace.tools.tool_provider import AdkTool, ToolProvider
+    from streetrace.tools.tool_refs import StreetraceToolRef
 
 from streetrace.agents.base_agent_loader import AgentInfo, AgentLoader
 from streetrace.agents.street_race_agent import StreetRaceAgent
@@ -338,7 +340,7 @@ class DslStreetRaceAgent(StreetRaceAgent):
     async def create_agent(
         self,
         model_factory: "ModelFactory",
-        tool_provider: "ToolProvider",  # noqa: ARG002
+        tool_provider: "ToolProvider",
         system_context: "SystemContext",  # noqa: ARG002
     ) -> "BaseAgent":
         """Create the ADK agent from the DSL workflow.
@@ -357,49 +359,266 @@ class DslStreetRaceAgent(StreetRaceAgent):
         # Create workflow instance
         self._workflow_instance = self._workflow_class()
 
-        # Get model from workflow's _models dict
-        model_name = None
-        if hasattr(self._workflow_class, "_models"):
-            models = self._workflow_class._models  # noqa: SLF001
-            if models:
-                # Use 'main' model if available, otherwise first model
-                model_name = models.get("main") or next(iter(models.values()), None)
+        # Get the agent definition from _agents dict
+        agent_def = self._get_default_agent_def()
 
-        # Get model - use specified model from DSL or fall back to current model
-        if model_name:
-            model = model_factory.get_llm_interface(model_name).get_adk_llm()
-        else:
-            model = model_factory.get_current_model()
+        # Get instruction from the agent's instruction field (not keyword matching)
+        instruction = self._resolve_instruction(agent_def)
 
-        # Get instruction from workflow's _prompts dict
-        instruction = "You are a helpful assistant."
-        if hasattr(self._workflow_class, "_prompts"):
-            prompts = self._workflow_class._prompts  # noqa: SLF001
-            # Look for instruction prompt
-            for key, prompt_value in prompts.items():
-                if "instruction" in key.lower() or "greeting" in key.lower():
-                    # Prompts can be strings or lambda functions
-                    if callable(prompt_value):
-                        try:
-                            from streetrace.dsl.runtime.context import WorkflowContext
+        # Resolve model following the design spec:
+        # 1. Model from prompt's `using model` clause
+        # 2. Fall back to model named "main"
+        # 3. CLI override (handled by model_factory)
+        model = self._resolve_model(model_factory, agent_def)
 
-                            ctx = WorkflowContext()
-                            instruction = str(prompt_value(ctx))
-                        except (TypeError, KeyError):
-                            # Fallback: convert to string
-                            instruction = str(prompt_value)
-                    else:
-                        instruction = str(prompt_value)
-                    break
-
-        # Note: Tool loading from DSL is not yet fully implemented
-        # Tools defined in DSL need to be mapped to ToolRef objects
+        # Resolve tools from the agent's tools list
+        tools = self._resolve_tools(tool_provider, agent_def)
 
         return LlmAgent(
             name=self._source_file.stem,
             model=model,
             instruction=instruction,
+            tools=tools,
         )
+
+    def _get_default_agent_def(self) -> dict[str, object]:
+        """Get the default agent definition.
+
+        Returns:
+            Agent definition dict with tools, instruction, etc.
+
+        """
+        if not hasattr(self._workflow_class, "_agents"):
+            return {}
+
+        agents = self._workflow_class._agents  # noqa: SLF001
+        # Use 'default' agent or first available agent
+        if "default" in agents:
+            return agents["default"]
+        if agents:
+            return next(iter(agents.values()))
+        return {}
+
+    def _resolve_instruction(self, agent_def: dict[str, object]) -> str:
+        """Resolve instruction from agent definition and prompts.
+
+        Read the instruction name from the agent definition, then
+        look it up in the prompts dict.
+
+        Args:
+            agent_def: Agent definition dict.
+
+        Returns:
+            The resolved instruction string.
+
+        """
+        default_instruction = ""
+
+        # Get instruction name from agent definition
+        instruction_name = agent_def.get("instruction")
+        if not instruction_name or not isinstance(instruction_name, str):
+            logger.warning("No instruction specified in agent definition")
+            return default_instruction
+
+        # Look up in prompts dict
+        if not hasattr(self._workflow_class, "_prompts"):
+            logger.warning("No prompts defined in workflow")
+            return default_instruction
+
+        prompts = self._workflow_class._prompts  # noqa: SLF001
+        if instruction_name not in prompts:
+            logger.warning("Instruction '%s' not found in prompts", instruction_name)
+            return default_instruction
+
+        prompt_value = prompts[instruction_name]
+
+        # Evaluate prompt lambda with empty context
+        if callable(prompt_value):
+            from streetrace.dsl.runtime.context import WorkflowContext
+
+            ctx = WorkflowContext()
+            try:
+                return str(prompt_value(ctx))
+            except (TypeError, KeyError) as e:
+                logger.warning(
+                    "Failed to evaluate prompt '%s': %s", instruction_name, e,
+                )
+                return default_instruction
+
+        return str(prompt_value)
+
+    def _resolve_model(
+        self,
+        model_factory: "ModelFactory",
+        agent_def: dict[str, object],
+    ) -> "str | BaseLlm":
+        """Resolve the model following the design spec.
+
+        Model resolution priority:
+        1. Model from prompt's `using model` clause
+        2. Fall back to model named "main"
+        3. CLI override (handled by model_factory.get_current_model)
+
+        Args:
+            model_factory: Factory for creating LLM models.
+            agent_def: Agent definition dict.
+
+        Returns:
+            The resolved ADK model.
+
+        """
+        models = getattr(self._workflow_class, "_models", {})
+        prompt_models = getattr(self._workflow_class, "_prompt_models", {})
+
+        # Get instruction name to look up prompt's model
+        instruction_name = agent_def.get("instruction")
+        model_name = None
+
+        # 1. Check if the prompt has a specific model
+        if instruction_name and instruction_name in prompt_models:
+            prompt_model_ref = prompt_models[instruction_name]
+            # The prompt model ref is a model name, look it up in _models
+            if prompt_model_ref in models:
+                model_name = models[prompt_model_ref]
+            else:
+                # Assume it's a direct model spec
+                model_name = prompt_model_ref
+
+        # 2. Fall back to "main" model
+        if not model_name and "main" in models:
+            model_name = models["main"]
+
+        # 3. Use CLI override or default
+        if model_name:
+            return model_factory.get_llm_interface(model_name).get_adk_llm()
+        return model_factory.get_current_model()
+
+    def _resolve_tools(
+        self,
+        tool_provider: "ToolProvider",
+        agent_def: dict[str, object],
+    ) -> list["AdkTool"]:
+        """Resolve tools from the agent's tools list.
+
+        Map DSL tool definitions to ADK tool objects using the tool provider.
+
+        Args:
+            tool_provider: Provider for tools.
+            agent_def: Agent definition dict.
+
+        Returns:
+            List of resolved ADK tools.
+
+        """
+        from streetrace.tools.mcp_transport import HttpTransport, SseTransport
+        from streetrace.tools.tool_refs import McpToolRef, StreetraceToolRef
+
+        # Get tool names from agent definition
+        tool_names_raw = agent_def.get("tools", [])
+        if not tool_names_raw or not isinstance(tool_names_raw, list):
+            return []
+        tool_names: list[str] = [t for t in tool_names_raw if isinstance(t, str)]
+        if not tool_names:
+            return []
+
+        # Get tool definitions from workflow
+        tool_defs = getattr(self._workflow_class, "_tools", {})
+
+        # Build tool refs for the tool provider
+        tool_refs: list[McpToolRef | StreetraceToolRef] = []
+
+        for tool_name in tool_names:
+            tool_def = tool_defs.get(tool_name, {})
+            tool_type = tool_def.get("type", "builtin")
+
+            if tool_type == "builtin":
+                # Map builtin refs like "streetrace.fs" to StreetRace tools
+                builtin_tools = self._get_builtin_tools(tool_name, tool_def)
+                tool_refs.extend(builtin_tools)
+            elif tool_type == "mcp":
+                url = tool_def.get("url", "")
+                if url:
+                    # Determine transport type from URL
+                    transport: HttpTransport | SseTransport
+                    if url.endswith("/sse") or "sse" in url.lower():
+                        transport = SseTransport(url=url)
+                    else:
+                        transport = HttpTransport(url=url)
+                    tool_refs.append(
+                        McpToolRef(
+                            name=tool_name,
+                            server=transport,
+                            tools=["*"],  # Include all tools from this server
+                        ),
+                    )
+            else:
+                # Default to builtin
+                builtin_tools = self._get_builtin_tools(tool_name, tool_def)
+                tool_refs.extend(builtin_tools)
+
+        # Use tool provider to resolve the tool refs
+        return tool_provider.get_tools(tool_refs)
+
+    def _get_builtin_tools(
+        self,
+        tool_name: str,
+        tool_def: dict[str, object],
+    ) -> list["StreetraceToolRef"]:
+        """Get StreetRace tool refs for a builtin tool definition.
+
+        Args:
+            tool_name: Name of the tool.
+            tool_def: Tool definition dict.
+
+        Returns:
+            List of StreetRaceToolRef objects.
+
+        """
+        from streetrace.tools.tool_refs import StreetraceToolRef
+
+        # Default fs tools to provide
+        fs_tool_functions = [
+            "read_file",
+            "create_directory",
+            "write_file",
+            "append_to_file",
+            "list_directory",
+            "find_in_files",
+        ]
+
+        cli_tool_functions = [
+            "execute_cli_command",
+        ]
+
+        refs: list[StreetraceToolRef] = []
+
+        # Check for specific builtin ref patterns
+        builtin_ref = tool_def.get("builtin_ref") or tool_def.get("url")
+        if builtin_ref:
+            # Handle patterns like "streetrace.fs", "streetrace.cli"
+            if "fs" in str(builtin_ref).lower():
+                refs.extend(
+                    StreetraceToolRef(module="fs_tool", function=func)
+                    for func in fs_tool_functions
+                )
+            elif "cli" in str(builtin_ref).lower():
+                refs.extend(
+                    StreetraceToolRef(module="cli_tool", function=func)
+                    for func in cli_tool_functions
+                )
+        elif "fs" in tool_name.lower():
+            # Infer from tool name
+            refs.extend(
+                StreetraceToolRef(module="fs_tool", function=func)
+                for func in fs_tool_functions
+            )
+        elif "cli" in tool_name.lower():
+            refs.extend(
+                StreetraceToolRef(module="cli_tool", function=func)
+                for func in cli_tool_functions
+            )
+
+        return refs
 
     async def close(self, agent_instance: "BaseAgent") -> None:  # noqa: ARG002
         """Clean up resources."""
@@ -418,11 +637,11 @@ class DslStreetRaceAgent(StreetRaceAgent):
 
     def get_system_prompt(self) -> str | None:
         """Get the system prompt for this agent."""
-        if hasattr(self._workflow_class, "_prompts"):
-            prompts = self._workflow_class._prompts  # noqa: SLF001
-            for key in prompts:
-                if "instruction" in key.lower():
-                    return f"<prompt: {key}>"
+        # Get the agent's instruction from the agent definition
+        agent_def = self._get_default_agent_def()
+        instruction_name = agent_def.get("instruction")
+        if instruction_name:
+            return f"<prompt: {instruction_name}>"
         return None
 
     @property

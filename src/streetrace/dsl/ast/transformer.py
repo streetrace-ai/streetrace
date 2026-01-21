@@ -97,15 +97,16 @@ def _meta_to_position(meta: object) -> SourcePosition | None:
 def _extract_string(value: str | Token) -> str:
     """Extract string value, removing quotes if present."""
     s = str(value)
-    if (s.startswith('"') and s.endswith('"')) or (
-        s.startswith("'") and s.endswith("'")
-    ):
-        return s[1:-1]
-    # Handle triple-quoted strings
+    # Handle triple-quoted strings FIRST (before single quotes check)
     if s.startswith('"""') and s.endswith('"""'):
         return s[3:-3]
     if s.startswith("'''") and s.endswith("'''"):
         return s[3:-3]
+    # Then handle single-quoted strings
+    if (s.startswith('"') and s.endswith('"')) or (
+        s.startswith("'") and s.endswith("'")
+    ):
+        return s[1:-1]
     return s
 
 
@@ -128,14 +129,30 @@ TransformerItems = list[Any]
 """Type alias for transformer method input items list."""
 
 # Tokens to ignore when extracting meaningful children
-NOISE_TOKENS = frozenset({
-    "_NL", "_INDENT", "_DEDENT", "COLON", "LPAR", "RPAR", "LSQB", "RSQB",
-    "LBRACE", "RBRACE", "COMMA", "EQUAL", "ARROW", "DOLLAR",
-    # Model property keywords that precede the actual value
-    "PROVIDER", "TEMPERATURE", "MAX_TOKENS",
-    # Question mark for optional types
-    "QMARK",
-})
+NOISE_TOKENS = frozenset(
+    {
+        "_NL",
+        "_INDENT",
+        "_DEDENT",
+        "COLON",
+        "LPAR",
+        "RPAR",
+        "LSQB",
+        "RSQB",
+        "LBRACE",
+        "RBRACE",
+        "COMMA",
+        "EQUAL",
+        "ARROW",
+        "DOLLAR",
+        # Model property keywords that precede the actual value
+        "PROVIDER",
+        "TEMPERATURE",
+        "MAX_TOKENS",
+        # Question mark for optional types
+        "QMARK",
+    },
+)
 
 
 def _filter_children(items: TransformerItems) -> list:
@@ -152,19 +169,85 @@ def _filter_children(items: TransformerItems) -> list:
                 continue
             # Skip keyword tokens that were kept but are just syntax
             if item.type in {
-                "SCHEMA", "MODEL", "TOOL", "AGENT", "FLOW", "PROMPT", "POLICY",
-                "RETRY", "TIMEOUT", "IMPORT", "FROM", "ON", "AFTER", "DO", "END",
-                "IF", "FOR", "IN", "PARALLEL", "MATCH", "WHEN", "ELSE", "RETURN",
-                "PUSH", "TO", "RUN", "CALL", "LLM", "BLOCK", "MASK", "WARN",
-                "WITH", "AUTH", "BEARER", "BASIC", "BUILTIN", "MCP", "USING",
-                "EXPECTING", "INHERIT", "TIMES", "BACKOFF", "EXPONENTIAL",
-                "LINEAR", "FIXED", "SECONDS", "MINUTES", "HOURS", "TRIGGER",
-                "STRATEGY", "PRESERVE", "LAST", "MESSAGES", "RESULTS",
-                "ESCALATE", "HUMAN", "LOG", "NOTIFY", "CONTINUE", "ABORT",
-                "STEP", "FAILURE", "INITIAL", "USER", "DETECT", "GET",
-                "GOAL", "PROCESS", "AND", "OR", "NOT", "CONTAINS",
-                "TRUE", "FALSE", "NULL", "STREETRACE", "DESCRIPTION",
-                "TOOLS", "INSTRUCTION",
+                "SCHEMA",
+                "MODEL",
+                "TOOL",
+                "AGENT",
+                "FLOW",
+                "PROMPT",
+                "POLICY",
+                "RETRY",
+                "TIMEOUT",
+                "IMPORT",
+                "FROM",
+                "ON",
+                "AFTER",
+                "DO",
+                "END",
+                "IF",
+                "FOR",
+                "IN",
+                "PARALLEL",
+                "MATCH",
+                "WHEN",
+                "ELSE",
+                "RETURN",
+                "PUSH",
+                "TO",
+                "RUN",
+                "CALL",
+                "LLM",
+                "BLOCK",
+                "MASK",
+                "WARN",
+                "WITH",
+                "AUTH",
+                "BEARER",
+                "BASIC",
+                "BUILTIN",
+                "MCP",
+                "USING",
+                "EXPECTING",
+                "INHERIT",
+                "TIMES",
+                "BACKOFF",
+                "EXPONENTIAL",
+                "LINEAR",
+                "FIXED",
+                "SECONDS",
+                "MINUTES",
+                "HOURS",
+                "TRIGGER",
+                "STRATEGY",
+                "PRESERVE",
+                "LAST",
+                "MESSAGES",
+                "RESULTS",
+                "ESCALATE",
+                "HUMAN",
+                "LOG",
+                "NOTIFY",
+                "CONTINUE",
+                "ABORT",
+                "STEP",
+                "FAILURE",
+                "INITIAL",
+                "USER",
+                "DETECT",
+                "GET",
+                "GOAL",
+                "PROCESS",
+                "AND",
+                "OR",
+                "NOT",
+                "CONTAINS",
+                "TRUE",
+                "FALSE",
+                "NULL",
+                "STREETRACE",
+                "DESCRIPTION",
+                "TOOLS",
+                "INSTRUCTION",
             }:
                 continue
         result.append(item)
@@ -797,9 +880,17 @@ class AstTransformer(Transformer):
 
     def policy_def(self, items: TransformerItems) -> PolicyDef:
         """Transform policy_def rule."""
-        name = items[0]
-        body = items[1] if len(items) > 1 else {}
-        return PolicyDef(name=name, properties=body)
+        filtered = _filter_children(items)
+        name = None
+        body: dict = {}
+
+        for item in filtered:
+            if isinstance(item, str) and name is None:
+                name = item
+            elif isinstance(item, dict):
+                body = item
+
+        return PolicyDef(name=name or "", properties=body)
 
     def policy_body(self, items: TransformerItems) -> dict:
         """Transform policy_body rule."""
@@ -809,9 +900,86 @@ class AstTransformer(Transformer):
                 props.update(item)
         return props
 
-    def policy_property(self, items: TransformerItems) -> AstNode:
-        """Transform policy_property rule - pass through."""
-        return items[0]
+    def policy_property(self, items: TransformerItems) -> dict:
+        """Transform policy_property rule.
+
+        Handle the different policy property alternatives:
+        - trigger: policy_trigger
+        - strategy: identifier
+        - preserve: preserve_list
+        - use model: interpolated_string
+        """
+        # First, identify the property type from tokens BEFORE filtering
+        property_type = self._identify_policy_property_type(items)
+
+        # Now filter the children
+        filtered = _filter_children(items)
+        if not filtered:
+            return {}
+
+        # Find the value based on property type
+        return self._extract_policy_property_value(filtered, property_type)
+
+    def _identify_policy_property_type(self, items: TransformerItems) -> str | None:
+        """Identify the policy property type from tokens.
+
+        Args:
+            items: Raw transformer items before filtering.
+
+        Returns:
+            The property type string or None if not recognized.
+
+        """
+        # Map token types to property names
+        token_to_property = {
+            "TRIGGER": "trigger",
+            "STRATEGY": "strategy",
+            "PRESERVE": "preserve",
+        }
+        # USE token maps to use_model property (not a password)
+        use_model_token = "USE"  # noqa: S105  # nosec B105
+
+        for item in items:
+            if isinstance(item, Token):
+                token_type = item.type
+                if token_type in token_to_property:
+                    return token_to_property[token_type]
+                if token_type == use_model_token:
+                    return "use_model"
+        return None
+
+    def _extract_policy_property_value(
+        self,
+        filtered: list,
+        property_type: str | None,
+    ) -> dict:
+        """Extract the property value from filtered items.
+
+        Args:
+            filtered: Filtered list of children.
+            property_type: The identified property type or None.
+
+        Returns:
+            Dictionary with the property type as key and value.
+
+        """
+        for item in filtered:
+            if isinstance(item, dict):
+                # Already a dict (from policy_trigger or preserve_list)
+                return item
+            if isinstance(item, str) and property_type:
+                # This is the value for the identified property type
+                return {property_type: item}
+
+        # Fallback for unrecognized property types
+        strings = [x for x in filtered if isinstance(x, str)]
+        min_strings_for_key_value = 2
+        if len(strings) >= min_strings_for_key_value:
+            return {strings[0]: strings[1]}
+        if strings:
+            return {"value": strings[0]}
+
+        return {}
 
     def policy_custom(self, items: TransformerItems) -> dict:
         """Transform policy_custom rule."""
@@ -825,12 +993,54 @@ class AstTransformer(Transformer):
         return {"trigger": {"var": var, "op": op, "value": value}}
 
     def preserve_list(self, items: TransformerItems) -> dict:
-        """Transform preserve_list rule."""
-        return {"preserve": list(items)}
+        """Transform preserve_list rule.
 
-    def preserve_item(self, items: TransformerItems) -> AstNode:
-        """Transform preserve_item rule."""
-        return items[0]
+        Filter out syntax tokens (brackets, commas) and keep only
+        the actual preserve items.
+        """
+        filtered = _filter_children(items)
+        result = [item for item in filtered if item is not None]
+        return {"preserve": result}
+
+    def preserve_item(self, items: TransformerItems) -> str | VarRef | dict:
+        """Transform preserve_item rule.
+
+        Handle different preserve item types:
+        - variable ($goal)
+        - last N messages
+        - tool results
+        - string literal
+        """
+        filtered = _filter_children(items)
+        if not filtered:
+            return {}
+
+        # Check for "last N messages" pattern
+        has_last = any(
+            isinstance(item, Token) and item.type == "LAST" for item in items
+        )
+        has_messages = any(
+            isinstance(item, Token) and item.type == "MESSAGES" for item in items
+        )
+        if has_last and has_messages:
+            # Extract the number
+            for item in filtered:
+                if isinstance(item, (int, float)):
+                    return {"last_messages": int(item)}
+            return {"last_messages": 5}  # Default
+
+        # Check for "tool results" pattern
+        has_tool = any(
+            isinstance(item, Token) and item.type == "TOOL" for item in items
+        )
+        has_results = any(
+            isinstance(item, Token) and item.type == "RESULTS" for item in items
+        )
+        if has_tool and has_results:
+            return {"tool_results": True}
+
+        # Return first item (VarRef or string)
+        return filtered[0] if filtered else {}
 
     # =========================================================================
     # Event Handlers
@@ -910,21 +1120,33 @@ class AstTransformer(Transformer):
         return MaskAction(guardrail=items[0])
 
     def block_action(self, items: TransformerItems) -> BlockAction:
-        """Transform block_action rule."""
-        return BlockAction(condition=items[0])
+        """Transform block_action rule.
+
+        Handle the form: "block" "if" condition
+        The first items may be the BLOCK and IF tokens due to keep_all_tokens=True.
+        """
+        filtered = _filter_children(items)
+        # After filtering, we should have the condition expression
+        condition = filtered[0] if filtered else None
+        return BlockAction(condition=condition)
 
     def warn_action(self, items: TransformerItems) -> WarnAction:
-        """Transform warn_action rule."""
-        # Check what we have
-        if len(items) == 1:
-            item = items[0]
+        """Transform warn_action rule.
+
+        Handle the form: "warn" "if" condition
+        The first items may be the WARN and IF tokens due to keep_all_tokens=True.
+        """
+        filtered = _filter_children(items)
+        # Check what we have after filtering tokens
+        if len(filtered) == 1:
+            item = filtered[0]
             if isinstance(item, str):
                 return WarnAction(message=item)
             return WarnAction(condition=item)
         # "warn if expr contains string" case
-        if len(items) == TUPLE_PAIR_LENGTH:
-            return WarnAction(contains_expr=items[0], contains_pattern=items[1])
-        return WarnAction(condition=items[0] if items else None)
+        if len(filtered) == TUPLE_PAIR_LENGTH:
+            return WarnAction(contains_expr=filtered[0], contains_pattern=filtered[1])
+        return WarnAction(condition=filtered[0] if filtered else None)
 
     def retry_action(self, items: TransformerItems) -> RetryAction:
         """Transform retry_action rule."""
@@ -949,7 +1171,8 @@ class AstTransformer(Transformer):
         )
 
     def _extract_flow_components(
-        self, filtered: list,
+        self,
+        filtered: list,
     ) -> tuple[str | None, list[str], list]:
         """Extract name, params, and body from flow_def children."""
         name = None
@@ -961,20 +1184,26 @@ class AstTransformer(Transformer):
                 if name is None:
                     name = _get_token_value(item) if isinstance(item, Token) else item
             elif isinstance(item, list):
-                params, body = self._categorize_flow_list(item, body)
+                new_params, new_body = self._categorize_flow_list(item, body)
+                # Only set params if not already set and new_params is not empty
+                if new_params and not params:
+                    params = new_params
+                # Extend body with new body items
+                if new_body:
+                    body = new_body
             elif item not in body:
                 body.append(item)
 
         return name, params, body
 
     def _categorize_flow_list(
-        self, item: list, body: list,
+        self,
+        item: list,
+        body: list,
     ) -> tuple[list[str], list]:
         """Categorize a list as either params or body."""
         if not body and all(isinstance(x, (str, VarRef)) for x in item):
-            params = [
-                f"${x.name}" if isinstance(x, VarRef) else str(x) for x in item
-            ]
+            params = [f"${x.name}" if isinstance(x, VarRef) else str(x) for x in item]
             return params, body
         return [], item
 
@@ -1109,8 +1338,19 @@ class AstTransformer(Transformer):
         return {"timeout_value": items[0], "timeout_unit": items[1]}
 
     def name_list(self, items: TransformerItems) -> list[str]:
-        """Transform name_list rule."""
-        return list(items)
+        """Transform name_list rule.
+
+        Filter out comma tokens from the list, keeping only actual tool names.
+        """
+        filtered = _filter_children(items)
+        result = []
+        for item in filtered:
+            if isinstance(item, str):
+                result.append(item)
+            elif isinstance(item, Token):
+                # Token objects that made it past _filter_children are tool names
+                result.append(_get_token_value(item))
+        return result
 
     def tool_name(self, items: TransformerItems) -> str:
         """Transform tool_name rule."""
@@ -1136,7 +1376,8 @@ class AstTransformer(Transformer):
         )
 
     def _extract_prompt_components(
-        self, filtered: list,
+        self,
+        filtered: list,
     ) -> tuple[str | None, str | None, dict]:
         """Extract name, body, and modifiers from prompt_def children."""
         name = None
@@ -1155,13 +1396,21 @@ class AstTransformer(Transformer):
         return name, body, modifiers
 
     def _categorize_prompt_string(
-        self, item: str, name: str | None, body: str | None,
+        self,
+        item: str,
+        name: str | None,
+        body: str | None,
     ) -> tuple[str | None, str | None]:
         """Categorize a string as either name or body."""
+        # If string has newlines or is long, it's definitely a body
         if "\n" in item or len(item) > PROMPT_BODY_MIN_LENGTH:
             return name, item.strip()
+        # If we don't have a name yet, this is the name
         if name is None:
             return item, body
+        # If we already have a name and no body, this is the body
+        if body is None:
+            return name, item.strip()
         return name, body
 
     def prompt_modifiers(self, items: TransformerItems) -> dict:
@@ -1284,7 +1533,8 @@ class AstTransformer(Transformer):
         return MatchBlock(expression=expr, cases=cases, else_body=else_body)
 
     def match_cases(
-        self, items: TransformerItems,
+        self,
+        items: TransformerItems,
     ) -> tuple[list[MatchCase], object | None]:
         """Transform match_cases rule."""
         cases = []
@@ -1316,8 +1566,19 @@ class AstTransformer(Transformer):
         return MatchCase(pattern=pattern or "", body=body)
 
     def match_else(self, items: TransformerItems) -> AstNode:
-        """Transform match_else rule."""
-        return items[0]
+        """Transform match_else rule.
+
+        The grammar is: match_else: "else" "->" flow_statement
+        So items[0] is "else" token, items[1] is "->" token, items[2] is flow_statement.
+        """
+        # The flow_statement is the last item (after "else" and "->")
+        filtered = _filter_children(items)
+        # Return the first non-token item (the flow statement)
+        for item in filtered:
+            if not isinstance(item, (str, Token)):
+                return item
+        # Fallback to last item if no statement found
+        return items[-1] if items else None
 
     def if_block(self, items: TransformerItems) -> IfBlock:
         """Transform if_block rule."""
@@ -1465,8 +1726,15 @@ class AstTransformer(Transformer):
 
     @v_args(meta=True)
     def return_stmt(self, meta: object, items: TransformerItems) -> ReturnStmt:
-        """Transform return_stmt rule."""
-        return ReturnStmt(value=items[0], meta=_meta_to_position(meta))
+        """Transform return_stmt rule.
+
+        Handle the return statement form: "return" expression
+        The first item may be the RETURN keyword token due to keep_all_tokens=True.
+        """
+        filtered = _filter_children(items)
+        # After filtering, we should have the expression value
+        value = filtered[0] if filtered else None
+        return ReturnStmt(value=value, meta=_meta_to_position(meta))
 
     def push_stmt(self, items: TransformerItems) -> PushStmt:
         """Transform push_stmt rule."""

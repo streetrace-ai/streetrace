@@ -1392,6 +1392,9 @@ For detailed root cause analysis and fix requirements, see:
 
 ## See Also
 
-- [DSL Grammar Specification](../dev/dsl/grammar.md) (if available)
-- [User Guide: DSL Quick Start](../user/dsl/getting-started.md) (if available)
-- [RFC-017: Streetrace Agent Definition DSL](https://github.com/streetrace-ai/rfc/design/017-streetrace-dsl.md)
+- [DSL Architecture](../../dev/dsl/architecture.md) - Compiler pipeline and design
+- [DSL API Reference](../../dev/dsl/api-reference.md) - Complete API documentation
+- [DSL Grammar Specification](../../dev/dsl/grammar.md) - Grammar syntax and patterns
+- [User Guide: DSL Quick Start](../../user/dsl/getting-started.md) - Getting started guide
+- [User Guide: Troubleshooting](../../user/dsl/troubleshooting.md) - Common errors and solutions
+- [CLI Reference](../../user/dsl/cli-reference.md) - Command-line options
