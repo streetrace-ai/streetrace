@@ -19,6 +19,10 @@ Multi-agent patterns solve different coordination problems:
 The coordinator pattern routes user requests to specialized agents. The coordinator's
 LLM decides which specialist should handle each request.
 
+At runtime, agents listed in `delegate` become ADK sub-agents. The coordinator agent
+receives the user request and decides which sub-agent should handle it based on its
+instruction. Sub-agents share the conversation context with the coordinator.
+
 ### Use Case
 
 - Help desk with billing, support, and sales specialists
@@ -87,6 +91,10 @@ The coordinator can synthesize results if needed, or fully hand off the conversa
 
 The hierarchical pattern lets an agent call other agents as tools. The parent agent
 controls when and how to invoke child agents.
+
+At runtime, agents listed in `use` are wrapped as ADK AgentTools and added to the
+parent agent's tools. The parent explicitly invokes them as tools, each call runs
+in isolation, and results flow back to the parent for aggregation.
 
 ### Use Case
 
@@ -190,6 +198,33 @@ Understanding when to use `delegate` versus `use` is important:
 - Results must be aggregated
 - Parent orchestrates the workflow
 
+### Agent Descriptions
+
+When using `delegate` or `use`, always provide a `description` for your agents. The
+description helps the LLM understand what each agent does and when to use it.
+
+```streetrace
+agent code_reviewer:
+    tools fs
+    instruction code_review_prompt
+    description "Reviews code for quality, security, and style issues"
+
+agent doc_writer:
+    tools fs
+    instruction doc_writer_prompt
+    description "Writes documentation for code and APIs"
+
+agent:
+    instruction coordinator_prompt
+    delegate code_reviewer, doc_writer
+    description "Routes tasks to the appropriate specialist"
+```
+
+Good descriptions are:
+- Concise but informative (one sentence)
+- Action-oriented (describes what the agent does)
+- Specific about the agent's expertise
+
 ## Iterative Pattern (loop)
 
 The loop pattern repeats a workflow until a condition is met or maximum iterations
@@ -275,6 +310,41 @@ agent:
 - Include exit conditions for quality thresholds
 - Log iteration progress for debugging
 - Return meaningful results on completion
+
+## How Patterns Work at Runtime
+
+Understanding how these patterns execute helps you design effective multi-agent systems.
+
+### Agent Hierarchy Creation
+
+When you run a DSL agent file, the loader:
+
+1. Compiles the `.sr` file to Python bytecode
+2. Creates the root agent from the default (unnamed) agent definition
+3. For each agent in `delegate`, creates a sub-agent recursively
+4. For each agent in `use`, creates an AgentTool wrapper recursively
+5. Nested patterns are fully supported (sub-agents can have their own sub-agents/tools)
+
+### Execution Flow
+
+```
+User Request
+    |
+    v
+Root Agent (coordinator)
+    |
+    +--[delegate]--> Sub-Agent A (shares context)
+    |                    |
+    |                    +--[use]--> Helper 1 (isolated call)
+    |                    +--[use]--> Helper 2 (isolated call)
+    |
+    +--[delegate]--> Sub-Agent B (shares context)
+```
+
+### Resource Management
+
+All agents and their nested sub-agents/tools are properly cleaned up when the session
+ends. Cleanup follows depth-first order, closing child agents before parents.
 
 ## Combined Patterns
 

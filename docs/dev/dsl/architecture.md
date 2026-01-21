@@ -227,13 +227,17 @@ C4Component
 The `DslStreetRaceAgent` class wraps a compiled DSL workflow to implement the
 `StreetRaceAgent` interface required by the AgentManager.
 
-**Location**: `src/streetrace/agents/dsl_agent_loader.py:290`
+**Location**: `src/streetrace/agents/dsl_agent_loader.py:291`
 
 Key responsibilities:
 - Load and compile `.sr` files to workflow classes
 - Create ADK `LlmAgent` instances with DSL-defined configuration
 - Resolve models following the priority: prompt's `using model` clause, then `main` model
 - Map DSL tool definitions to ADK tool objects
+- Create sub-agents for the coordinator pattern (`delegate` keyword)
+- Create `AgentTool` wrappers for the hierarchical pattern (`use` keyword)
+- Recursively resolve nested agentic patterns
+- Clean up all nested agents and tools on close
 
 ### WorkflowContext
 
@@ -266,7 +270,29 @@ Tools are resolved from the agent's tools list and mapped to ADK tool objects:
 1. Builtin tools (e.g., `streetrace.fs`) map to `StreetraceToolRef`
 2. MCP tools map to `McpToolRef` with appropriate transport
 
-**Implementation**: `DslStreetRaceAgent._resolve_tools()` at `dsl_agent_loader.py:496`
+**Implementation**: `DslStreetRaceAgent._resolve_tools()` at `dsl_agent_loader.py:517`
+
+### Agentic Patterns Integration
+
+The DSL supports multi-agent patterns that map to ADK composition mechanisms:
+
+| DSL Construct | ADK Mechanism | Method |
+|---------------|---------------|--------|
+| `delegate agent1, agent2` | `sub_agents=[...]` | `_resolve_sub_agents()` |
+| `use agent1, agent2` | `tools=[AgentTool(...)]` | `_resolve_agent_tools()` |
+
+Both methods call `_create_agent_from_def()` recursively, enabling nested hierarchies:
+
+```
+coordinator (root LlmAgent)
+├── sub_agents:
+│   ├── specialist_a (LlmAgent)
+│   │   └── tools: [AgentTool(helper_1), AgentTool(helper_2)]
+│   └── specialist_b (LlmAgent)
+└── tools: [fs_tools, AgentTool(utility)]
+```
+
+**Implementation**: See [Agentic Patterns](agentic-patterns.md) for full details.
 
 ## Key Classes
 

@@ -349,6 +349,10 @@ class WorkflowVisitor:
                 agent_tools_str = ", ".join(f"'{a}'" for a in agent.use)
                 self._emitter.emit(f"'agent_tools': [{agent_tools_str}],")
 
+            # Optional: description for agent
+            if agent.description:
+                self._emitter.emit(f"'description': {agent.description!r},")
+
             self._emitter.dedent()
             self._emitter.emit("},")
 

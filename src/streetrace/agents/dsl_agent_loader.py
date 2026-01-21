@@ -4,6 +4,7 @@ Provide loading and discovery of Streetrace DSL agent files for integration
 with the AgentManager through the AgentLoader interface.
 """
 
+import inspect
 from pathlib import Path
 from types import CodeType
 from typing import TYPE_CHECKING, Any
@@ -341,9 +342,13 @@ class DslStreetRaceAgent(StreetRaceAgent):
         self,
         model_factory: "ModelFactory",
         tool_provider: "ToolProvider",
-        system_context: "SystemContext",  # noqa: ARG002
+        system_context: "SystemContext",
     ) -> "BaseAgent":
         """Create the ADK agent from the DSL workflow.
+
+        Create the root LlmAgent with support for agentic patterns:
+        - Coordinator/dispatcher pattern via sub_agents (delegate keyword)
+        - Hierarchical pattern via agent_tools (use keyword)
 
         Args:
             model_factory: Factory for creating LLM models.
@@ -374,12 +379,28 @@ class DslStreetRaceAgent(StreetRaceAgent):
         # Resolve tools from the agent's tools list
         tools = self._resolve_tools(tool_provider, agent_def)
 
-        return LlmAgent(
-            name=self._source_file.stem,
-            model=model,
-            instruction=instruction,
-            tools=tools,
+        # Resolve sub_agents for delegate pattern
+        sub_agents = await self._resolve_sub_agents(
+            agent_def, model_factory, tool_provider, system_context,
         )
+
+        # Resolve agent_tools for use pattern (adds to tools list)
+        agent_tools = await self._resolve_agent_tools(
+            agent_def, model_factory, tool_provider, system_context,
+        )
+        tools.extend(agent_tools)
+
+        # Build LlmAgent with all components
+        agent_kwargs: dict[str, Any] = {
+            "name": self._source_file.stem,
+            "model": model,
+            "instruction": instruction,
+            "tools": tools,
+        }
+        if sub_agents:
+            agent_kwargs["sub_agents"] = sub_agents
+
+        return LlmAgent(**agent_kwargs)
 
     def _get_default_agent_def(self) -> dict[str, object]:
         """Get the default agent definition.
@@ -620,9 +641,205 @@ class DslStreetRaceAgent(StreetRaceAgent):
 
         return refs
 
-    async def close(self, agent_instance: "BaseAgent") -> None:  # noqa: ARG002
-        """Clean up resources."""
+    async def _create_agent_from_def(
+        self,
+        name: str,
+        agent_def: dict[str, object],
+        model_factory: "ModelFactory",
+        tool_provider: "ToolProvider",
+        system_context: "SystemContext",
+    ) -> "BaseAgent":
+        """Create an LlmAgent from an agent definition dict.
+
+        This method is used for creating both the root agent and sub-agents.
+        It handles instruction, model, tools resolution and recursively
+        resolves nested patterns.
+
+        Args:
+            name: Name for the agent.
+            agent_def: Agent definition dict with tools, instruction, etc.
+            model_factory: Factory for creating LLM models.
+            tool_provider: Provider for tools.
+            system_context: System context.
+
+        Returns:
+            The created ADK agent.
+
+        """
+        from google.adk.agents import LlmAgent
+
+        instruction = self._resolve_instruction(agent_def)
+        model = self._resolve_model(model_factory, agent_def)
+        tools = self._resolve_tools(tool_provider, agent_def)
+
+        # Recursively resolve nested patterns
+        sub_agents = await self._resolve_sub_agents(
+            agent_def, model_factory, tool_provider, system_context,
+        )
+        agent_tools = await self._resolve_agent_tools(
+            agent_def, model_factory, tool_provider, system_context,
+        )
+        tools.extend(agent_tools)
+
+        # Get description from agent definition or use default
+        description = agent_def.get("description", f"Agent: {name}")
+
+        agent_kwargs: dict[str, Any] = {
+            "name": name,
+            "model": model,
+            "instruction": instruction,
+            "tools": tools,
+            "description": description,
+        }
+        if sub_agents:
+            agent_kwargs["sub_agents"] = sub_agents
+
+        return LlmAgent(**agent_kwargs)
+
+    async def _resolve_sub_agents(
+        self,
+        agent_def: dict[str, object],
+        model_factory: "ModelFactory",
+        tool_provider: "ToolProvider",
+        system_context: "SystemContext",
+    ) -> list["BaseAgent"]:
+        """Resolve sub_agents for the coordinator/dispatcher pattern.
+
+        Create LlmAgent instances for each agent listed in 'sub_agents'.
+        This enables the delegate keyword functionality where a coordinator
+        agent can dispatch work to specialized sub-agents.
+
+        Args:
+            agent_def: Agent definition dict.
+            model_factory: Factory for creating LLM models.
+            tool_provider: Provider for tools.
+            system_context: System context.
+
+        Returns:
+            List of created sub-agent instances.
+
+        """
+        sub_agent_names = agent_def.get("sub_agents", [])
+        if not sub_agent_names or not isinstance(sub_agent_names, list):
+            return []
+
+        agents = self._workflow_class._agents  # noqa: SLF001
+        sub_agents: list[BaseAgent] = []
+
+        for agent_name in sub_agent_names:
+            if not isinstance(agent_name, str):
+                continue
+            if agent_name not in agents:
+                logger.warning("Sub-agent '%s' not found in workflow", agent_name)
+                continue
+
+            sub_agent_def = agents[agent_name]
+            if not isinstance(sub_agent_def, dict):
+                continue
+
+            sub_agent = await self._create_agent_from_def(
+                name=agent_name,
+                agent_def=sub_agent_def,
+                model_factory=model_factory,
+                tool_provider=tool_provider,
+                system_context=system_context,
+            )
+            sub_agents.append(sub_agent)
+
+        return sub_agents
+
+    async def _resolve_agent_tools(
+        self,
+        agent_def: dict[str, object],
+        model_factory: "ModelFactory",
+        tool_provider: "ToolProvider",
+        system_context: "SystemContext",
+    ) -> list["AdkTool"]:
+        """Resolve agent_tools for the hierarchical pattern.
+
+        Create AgentTool wrappers for each agent listed in 'agent_tools'.
+        This enables the use keyword functionality where an agent can
+        invoke other agents as tools.
+
+        Args:
+            agent_def: Agent definition dict.
+            model_factory: Factory for creating LLM models.
+            tool_provider: Provider for tools.
+            system_context: System context.
+
+        Returns:
+            List of AgentTool instances.
+
+        """
+        from google.adk.tools.agent_tool import AgentTool
+
+        agent_tool_names = agent_def.get("agent_tools", [])
+        if not agent_tool_names or not isinstance(agent_tool_names, list):
+            return []
+
+        agents = self._workflow_class._agents  # noqa: SLF001
+        agent_tools: list[AdkTool] = []
+
+        for agent_name in agent_tool_names:
+            if not isinstance(agent_name, str):
+                continue
+            if agent_name not in agents:
+                logger.warning("Agent tool '%s' not found in workflow", agent_name)
+                continue
+
+            sub_agent_def = agents[agent_name]
+            if not isinstance(sub_agent_def, dict):
+                continue
+
+            sub_agent = await self._create_agent_from_def(
+                name=agent_name,
+                agent_def=sub_agent_def,
+                model_factory=model_factory,
+                tool_provider=tool_provider,
+                system_context=system_context,
+            )
+            agent_tools.append(AgentTool(sub_agent))
+
+        return agent_tools
+
+    async def close(self, agent_instance: "BaseAgent") -> None:
+        """Clean up resources including sub-agents and agent tools.
+
+        Args:
+            agent_instance: The root agent instance to close.
+
+        """
+        await self._close_agent_recursive(agent_instance)
         self._workflow_instance = None
+
+    async def _close_agent_recursive(self, agent: "BaseAgent") -> None:
+        """Recursively close agent, its sub-agents, and tools.
+
+        This method traverses the agent hierarchy depth-first, closing
+        sub-agents before parent agents to ensure proper cleanup order.
+
+        Args:
+            agent: The agent to close.
+
+        """
+        from google.adk.tools.agent_tool import AgentTool
+
+        # Close sub-agents first (depth-first)
+        for sub_agent in getattr(agent, "sub_agents", []) or []:
+            await self._close_agent_recursive(sub_agent)
+
+        # Close tools, handling AgentTool specially
+        for tool in getattr(agent, "tools", []) or []:
+            if isinstance(tool, AgentTool):
+                # Close the wrapped agent first
+                await self._close_agent_recursive(tool.agent)
+
+            # Close the tool itself if it has a close method
+            close_fn = getattr(tool, "close", None)
+            if callable(close_fn):
+                ret = close_fn()
+                if inspect.isawaitable(ret):
+                    await ret
 
     def get_attributes(self) -> dict[str, Any]:
         """Get custom attributes for this agent."""

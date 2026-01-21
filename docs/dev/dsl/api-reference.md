@@ -613,6 +613,10 @@ async def create_agent(
 
 Create the ADK agent from the DSL workflow.
 
+Create the root `LlmAgent` with support for agentic patterns:
+- Coordinator/dispatcher pattern via `sub_agents` (delegate keyword)
+- Hierarchical pattern via `AgentTool` (use keyword)
+
 **Parameters**:
 - `model_factory`: Factory for creating LLM models.
 - `tool_provider`: Provider for tools.
@@ -620,6 +624,123 @@ Create the ADK agent from the DSL workflow.
 
 **Returns**:
 The root ADK agent (LlmAgent).
+
+**Location**: `src/streetrace/agents/dsl_agent_loader.py:341`
+
+#### _create_agent_from_def
+
+```python
+async def _create_agent_from_def(
+    self,
+    name: str,
+    agent_def: dict[str, object],
+    model_factory: ModelFactory,
+    tool_provider: ToolProvider,
+    system_context: SystemContext,
+) -> BaseAgent
+```
+
+Create an `LlmAgent` from an agent definition dict.
+
+Used for creating both the root agent and sub-agents. Handles instruction, model, tools
+resolution and recursively resolves nested agentic patterns.
+
+**Parameters**:
+- `name`: Name for the agent.
+- `agent_def`: Agent definition dict with tools, instruction, sub_agents, agent_tools.
+- `model_factory`: Factory for creating LLM models.
+- `tool_provider`: Provider for tools.
+- `system_context`: System context.
+
+**Returns**:
+The created ADK `LlmAgent` instance.
+
+**Location**: `src/streetrace/agents/dsl_agent_loader.py:644`
+
+#### _resolve_sub_agents
+
+```python
+async def _resolve_sub_agents(
+    self,
+    agent_def: dict[str, object],
+    model_factory: ModelFactory,
+    tool_provider: ToolProvider,
+    system_context: SystemContext,
+) -> list[BaseAgent]
+```
+
+Resolve sub_agents for the coordinator/dispatcher pattern.
+
+Create `LlmAgent` instances for each agent listed in `sub_agents`. This enables the
+`delegate` keyword functionality.
+
+**Parameters**:
+- `agent_def`: Agent definition dict with optional `sub_agents` list.
+- `model_factory`: Factory for creating LLM models.
+- `tool_provider`: Provider for tools.
+- `system_context`: System context.
+
+**Returns**:
+List of created sub-agent instances.
+
+**Location**: `src/streetrace/agents/dsl_agent_loader.py:699`
+
+#### _resolve_agent_tools
+
+```python
+async def _resolve_agent_tools(
+    self,
+    agent_def: dict[str, object],
+    model_factory: ModelFactory,
+    tool_provider: ToolProvider,
+    system_context: SystemContext,
+) -> list[AdkTool]
+```
+
+Resolve agent_tools for the hierarchical pattern.
+
+Create `AgentTool` wrappers for each agent listed in `agent_tools`. This enables the
+`use` keyword functionality.
+
+**Parameters**:
+- `agent_def`: Agent definition dict with optional `agent_tools` list.
+- `model_factory`: Factory for creating LLM models.
+- `tool_provider`: Provider for tools.
+- `system_context`: System context.
+
+**Returns**:
+List of `AgentTool` instances wrapping the child agents.
+
+**Location**: `src/streetrace/agents/dsl_agent_loader.py:751`
+
+#### _close_agent_recursive
+
+```python
+async def _close_agent_recursive(self, agent: BaseAgent) -> None
+```
+
+Recursively close agent, its sub-agents, and tools.
+
+Traverse the agent hierarchy depth-first, closing sub-agents before parent agents.
+For `AgentTool` instances, close the wrapped agent first.
+
+**Parameters**:
+- `agent`: The agent to close.
+
+**Location**: `src/streetrace/agents/dsl_agent_loader.py:815`
+
+#### close
+
+```python
+async def close(self, agent_instance: BaseAgent) -> None
+```
+
+Clean up resources including sub-agents and agent tools.
+
+**Parameters**:
+- `agent_instance`: The root agent instance to close.
+
+**Location**: `src/streetrace/agents/dsl_agent_loader.py:805`
 
 #### get_agent_card
 

@@ -1911,6 +1911,235 @@ Add the following test modules to `tests/dsl/`:
 poetry run pytest tests/dsl/test_delegate.py tests/dsl/test_use.py tests/dsl/test_loop.py -v --no-header
 ```
 
+### 9.8 ADK Integration Testing
+
+This section covers testing the ADK integration layer that creates LlmAgent instances from
+DSL agent definitions.
+
+**Related Documentation**:
+- Design: `docs/tasks/017-dsl/adk-integration/task.md`: Section 1-4, Accessed 2026-01-21
+- Developer: `docs/dev/dsl/agentic-patterns.md`: Runtime Integration, API Reference sections, Accessed 2026-01-21
+
+#### Test: Coordinator Pattern Creates Sub-Agents
+
+This test verifies that agents with `delegate` keyword produce `LlmAgent` instances with
+populated `sub_agents` list.
+
+**Input:** `coordinator_integration.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt billing_prompt:
+    Handle billing inquiries.
+
+agent billing:
+    instruction billing_prompt
+    description "Billing specialist"
+
+prompt support_prompt:
+    Handle support requests.
+
+agent support:
+    instruction support_prompt
+    description "Support specialist"
+
+prompt coordinator_prompt:
+    Route requests appropriately.
+
+agent:
+    instruction coordinator_prompt
+    delegate billing, support
+    description "Request coordinator"
+```
+
+**Test Procedure:**
+
+```python
+# Load the agent
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
+
+from streetrace.agents.dsl_agent_loader import DslAgentLoader
+
+loader = DslAgentLoader()
+agent_def = loader.load_from_path(Path("coordinator_integration.sr"))
+
+# Mock dependencies
+model_factory = MagicMock()
+model_factory.get_current_model.return_value = "mock-model"
+tool_provider = MagicMock()
+tool_provider.get_tools.return_value = []
+system_context = MagicMock()
+
+# Create the ADK agent
+import asyncio
+adk_agent = asyncio.run(agent_def.create_agent(
+    model_factory, tool_provider, system_context
+))
+
+# Verify sub_agents
+assert hasattr(adk_agent, "sub_agents")
+assert len(adk_agent.sub_agents) == 2
+sub_agent_names = [sa.name for sa in adk_agent.sub_agents]
+assert "billing" in sub_agent_names
+assert "support" in sub_agent_names
+```
+
+**Expected Output:** Test passes with 2 sub-agents named "billing" and "support".
+
+#### Test: Hierarchical Pattern Creates AgentTools
+
+This test verifies that agents with `use` keyword produce `LlmAgent` instances with
+`AgentTool` wrappers in the tools list.
+
+**Input:** `hierarchical_integration.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt helper_prompt:
+    Provide assistance.
+
+agent helper:
+    instruction helper_prompt
+    description "Helper agent"
+
+prompt parent_prompt:
+    Orchestrate helpers.
+
+agent:
+    instruction parent_prompt
+    use helper
+    description "Parent orchestrator"
+```
+
+**Test Procedure:**
+
+```python
+# ... same setup as above ...
+
+adk_agent = asyncio.run(agent_def.create_agent(
+    model_factory, tool_provider, system_context
+))
+
+# Verify tools include AgentTool
+from google.adk.tools.agent_tool import AgentTool
+agent_tools = [t for t in adk_agent.tools if isinstance(t, AgentTool)]
+assert len(agent_tools) == 1
+assert agent_tools[0].agent.name == "helper"
+```
+
+**Expected Output:** Test passes with 1 AgentTool wrapping "helper" agent.
+
+#### Test: Recursive Pattern Support
+
+This test verifies that nested patterns (sub-agents with their own sub-agents/tools)
+are resolved correctly.
+
+**Input:** `recursive_integration.sr`
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+prompt leaf_prompt:
+    Leaf agent.
+
+agent leaf:
+    instruction leaf_prompt
+    description "Leaf agent"
+
+prompt middle_prompt:
+    Middle agent uses leaf.
+
+agent middle:
+    instruction middle_prompt
+    use leaf
+    description "Middle agent"
+
+prompt root_prompt:
+    Root delegates to middle.
+
+agent:
+    instruction root_prompt
+    delegate middle
+    description "Root coordinator"
+```
+
+**Test Procedure:**
+
+```python
+# ... same setup as above ...
+
+adk_agent = asyncio.run(agent_def.create_agent(
+    model_factory, tool_provider, system_context
+))
+
+# Verify hierarchy
+assert len(adk_agent.sub_agents) == 1
+middle_agent = adk_agent.sub_agents[0]
+assert middle_agent.name == "middle"
+
+# Verify middle has leaf as AgentTool
+from google.adk.tools.agent_tool import AgentTool
+middle_tools = [t for t in middle_agent.tools if isinstance(t, AgentTool)]
+assert len(middle_tools) == 1
+assert middle_tools[0].agent.name == "leaf"
+```
+
+**Expected Output:** Test passes with correctly nested hierarchy.
+
+#### Test: Agent Cleanup
+
+This test verifies that `close()` properly cleans up all nested agents and tools.
+
+**Test Procedure:**
+
+```python
+# Create agent hierarchy
+adk_agent = asyncio.run(agent_def.create_agent(
+    model_factory, tool_provider, system_context
+))
+
+# Close the agent
+asyncio.run(agent_def.close(adk_agent))
+
+# Verify workflow instance cleared
+assert agent_def._workflow_instance is None
+```
+
+**Expected Output:** Test passes with no errors during cleanup.
+
+#### Test: Description Field Propagation
+
+This test verifies that agent descriptions are correctly passed to LlmAgent.
+
+**Test Procedure:**
+
+```python
+adk_agent = asyncio.run(agent_def.create_agent(
+    model_factory, tool_provider, system_context
+))
+
+# Check description on root agent
+assert adk_agent.description == "Root coordinator"
+
+# Check description on sub-agent
+assert adk_agent.sub_agents[0].description == "Middle agent"
+```
+
+**Expected Output:** Test passes with correct descriptions at each level.
+
+#### Running ADK Integration Tests
+
+```bash
+# Run existing agent loader tests
+poetry run pytest tests/dsl/test_dsl_agent_loader.py -v --no-header
+
+# Run agentic pattern tests
+poetry run pytest tests/dsl/test_agentic_patterns.py -v --no-header
+```
+
 ---
 
 ## 10. Known Compiler Issues
@@ -1953,6 +2182,9 @@ The following issues from earlier versions have been fixed:
 - `017-dsl-grammar.md`: Grammar Specification, Section 3 (Complete Grammar), Accessed 2026-01-20
 - `017-dsl-integration.md`: Integration Design, Section 12 (Implementation Requirements), Accessed 2026-01-20
 - `017-dsl-examples.md`: DSL Examples, All Sections, Accessed 2026-01-20
+- `docs/tasks/017-dsl/adk-integration/task.md`: ADK Integration Task, All Sections, Accessed 2026-01-21
+- `docs/dev/dsl/agentic-patterns.md`: Developer Guide, Runtime Integration, Accessed 2026-01-21
+- `src/streetrace/agents/dsl_agent_loader.py`: Implementation Source, Lines 341-843, Accessed 2026-01-21
 
 ---
 

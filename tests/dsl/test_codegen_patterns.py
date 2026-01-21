@@ -639,6 +639,157 @@ class TestGeneratedCodeCompilation:
 # =============================================================================
 
 
+# =============================================================================
+# Agent Description Code Generation Tests
+# =============================================================================
+
+
+class TestAgentDescriptionCodeGeneration:
+    """Test code generation for agent description field."""
+
+    def test_agent_with_description_generates_description_key(self) -> None:
+        """Agent with description generates _agents dict with description key."""
+        ast = DslFile(
+            version=VersionDecl(version="v1"),
+            statements=[
+                PromptDef(name="helper_prompt", body="Help with tasks"),
+                AgentDef(
+                    name="helper",
+                    tools=[],
+                    instruction="helper_prompt",
+                    description="A helpful assistant agent",
+                ),
+            ],
+        )
+
+        generator = CodeGenerator()
+        code, _mappings = generator.generate(ast, "test_description.sr")
+
+        assert "_agents = {" in code
+        assert "'helper'" in code
+        assert "'description': 'A helpful assistant agent'" in code
+
+    def test_agent_without_description_has_no_description_key(self) -> None:
+        """Agent without description does not have description key."""
+        ast = DslFile(
+            version=VersionDecl(version="v1"),
+            statements=[
+                PromptDef(name="simple_prompt", body="Simple agent"),
+                AgentDef(
+                    name="simple",
+                    tools=[],
+                    instruction="simple_prompt",
+                ),
+            ],
+        )
+
+        generator = CodeGenerator()
+        code, _mappings = generator.generate(ast, "test.sr")
+
+        assert "'simple'" in code
+        assert "'description'" not in code
+
+    def test_agent_with_description_and_delegate(self) -> None:
+        """Agent with both description and delegate generates both keys."""
+        ast = DslFile(
+            version=VersionDecl(version="v1"),
+            statements=[
+                PromptDef(name="worker_prompt", body="Worker"),
+                PromptDef(name="coord_prompt", body="Coordinate"),
+                AgentDef(
+                    name="worker",
+                    tools=[],
+                    instruction="worker_prompt",
+                ),
+                AgentDef(
+                    name="coordinator",
+                    tools=[],
+                    instruction="coord_prompt",
+                    delegate=["worker"],
+                    description="Coordinates worker agents",
+                ),
+            ],
+        )
+
+        generator = CodeGenerator()
+        code, _mappings = generator.generate(ast, "test.sr")
+
+        assert "'sub_agents': ['worker']" in code
+        assert "'description': 'Coordinates worker agents'" in code
+
+    def test_agent_with_description_and_use(self) -> None:
+        """Agent with both description and use generates both keys."""
+        ast = DslFile(
+            version=VersionDecl(version="v1"),
+            statements=[
+                PromptDef(name="helper_prompt", body="Help"),
+                PromptDef(name="main_prompt", body="Main"),
+                AgentDef(
+                    name="helper",
+                    tools=[],
+                    instruction="helper_prompt",
+                ),
+                AgentDef(
+                    name="main_agent",
+                    tools=[],
+                    instruction="main_prompt",
+                    use=["helper"],
+                    description="Main orchestrator agent",
+                ),
+            ],
+        )
+
+        generator = CodeGenerator()
+        code, _mappings = generator.generate(ast, "test.sr")
+
+        assert "'agent_tools': ['helper']" in code
+        assert "'description': 'Main orchestrator agent'" in code
+
+    def test_agent_description_with_quotes_escaped(self) -> None:
+        """Agent description with quotes is properly escaped."""
+        ast = DslFile(
+            version=VersionDecl(version="v1"),
+            statements=[
+                PromptDef(name="agent_prompt", body="Do task"),
+                AgentDef(
+                    name="quoter",
+                    tools=[],
+                    instruction="agent_prompt",
+                    description='An agent that handles "special" cases',
+                ),
+            ],
+        )
+
+        generator = CodeGenerator()
+        code, _mappings = generator.generate(ast, "test.sr")
+
+        assert "'quoter'" in code
+        # repr() handles escaping properly
+        assert "'description':" in code
+        # Verify it compiles
+        compile(code, "<generated>", "exec")
+
+    def test_agent_description_code_compiles(self) -> None:
+        """Generated code with agent description compiles successfully."""
+        ast = DslFile(
+            version=VersionDecl(version="v1"),
+            statements=[
+                PromptDef(name="agent_prompt", body="Task"),
+                AgentDef(
+                    name="my_agent",
+                    tools=[],
+                    instruction="agent_prompt",
+                    description="A descriptive agent for testing",
+                ),
+            ],
+        )
+
+        generator = CodeGenerator()
+        code, _mappings = generator.generate(ast, "test.sr")
+
+        compile(code, "<generated>", "exec")
+
+
 class TestLoopBlockInEventHandler:
     """Test code generation for loop blocks in event handlers."""
 
