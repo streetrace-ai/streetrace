@@ -2146,21 +2146,46 @@ poetry run pytest tests/dsl/test_agentic_patterns.py -v --no-header
 
 This section documents known issues in the DSL compiler that testers should be aware of.
 
-### 10.1 Double Dollar Sign in Error Messages
+### 10.1 Open Issues
 
-**Issue**: Error messages show `$$variable` instead of `$variable`.
+#### Tool Passing Inconsistency in Flow Context
 
-**Test to reproduce**: Trigger any undefined variable error and observe the message format.
+**Status**: Open
 
-**Root cause**: Error formatter adds `$` prefix but `VarRef.name` may already include it.
+When flows execute `ctx.run_agent()`, the dynamically created agent does not receive tools from
+the agent definition. Tools are only passed correctly in the main agent loader path.
 
-**Workaround**: None needed; cosmetic issue only.
+**Impact**: Agents invoked via flows cannot use their DSL-defined tools.
+
+**Test**: Create a flow that invokes an agent with tools and verify the tools are accessible.
+
+**Tracking**: See `docs/tasks/017-dsl/tech_debt.md` for details.
+
+#### Flow Event Streaming
+
+**Status**: Open
+
+Flow execution returns only the final response from agent runs. Intermediate ADK events are
+consumed but not yielded to callers.
+
+**Impact**: No support for progress monitoring or event-driven streaming in flows.
+
+**Tracking**: See `docs/tasks/017-dsl/tech_debt.md` for details.
+
+#### SequentialAgent Pattern Not Implemented
+
+**Status**: Open
+
+The design doc specifies that consecutive `run agent` statements should use ADK's `SequentialAgent`
+for better coordination. Currently each agent is run independently.
+
+**Tracking**: See `docs/tasks/017-dsl/tech_debt.md` for details.
 
 ### 10.2 Issue Tracking
 
 For detailed root cause analysis and fix requirements, see:
-- Developer documentation: `docs/dev/dsl/architecture.md` (Known Issues section)
-- User documentation: `docs/user/dsl/getting-started.md` (Known Limitations section)
+- Developer documentation: `docs/dev/dsl/architecture.md` (Known Limitations section)
+- Tech debt tracking: `docs/tasks/017-dsl/tech_debt.md`
 
 ### 10.3 Resolved Issues
 
@@ -2173,6 +2198,10 @@ The following issues from earlier versions have been fixed:
 | Policy Property Transformation | Complex policy blocks parse correctly | ✅ Fixed |
 | Runtime Integration | DSL agents work with `streetrace --agent` flag | ✅ Fixed |
 | Flow Call Validation | Flow calls (`run my_flow`) validate against flows | ✅ Fixed |
+| Tool Loading to LlmAgent | Tools passed to LlmAgent constructor in loader | ✅ Fixed |
+| Instruction Resolution | Direct field access instead of keyword matching | ✅ Fixed |
+| Model Resolution Priority | Follows prompt model → main → CLI priority | ✅ Fixed |
+| Variable Definition Order | `$` prefix stripped when defining scope variables | ✅ Fixed |
 
 ---
 

@@ -470,29 +470,6 @@ The DSL has two loader classes serving different purposes:
 
 ## Known Limitations
 
-The following limitations are tracked for future resolution:
-
-### Comma-Separated Name Lists
-
-**Status**: Known issue
-
-Commas in `tools fs, cli, github` are parsed as tool names, causing semantic errors.
-
-**Root cause**: The `name_list` transformer returns all items without filtering commas.
-
-**Workaround**: Use single tool per agent definition.
-
-### Flow Parameter Variable Scoping
-
-**Status**: Known issue
-
-Flow parameters like `$input` in `flow process $input:` cause variable scope errors.
-
-**Root cause**: `flow_params` stores names with `$` prefix but `VarRef.name` doesn't
-include the prefix.
-
-**Workaround**: Avoid flow parameters; use simpler agent-based patterns.
-
 ### Earley Parser
 
 **Status**: Performance consideration
@@ -502,6 +479,28 @@ The parser uses Earley algorithm instead of LALR due to grammar ambiguities.
 **Impact**: Slower parsing than LALR but correct handling of all valid inputs.
 
 **Future**: Grammar refactoring to enable LALR parsing.
+
+### Tool Passing in Flow Context
+
+**Status**: Open
+
+When flows execute `ctx.run_agent()`, the dynamically created agent does not receive tools
+from the agent definition. Tools are only passed correctly in the main agent loader path.
+
+**Impact**: Agents invoked via flows cannot use their DSL-defined tools.
+
+**Tracking**: See `docs/tasks/017-dsl/tech_debt.md` for details.
+
+### Flow Event Streaming
+
+**Status**: Open
+
+Flow execution returns only the final response from agent runs. Intermediate ADK events are
+consumed but not yielded to callers.
+
+**Impact**: No support for progress monitoring or event-driven streaming in flows.
+
+**Tracking**: See `docs/tasks/017-dsl/tech_debt.md` for details.
 
 ## See Also
 

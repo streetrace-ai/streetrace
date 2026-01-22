@@ -20,11 +20,7 @@ agent summarizer:
     instruction summarize_prompt
     description "Summarizes analysis results"
 
-flow process_document:
+flow:
     $analysis = run agent analyzer $input_prompt
     $summary = run agent summarizer $analysis
     return $summary
-
-agent:
-    tools fs
-    instruction analyze_prompt

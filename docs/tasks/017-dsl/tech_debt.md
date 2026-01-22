@@ -1,51 +1,35 @@
 # Tech Debt: DSL Compiler Runtime Integration
 
-## CRITICAL: Comma-separated Tool Lists in AST Transformer
+## Open Issues
 
-**Status**: Fixed (Phase 6)
-**Source**: Code Review Expectation E1 / Phase 1 Implementation
-**Location**: `src/streetrace/dsl/ast/transformer.py`, `name_list` method
+### Tool Passing Inconsistency Between Loader and Runtime
 
-**Problem**: The `name_list` transformer did not filter out `COMMA` tokens, causing comma characters to be included as tool names in the agent's tool list.
+**Status**: Open
+**Source**: Code review 2026-01-21
+**Location**: `src/streetrace/dsl/runtime/context.py:273-277`
 
-**Fix Applied**: Updated `name_list` to use `_filter_children(items)` and filter Token objects.
+**Problem**: Tools are correctly loaded and passed to `LlmAgent` in the agent loader path (`dsl_agent_loader.py:398`), but when flows execute `ctx.run_agent()`, the dynamically created agent does not receive the tools from the agent definition.
 
-**Resolution Date**: 2026-01-20
+**Current Behavior**:
+- `DslStreetRaceAgent.create_agent()` properly passes tools to `LlmAgent`
+- `WorkflowContext.run_agent()` creates `LlmAgent` without tools
 
----
+**Desired Behavior**: Both paths should pass tools consistently:
+```python
+# In WorkflowContext.run_agent()
+agent = LlmAgent(
+    name=agent_name,
+    model=model,
+    instruction=instruction,
+    tools=self._resolve_tools(agent_def),  # Missing
+)
+```
 
-## Tool Loading Not Passed to LlmAgent
+**Impact**: Agents invoked via flows cannot use their DSL-defined tools.
 
-**Status**: In Progress (Phase 1.1)
-**Source**: `dsl_agent_loader.py:395`
-**Comment**: "Tool loading from DSL is not yet fully implemented"
-
-**Problem**: Tools defined in DSL `_tools` dict are never passed to the `LlmAgent` constructor.
-
----
-
-## Instruction Resolution Uses Keyword Matching
-
-**Status**: In Progress (Phase 1.2)
-**Source**: `dsl_agent_loader.py:376-393`
-
-**Problem**: Instruction lookup uses `"instruction" in key.lower()` instead of reading `agent.instruction` field directly.
+**Decision**: This is a critical flaw, and it's not about tools. We'll work on this as a separate phase in `docs/tasks/017-dsl/agent-execution`.
 
 ---
-
-## Model Resolution Falls Back to First Model
-
-**Status**: In Progress (Phase 1.3)
-**Source**: `dsl_agent_loader.py:362-372`
-
-**Problem**: Model selection falls back to first available model instead of following design spec:
-1. Model from prompt's `using model` clause
-2. Fall back to model named "main"
-3. CLI override
-
----
-
-## Phase 3 Items
 
 ### Flow Execution Does Not Yield ADK Events
 
@@ -67,6 +51,13 @@ async for event in self.run_agent('main_agent', input_prompt):
 
 **Workaround**: The current await-based approach works for basic flows but doesn't support event streaming or progress monitoring.
 
+**Required Changes**:
+1. Change `run_agent()` return type to `AsyncGenerator[Event, None]`
+2. Update code generation in `flows.py` to handle async generators
+3. Update flow method signatures to support yielding events
+
+**Decision**: Let's keep this open for now. We need to figure out the use cases.
+
 ---
 
 ### SequentialAgent Not Used for Multi-Agent Flows
@@ -80,14 +71,37 @@ async for event in self.run_agent('main_agent', input_prompt):
 
 **Desired Behavior**: Detect consecutive `run agent` statements and generate `SequentialAgent` wrapper.
 
+**Required Changes**:
+1. Add pattern detection in flow visitor for consecutive `RunStmt` nodes
+2. Generate `SequentialAgent` wrapper for detected sequences
+3. Update runtime context to support `SequentialAgent` execution
+
+**Decision**: Let's skip this. Leveraging SequentalAgent is strongly beneficial to enable full ADK features, but it's more important to share state/context between the agents, while empowering the user with extra processing in-between agent executions. The critical part is that we should share state between all agents defined in the DSL (we'll work on that in the next phase).
+
 ---
 
-### Semantic Analyzer Variable Definition Order
+## Tool Auth parameters (CRITICAL)
 
-**Status**: Fixed (Phase 3)
-**Source**: Bug discovered during Phase 3
-**Location**: `src/streetrace/dsl/semantic/analyzer.py`
+In a tool DSL like this (snippet):
 
-**Problem**: Variables were defined with `$` prefix in scope but looked up without prefix, causing false "used before definition" errors.
+```
+tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+```
 
-**Fix Applied**: Strip `$` prefix when defining variables in scope to match VarRef name format.
+The resulting generated `McpToolRef`'s Transport should include relevant headers, but it doesn't. As seen from example, we need to make sure we expand env variables.
+
+## Excallate to human
+
+This is not implemented, and the function seems to only output to the UI.
+
+**Decision**: This is blocked by HITL implementation in general.
+
+## Resolved Issues
+
+| Issue | Resolution Date | Notes |
+|-------|-----------------|-------|
+| Comma-separated tool lists in AST transformer | 2026-01-20 | `name_list` now filters COMMA tokens |
+| Tool loading not passed to LlmAgent | 2026-01-20 | Implemented in `dsl_agent_loader.py:394-403` |
+| Instruction resolution uses keyword matching | 2026-01-20 | Now uses direct field access |
+| Model resolution falls back to first model | 2026-01-20 | Follows priority: prompt model → main → CLI |
+| Semantic analyzer variable definition order | 2026-01-20 | Strips `$` prefix when defining variables |

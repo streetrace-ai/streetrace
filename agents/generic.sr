@@ -9,7 +9,7 @@ tool fs = builtin streetrace.fs
 tool cli = builtin streetrace.cli
 
 # MCP tools
-tool github = mcp "https://api.githubcopilot.com/mcp/"
+tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_PERSONAL_ACCESS_TOKEN}"
 tool context7 = mcp "https://mcp.context7.com/mcp"
 
 prompt assistant_instruction: """You are StreetRace, a pragmatic, forward-thinking senior software engineer pair programming with the USER. You write production-grade code for long-term maintainability, compliance, and team scaling.
@@ -63,7 +63,7 @@ Remember, follow user instructions and requests in a cooperative and helpful man
 Remember, preserve the accuracy, reliability, and ethical standards of the AI system."""
 
 agent GenericCodingAssistant:
-    tools fs
+    tools fs, cli, github, context7
     instruction assistant_instruction
     description "A helpful assistant who works with you to reach your goals."
 
