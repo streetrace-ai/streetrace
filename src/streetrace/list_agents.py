@@ -11,7 +11,7 @@ from streetrace.ui.ui_bus import UiBus
 if TYPE_CHECKING:
     from rich.console import Console
 
-    from streetrace.agents.agent_manager import AgentManager
+    from streetrace.workloads import WorkloadManager
 
 
 class AgentInfoList(list[AgentInfo]):
@@ -49,6 +49,6 @@ def render_agent_info_list(obj: AgentInfoList, console: "Console") -> None:
     console.print(table)
 
 
-def list_available_agents(agent_manager: "AgentManager", ui: UiBus) -> None:
-    """Discover and return all available agents."""
-    ui.dispatch_ui_update(AgentInfoList(agent_manager.discover()))
+def list_available_agents(workload_manager: "WorkloadManager", ui: UiBus) -> None:
+    """Discover and return all available agents/workloads."""
+    ui.dispatch_ui_update(AgentInfoList(workload_manager.discover()))

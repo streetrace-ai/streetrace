@@ -2,35 +2,6 @@
 
 ## Open Issues
 
-### Tool Passing Inconsistency Between Loader and Runtime
-
-**Status**: Open
-**Source**: Code review 2026-01-21
-**Location**: `src/streetrace/dsl/runtime/context.py:273-277`
-
-**Problem**: Tools are correctly loaded and passed to `LlmAgent` in the agent loader path (`dsl_agent_loader.py:398`), but when flows execute `ctx.run_agent()`, the dynamically created agent does not receive the tools from the agent definition.
-
-**Current Behavior**:
-- `DslStreetRaceAgent.create_agent()` properly passes tools to `LlmAgent`
-- `WorkflowContext.run_agent()` creates `LlmAgent` without tools
-
-**Desired Behavior**: Both paths should pass tools consistently:
-```python
-# In WorkflowContext.run_agent()
-agent = LlmAgent(
-    name=agent_name,
-    model=model,
-    instruction=instruction,
-    tools=self._resolve_tools(agent_def),  # Missing
-)
-```
-
-**Impact**: Agents invoked via flows cannot use their DSL-defined tools.
-
-**Decision**: This is a critical flaw, and it's not about tools. We'll work on this as a separate phase in `docs/tasks/017-dsl/agent-execution`.
-
----
-
 ### Flow Execution Does Not Yield ADK Events
 
 **Status**: Open
@@ -96,6 +67,18 @@ This is not implemented, and the function seems to only output to the UI.
 
 **Decision**: This is blocked by HITL implementation in general.
 
+## Default flow and agent names
+
+We should detect main flow and agent to execute in `_determine_entry_point` in src/streetrace/dsl/runtime/workflow.py:
+
+- only one flow is defined - consider it main
+- only one agent defined - consider it main
+- a flow with no name (currently unsupported by the syntax, but we'll fix it)
+- an agent with no name
+- a flow or agent with names main or default
+
+A flow always takes priority over agents when deciding what to run.
+
 ## Resolved Issues
 
 | Issue | Resolution Date | Notes |
@@ -105,3 +88,4 @@ This is not implemented, and the function seems to only output to the UI.
 | Instruction resolution uses keyword matching | 2026-01-20 | Now uses direct field access |
 | Model resolution falls back to first model | 2026-01-20 | Follows priority: prompt model → main → CLI |
 | Semantic analyzer variable definition order | 2026-01-20 | Strips `$` prefix when defining variables |
+| Tool Passing Inconsistency Between Loader and Runtime | 2026-01-21 | Implemented via Workload Protocol - DslAgentWorkflow uses composition with DslStreetRaceAgent |

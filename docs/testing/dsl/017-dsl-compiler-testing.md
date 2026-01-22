@@ -5,7 +5,7 @@
 | **Feature ID** | 017-dsl-compiler |
 | **Feature Name** | DSL Compiler for Streetrace Agent Definition Language |
 | **Status** | Draft |
-| **Last Updated** | 2026-01-20 |
+| **Last Updated** | 2026-01-21 |
 
 ## Overview
 
@@ -2142,24 +2142,405 @@ poetry run pytest tests/dsl/test_agentic_patterns.py -v --no-header
 
 ---
 
-## 10. Known Compiler Issues
+## 10. Workload Protocol Testing
+
+This section covers testing for the unified Workload Protocol that enables consistent agent
+execution across direct invocation and flow-based execution. See related documentation:
+- Design: `docs/tasks/017-dsl/agent-execution/task.md`: All Sections, Accessed 2026-01-21
+- Developer: `docs/dev/workloads/README.md`: All Sections, Accessed 2026-01-21
+- User: `docs/user/workloads/README.md`: All Sections, Accessed 2026-01-21
+
+### 10.1 Example Files for Workload Testing
+
+The following example files exist in `agents/examples/workloads/`:
+
+| File | Purpose | Validation Output |
+|------|---------|-------------------|
+| `basic_agent.sr` | Basic execution | `valid (1 model, 1 agent)` |
+| `delegate_pattern.sr` | Coordinator pattern | `valid (1 model, 2 agents)` |
+| `direct_tools.sr` | Tool access | `valid (1 model, 1 agent)` |
+| `entry_default.sr` | Default entry point | `valid (1 model, 2 agents)` |
+| `entry_first.sr` | First agent entry point | `valid (1 model, 2 agents)` |
+| `entry_main.sr` | Main flow entry point | `valid (1 model, 1 agent, 1 flow)` |
+| `flow_tools.sr` | Flow tool access | `valid (1 model, 1 agent, 1 flow)` |
+| `use_pattern.sr` | Hierarchical pattern | `valid (1 model, 2 agents)` |
+
+**Validate all workload example files:**
+
+```bash
+poetry run streetrace check agents/examples/workloads/ --verbose
+```
+
+### 10.2 Entry Point Selection Tests
+
+These tests verify the entry point selection priority: main flow → default agent → first agent.
+
+#### Test: Main Flow as Entry Point
+
+**File:** `agents/examples/workloads/entry_main.sr`
+
+```streetrace
+# Entry Point Test - Main Flow
+# Tests that flow main: is selected as entry point
+
+model main = anthropic/claude-sonnet-4-5
+
+flow main:
+    log "Main flow executed"
+    return "Flow completed successfully"
+
+agent other:
+    instruction other_prompt
+
+prompt other_prompt: """You should NOT be called. If you see this, the entry point selection failed."""
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check agents/examples/workloads/entry_main.sr
+```
+
+**Expected Output:** `valid (1 model, 1 agent, 1 flow)`
+
+**Expected Behavior:** When executed, the `flow main:` runs instead of `agent other`.
+
+#### Test: Default Agent as Entry Point
+
+**File:** `agents/examples/workloads/entry_default.sr`
+
+```streetrace
+# Entry Point Test - Default Agent
+# Tests that unnamed agent is selected when no main flow exists
+
+model main = anthropic/claude-sonnet-4-5
+
+agent:
+    instruction default_prompt
+
+agent named_agent:
+    instruction named_prompt
+
+prompt default_prompt: """You are the default agent. Say exactly: DEFAULT_AGENT_RESPONDING"""
+
+prompt named_prompt: """You are a named agent. Say exactly: NAMED_AGENT_RESPONDING"""
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check agents/examples/workloads/entry_default.sr
+```
+
+**Expected Output:** `valid (1 model, 2 agents)`
+
+**Expected Behavior:** When executed, the unnamed agent (default) runs instead of `named_agent`.
+
+#### Test: First Agent as Entry Point
+
+**File:** `agents/examples/workloads/entry_first.sr`
+
+```streetrace
+# Entry Point Test - First Agent
+# Tests that first defined agent is selected when no main flow or default agent
+
+model main = anthropic/claude-sonnet-4-5
+
+agent first_agent:
+    instruction first_prompt
+
+agent second_agent:
+    instruction second_prompt
+
+prompt first_prompt: """You are the first agent. Say exactly: FIRST_AGENT_RESPONDING"""
+
+prompt second_prompt: """You are the second agent. Say exactly: SECOND_AGENT_RESPONDING"""
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check agents/examples/workloads/entry_first.sr
+```
+
+**Expected Output:** `valid (1 model, 2 agents)`
+
+**Expected Behavior:** When executed, `first_agent` runs because it is defined first.
+
+### 10.3 Tool Access Tests
+
+These tests verify that tools are correctly passed to agents in both direct and flow contexts.
+
+#### Test: Tools in Direct Execution
+
+**File:** `agents/examples/workloads/direct_tools.sr`
+
+```streetrace
+# Direct Tools Test
+# Tests that DSL agent has tools available when run directly (not via flow)
+
+model main = anthropic/claude-sonnet-4-5
+
+tool fs = builtin streetrace.fs
+
+agent:
+    tools fs
+    instruction tool_prompt
+
+prompt tool_prompt: """You have filesystem access via the fs tools. Use list_directory to list files.
+When asked about files, use your tools. Be concise - just show a few items."""
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check agents/examples/workloads/direct_tools.sr
+```
+
+**Expected Output:** `valid (1 model, 1 agent)`
+
+**E2E Test:**
+
+```bash
+poetry run streetrace --agent agents/examples/workloads/direct_tools.sr
+# Send: "List files"
+# Expected: Agent uses list_directory tool
+```
+
+#### Test: Tools in Flow Execution
+
+**File:** `agents/examples/workloads/flow_tools.sr`
+
+```streetrace
+# Flow Tools Test
+# Tests that agents called via "run agent" in flows have their tools available
+
+model main = anthropic/claude-sonnet-4-5
+
+tool fs = builtin streetrace.fs
+
+agent file_checker:
+    tools fs
+    instruction file_check_prompt
+
+flow main:
+    $result = run agent file_checker "List files in the current directory. Be brief."
+    return $result
+
+prompt file_check_prompt: """You have filesystem access via the fs tools. Use list_directory to list files.
+Be very concise - just list file names, nothing more."""
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check agents/examples/workloads/flow_tools.sr
+```
+
+**Expected Output:** `valid (1 model, 1 agent, 1 flow)`
+
+**E2E Test:**
+
+```bash
+poetry run streetrace --agent agents/examples/workloads/flow_tools.sr
+# The flow runs automatically
+# Expected: file_checker agent uses list_directory tool via run agent
+```
+
+**Note:** This test validates the core fix from the Workload Protocol implementation - agents
+invoked via `run agent` in flows now have access to their DSL-defined tools.
+
+### 10.4 Multi-Agent Pattern Tests (Workload Context)
+
+These tests verify agentic patterns work correctly through the Workload Protocol.
+
+#### Test: Delegate Pattern
+
+**File:** `agents/examples/workloads/delegate_pattern.sr`
+
+```streetrace
+# Delegate Pattern Test
+# Tests the delegate keyword for sub-agent delegation
+
+model main = anthropic/claude-sonnet-4-5
+
+agent coordinator:
+    delegate specialist
+    instruction coordinator_prompt
+
+agent specialist:
+    instruction specialist_prompt
+
+prompt coordinator_prompt: """You are a coordinator. For technical questions, delegate to the specialist.
+If asked about Python async, immediately delegate to the specialist."""
+
+prompt specialist_prompt: """You are a Python async specialist. Provide expert answers about async/await.
+Be very concise - one sentence only."""
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check agents/examples/workloads/delegate_pattern.sr
+```
+
+**Expected Output:** `valid (1 model, 2 agents)`
+
+**E2E Test:**
+
+```bash
+poetry run streetrace --agent agents/examples/workloads/delegate_pattern.sr
+# Send: "How does Python async/await work?"
+# Expected: Coordinator delegates to specialist
+```
+
+**Code Generation Verification:**
+
+```bash
+poetry run streetrace dump-python agents/examples/workloads/delegate_pattern.sr | grep -A5 "sub_agents"
+# Expected: sub_agents list contains specialist
+```
+
+#### Test: Use Pattern (Agent-as-Tool)
+
+**File:** `agents/examples/workloads/use_pattern.sr`
+
+```streetrace
+# Use Pattern Test
+# Tests the use keyword for agent-as-tool pattern
+
+model main = anthropic/claude-sonnet-4-5
+
+agent lead:
+    use helper
+    instruction lead_prompt
+
+agent helper:
+    instruction helper_prompt
+
+prompt lead_prompt: """You are a lead agent. You can use the helper agent as a tool to get answers.
+When asked a math question, call the helper tool to get the answer.
+Be concise."""
+
+prompt helper_prompt: """You are a math helper. Answer math questions with just the number, nothing else."""
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check agents/examples/workloads/use_pattern.sr
+```
+
+**Expected Output:** `valid (1 model, 2 agents)`
+
+**E2E Test:**
+
+```bash
+poetry run streetrace --agent agents/examples/workloads/use_pattern.sr
+# Send: "What is 25 + 17?"
+# Expected: Lead agent calls helper as tool, then responds with 42
+```
+
+**Code Generation Verification:**
+
+```bash
+poetry run streetrace dump-python agents/examples/workloads/use_pattern.sr | grep -A10 "AgentTool"
+# Expected: AgentTool wrapper around helper agent
+```
+
+### 10.5 Basic Workload Execution
+
+#### Test: Basic Agent Execution
+
+**File:** `agents/examples/workloads/basic_agent.sr`
+
+```streetrace
+# Basic Agent Test
+# Tests basic DSL agent execution via Workload Protocol
+
+model main = anthropic/claude-sonnet-4-5
+
+prompt greeting: """You are a helpful assistant. Respond concisely in one sentence."""
+
+agent:
+    instruction greeting
+```
+
+**Command:**
+
+```bash
+poetry run streetrace check agents/examples/workloads/basic_agent.sr
+```
+
+**Expected Output:** `valid (1 model, 1 agent)`
+
+**E2E Test:**
+
+```bash
+poetry run streetrace --agent agents/examples/workloads/basic_agent.sr
+# Send: "Hello!"
+# Expected: Agent responds with a concise greeting
+```
+
+### 10.6 Automated Test Coverage
+
+Run workload-related tests:
+
+```bash
+# Test workload protocol
+poetry run pytest tests/workloads/ -v --no-header
+
+# Test DSL workflow as workload
+poetry run pytest tests/dsl/test_workflow_workload.py -v --no-header
+
+# Test agent loader with agentic patterns
+poetry run pytest tests/dsl/test_agentic_patterns.py -v --no-header
+```
+
+### 10.7 Workload Protocol Compliance Tests
+
+#### Test: Workload Protocol Implementation
+
+Verify that `DslAgentWorkflow` correctly implements the `Workload` protocol:
+
+```python
+from streetrace.workloads.protocol import Workload
+
+# Load any DSL workflow
+from streetrace.agents.dsl_agent_loader import DslAgentLoader
+loader = DslAgentLoader()
+agent_def = loader.load_from_path(Path("agents/examples/workloads/basic_agent.sr"))
+
+# Verify workflow class exists and implements Workload
+workflow_class = agent_def._workflow_class
+assert issubclass(workflow_class, Workload) or isinstance(workflow_class, Workload)
+```
+
+#### Test: Workload Context Manager
+
+Verify that `WorkloadManager.create_workload()` properly manages lifecycle:
+
+```python
+from streetrace.workloads.manager import WorkloadManager
+
+# Create manager with mock dependencies
+manager = WorkloadManager(...)
+
+# Use as context manager
+async with manager.create_workload("agents/examples/workloads/basic_agent.sr") as workload:
+    # Workload should be fully initialized
+    assert workload is not None
+
+# After exit, resources should be cleaned up
+```
+
+---
+
+## 11. Known Compiler Issues
 
 This section documents known issues in the DSL compiler that testers should be aware of.
 
-### 10.1 Open Issues
-
-#### Tool Passing Inconsistency in Flow Context
-
-**Status**: Open
-
-When flows execute `ctx.run_agent()`, the dynamically created agent does not receive tools from
-the agent definition. Tools are only passed correctly in the main agent loader path.
-
-**Impact**: Agents invoked via flows cannot use their DSL-defined tools.
-
-**Test**: Create a flow that invokes an agent with tools and verify the tools are accessible.
-
-**Tracking**: See `docs/tasks/017-dsl/tech_debt.md` for details.
+### 11.1 Open Issues
 
 #### Flow Event Streaming
 
@@ -2181,13 +2562,13 @@ for better coordination. Currently each agent is run independently.
 
 **Tracking**: See `docs/tasks/017-dsl/tech_debt.md` for details.
 
-### 10.2 Issue Tracking
+### 11.2 Issue Tracking
 
 For detailed root cause analysis and fix requirements, see:
 - Developer documentation: `docs/dev/dsl/architecture.md` (Known Limitations section)
 - Tech debt tracking: `docs/tasks/017-dsl/tech_debt.md`
 
-### 10.3 Resolved Issues
+### 11.3 Resolved Issues
 
 The following issues from earlier versions have been fixed:
 
@@ -2202,6 +2583,7 @@ The following issues from earlier versions have been fixed:
 | Instruction Resolution | Direct field access instead of keyword matching | ✅ Fixed |
 | Model Resolution Priority | Follows prompt model → main → CLI priority | ✅ Fixed |
 | Variable Definition Order | `$` prefix stripped when defining scope variables | ✅ Fixed |
+| Tool Passing in Flow Context | Agents via `run agent` in flows have their tools | ✅ Fixed |
 
 ---
 
@@ -2212,7 +2594,9 @@ The following issues from earlier versions have been fixed:
 - `017-dsl-integration.md`: Integration Design, Section 12 (Implementation Requirements), Accessed 2026-01-20
 - `017-dsl-examples.md`: DSL Examples, All Sections, Accessed 2026-01-20
 - `docs/tasks/017-dsl/adk-integration/task.md`: ADK Integration Task, All Sections, Accessed 2026-01-21
+- `docs/tasks/017-dsl/agent-execution/task.md`: Workload Protocol Task, All Sections, Accessed 2026-01-21
 - `docs/dev/dsl/agentic-patterns.md`: Developer Guide, Runtime Integration, Accessed 2026-01-21
+- `docs/dev/workloads/README.md`: Workload Developer Guide, All Sections, Accessed 2026-01-21
 - `src/streetrace/agents/dsl_agent_loader.py`: Implementation Source, Lines 341-843, Accessed 2026-01-21
 
 ---

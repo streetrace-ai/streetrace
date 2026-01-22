@@ -189,8 +189,8 @@ C4Component
 
 ## Runtime Integration
 
-The DSL compiler integrates with the Streetrace runtime through two loader classes and a
-runtime context system.
+The DSL compiler integrates with the StreetRace runtime through the Workload Protocol and
+associated loader classes.
 
 ### Runtime Architecture
 
@@ -198,14 +198,23 @@ runtime context system.
 C4Component
     title DSL Runtime Integration
 
+    Container_Boundary(workflow_pkg, "workflow/") {
+        Component(supervisor, "supervisor.py", "Supervisor", "Supervises workloads, dispatches events")
+    }
+
+    Container_Boundary(workloads, "workloads/") {
+        Component(workload_mgr, "manager.py", "WorkloadManager", "Discovers, loads, creates workloads")
+        Component(protocol, "protocol.py", "Workload", "Protocol for all executable units")
+    }
+
     Container_Boundary(agents, "agents/") {
-        Component(agent_loader, "dsl_agent_loader.py", "DslAgentLoader", "Loads .sr files as StreetRaceAgent")
-        Component(agent_manager, "agent_manager.py", "AgentManager", "Coordinates agent discovery and loading")
+        Component(agent_loader, "dsl_agent_loader.py", "DslStreetRaceAgent", "Agent creation logic")
+        Component(loaders, "loaders", "Loaders", "YAML, Python, DSL format loaders")
     }
 
     Container_Boundary(dsl, "dsl/") {
         Component(simple_loader, "loader.py", "DslAgentLoader", "Simple workflow class loading")
-        Component(workflow_base, "runtime/workflow.py", "DslAgentWorkflow", "Base workflow class")
+        Component(workflow_base, "runtime/workflow.py", "DslAgentWorkflow", "Workload for DSL - .sr file runner")
         Component(ctx, "runtime/context.py", "WorkflowContext", "Execution context")
     }
 
@@ -214,18 +223,33 @@ C4Component
         Component(runner, "Runner", "Runner", "Agent execution runner")
     }
 
-    Rel(agent_manager, agent_loader, "Uses")
-    Rel(agent_loader, simple_loader, "Uses compile_dsl")
-    Rel(agent_loader, workflow_base, "Loads")
+    Rel(supervisor, workload_mgr, "Creates workloads via")
+    Rel(workload_mgr, loaders, "Uses for discovery/loading")
+    Rel(workload_mgr, workflow_base, "Creates for DSL")
+    Rel(workflow_base, protocol, "Implements")
+    Rel(workflow_base, agent_loader, "Uses for agent creation (composition)")
     Rel(workflow_base, ctx, "Creates")
+    Rel(agent_loader, simple_loader, "Uses compile_dsl")
     Rel(agent_loader, llm_agent, "Creates")
-    Rel(ctx, runner, "Uses for run_agent")
+    Rel(workflow_base, runner, "Runs agents via")
 ```
+
+### Workload Protocol Integration
+
+DslAgentWorkflow implements the Workload protocol, enabling unified execution through the
+Supervisor. Key aspects:
+
+- **Entry point selection**: Main flow > default agent > first agent
+- **Agent creation via composition**: Delegates to DslStreetRaceAgent (no code duplication)
+- **Full tool access**: Agents invoked via `run agent` in flows have their tools
+- **Agentic patterns**: `delegate` and `use` work correctly in all contexts
+
+See [Workload Architecture](../workloads/architecture.md) for complete details.
 
 ### DslStreetRaceAgent
 
 The `DslStreetRaceAgent` class wraps a compiled DSL workflow to implement the
-`StreetRaceAgent` interface required by the AgentManager.
+`StreetRaceAgent` interface required by the WorkloadManager.
 
 **Location**: `src/streetrace/agents/dsl_agent_loader.py:291`
 
@@ -343,7 +367,7 @@ class CodeGenerator:
 
 ### DslAgentWorkflow
 
-Base class for all generated workflows.
+Base class for all generated workflows. Implements the Workload protocol for unified execution.
 
 ```python
 class DslAgentWorkflow:
@@ -352,12 +376,25 @@ class DslAgentWorkflow:
     _tools: ClassVar[dict[str, dict[str, object]]] = {}
     _agents: ClassVar[dict[str, dict[str, object]]] = {}
 
+    # Workload protocol methods
+    def run_async(self, session: Session, message: Content | None) -> AsyncGenerator[Event, None]: ...
+    async def close(self) -> None: ...
+
+    # Agent/flow execution
+    async def run_agent(self, agent_name: str, *args: object) -> object: ...
+    async def run_flow(self, flow_name: str, *args: object) -> object: ...
+
+    # Event handlers
     async def on_start(self, ctx: WorkflowContext) -> None: ...
     async def on_input(self, ctx: WorkflowContext) -> None: ...
     async def on_output(self, ctx: WorkflowContext) -> None: ...
 ```
 
-**Location**: `src/streetrace/dsl/runtime/workflow.py:14`
+**Location**: `src/streetrace/dsl/runtime/workflow.py:44`
+
+DslAgentWorkflow uses composition to delegate agent creation to DslStreetRaceAgent. This
+ensures flow-invoked agents have full access to their tools and agentic patterns. See
+[Workload Architecture](../workloads/architecture.md) for design details.
 
 ### WorkflowContext
 
@@ -466,7 +503,7 @@ The DSL has two loader classes serving different purposes:
    Used for programmatic access and testing.
 
 2. **`agents/dsl_agent_loader.py:DslAgentLoader`**: Full loader implementing `AgentLoader`
-   interface for integration with AgentManager. Wraps workflows in `DslStreetRaceAgent`.
+   interface for integration with WorkloadManager. Wraps workflows in `DslStreetRaceAgent`.
 
 ## Known Limitations
 
@@ -482,14 +519,17 @@ The parser uses Earley algorithm instead of LALR due to grammar ambiguities.
 
 ### Tool Passing in Flow Context
 
-**Status**: Open
+**Status**: Resolved
 
-When flows execute `ctx.run_agent()`, the dynamically created agent does not receive tools
-from the agent definition. Tools are only passed correctly in the main agent loader path.
+~~When flows execute `ctx.run_agent()`, the dynamically created agent does not receive tools
+from the agent definition. Tools are only passed correctly in the main agent loader path.~~
 
-**Impact**: Agents invoked via flows cannot use their DSL-defined tools.
+**Resolution**: The Workload Protocol implementation resolves this issue. DslAgentWorkflow now
+uses composition to delegate agent creation to DslStreetRaceAgent, which has all the tool
+resolution logic. Agents invoked via `run agent` in flows now have full access to their
+DSL-defined tools and agentic patterns.
 
-**Tracking**: See `docs/tasks/017-dsl/tech_debt.md` for details.
+See [Workload Architecture](../workloads/architecture.md) for implementation details.
 
 ### Flow Event Streaming
 
@@ -504,6 +544,7 @@ consumed but not yielded to callers.
 
 ## See Also
 
+- [Workload Architecture](../workloads/architecture.md) - Unified workload execution
 - [Grammar Development Guide](grammar.md) - How to modify the DSL grammar
 - [Extension Guide](extending.md) - Adding new syntax and features
 - [Agentic Patterns](agentic-patterns.md) - Multi-agent pattern implementation

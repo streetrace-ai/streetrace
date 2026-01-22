@@ -1,0 +1,14 @@
+# Entry Point Test - First Agent
+# Tests that first defined agent is selected when no main flow or default agent
+
+model main = anthropic/claude-sonnet-4-5
+
+agent first_agent:
+    instruction first_prompt
+
+agent second_agent:
+    instruction second_prompt
+
+prompt first_prompt: """You are the first agent. Say exactly: FIRST_AGENT_RESPONDING"""
+
+prompt second_prompt: """You are the second agent. Say exactly: SECOND_AGENT_RESPONDING"""

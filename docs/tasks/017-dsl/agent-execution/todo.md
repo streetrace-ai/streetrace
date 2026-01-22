@@ -17,11 +17,11 @@ This plan implements the **Workload Protocol** approach for unified agent execut
 **File**: `src/streetrace/workloads/protocol.py`
 
 **Tasks**:
-- [ ] Create `workloads` package
-- [ ] Define `Workload` protocol:
+- [x] Create `workloads` package
+- [x] Define `Workload` protocol:
   ```python
   class Workload(Protocol):
-      async def run_async(
+      def run_async(
           self,
           session: Session,
           message: Content | None,
@@ -29,21 +29,21 @@ This plan implements the **Workload Protocol** approach for unified agent execut
 
       async def close(self) -> None: ...
   ```
-- [ ] Add type exports to `__init__.py`
+- [x] Add type exports to `__init__.py`
 
 ### 1.2 Rename AgentManager to WorkloadManager
 
-**File**: `src/streetrace/agents/agent_manager.py` → `src/streetrace/workloads/manager.py`
+**File**: `src/streetrace/agents/agent_manager.py` -> `src/streetrace/workloads/manager.py`
 
 **Tasks**:
-- [ ] Copy `agent_manager.py` to `workloads/manager.py`
-- [ ] Rename class `AgentManager` → `WorkloadManager`
-- [ ] Rename internal methods for clarity:
-  - `_load_agent_definition` → `_load_definition`
+- [x] Copy `agent_manager.py` to `workloads/manager.py`
+- [x] Rename class `AgentManager` -> `WorkloadManager`
+- [x] Rename internal methods for clarity:
+  - `_load_agent_definition` -> `_load_definition`
   - Keep discovery methods as-is (they discover workload definitions)
-- [ ] Add `create_workload(identifier: str)` async context manager
-- [ ] Keep loaders internal (they produce StreetRaceAgent definitions)
-- [ ] Update all imports throughout codebase
+- [x] Add `create_workload(identifier: str)` async context manager
+- [x] Keep loaders internal (they produce StreetRaceAgent definitions)
+- [ ] Update all imports throughout codebase (deferred to Phase 3)
 
 ### 1.3 Unit Tests for Protocol and Manager
 
@@ -51,9 +51,9 @@ This plan implements the **Workload Protocol** approach for unified agent execut
 **File**: `tests/workloads/test_manager.py`
 
 **Tasks**:
-- [ ] Test Workload protocol compliance
-- [ ] Test WorkloadManager discovery (same as AgentManager)
-- [ ] Test `create_workload()` routing to DSL vs Basic
+- [x] Test Workload protocol compliance
+- [x] Test WorkloadManager discovery (same as AgentManager)
+- [x] Test `create_workload()` routing to DSL vs Basic
 
 ## Phase 2: Implement BasicAgentWorkload
 

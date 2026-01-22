@@ -1,41 +1,43 @@
-"""Agent manager for the StreetRace application.
+"""Workload manager for the StreetRace application.
 
-This module implements location-first agent discovery and loading.
+This module implements location-first workload discovery and loading.
+WorkloadManager is renamed from AgentManager to reflect the true abstraction:
+StreetRace runs Supervisor which supervises Workloads.
 
-Agent Discovery Flow:
-┌─────────────────────────────────────────────────────────────┐
-│ User provides: --agent=IDENTIFIER                           │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-              ┌───────────────────────┐
-              │ Is it an HTTP URL?    │
-              └───────────────────────┘
-                    │           │
+Workload Discovery Flow:
++-------------------------------------------------------------+
+| User provides: --agent=IDENTIFIER                           |
++-------------------------------------------------------------+
+                          |
+                          v
+              +---------------------+
+              | Is it an HTTP URL?  |
+              +---------------------+
+                    |           |
                    Yes          No
-                    │           │
-                    ▼           ▼
-            ┌──────────┐  ┌──────────────┐
-            │Load from │  │Is it a path? │
-            │  HTTP    │  └──────────────┘
-            └──────────┘       │      │
+                    |           |
+                    v           v
+            +----------+  +----------------+
+            |Load from |  |Is it a path?   |
+            |  HTTP    |  +----------------+
+            +----------+       |      |
                               Yes     No
-                               │      │
-                               ▼      ▼
-                        ┌──────────┐ ┌─────────────────┐
-                        │Load from │ │Search by name:  │
-                        │  path    │ │1. cwd           │
-                        └──────────┘ │2. home          │
-                                     │3. bundled       │
-                                     └─────────────────┘
-                                            │
-                                            ▼
-                                  ┌──────────────────────┐
-                                  │Within each location: │
-                                  │Try all formats       │
-                                  │(YAML, Python, MD)    │
-                                  │First match wins      │
-                                  └──────────────────────┘
+                               |      |
+                               v      v
+                        +----------+ +-----------------+
+                        |Load from | |Search by name:  |
+                        |  path    | |1. cwd           |
+                        +----------+ |2. home          |
+                                     |3. bundled       |
+                                     +-----------------+
+                                            |
+                                            v
+                                  +----------------------+
+                                  |Within each location: |
+                                  |Try all formats       |
+                                  |(YAML, Python, DSL)   |
+                                  |First match wins      |
+                                  +----------------------+
 
 Location Priority:
 1. Current working directory (./agents, ., .streetrace/agents)
@@ -52,17 +54,17 @@ Environment Variables:
 """
 
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator
-
     from google.adk.agents import BaseAgent
+    from google.adk.sessions.base_session_service import BaseSessionService
 
+    from streetrace.agents.dsl_agent_loader import DslStreetRaceAgent
     from streetrace.agents.street_race_agent import StreetRaceAgent
-
 
 from streetrace.agents.base_agent_loader import AgentInfo, AgentLoader
 from streetrace.agents.dsl_agent_loader import DslAgentLoader
@@ -72,10 +74,13 @@ from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
+from streetrace.workloads.basic_workload import BasicAgentWorkload
+from streetrace.workloads.protocol import Workload
 
 logger = get_logger(__name__)
 
 _DEFAULT_AGENT = "Streetrace_Coding_Agent"
+"""Default agent name used when 'default' is specified."""
 
 
 def _set_agent_telemetry_attributes(
@@ -140,18 +145,21 @@ def _set_agent_telemetry_attributes(
     )
 
 
-class AgentManager:
-    """Manages agent discovery and creation with location-first priority.
+class WorkloadManager:
+    """Manage workload discovery and creation with location-first priority.
 
-    The AgentManager implements location-first agent resolution:
+    The WorkloadManager implements location-first workload resolution:
     - For HTTP URLs: Load immediately (format auto-detected)
     - For explicit paths: Load from that path (format auto-detected)
-    - For agent names: Search locations in order, first match wins (any format)
+    - For workload names: Search locations in order, first match wins (any format)
 
     Search locations (in priority order):
     1. Current working directory (./agents, ., .streetrace/agents)
     2. User home directory (~/.streetrace/agents)
     3. Bundled agents (src/streetrace/agents/*/agent.py and *.yaml)
+
+    This class was renamed from AgentManager to reflect the true abstraction:
+    StreetRace runs Supervisor which supervises Workloads.
     """
 
     # Search locations in priority order
@@ -163,21 +171,23 @@ class AgentManager:
         ("bundled", []),  # Will be computed from __file__ in _compute_search_locations
     ]
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         model_factory: ModelFactory,
         tool_provider: ToolProvider,
         system_context: SystemContext,
         work_dir: Path,
+        session_service: "BaseSessionService | None" = None,
         http_auth: str | None = None,
     ) -> None:
-        """Initialize the AgentManager.
+        """Initialize the WorkloadManager.
 
         Args:
             model_factory: Factory for creating and managing LLM models
             tool_provider: Provider of tools for the agents
             system_context: System context containing project-level instructions
             work_dir: Current working directory
+            session_service: ADK session service for workload execution
             http_auth: Authorization header value for HTTP agent URIs
 
         """
@@ -185,6 +195,7 @@ class AgentManager:
         self.tool_provider = tool_provider
         self.system_context = system_context
         self.work_dir = work_dir
+        self.session_service = session_service
         self.http_auth = http_auth
 
         # Compute search locations
@@ -236,9 +247,11 @@ class AgentManager:
 
             # Special handling for bundled agents
             if name == "bundled":
-                # Get the directory where this module (agent_manager.py) is located
-                # Bundled agents are in the same directory as agent_manager.py
-                bundled_path = Path(__file__).parent.resolve()
+                # Get the directory where agents are located
+                # Bundled agents are in the agents package
+                from streetrace import agents
+
+                bundled_path = Path(agents.__file__).parent.resolve()
                 if bundled_path.exists():
                     resolved_paths.append(bundled_path)
             else:
@@ -263,7 +276,7 @@ class AgentManager:
         return locations
 
     def discover(self) -> list[AgentInfo]:
-        """Discover all known agents with location-first priority.
+        """Discover all known workloads with location-first priority.
 
         For each location, discovers agents of all formats. First match by name wins.
 
@@ -323,11 +336,79 @@ class AgentManager:
         return agents
 
     @asynccontextmanager
+    async def create_workload(
+        self,
+        identifier: str,
+    ) -> AsyncGenerator[Workload, None]:
+        """Create a runnable workload from identifier.
+
+        This is the main entry point for creating workloads. It loads the
+        definition and creates an appropriate workload based on the definition type.
+
+        Args:
+            identifier: Workload identifier (name, path, or URL)
+
+        Yields:
+            The created workload
+
+        Raises:
+            ValueError: If workload creation fails
+
+        """
+        # Handle "default" alias
+        if identifier == "default":
+            identifier = _DEFAULT_AGENT
+
+        # Load agent definition
+        agent_definition = self._load_definition(identifier)
+
+        if not agent_definition:
+            # Build detailed error message with context
+            error_details = (
+                "\n".join(f"  - {err}" for err in self._last_load_errors)
+                if self._last_load_errors
+                else "  - Unknown error during agent loading"
+            )
+            msg = (
+                f"Agent '{identifier}' not found.\n"
+                f"Details:\n{error_details}\n"
+                f"Try --list-agents to see available agents."
+            )
+            raise ValueError(msg)
+
+        # Set telemetry attributes from agent definition
+        _set_agent_telemetry_attributes(agent_definition, identifier)
+
+        # Create appropriate workload based on definition type
+        if self.session_service is None:
+            msg = "session_service is required to create workloads"
+            raise ValueError(msg)
+
+        # Route to DSL workload or basic workload based on definition type
+        if self._is_dsl_definition(agent_definition):
+            # Import at runtime to avoid circular imports
+            # Type narrowing is done via duck-typing (_workflow_class attribute)
+            from streetrace.agents.dsl_agent_loader import DslStreetRaceAgent
+
+            dsl_agent_def: DslStreetRaceAgent = agent_definition  # type: ignore[assignment]
+            workload = self._create_dsl_workload(dsl_agent_def)
+        else:
+            workload = self._create_basic_workload(agent_definition)
+
+        try:
+            yield workload
+        finally:
+            await workload.close()
+
+    @asynccontextmanager
     async def create_agent(
         self,
         agent_identifier: str,
-    ) -> "AsyncGenerator[BaseAgent, None]":
+    ) -> AsyncGenerator["BaseAgent", None]:
         """Create agent from identifier with location-first priority.
+
+        This method maintains backward compatibility with the original AgentManager
+        interface. It creates a workload and returns the underlying agent.
 
         Resolution order:
         1. If HTTP URL -> load directly (bypasses location priority)
@@ -349,7 +430,7 @@ class AgentManager:
             agent_identifier = _DEFAULT_AGENT
 
         # Load agent definition
-        agent_definition = self._load_agent_definition(agent_identifier)
+        agent_definition = self._load_definition(agent_identifier)
 
         if not agent_definition:
             # Build detailed error message with context
@@ -381,11 +462,75 @@ class AgentManager:
             if agent:
                 await agent_definition.close(agent)
 
-    def _load_agent_definition(self, identifier: str) -> "StreetRaceAgent | None":
-        """Load agent definition from identifier with detailed error tracking.
+    def _is_dsl_definition(self, agent_definition: "StreetRaceAgent") -> bool:
+        """Check if the agent definition is a DSL definition.
+
+        DSL definitions have a _workflow_class attribute that contains
+        the compiled workflow class.
 
         Args:
-            identifier: Agent identifier (name, path, or URL)
+            agent_definition: The agent definition to check
+
+        Returns:
+            True if this is a DSL definition, False otherwise
+
+        """
+        return hasattr(agent_definition, "_workflow_class")
+
+    def _create_dsl_workload(
+        self,
+        agent_definition: "DslStreetRaceAgent",
+    ) -> Workload:
+        """Create DSL workload from DslStreetRaceAgent definition.
+
+        DslAgentWorkflow is the Python representation of the .sr file.
+        It uses DslStreetRaceAgent (via composition) for agent creation.
+
+        Args:
+            agent_definition: The DslStreetRaceAgent definition
+
+        Returns:
+            DslAgentWorkflow instance configured with all dependencies
+
+        """
+        # Get the workflow class from the definition
+        workflow_class = agent_definition._workflow_class  # noqa: SLF001
+
+        # Instantiate with all dependencies
+        return workflow_class(
+            agent_definition=agent_definition,
+            model_factory=self.model_factory,
+            tool_provider=self.tool_provider,
+            system_context=self.system_context,
+            session_service=self.session_service,
+        )
+
+    def _create_basic_workload(
+        self,
+        agent_definition: "StreetRaceAgent",
+    ) -> BasicAgentWorkload:
+        """Create basic workload for PY/YAML agents.
+
+        Args:
+            agent_definition: The StreetRaceAgent definition
+
+        Returns:
+            BasicAgentWorkload instance configured with all dependencies
+
+        """
+        return BasicAgentWorkload(
+            agent_definition=agent_definition,
+            model_factory=self.model_factory,
+            tool_provider=self.tool_provider,
+            system_context=self.system_context,
+            session_service=self.session_service,  # type: ignore[arg-type]
+        )
+
+    def _load_definition(self, identifier: str) -> "StreetRaceAgent | None":
+        """Load workload definition from identifier with detailed error tracking.
+
+        Args:
+            identifier: Workload identifier (name, path, or URL)
 
         Returns:
             Loaded agent definition or None if not found
@@ -441,7 +586,7 @@ class AgentManager:
     def _load_from_path(self, path: Path) -> "StreetRaceAgent | None":
         """Load agent from explicit file/directory path with smart format detection.
 
-        Uses file extension hints to try the most likely format first,
+        Use file extension hints to try the most likely format first,
         then falls back to trying all formats.
 
         Args:

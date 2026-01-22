@@ -1,4 +1,4 @@
-"""Tests for the AgentManager class."""
+"""Tests for the WorkloadManager class."""
 
 import re
 import tempfile
@@ -9,16 +9,14 @@ import pytest
 from a2a.types import AgentCapabilities
 from google.adk.agents import BaseAgent
 
-from streetrace.agents.agent_manager import (
-    AgentManager,
-    _set_agent_telemetry_attributes,
-)
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.agents.yaml_agent_loader import AgentInfo
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import AnyTool, ToolProvider
+from streetrace.workloads import WorkloadManager
+from streetrace.workloads.manager import _set_agent_telemetry_attributes
 
 
 class MockAgent(StreetRaceAgent):
@@ -80,18 +78,18 @@ def mock_tool_provider() -> ToolProvider:
 @pytest.fixture
 def work_dir() -> Path:
     """Create a temporary work directory."""
-    return Path(tempfile.mkdtemp(prefix="streetrace_test_agent_manager_"))
+    return Path(tempfile.mkdtemp(prefix="streetrace_test_workload_manager_"))
 
 
 @pytest.fixture
-def agent_manager(
+def workload_manager(
     mock_model_factory: ModelFactory,
     mock_tool_provider: ToolProvider,
     mock_system_context: SystemContext,
     work_dir: Path,
-) -> AgentManager:
-    """Create an AgentManager instance for testing."""
-    return AgentManager(
+) -> WorkloadManager:
+    """Create a WorkloadManager instance for testing."""
+    return WorkloadManager(
         model_factory=mock_model_factory,
         tool_provider=mock_tool_provider,
         system_context=mock_system_context,
@@ -106,8 +104,8 @@ def mock_agent_info() -> AgentInfo:
     return AgentInfo(name="Test Agent", description="A test agent", module=mock_module)
 
 
-class TestAgentManager:
-    """Test cases for AgentManager class."""
+class TestWorkloadManager:
+    """Test cases for WorkloadManager class."""
 
     def test_init(
         self,
@@ -116,8 +114,8 @@ class TestAgentManager:
         mock_system_context: SystemContext,
         work_dir: Path,
     ) -> None:
-        """Test AgentManager initialization."""
-        manager = AgentManager(
+        """Test WorkloadManager initialization."""
+        manager = WorkloadManager(
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -130,7 +128,7 @@ class TestAgentManager:
 
     def test_list_available_agents(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
         mock_agent_info: AgentInfo,
     ) -> None:
         """Test listing available agents."""
@@ -139,25 +137,25 @@ class TestAgentManager:
 
         with (
             patch.object(
-                agent_manager.format_loaders["yaml"],
+                workload_manager.format_loaders["yaml"],
                 "discover_in_paths",
                 return_value=[],
             ),
             patch.object(
-                agent_manager.format_loaders["python"],
+                workload_manager.format_loaders["python"],
                 "discover_in_paths",
                 return_value=expected_agents,
             ),
         ):
             # Act
-            agents = agent_manager.discover()
+            agents = workload_manager.discover()
 
             # Assert
             assert agents == expected_agents
 
     async def test_create_agent_success(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
         mock_agent_info: AgentInfo,
     ) -> None:
         """Test successful agent creation."""
@@ -165,37 +163,37 @@ class TestAgentManager:
         mock_agent_instance = MockAgent("Test Agent")
 
         # Mock the discovery cache to make the agent discoverable by name
-        agent_manager._discovery_cache = {  # noqa: SLF001
+        workload_manager._discovery_cache = {  # noqa: SLF001
             "test agent": ("cwd", mock_agent_info),
         }
 
         with patch.object(
-            agent_manager.format_loaders["python"],
+            workload_manager.format_loaders["python"],
             "load_agent",
             return_value=mock_agent_instance,
         ):
             # Act
-            async with agent_manager.create_agent("Test Agent") as agent:
+            async with workload_manager.create_agent("Test Agent") as agent:
                 # Assert
                 assert agent is not None
                 assert hasattr(agent, "name")
 
     async def test_create_agent_not_found(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
         """Test agent creation when agent is not found."""
         # Arrange - ensure discovery cache is empty
-        agent_manager._discovery_cache = {}  # noqa: SLF001
+        workload_manager._discovery_cache = {}  # noqa: SLF001
 
         with pytest.raises(ValueError, match="Agent 'Nonexistent Agent' not found"):
             # Act & Assert
-            async with agent_manager.create_agent("Nonexistent Agent"):
+            async with workload_manager.create_agent("Nonexistent Agent"):
                 pass
 
     async def test_create_agent_default_name(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
         """Test creating agent with 'default' name maps to DEFAULT_AGENT."""
         # Arrange
@@ -207,22 +205,22 @@ class TestAgentManager:
         )
 
         # Mock the discovery cache
-        agent_manager._discovery_cache = {  # noqa: SLF001
+        workload_manager._discovery_cache = {  # noqa: SLF001
             "streetrace_coding_agent": ("bundled", mock_agent_info),
         }
 
         with patch.object(
-            agent_manager.format_loaders["python"],
+            workload_manager.format_loaders["python"],
             "load_agent",
             return_value=mock_agent_instance,
         ):
             # Act & Assert
-            async with agent_manager.create_agent("default") as agent:
+            async with workload_manager.create_agent("default") as agent:
                 assert agent is not None
 
     async def test_create_agent_tool_provider_integration(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
         mock_agent_info: AgentInfo,
     ) -> None:
         """Test that agent creation properly integrates with tool provider."""
@@ -230,22 +228,22 @@ class TestAgentManager:
         mock_agent_instance = MockAgent("Test Agent")
 
         # Mock the discovery cache
-        agent_manager._discovery_cache = {  # noqa: SLF001
+        workload_manager._discovery_cache = {  # noqa: SLF001
             "test agent": ("cwd", mock_agent_info),
         }
 
         with patch.object(
-            agent_manager.format_loaders["python"],
+            workload_manager.format_loaders["python"],
             "load_agent",
             return_value=mock_agent_instance,
         ):
             # Act
-            async with agent_manager.create_agent("Test Agent"):
+            async with workload_manager.create_agent("Test Agent"):
                 pass
 
     async def test_create_agent_exception_handling(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
         mock_agent_info: AgentInfo,
     ) -> None:
         """Test exception handling during agent creation."""
@@ -271,45 +269,45 @@ class TestAgentManager:
         failing_agent_instance = FailingAgent()
 
         # Mock the discovery cache
-        agent_manager._discovery_cache = {  # noqa: SLF001
+        workload_manager._discovery_cache = {  # noqa: SLF001
             "test agent": ("cwd", mock_agent_info),
         }
 
         with (
             patch.object(
-                agent_manager.format_loaders["python"],
+                workload_manager.format_loaders["python"],
                 "load_agent",
                 return_value=failing_agent_instance,
             ),
             pytest.raises(RuntimeError, match="Agent initialization failed"),
         ):
             # Act & Assert
-            async with agent_manager.create_agent("Test Agent"):
+            async with workload_manager.create_agent("Test Agent"):
                 pass
 
     def test_list_available_agents_empty_directories(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
         """Test listing agents when directories don't exist or are empty."""
         with (
             patch.object(
-                agent_manager.format_loaders["yaml"],
+                workload_manager.format_loaders["yaml"],
                 "discover_in_paths",
                 return_value=[],
             ),
             patch.object(
-                agent_manager.format_loaders["python"],
+                workload_manager.format_loaders["python"],
                 "discover_in_paths",
                 return_value=[],
             ),
         ):
-            agents = agent_manager.discover()
+            agents = workload_manager.discover()
             assert agents == []
 
     def test_list_available_agents_multiple_agents(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
         """Test listing multiple available agents."""
         # Arrange
@@ -329,34 +327,34 @@ class TestAgentManager:
 
         with (
             patch.object(
-                agent_manager.format_loaders["yaml"],
+                workload_manager.format_loaders["yaml"],
                 "discover_in_paths",
                 return_value=yaml_agents,
             ),
             patch.object(
-                agent_manager.format_loaders["python"],
+                workload_manager.format_loaders["python"],
                 "discover_in_paths",
                 return_value=python_agents,
             ),
         ):
             # Act
-            agents = agent_manager.discover()
+            agents = workload_manager.discover()
 
             # Assert
             assert len(agents) == 2
             assert agents == expected_agents
 
-    def test_agent_manager_paths_configuration(
+    def test_workload_manager_paths_configuration(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
-        """Test that AgentManager configures correct search locations."""
+        """Test that WorkloadManager configures correct search locations."""
         # Verify search locations are configured
         # The new architecture uses location-first priority
-        assert len(agent_manager.search_locations) > 0
+        assert len(workload_manager.search_locations) > 0
 
         # Check that expected locations are present
-        location_names = [name for name, _ in agent_manager.search_locations]
+        location_names = [name for name, _ in workload_manager.search_locations]
         assert (
             "cwd" in location_names
             or "home" in location_names
@@ -364,13 +362,13 @@ class TestAgentManager:
         )
 
         # Verify all paths in search_locations exist
-        for location_name, paths in agent_manager.search_locations:
+        for location_name, paths in workload_manager.search_locations:
             for path in paths:
                 assert path.exists(), f"Path {path} in {location_name} should exist"
 
 
-class TestAgentManagerResourceManagement:
-    """Test cases for AgentManager resource management functionality."""
+class TestWorkloadManagerResourceManagement:
+    """Test cases for WorkloadManager resource management functionality."""
 
     @pytest.fixture
     def mock_tool_provider(self, mock_tool_provider) -> ToolProvider:
@@ -380,15 +378,15 @@ class TestAgentManagerResourceManagement:
         return mock_tool_provider
 
     @pytest.fixture
-    def mock_agent_manager(
+    def mock_workload_manager(
         self,
         mock_model_factory: ModelFactory,
         mock_tool_provider: ToolProvider,
         mock_system_context: SystemContext,
         work_dir: Path,
-    ) -> AgentManager:
-        """Create an AgentManager instance with proper resource management."""
-        return AgentManager(
+    ) -> WorkloadManager:
+        """Create a WorkloadManager instance with proper resource management."""
+        return WorkloadManager(
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -398,12 +396,12 @@ class TestAgentManagerResourceManagement:
     async def test_create_agent_calls_close_on_success(
         self,
         mock_tool_provider: Mock,
-        mock_agent_manager: AgentManager,
+        mock_workload_manager: WorkloadManager,
     ) -> None:
         """Test that agent.close is called when agent creation succeeds."""
         # Arrange
         mock_agent_instance = MockAgent("Test Agent")
-        mock_agent_manager.tool_provider = mock_tool_provider
+        mock_workload_manager.tool_provider = mock_tool_provider
 
         mock_agent_info = AgentInfo(
             name="Test Agent",
@@ -412,7 +410,7 @@ class TestAgentManagerResourceManagement:
         )
 
         # Mock the discovery cache
-        mock_agent_manager._discovery_cache = {  # noqa: SLF001
+        mock_workload_manager._discovery_cache = {  # noqa: SLF001
             "test agent": ("cwd", mock_agent_info),
         }
 
@@ -423,13 +421,13 @@ class TestAgentManagerResourceManagement:
                 new_callable=AsyncMock,
             ) as mock_close,
             patch.object(
-                mock_agent_manager.format_loaders["python"],
+                mock_workload_manager.format_loaders["python"],
                 "load_agent",
                 return_value=mock_agent_instance,
             ),
         ):
             # Act
-            async with mock_agent_manager.create_agent("Test Agent") as agent:
+            async with mock_workload_manager.create_agent("Test Agent") as agent:
                 assert agent is not None
 
             # Assert
@@ -438,11 +436,11 @@ class TestAgentManagerResourceManagement:
     async def test_create_agent_calls_close_on_exception(
         self,
         mock_tool_provider: Mock,
-        mock_agent_manager: AgentManager,
+        mock_workload_manager: WorkloadManager,
     ) -> None:
         """Test that agent.close is called even when agent creation fails."""
         # Arrange
-        mock_agent_manager.tool_provider = mock_tool_provider
+        mock_workload_manager.tool_provider = mock_tool_provider
 
         # Mock agent that raises exception during agent creation
         class FailingAgent(StreetRaceAgent):
@@ -486,18 +484,18 @@ class TestAgentManagerResourceManagement:
         )
 
         # Mock the discovery cache
-        mock_agent_manager._discovery_cache = {  # noqa: SLF001
+        mock_workload_manager._discovery_cache = {  # noqa: SLF001
             "test agent": ("cwd", mock_agent_info),
         }
 
         with patch.object(
-            mock_agent_manager.format_loaders["python"],
+            mock_workload_manager.format_loaders["python"],
             "load_agent",
             return_value=failing_agent_instance,
         ):
             # Act & Assert
             with pytest.raises(RuntimeError, match="Agent creation failed"):
-                async with mock_agent_manager.create_agent("Test Agent"):
+                async with mock_workload_manager.create_agent("Test Agent"):
                     pass
 
             # Verify that close was not called since agent creation failed
@@ -506,12 +504,12 @@ class TestAgentManagerResourceManagement:
     async def test_create_agent_calls_close_on_context_exit_exception(
         self,
         mock_tool_provider: Mock,
-        mock_agent_manager: AgentManager,
+        mock_workload_manager: WorkloadManager,
     ) -> None:
         """Test that agent.close is called when exception occurs in context."""
         # Arrange
         mock_agent_instance = MockAgent("Test Agent")
-        mock_agent_manager.tool_provider = mock_tool_provider
+        mock_workload_manager.tool_provider = mock_tool_provider
 
         mock_agent_info = AgentInfo(
             name="Test Agent",
@@ -520,7 +518,7 @@ class TestAgentManagerResourceManagement:
         )
 
         # Mock the discovery cache
-        mock_agent_manager._discovery_cache = {  # noqa: SLF001
+        mock_workload_manager._discovery_cache = {  # noqa: SLF001
             "test agent": ("cwd", mock_agent_info),
         }
 
@@ -531,26 +529,26 @@ class TestAgentManagerResourceManagement:
                 new_callable=AsyncMock,
             ) as mock_close,
             patch.object(
-                mock_agent_manager.format_loaders["python"],
+                mock_workload_manager.format_loaders["python"],
                 "load_agent",
                 return_value=mock_agent_instance,
             ),
         ):
             # Act & Assert
             with pytest.raises(ValueError, match="Test exception"):
-                async with mock_agent_manager.create_agent("Test Agent"):
+                async with mock_workload_manager.create_agent("Test Agent"):
                     raise ValueError("Test exception")
 
             # Verify that close was still called despite the exception
             mock_close.assert_awaited_once()
 
 
-class TestAgentManagerFilePath:
-    """Test cases for AgentManager file path functionality."""
+class TestWorkloadManagerFilePath:
+    """Test cases for WorkloadManager file path functionality."""
 
     async def test_create_agent_from_existing_file_path(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
         tmp_path: Path,
     ) -> None:
         """Test creating agent when agent_name is an existing file path."""
@@ -560,12 +558,12 @@ class TestAgentManagerFilePath:
         mock_agent_instance = MockAgent("FileBasedAgent")
 
         with patch.object(
-            agent_manager.format_loaders["yaml"],
+            workload_manager.format_loaders["yaml"],
             "load_from_path",
             return_value=mock_agent_instance,
         ) as mock_yaml_load:
             # Act
-            async with agent_manager.create_agent(str(yaml_file)) as agent:
+            async with workload_manager.create_agent(str(yaml_file)) as agent:
                 # Assert
                 assert agent is not None
                 # Verify yaml_loader.load_from_path was called with Path object
@@ -573,7 +571,7 @@ class TestAgentManagerFilePath:
 
     async def test_create_agent_from_non_existing_file_path(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
         tmp_path: Path,
     ) -> None:
         """Test creating agent when agent_name is non-existing file path."""
@@ -587,12 +585,12 @@ class TestAgentManagerFilePath:
             match=f"Agent '{re.escape(str(non_existing_file))}' not found",
         ):
             # Act & Assert
-            async with agent_manager.create_agent(str(non_existing_file)):
+            async with workload_manager.create_agent(str(non_existing_file)):
                 pass
 
     async def test_create_agent_fallback_to_name_when_not_file(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
         """Test that non-file agent_name falls back to name-based lookup."""
         # Arrange
@@ -605,46 +603,46 @@ class TestAgentManagerFilePath:
         )
 
         # Mock the discovery cache
-        agent_manager._discovery_cache = {  # noqa: SLF001
+        workload_manager._discovery_cache = {  # noqa: SLF001
             agent_name.lower(): ("cwd", mock_agent_info),
         }
 
         with patch.object(
-            agent_manager.format_loaders["python"],
+            workload_manager.format_loaders["python"],
             "load_agent",
             return_value=mock_agent_instance,
         ):
             # Act
-            async with agent_manager.create_agent(agent_name) as agent:
+            async with workload_manager.create_agent(agent_name) as agent:
                 # Assert
                 assert agent is not None
 
     async def test_create_agent_error_message_includes_agent_name(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
         """Test that error message includes the agent name when not found."""
         # Arrange
         agent_name = "non_existent_agent"
 
         # Ensure discovery cache is empty
-        agent_manager._discovery_cache = {}  # noqa: SLF001
+        workload_manager._discovery_cache = {}  # noqa: SLF001
 
         with pytest.raises(
             ValueError,
             match=f"Agent '{re.escape(agent_name)}' not found",
         ):
             # Act & Assert
-            async with agent_manager.create_agent(agent_name):
+            async with workload_manager.create_agent(agent_name):
                 pass
 
 
-class TestAgentManagerLocationPriority:
+class TestWorkloadManagerLocationPriority:
     """Test cases for location-first priority in agent discovery."""
 
     def test_location_priority_cwd_over_bundled(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
         """Test that agents in cwd take priority over bundled agents."""
         # Arrange - Create agents with same name in different locations
@@ -668,7 +666,7 @@ class TestAgentManagerLocationPriority:
                 return []
 
             path = paths[0].resolve()  # Resolve symlinks
-            work_dir_resolved = agent_manager.work_dir.resolve()  # Resolve symlinks
+            work_dir_resolved = workload_manager.work_dir.resolve()  # Resolve symlinks
 
             # Check if path is in work_dir (cwd location)
             try:
@@ -686,18 +684,18 @@ class TestAgentManagerLocationPriority:
 
         with (
             patch.object(
-                agent_manager.format_loaders["yaml"],
+                workload_manager.format_loaders["yaml"],
                 "discover_in_paths",
                 side_effect=mock_discover_in_paths,
             ),
             patch.object(
-                agent_manager.format_loaders["python"],
+                workload_manager.format_loaders["python"],
                 "discover_in_paths",
                 return_value=[],
             ),
         ):
             # Act
-            agents = agent_manager.discover()
+            agents = workload_manager.discover()
 
             # Assert - Only one agent with the name should be returned (from cwd)
             agent_names = [agent.name for agent in agents]
@@ -718,7 +716,7 @@ class TestAgentManagerLocationPriority:
         work_dir = tmp_path / "work"
         work_dir.mkdir()
 
-        agent_manager = AgentManager(
+        workload_manager = WorkloadManager(
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -748,18 +746,18 @@ class TestAgentManagerLocationPriority:
 
         with (
             patch.object(
-                agent_manager.format_loaders["yaml"],
+                workload_manager.format_loaders["yaml"],
                 "discover_in_paths",
                 side_effect=mock_discover_in_paths,
             ),
             patch.object(
-                agent_manager.format_loaders["python"],
+                workload_manager.format_loaders["python"],
                 "discover_in_paths",
                 return_value=[],
             ),
         ):
             # Act
-            agents = agent_manager.discover()
+            agents = workload_manager.discover()
 
             # Assert - Agent from home should be returned
             test_agent = next((a for a in agents if a.name == "TestAgent"), None)
@@ -782,7 +780,7 @@ class TestAgentManagerLocationPriority:
         # Set environment variable
         monkeypatch.setenv("STREETRACE_AGENT_PATHS", str(custom_path))
 
-        agent_manager = AgentManager(
+        workload_manager = WorkloadManager(
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -810,18 +808,18 @@ class TestAgentManagerLocationPriority:
 
         with (
             patch.object(
-                agent_manager.format_loaders["yaml"],
+                workload_manager.format_loaders["yaml"],
                 "discover_in_paths",
                 side_effect=mock_discover_in_paths,
             ),
             patch.object(
-                agent_manager.format_loaders["python"],
+                workload_manager.format_loaders["python"],
                 "discover_in_paths",
                 return_value=[],
             ),
         ):
             # Act
-            agents = agent_manager.discover()
+            agents = workload_manager.discover()
 
             # Assert - Agent from custom path should be returned
             test_agent = next((a for a in agents if a.name == "TestAgent"), None)
@@ -830,7 +828,7 @@ class TestAgentManagerLocationPriority:
 
     def test_format_discovery_within_location(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
         """Test that all formats are discovered within each location."""
         # Arrange
@@ -848,18 +846,18 @@ class TestAgentManagerLocationPriority:
 
         with (
             patch.object(
-                agent_manager.format_loaders["yaml"],
+                workload_manager.format_loaders["yaml"],
                 "discover_in_paths",
                 return_value=[yaml_agent],
             ),
             patch.object(
-                agent_manager.format_loaders["python"],
+                workload_manager.format_loaders["python"],
                 "discover_in_paths",
                 return_value=[python_agent],
             ),
         ):
             # Act
-            agents = agent_manager.discover()
+            agents = workload_manager.discover()
 
             # Assert - Both agents should be discovered
             assert len(agents) == 2
@@ -868,7 +866,7 @@ class TestAgentManagerLocationPriority:
 
     def test_discovery_cache_populated_correctly(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
         """Test that discovery cache is populated with location information."""
         # Arrange
@@ -881,30 +879,30 @@ class TestAgentManagerLocationPriority:
 
         with (
             patch.object(
-                agent_manager.format_loaders["yaml"],
+                workload_manager.format_loaders["yaml"],
                 "discover_in_paths",
                 return_value=[agent_info],
             ),
             patch.object(
-                agent_manager.format_loaders["python"],
+                workload_manager.format_loaders["python"],
                 "discover_in_paths",
                 return_value=[],
             ),
         ):
             # Act
-            agent_manager.discover()
+            workload_manager.discover()
 
             # Assert - Cache should be populated
-            assert agent_manager._discovery_cache is not None  # noqa: SLF001
-            assert "testagent" in agent_manager._discovery_cache  # noqa: SLF001
-            location, cached_agent = agent_manager._discovery_cache["testagent"]  # noqa: SLF001
+            assert workload_manager._discovery_cache is not None  # noqa: SLF001
+            assert "testagent" in workload_manager._discovery_cache  # noqa: SLF001
+            location, cached_agent = workload_manager._discovery_cache["testagent"]  # noqa: SLF001
             assert cached_agent.name == "TestAgent"
             # Location should be one of the configured locations
             assert location in ["cwd", "home", "bundled", "custom"]
 
     def test_case_insensitive_agent_name_lookup(
         self,
-        agent_manager: AgentManager,
+        workload_manager: WorkloadManager,
     ) -> None:
         """Test that agent name lookup is case-insensitive."""
         # Arrange
@@ -917,24 +915,24 @@ class TestAgentManagerLocationPriority:
 
         with (
             patch.object(
-                agent_manager.format_loaders["yaml"],
+                workload_manager.format_loaders["yaml"],
                 "discover_in_paths",
                 return_value=[agent_info],
             ),
             patch.object(
-                agent_manager.format_loaders["python"],
+                workload_manager.format_loaders["python"],
                 "discover_in_paths",
                 return_value=[],
             ),
         ):
             # Act
-            agent_manager.discover()
+            workload_manager.discover()
 
             # Assert - All variations should map to the same agent
-            assert agent_manager._discovery_cache is not None  # noqa: SLF001
-            assert "testagent" in agent_manager._discovery_cache  # noqa: SLF001
+            assert workload_manager._discovery_cache is not None  # noqa: SLF001
+            assert "testagent" in workload_manager._discovery_cache  # noqa: SLF001
             # The cache key should be lowercase
-            _, cached_agent = agent_manager._discovery_cache["testagent"]  # noqa: SLF001
+            _, cached_agent = workload_manager._discovery_cache["testagent"]  # noqa: SLF001
             assert cached_agent.name == "TestAgent"
 
 
@@ -1123,7 +1121,8 @@ class TestSetAgentTelemetryAttributes:
             assert "langfuse.trace.streetrace.agent.version" in attribute_calls
             assert (
                 attribute_calls["langfuse.trace.streetrace.agent.version"]
-                    == test_version)
+                == test_version
+            )
 
     def test_agent_version_none(self, mock_agent_definition: MagicMock) -> None:
         """Test that no version attribute is set when version is None."""
@@ -1163,7 +1162,8 @@ class TestSetAgentTelemetryAttributes:
             assert "langfuse.trace.streetrace.agent.system_prompt" in attribute_calls
             assert (
                 attribute_calls["langfuse.trace.streetrace.agent.system_prompt"]
-                    == test_prompt)
+                == test_prompt
+            )
 
     def test_system_prompt_none(self, mock_agent_definition: MagicMock) -> None:
         """Test that no system prompt attribute is set when prompt is None."""
@@ -1183,7 +1183,7 @@ class TestSetAgentTelemetryAttributes:
 
             assert (
                 "langfuse.trace.streetrace.agent.system_prompt" not in attribute_calls
-                )
+            )
 
     def test_agent_name_attribute(self, mock_agent_definition: MagicMock) -> None:
         """Test that agent name is set correctly from agent card."""
@@ -1243,8 +1243,8 @@ class TestSetAgentTelemetryAttributes:
             assert "langfuse.trace.streetrace.agent.name" in attribute_calls
             assert (
                 attribute_calls["langfuse.trace.streetrace.agent.name"]
-                    == test_identifier
-                )
+                == test_identifier
+            )
 
     def test_binary_version_attribute(self, mock_agent_definition: MagicMock) -> None:
         """Test that binary version is set correctly."""
@@ -1271,8 +1271,8 @@ class TestSetAgentTelemetryAttributes:
             assert "langfuse.trace.streetrace.binary.version" in attribute_calls
             assert (
                 attribute_calls["langfuse.trace.streetrace.binary.version"]
-                    == test_binary_version
-                )
+                == test_binary_version
+            )
 
     def test_all_attributes_set_together(
         self,
@@ -1340,17 +1340,17 @@ class TestSetAgentTelemetryAttributes:
             assert attribute_calls["langfuse.trace.tags"] == [f"org:{test_org_id}"]
             assert (
                 attribute_calls["langfuse.trace.streetrace.agent.version"]
-                    == test_version
-                )
+                == test_version
+            )
             assert (
                 attribute_calls["langfuse.trace.streetrace.agent.system_prompt"]
-                    == test_prompt
-                )
+                == test_prompt
+            )
             assert (
                 attribute_calls["langfuse.trace.streetrace.agent.name"]
-                    == test_name
-                )
+                == test_name
+            )
             assert (
                 attribute_calls["langfuse.trace.streetrace.binary.version"]
-                    == test_binary_version
-                )
+                == test_binary_version
+            )

@@ -48,13 +48,22 @@ class TestExampleFilesParsing:
         ids=[name for name, _ in EXAMPLE_FILES],
     )
     def test_example_file_parses(
-        self, name: str, path: Path, parser: ParserFactory,
+        self,
+        name: str,
+        path: Path,
+        parser: ParserFactory,
     ) -> None:
         """Example files should parse without errors."""
         source = path.read_text()
-        tree = parser.parse(source)
-        assert tree is not None, f"Failed to parse {name}.sr"
-        assert tree.data == "start", f"Parse tree root should be 'start' for {name}.sr"
+        try:
+            tree = parser.parse(source)
+        except Exception as e:  # noqa: BLE001
+            pytest.fail(f"Failed to parse {name}.sr: {e}")
+        else:
+            assert tree is not None, f"Failed to parse {name}.sr"
+            assert tree.data == "start", (
+                f"Parse tree root should be 'start' for {name}.sr"
+            )
 
 
 class TestExampleFilesValidation:
@@ -72,8 +81,7 @@ class TestExampleFilesValidation:
         errors = [d for d in diagnostics if d.severity.name.lower() == "error"]
 
         assert not errors, (
-            f"Example '{name}.sr' has semantic errors: "
-            f"{[e.message for e in errors]}"
+            f"Example '{name}.sr' has semantic errors: {[e.message for e in errors]}"
         )
 
 
@@ -91,7 +99,10 @@ class TestExampleFilesCodeGeneration:
         ids=[name for name, _ in EXAMPLE_FILES],
     )
     def test_example_file_generates_python(
-        self, name: str, path: Path, parser: ParserFactory,
+        self,
+        name: str,
+        path: Path,
+        parser: ParserFactory,
     ) -> None:
         """Example files should generate valid Python code."""
         source = path.read_text()

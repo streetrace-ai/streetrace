@@ -1,6 +1,6 @@
-"""Tests for DSL agent loader integration with AgentManager.
+"""Tests for DSL agent loader integration with WorkloadManager.
 
-Test loading .sr files as agents through the AgentManager's agent loading
+Test loading .sr files as agents through the WorkloadManager's agent loading
 mechanism.
 """
 
@@ -8,6 +8,11 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+
+from streetrace.llm.model_factory import ModelFactory
+from streetrace.system_context import SystemContext
+from streetrace.tools.tool_provider import ToolProvider
+from streetrace.workloads import WorkloadManager
 
 # Sample DSL sources for testing
 VALID_DSL_SOURCE = """\
@@ -34,20 +39,15 @@ prompt greeting using model "undefined_model": \"\"\"Hello!\"\"\"
 
 
 class TestDslAgentLoaderIntegration:
-    """Test DSL agent loading via AgentManager."""
+    """Test DSL agent loading via WorkloadManager."""
 
-    def test_agent_manager_has_dsl_format_loader(self) -> None:
-        """AgentManager includes DSL format in format loaders."""
-        from streetrace.agents.agent_manager import AgentManager
-        from streetrace.llm.model_factory import ModelFactory
-        from streetrace.system_context import SystemContext
-        from streetrace.tools.tool_provider import ToolProvider
-
+    def test_workload_manager_has_dsl_format_loader(self) -> None:
+        """WorkloadManager includes DSL format in format loaders."""
         model_factory = MagicMock(spec=ModelFactory)
         tool_provider = MagicMock(spec=ToolProvider)
         system_context = MagicMock(spec=SystemContext)
 
-        manager = AgentManager(
+        manager = WorkloadManager(
             model_factory=model_factory,
             tool_provider=tool_provider,
             system_context=system_context,
@@ -58,11 +58,6 @@ class TestDslAgentLoaderIntegration:
 
     def test_load_sr_file_directly(self, tmp_path: Path) -> None:
         """Load a .sr file directly via path."""
-        from streetrace.agents.agent_manager import AgentManager
-        from streetrace.llm.model_factory import ModelFactory
-        from streetrace.system_context import SystemContext
-        from streetrace.tools.tool_provider import ToolProvider
-
         # Create test DSL file
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(VALID_DSL_SOURCE)
@@ -71,7 +66,7 @@ class TestDslAgentLoaderIntegration:
         tool_provider = MagicMock(spec=ToolProvider)
         system_context = MagicMock(spec=SystemContext)
 
-        manager = AgentManager(
+        manager = WorkloadManager(
             model_factory=model_factory,
             tool_provider=tool_provider,
             system_context=system_context,
@@ -79,22 +74,17 @@ class TestDslAgentLoaderIntegration:
         )
 
         # Load agent definition (not create_agent which requires async)
-        agent_def = manager._load_agent_definition(str(dsl_file))  # noqa: SLF001
+        agent_def = manager._load_definition(str(dsl_file))  # noqa: SLF001
 
         assert agent_def is not None
 
     def test_format_hints_include_sr_extension(self) -> None:
         """Ensure .sr extension is in format hints."""
-        from streetrace.agents.agent_manager import AgentManager
-        from streetrace.llm.model_factory import ModelFactory
-        from streetrace.system_context import SystemContext
-        from streetrace.tools.tool_provider import ToolProvider
-
         model_factory = MagicMock(spec=ModelFactory)
         tool_provider = MagicMock(spec=ToolProvider)
         system_context = MagicMock(spec=SystemContext)
 
-        manager = AgentManager(
+        manager = WorkloadManager(
             model_factory=model_factory,
             tool_provider=tool_provider,
             system_context=system_context,
@@ -110,11 +100,6 @@ class TestDslAgentLoaderIntegration:
 
     def test_discover_sr_files_in_directory(self, tmp_path: Path) -> None:
         """Discover .sr files in agent directories."""
-        from streetrace.agents.agent_manager import AgentManager
-        from streetrace.llm.model_factory import ModelFactory
-        from streetrace.system_context import SystemContext
-        from streetrace.tools.tool_provider import ToolProvider
-
         # Create test directory with agent files
         agents_dir = tmp_path / "agents"
         agents_dir.mkdir()
@@ -124,7 +109,7 @@ class TestDslAgentLoaderIntegration:
         tool_provider = MagicMock(spec=ToolProvider)
         system_context = MagicMock(spec=SystemContext)
 
-        manager = AgentManager(
+        manager = WorkloadManager(
             model_factory=model_factory,
             tool_provider=tool_provider,
             system_context=system_context,
@@ -140,11 +125,6 @@ class TestDslAgentLoaderIntegration:
 
     def test_invalid_dsl_raises_error(self, tmp_path: Path) -> None:
         """Invalid DSL file raises appropriate error."""
-        from streetrace.agents.agent_manager import AgentManager
-        from streetrace.llm.model_factory import ModelFactory
-        from streetrace.system_context import SystemContext
-        from streetrace.tools.tool_provider import ToolProvider
-
         # Create invalid DSL file
         dsl_file = tmp_path / "invalid_agent.sr"
         dsl_file.write_text(INVALID_DSL_SOURCE)
@@ -153,7 +133,7 @@ class TestDslAgentLoaderIntegration:
         tool_provider = MagicMock(spec=ToolProvider)
         system_context = MagicMock(spec=SystemContext)
 
-        manager = AgentManager(
+        manager = WorkloadManager(
             model_factory=model_factory,
             tool_provider=tool_provider,
             system_context=system_context,
@@ -161,7 +141,7 @@ class TestDslAgentLoaderIntegration:
         )
 
         # Attempting to load invalid DSL should fail
-        agent_def = manager._load_agent_definition(str(dsl_file))  # noqa: SLF001
+        agent_def = manager._load_definition(str(dsl_file))  # noqa: SLF001
         assert agent_def is None
         # Check error message contains information about the failure
         assert len(manager._last_load_errors) > 0  # noqa: SLF001

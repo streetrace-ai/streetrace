@@ -3,6 +3,8 @@
 Provide the execution context for generated DSL workflows.
 """
 
+from __future__ import annotations
+
 import re
 from typing import TYPE_CHECKING
 
@@ -11,6 +13,7 @@ from streetrace.log import get_logger
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from streetrace.dsl.runtime.workflow import DslAgentWorkflow
     from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
@@ -131,8 +134,13 @@ class WorkflowContext:
     runtime services needed by generated workflow code.
     """
 
-    def __init__(self) -> None:
-        """Initialize the workflow context."""
+    def __init__(self, workflow: DslAgentWorkflow | None = None) -> None:
+        """Initialize the workflow context.
+
+        Args:
+            workflow: Parent workflow for delegation.
+
+        """
         self.vars: dict[str, object] = {}
         """Variable storage for workflow execution."""
 
@@ -141,6 +149,9 @@ class WorkflowContext:
 
         self.guardrails = GuardrailProvider()
         """Guardrail provider for security operations."""
+
+        self._workflow = workflow
+        """Reference to parent workflow for delegation."""
 
         self._models: dict[str, str] = {}
         """Model definitions from the workflow."""
@@ -198,7 +209,7 @@ class WorkflowContext:
         """
         self._prompt_models = prompt_models
 
-    def set_ui_bus(self, ui_bus: "UiBus") -> None:
+    def set_ui_bus(self, ui_bus: UiBus) -> None:
         """Set the UI bus for event dispatch.
 
         Args:
@@ -209,7 +220,7 @@ class WorkflowContext:
 
     def set_escalation_callback(
         self,
-        callback: "Callable[[str], None]",
+        callback: Callable[[str], None],
     ) -> None:
         """Set the callback for human escalation.
 
@@ -222,8 +233,29 @@ class WorkflowContext:
     async def run_agent(self, agent_name: str, *args: object) -> object:
         """Run a named agent with arguments.
 
-        Create an ADK LlmAgent from the agent configuration and execute it
-        with the provided arguments as the user prompt.
+        Delegate to parent workflow for proper agent creation when connected.
+        Falls back to creating a simple LlmAgent if no workflow is available.
+
+        Args:
+            agent_name: Name of the agent to run.
+            *args: Arguments to pass to the agent (joined as prompt text).
+
+        Returns:
+            Result from the agent execution, or None if agent not found.
+
+        """
+        # Delegate to workflow when connected (preferred path)
+        if self._workflow:
+            return await self._workflow.run_agent(agent_name, *args)
+
+        # Fallback implementation for backward compatibility
+        return await self._run_agent_fallback(agent_name, *args)
+
+    async def _run_agent_fallback(self, agent_name: str, *args: object) -> object:
+        """Fallback implementation for run_agent without workflow.
+
+        Create a simple LlmAgent from the agent configuration and execute it.
+        Used for backward compatibility when no workflow is connected.
 
         Args:
             agent_name: Name of the agent to run.
@@ -246,26 +278,9 @@ class WorkflowContext:
             logger.warning("Agent '%s' not found in workflow context", agent_name)
             return None
 
-        # Get instruction from agent's instruction field
+        # Resolve instruction and model
         instruction_name = agent_def.get("instruction")
-        instruction = ""
-        if instruction_name and isinstance(instruction_name, str):
-            prompt_value = self._prompts.get(instruction_name)
-            if callable(prompt_value):
-                try:
-                    instruction = str(prompt_value(self))
-                except (TypeError, KeyError) as e:
-                    logger.warning(
-                        "Failed to evaluate prompt '%s': %s",
-                        instruction_name,
-                        e,
-                    )
-            elif prompt_value:
-                instruction = str(prompt_value)
-
-        # Resolve model following the design spec:
-        # 1. Model from prompt's `using model` clause
-        # 2. Fall back to model named "main"
+        instruction = self._resolve_instruction(instruction_name)
         instr_name_str = instruction_name if isinstance(instruction_name, str) else None
         model = self._resolve_agent_model(instr_name_str)
 
@@ -293,13 +308,62 @@ class WorkflowContext:
             agent=agent,
         )
 
+        return await self._extract_final_response(runner, content)
+
+    def _resolve_instruction(self, instruction_name: object) -> str:
+        """Resolve instruction from agent definition.
+
+        Args:
+            instruction_name: Name of the instruction prompt.
+
+        Returns:
+            The resolved instruction string.
+
+        """
+        if not instruction_name or not isinstance(instruction_name, str):
+            return ""
+
+        prompt_value = self._prompts.get(instruction_name)
+        if callable(prompt_value):
+            try:
+                return str(prompt_value(self))
+            except (TypeError, KeyError) as e:
+                logger.warning(
+                    "Failed to evaluate prompt '%s': %s",
+                    instruction_name,
+                    e,
+                )
+                return ""
+        elif prompt_value:
+            return str(prompt_value)
+        return ""
+
+    async def _extract_final_response(
+        self,
+        runner: object,
+        content: object,
+    ) -> object:
+        """Extract final response from runner execution.
+
+        Args:
+            runner: ADK Runner instance.
+            content: Message content to send.
+
+        Returns:
+            Final response text or None.
+
+        """
+        # Call run_async on the runner-like object
+        run_async_fn = getattr(runner, "run_async", None)
+        if not callable(run_async_fn):
+            return None
+
         final_response: object = None
-        async for event in runner.run_async(
+        async for event in run_async_fn(
             user_id="workflow_user",
             session_id="workflow_session",
             new_message=content,
         ):
-            # Check if this is the final response
             if event.is_final_response():
                 if event.content and event.content.parts:
                     final_response = event.content.parts[0].text

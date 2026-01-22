@@ -1,0 +1,17 @@
+# Flow Tools Test
+# Tests that agents called via "run agent" in flows have their tools available
+
+model main = anthropic/claude-sonnet-4-5
+
+tool fs = builtin streetrace.fs
+
+agent file_checker:
+    tools fs
+    instruction file_check_prompt
+
+flow main:
+    $result = run agent file_checker "List files in the current directory. Be brief."
+    return $result
+
+prompt file_check_prompt: """You have filesystem access via the fs tools. Use list_directory to list files.
+Be very concise - just list file names, nothing more."""

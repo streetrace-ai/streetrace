@@ -51,19 +51,19 @@ def list_agents(work_dir: Path) -> AgentListResult:
     """
     from typing import cast
 
-    from streetrace.agents.agent_manager import AgentManager
+    from streetrace.workloads import WorkloadManager
 
-    # Create a minimal AgentManager instance for discovery
+    # Create a minimal WorkloadManager instance for discovery
     # We don't need actual model_factory, tool_provider, or system_context for discovery
     # We cast None to the required types since discovery doesn't use them
-    agent_manager = AgentManager(
+    workload_manager = WorkloadManager(
         model_factory=cast("ModelFactory", None),
         tool_provider=cast("ToolProvider", None),
         system_context=cast("SystemContext", None),
         work_dir=work_dir,
     )
 
-    agents = agent_manager.discover()
+    agents = workload_manager.discover()
     return AgentListResult(
         tool_name="list_agents",
         result=OpResultCode.SUCCESS,

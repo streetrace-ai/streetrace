@@ -6,12 +6,12 @@ import pytest
 from a2a.types import AgentCapabilities
 from google.adk.agents import BaseAgent
 
-from streetrace.agents.agent_manager import AgentManager
 from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import AnyTool, ToolProvider
+from streetrace.workloads import WorkloadManager
 
 
 class SystemContextCapturingAgent(StreetRaceAgent):
@@ -78,7 +78,7 @@ async def test_create_agent_passes_system_context(
     SystemContextCapturingAgent.received_system_context = None
 
     # Arrange
-    agent_manager = AgentManager(
+    workload_manager = WorkloadManager(
         model_factory=mock_model_factory,
         tool_provider=mock_tool_provider,
         system_context=mock_system_context,
@@ -99,18 +99,18 @@ async def test_create_agent_passes_system_context(
     )
 
     # Mock the discovery cache
-    agent_manager._discovery_cache = {  # noqa: SLF001
+    workload_manager._discovery_cache = {  # noqa: SLF001
         agent_card.name.lower(): ("cwd", mock_agent_info),
     }
 
     # Act
     # Mock the python loader to return our test agent
     with patch.object(
-        agent_manager.format_loaders["python"],
+        workload_manager.format_loaders["python"],
         "load_agent",
         return_value=SystemContextCapturingAgent(),
     ):
-        async with agent_manager.create_agent(agent_card.name) as agent:
+        async with workload_manager.create_agent(agent_card.name) as agent:
             assert agent is not None
 
     # Assert

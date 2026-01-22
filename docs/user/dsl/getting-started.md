@@ -94,6 +94,19 @@ Or, if you have a default model configured:
 streetrace hello.sr
 ```
 
+### Entry Point Selection
+
+When you run a `.sr` file, StreetRace determines what to execute in this order:
+
+1. **Main flow**: If your DSL defines `flow main:`, that flow runs first
+2. **Default agent**: If no main flow exists, but there is an unnamed `agent:`, that agent runs
+3. **First agent**: Otherwise, the first defined agent runs
+
+This means you can control your entry point by either:
+- Defining a `flow main:` for explicit orchestration
+- Using an unnamed `agent:` as your default entry point
+- Relying on definition order (less recommended)
+
 ## Adding Tools
 
 Agents become more useful with tools. Here's an agent with GitHub access:
@@ -253,7 +266,7 @@ workflow = workflow_class()
 ctx = workflow.create_context()
 ```
 
-The `DslStreetRaceAgent` wrapper provides full runtime integration with the AgentManager:
+The `DslStreetRaceAgent` wrapper provides full runtime integration with the WorkloadManager:
 
 ```python
 from pathlib import Path

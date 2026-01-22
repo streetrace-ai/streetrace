@@ -317,13 +317,16 @@ Understanding how these patterns execute helps you design effective multi-agent 
 
 ### Agent Hierarchy Creation
 
-When you run a DSL agent file, the loader:
+When you run a DSL agent file, the Workload Protocol ensures consistent execution:
 
 1. Compiles the `.sr` file to Python bytecode
 2. Creates the root agent from the default (unnamed) agent definition
 3. For each agent in `delegate`, creates a sub-agent recursively
 4. For each agent in `use`, creates an AgentTool wrapper recursively
 5. Nested patterns are fully supported (sub-agents can have their own sub-agents/tools)
+
+Agents invoked via `run agent` in flows have full access to their tools and agentic patterns,
+thanks to the Workload Protocol's unified execution model.
 
 ### Execution Flow
 

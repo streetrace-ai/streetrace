@@ -384,3 +384,6 @@ source_map  # unused variable (loader.py) - captured from compile_dsl for future
 # DslStreetRaceAgent - internal state for agent lifecycle
 _._source_map  # unused attribute (dsl_agent_loader.py) - stored for error translation
 _._workflow_instance  # unused attribute (dsl_agent_loader.py) - internal workflow state
+
+# BaseSessionService - used in type annotations and string literals for TYPE_CHECKING
+BaseSessionService  # unused import - used in type annotations and TYPE_CHECKING blocks

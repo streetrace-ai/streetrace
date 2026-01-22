@@ -435,6 +435,50 @@ prompt greeting:
 
 ## Runtime Errors
 
+### Agent Not Found
+
+**Error:** `Error: Agent 'my_agent' not found.`
+
+**Solution:** Check your agent location:
+
+```bash
+streetrace --list-agents
+```
+
+Agents are discovered in these locations (in order):
+
+1. `./agents/` directory in your project
+2. Current directory
+3. `.streetrace/agents/` in your project
+4. `~/.streetrace/agents/` in your home directory
+5. Bundled agents included with StreetRace
+
+Ensure your agent file is in one of these locations, or specify the path directly:
+
+```bash
+streetrace ./path/to/my_agent.sr
+```
+
+### Flow Not Executing
+
+**Error:** Your flow does not run when you execute the file.
+
+**Solution:**
+
+1. Check if it is named `main` (automatic entry point)
+2. Verify syntax with `streetrace check your_file.sr`
+3. Understand entry point selection priority:
+   - `flow main:` runs first if defined
+   - Otherwise, unnamed `agent:` runs
+   - Otherwise, the first defined agent runs
+
+```streetrace
+# This flow runs automatically because it's named 'main'
+flow main:
+    $result = run agent my_agent "Hello"
+    return $result
+```
+
 ### Model Not Configured
 
 **Error:** `LLM provider error: API key not configured`
@@ -460,6 +504,37 @@ export OPENAI_API_KEY=your_key_here
 # Verify credentials
 tool github = mcp "https://api.github.com/mcp/" with auth bearer ${env:GITHUB_PAT}
 ```
+
+### Tools Not Working in Flow-Invoked Agents
+
+**Symptoms:** An agent called via `run agent` in a flow does not have access to its defined tools.
+
+**Solution:** Ensure you are using current syntax and patterns:
+
+1. The agent must be defined in the same DSL file (or properly imported)
+2. The tool must be declared and assigned to the agent
+3. Use `run agent` syntax in flows
+
+```streetrace
+model main = anthropic/claude-sonnet
+
+tool github = mcp "https://api.github.com/mcp/"
+
+agent reviewer:
+    tools github  # Tool is assigned to agent
+    instruction review_prompt
+
+flow review_code:
+    # Correct: reviewer has full access to github tool
+    $result = run agent reviewer "Review the latest PR"
+    return $result
+
+prompt review_prompt:
+    You are a code reviewer with GitHub access.
+```
+
+Agents invoked via `run agent` have full access to their tools and agentic patterns
+(`delegate`, `use`).
 
 ### Timeout Exceeded
 

@@ -1,4 +1,4 @@
-"""Runs agents and implements the core user<->agent interaction loop."""
+"""Runs workloads and implements the core user<->agent interaction loop."""
 
 from typing import TYPE_CHECKING, override
 
@@ -16,43 +16,43 @@ from streetrace.ui.adk_event_renderer import Event
 from streetrace.ui.ui_bus import UiBus
 
 if TYPE_CHECKING:
-    from streetrace.agents.agent_manager import AgentManager
     from streetrace.session.session_manager import SessionManager
+    from streetrace.workloads import WorkloadManager
 
 logger = get_logger(__name__)
 
 
 class Supervisor(InputHandler):
-    """Workflow supervisor manages and executes available workflows."""
+    """Workflow supervisor manages and executes available workloads."""
 
     def __init__(
         self,
-        agent_manager: "AgentManager",
+        workload_manager: "WorkloadManager",
         session_manager: "SessionManager",
         ui_bus: UiBus,
     ) -> None:
         """Initialize a new instance of workflow supervisor.
 
         Args:
-            agent_manager: Manager for discovering and creating agents
-            session_manager: Conversaion sessions manager
+            workload_manager: Manager for discovering and creating workloads
+            session_manager: Conversation sessions manager
             ui_bus: UI event bus for displaying messages to the user
 
         """
-        self.agent_manager = agent_manager
+        self.workload_manager = workload_manager
         self.session_manager = session_manager
         self.ui_bus = ui_bus
         self.long_running = True
 
     @override
     async def handle(self, ctx: InputContext) -> HandlerResult:
-        """Run the payload through the workflow.
+        """Run the payload through the workload.
 
-        This method orchestrates the full interaction cycle between the user and agent:
+        Orchestrate the full user-workload interaction cycle:
         1. Prepares the user's message with any attached file contents
         2. Creates a session if needed or retrieves an existing one
-        3. Creates an agent with appropriate tools
-        4. Runs the agent with the message and captures all events
+        3. Creates a workload via WorkloadManager
+        4. Runs the workload with the message and captures all events
         5. Extracts the final response and adds it to global history
 
         Args:
@@ -75,32 +75,20 @@ class Supervisor(InputHandler):
 
         session = await self.session_manager.get_or_create_session()
         session = await self.session_manager.validate_session(session)
-        # Use agent specified in args, or default if none specified
-        agent_name = ctx.agent_name or "default"
+        # Use workload specified in args, or default if none specified
+        workload_name = ctx.agent_name or "default"
         try:
-            # Create parent telemetry span for the entire agent run
+            # Create parent telemetry span for the entire workload run
             # Get tracer lazily to ensure we use the configured tracer provider
             tracer = trace.get_tracer(__name__)
             with tracer.start_as_current_span("streetrace_agent_run"):
-                async with self.agent_manager.create_agent(agent_name) as root_agent:
-                    # Type cast needed because JSONSessionService uses
-                    # duck typing at runtime but inherits from
-                    # BaseSessionService only during TYPE_CHECKING
-                    from google.adk import Runner
-
-                    runner = Runner(
-                        app_name=session.app_name,
-                        session_service=self.session_manager.session_service,
-                        agent=root_agent,
-                    )
-                    # Key Concept: run_async executes the agent logic and
+                async with self.workload_manager.create_workload(
+                    workload_name,
+                ) as workload:
+                    # Key Concept: run_async executes the workload logic and
                     # yields Events while it goes through ReAct loop.
                     # We iterate through events to reach the final answer.
-                    async for event in runner.run_async(
-                        user_id=session.user_id,
-                        session_id=session.id,
-                        new_message=content,
-                    ):
+                    async for event in workload.run_async(session, content):
                         self.ui_bus.dispatch_ui_update(Event(event=event))
                         await self.session_manager.manage_current_session()
 
@@ -112,7 +100,7 @@ class Supervisor(InputHandler):
                         #       -> tool name is "write_file"
                         #           -> missing parameter name is "content"
 
-                        # Check if this is the final response from the agent
+                        # Check if this is the final response from the workload
                         # Only capture first final response if multiple
                         if (
                             event.is_final_response()
@@ -128,7 +116,7 @@ class Supervisor(InputHandler):
                                     event.error_message or "No specific message."
                                 )
                                 final_response_text = f"Agent escalated: {error_msg}"
-            # Add the agent's final message to the history
+            # Add the workload's final message to the history
             if final_response_text:
                 await self.session_manager.post_process(
                     user_input=ctx.user_input,
@@ -137,20 +125,22 @@ class Supervisor(InputHandler):
                 ctx.final_response = final_response_text
         except* ToolsetLifecycleError as lifecycle_err_group:
             logger.exception(
-                "Failed to initialize or cleanup tools for agent '%s'",
-                agent_name,
+                "Failed to initialize or cleanup tools for workload '%s'",
+                workload_name,
             )
             err = next(
                 err
                 for err in lifecycle_err_group.exceptions
                 if isinstance(err, ToolsetLifecycleError)
             )
-            self.ui_bus.dispatch_ui_update(ui_events.Error(f"'{agent_name}': {err}"))
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Error(f"'{workload_name}': {err}"),
+            )
             raise
         except* BaseException as err_group:
-            logger.exception("Error running agent '%s'", agent_name)
+            logger.exception("Error running workload '%s'", workload_name)
             self.ui_bus.dispatch_ui_update(
-                ui_events.Error(f"'{agent_name}': {err_group.exceptions[0]}"),
+                ui_events.Error(f"'{workload_name}': {err_group.exceptions[0]}"),
             )
             raise
 
