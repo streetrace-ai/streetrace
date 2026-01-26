@@ -15,3 +15,6 @@ If asked about Python async, immediately delegate to the specialist."""
 
 prompt specialist_prompt: """You are a Python async specialist. Provide expert answers about async/await.
 Be very concise - one sentence only."""
+
+flow main:
+    run agent coordinator

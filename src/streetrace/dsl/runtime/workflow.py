@@ -120,9 +120,17 @@ class DslAgentWorkflow:
         if flow_default is not None and callable(flow_default):
             return EntryPoint(type="flow", name="default")
 
+        # Check for main agent
+        if "main" in self._agents:
+            return EntryPoint(type="agent", name="main")
+
         # Check for default agent
         if "default" in self._agents:
             return EntryPoint(type="agent", name="default")
+
+        # Check for default agent
+        if len(self._agents) == 1:
+            return EntryPoint(type="agent", name=(self._agents.items()[0][0].name))
 
         # If main/default flow and default agent not found, we can't run
         # anything as it introduces ambiguity.
