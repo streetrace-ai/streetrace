@@ -920,3 +920,103 @@ class TestCodeGeneratorWorkflowClass:
         code, _mappings = generator.generate(ast, "test.sr")
 
         assert "import" in code or "from" in code
+
+
+# =============================================================================
+# CodeGenerator Tests - Tool Definitions
+# =============================================================================
+
+
+class TestCodeGeneratorToolDefinitions:
+    """Test code generation for tool definitions."""
+
+    def test_generate_mcp_tool_with_auth(self) -> None:
+        """Generate code for MCP tool with auth configuration."""
+        ast = DslFile(
+            version=VersionDecl(version="v1"),
+            statements=[
+                ToolDef(
+                    name="github",
+                    tool_type="mcp",
+                    url="https://api.github.com/mcp",
+                    auth_type="bearer",
+                    auth_value="${GITHUB_TOKEN}",
+                ),
+            ],
+        )
+
+        generator = CodeGenerator()
+        code, _mappings = generator.generate(ast, "test.sr")
+
+        assert "_tools = {" in code
+        assert "'github'" in code
+        assert "'type': 'mcp'" in code
+        assert "'url': 'https://api.github.com/mcp'" in code
+        assert "'auth': {" in code
+        assert "'type': 'bearer'" in code
+        assert "'value': '${GITHUB_TOKEN}'" in code
+
+    def test_generate_mcp_tool_with_headers(self) -> None:
+        """Generate code for MCP tool with explicit headers."""
+        ast = DslFile(
+            version=VersionDecl(version="v1"),
+            statements=[
+                ToolDef(
+                    name="custom_api",
+                    tool_type="mcp",
+                    url="https://api.example.com/mcp",
+                    headers={"X-API-Key": "secret"},
+                ),
+            ],
+        )
+
+        generator = CodeGenerator()
+        code, _mappings = generator.generate(ast, "test.sr")
+
+        assert "'headers': {'X-API-Key': 'secret'}" in code
+
+    def test_generate_builtin_tool(self) -> None:
+        """Generate code for builtin tool."""
+        ast = DslFile(
+            version=VersionDecl(version="v1"),
+            statements=[
+                ToolDef(
+                    name="fs",
+                    tool_type="builtin",
+                    builtin_ref="streetrace.fs",
+                ),
+            ],
+        )
+
+        generator = CodeGenerator()
+        code, _mappings = generator.generate(ast, "test.sr")
+
+        assert "'fs'" in code
+        assert "'type': 'builtin'" in code
+        assert "'builtin_ref': 'streetrace.fs'" in code
+
+    def test_generated_tools_code_compiles(self) -> None:
+        """Generated tool code should be valid Python syntax."""
+        ast = DslFile(
+            version=VersionDecl(version="v1"),
+            statements=[
+                ToolDef(
+                    name="github",
+                    tool_type="mcp",
+                    url="https://api.github.com/mcp",
+                    auth_type="bearer",
+                    auth_value="${GITHUB_TOKEN}",
+                ),
+                ToolDef(
+                    name="fs",
+                    tool_type="builtin",
+                    builtin_ref="streetrace.fs",
+                ),
+            ],
+        )
+
+        generator = CodeGenerator()
+        code, _mappings = generator.generate(ast, "test.sr")
+
+        # Verify the code can be compiled
+        compile(code, "<generated>", "exec")

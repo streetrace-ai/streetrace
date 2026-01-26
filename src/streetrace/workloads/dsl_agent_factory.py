@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from streetrace.llm.model_factory import ModelFactory
     from streetrace.system_context import SystemContext
     from streetrace.tools.tool_provider import AdkTool, ToolProvider
-    from streetrace.tools.tool_refs import StreetraceToolRef
+    from streetrace.tools.tool_refs import ToolRef
 
 from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 from streetrace.dsl.sourcemap import SourceMapping
@@ -217,8 +217,10 @@ class DslAgentFactory:
             List of resolved ADK tools.
 
         """
-        from streetrace.tools.mcp_transport import HttpTransport, SseTransport
-        from streetrace.tools.tool_refs import McpToolRef, StreetraceToolRef
+        from streetrace.dsl.runtime.tool_factory import (
+            create_builtin_tool_refs,
+            create_mcp_tool_ref,
+        )
 
         # Get tool names from agent definition
         tool_names_raw = agent_def.get("tools", [])
@@ -232,100 +234,29 @@ class DslAgentFactory:
         tool_defs = getattr(self._workflow_class, "_tools", {})
 
         # Build tool refs for the tool provider
-        tool_refs: list[McpToolRef | StreetraceToolRef] = []
+        tool_refs: list[ToolRef] = []
 
         for tool_name in tool_names:
             tool_def = tool_defs.get(tool_name, {})
+            if not isinstance(tool_def, dict):
+                tool_def = {}
             tool_type = tool_def.get("type", "builtin")
 
             if tool_type == "builtin":
                 # Map builtin refs like "streetrace.fs" to StreetRace tools
-                builtin_tools = self._get_builtin_tools(tool_name, tool_def)
+                builtin_tools = create_builtin_tool_refs(tool_name, tool_def)
                 tool_refs.extend(builtin_tools)
             elif tool_type == "mcp":
                 url = tool_def.get("url", "")
                 if url:
-                    # Determine transport type from URL
-                    transport: HttpTransport | SseTransport
-                    if url.endswith("/sse") or "sse" in url.lower():
-                        transport = SseTransport(url=url)
-                    else:
-                        transport = HttpTransport(url=url)
-                    tool_refs.append(
-                        McpToolRef(
-                            name=tool_name,
-                            server=transport,
-                            tools=["*"],  # Include all tools from this server
-                        ),
-                    )
+                    tool_refs.append(create_mcp_tool_ref(tool_name, tool_def))
             else:
                 # Default to builtin
-                builtin_tools = self._get_builtin_tools(tool_name, tool_def)
+                builtin_tools = create_builtin_tool_refs(tool_name, tool_def)
                 tool_refs.extend(builtin_tools)
 
         # Use tool provider to resolve the tool refs
         return tool_provider.get_tools(tool_refs)
-
-    def _get_builtin_tools(
-        self,
-        tool_name: str,
-        tool_def: dict[str, object],
-    ) -> list["StreetraceToolRef"]:
-        """Get StreetRace tool refs for a builtin tool definition.
-
-        Args:
-            tool_name: Name of the tool.
-            tool_def: Tool definition dict.
-
-        Returns:
-            List of StreetRaceToolRef objects.
-
-        """
-        from streetrace.tools.tool_refs import StreetraceToolRef
-
-        # Default fs tools to provide
-        fs_tool_functions = [
-            "read_file",
-            "create_directory",
-            "write_file",
-            "append_to_file",
-            "list_directory",
-            "find_in_files",
-        ]
-
-        cli_tool_functions = [
-            "execute_cli_command",
-        ]
-
-        refs: list[StreetraceToolRef] = []
-
-        # Check for specific builtin ref patterns
-        builtin_ref = tool_def.get("builtin_ref") or tool_def.get("url")
-        if builtin_ref:
-            # Handle patterns like "streetrace.fs", "streetrace.cli"
-            if "fs" in str(builtin_ref).lower():
-                refs.extend(
-                    StreetraceToolRef(module="fs_tool", function=func)
-                    for func in fs_tool_functions
-                )
-            elif "cli" in str(builtin_ref).lower():
-                refs.extend(
-                    StreetraceToolRef(module="cli_tool", function=func)
-                    for func in cli_tool_functions
-                )
-        elif "fs" in tool_name.lower():
-            # Infer from tool name
-            refs.extend(
-                StreetraceToolRef(module="fs_tool", function=func)
-                for func in fs_tool_functions
-            )
-        elif "cli" in tool_name.lower():
-            refs.extend(
-                StreetraceToolRef(module="cli_tool", function=func)
-                for func in cli_tool_functions
-            )
-
-        return refs
 
     async def create_agent(
         self,

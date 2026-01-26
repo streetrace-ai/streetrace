@@ -306,15 +306,51 @@ class WorkflowVisitor:
 
         for tool in self._tools:
             source_line = tool.meta.line if tool.meta else None
-            self._emitter.emit(
-                f"'{tool.name}': {{'type': '{tool.tool_type}', 'url': "
-                f"{tool.url!r}}},",
-                source_line=source_line,
-            )
+            self._emit_single_tool(tool, source_line)
 
         self._emitter.dedent()
         self._emitter.emit("}")
         self._emitter.emit_blank()
+
+    def _emit_single_tool(self, tool: ToolDef, source_line: int | None) -> None:
+        """Emit a single tool definition.
+
+        Args:
+            tool: Tool definition node.
+            source_line: Source line number for mapping.
+
+        """
+        self._emitter.emit(f"'{tool.name}': {{", source_line=source_line)
+        self._emitter.indent()
+
+        # Required fields
+        self._emitter.emit(f"'type': {tool.tool_type!r},")
+        if tool.url:
+            self._emitter.emit(f"'url': {tool.url!r},")
+
+        # Auth configuration
+        if tool.auth_type and tool.auth_value:
+            self._emitter.emit("'auth': {")
+            self._emitter.indent()
+            self._emitter.emit(f"'type': {tool.auth_type!r},")
+            self._emitter.emit(f"'value': {tool.auth_value!r},")
+            self._emitter.dedent()
+            self._emitter.emit("},")
+
+        # Headers (from long form)
+        if tool.headers:
+            self._emitter.emit(f"'headers': {tool.headers!r},")
+
+        # Builtin reference
+        if tool.builtin_ref:
+            self._emitter.emit(f"'builtin_ref': {tool.builtin_ref!r},")
+
+        # Tool reference
+        if tool.ref:
+            self._emitter.emit(f"'ref': {tool.ref!r},")
+
+        self._emitter.dedent()
+        self._emitter.emit("},")
 
     def _emit_agents(self) -> None:
         """Emit the _agents class attribute."""
