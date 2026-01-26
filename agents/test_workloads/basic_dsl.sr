@@ -1,0 +1,9 @@
+# Basic DSL Test Agent
+# Tests DSL workload loading and compile-on-load behavior
+
+model main = anthropic/claude-sonnet-4-5
+
+prompt greeting: """You are a test assistant. Respond briefly with: DSL agent responding."""
+
+agent:
+    instruction greeting

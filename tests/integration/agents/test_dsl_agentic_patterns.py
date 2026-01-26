@@ -12,12 +12,13 @@ import pytest
 from google.adk.agents import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
 
-from streetrace.agents.dsl_agent_loader import DslStreetRaceAgent, compiled_exec
 from streetrace.dsl import compile_dsl
 from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
+from streetrace.workloads.dsl_agent_factory import DslAgentFactory
+from streetrace.workloads.dsl_loader import compiled_exec
 
 # DSL source for coordinator pattern with delegate keyword
 COORDINATOR_DSL = """\
@@ -193,20 +194,20 @@ def mock_system_context() -> Mock:
     return Mock(spec=SystemContext)
 
 
-def compile_and_load(source: str, filename: str = "test.sr") -> DslStreetRaceAgent:
-    """Compile DSL source and load as agent.
+def compile_and_load(source: str, filename: str = "test.sr") -> DslAgentFactory:
+    """Compile DSL source and load as agent factory.
 
     Args:
         source: DSL source code.
         filename: Filename for error reporting.
 
     Returns:
-        DslStreetRaceAgent wrapping the compiled workflow.
+        DslAgentFactory wrapping the compiled workflow.
 
     """
     bytecode, source_map = compile_dsl(source, filename, use_cache=False)
     workflow_class = run_bytecode(bytecode)
-    return DslStreetRaceAgent(
+    return DslAgentFactory(
         workflow_class=workflow_class,
         source_file=Path(filename),
         source_map=source_map,
@@ -250,9 +251,9 @@ class TestCoordinatorPattern:
         mock_system_context: Mock,
     ) -> None:
         """Test that delegate keyword creates sub_agents on LlmAgent."""
-        dsl_agent = compile_and_load(COORDINATOR_DSL)
+        agent_factory = compile_and_load(COORDINATOR_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -268,9 +269,9 @@ class TestCoordinatorPattern:
         mock_system_context: Mock,
     ) -> None:
         """Test that sub-agents are created with correct names."""
-        dsl_agent = compile_and_load(COORDINATOR_DSL)
+        agent_factory = compile_and_load(COORDINATOR_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -285,9 +286,9 @@ class TestCoordinatorPattern:
         mock_system_context: Mock,
     ) -> None:
         """Test that sub-agents have descriptions from DSL."""
-        dsl_agent = compile_and_load(COORDINATOR_DSL)
+        agent_factory = compile_and_load(COORDINATOR_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -304,9 +305,9 @@ class TestCoordinatorPattern:
         mock_system_context: Mock,
     ) -> None:
         """Test that sub-agents are LlmAgent instances."""
-        dsl_agent = compile_and_load(COORDINATOR_DSL)
+        agent_factory = compile_and_load(COORDINATOR_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -325,9 +326,9 @@ class TestHierarchicalPattern:
         mock_system_context: Mock,
     ) -> None:
         """Test that use keyword creates AgentTool wrappers in tools."""
-        dsl_agent = compile_and_load(HIERARCHICAL_DSL)
+        agent_factory = compile_and_load(HIERARCHICAL_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -342,9 +343,9 @@ class TestHierarchicalPattern:
         mock_system_context: Mock,
     ) -> None:
         """Test that AgentTools wrap the correct agents."""
-        dsl_agent = compile_and_load(HIERARCHICAL_DSL)
+        agent_factory = compile_and_load(HIERARCHICAL_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -361,9 +362,9 @@ class TestHierarchicalPattern:
         mock_system_context: Mock,
     ) -> None:
         """Test that wrapped agents have proper instructions."""
-        dsl_agent = compile_and_load(HIERARCHICAL_DSL)
+        agent_factory = compile_and_load(HIERARCHICAL_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -383,9 +384,9 @@ class TestHierarchicalPattern:
         mock_system_context: Mock,
     ) -> None:
         """Test that use-only pattern has no sub_agents."""
-        dsl_agent = compile_and_load(HIERARCHICAL_DSL)
+        agent_factory = compile_and_load(HIERARCHICAL_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -405,9 +406,9 @@ class TestCombinedPatterns:
         mock_system_context: Mock,
     ) -> None:
         """Test that combined pattern has both sub_agents and agent tools."""
-        dsl_agent = compile_and_load(COMBINED_DSL)
+        agent_factory = compile_and_load(COMBINED_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -426,9 +427,9 @@ class TestCombinedPatterns:
         mock_system_context: Mock,
     ) -> None:
         """Test that sub_agents and agent_tools contain different agents."""
-        dsl_agent = compile_and_load(COMBINED_DSL)
+        agent_factory = compile_and_load(COMBINED_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -453,9 +454,9 @@ class TestCombinedPatterns:
         mock_system_context: Mock,
     ) -> None:
         """Test that all agents in combined pattern have correct types."""
-        dsl_agent = compile_and_load(COMBINED_DSL)
+        agent_factory = compile_and_load(COMBINED_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -494,15 +495,15 @@ class TestFullPipeline:
         workflow_class = run_bytecode(bytecode)
         assert issubclass(workflow_class, DslAgentWorkflow)
 
-        # Step 3: Create DslStreetRaceAgent
-        dsl_agent = DslStreetRaceAgent(
+        # Step 3: Create DslAgentFactory
+        agent_factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=source_map,
         )
 
         # Step 4: Create ADK agent
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -518,9 +519,9 @@ class TestFullPipeline:
         mock_system_context: Mock,
     ) -> None:
         """Test that the pipeline preserves agent hierarchy from DSL."""
-        dsl_agent = compile_and_load(COORDINATOR_DSL, "coordinator.sr")
+        agent_factory = compile_and_load(COORDINATOR_DSL, "coordinator.sr")
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -538,9 +539,9 @@ class TestFullPipeline:
         mock_system_context: Mock,
     ) -> None:
         """Test pipeline with a simple agent without agentic patterns."""
-        dsl_agent = compile_and_load(SIMPLE_DSL, "simple.sr")
+        agent_factory = compile_and_load(SIMPLE_DSL, "simple.sr")
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -559,26 +560,21 @@ class TestFullPipeline:
 class TestAgentClose:
     """Test resource cleanup for agents with nested patterns."""
 
-    async def test_close_cleans_up_workflow_instance(
+    async def test_close_completes_without_error(
         self,
         mock_model_factory: Mock,
         mock_tool_provider: Mock,
         mock_system_context: Mock,
     ) -> None:
-        """Test that close() clears the workflow instance."""
-        dsl_agent = compile_and_load(SIMPLE_DSL)
+        """Test that close() completes without error."""
+        agent_factory = compile_and_load(SIMPLE_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
-        # Workflow instance should exist after create_agent
-        assert dsl_agent._workflow_instance is not None  # noqa: SLF001
-
-        await dsl_agent.close(root_agent)
-
-        # Workflow instance should be cleared after close
-        assert dsl_agent._workflow_instance is None  # noqa: SLF001
+        # Close should complete without raising
+        await agent_factory.close(root_agent)
 
     async def test_close_with_sub_agents(
         self,
@@ -587,16 +583,14 @@ class TestAgentClose:
         mock_system_context: Mock,
     ) -> None:
         """Test that close() handles agents with sub_agents."""
-        dsl_agent = compile_and_load(COORDINATOR_DSL)
+        agent_factory = compile_and_load(COORDINATOR_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
         # Should not raise even with sub_agents
-        await dsl_agent.close(root_agent)
-
-        assert dsl_agent._workflow_instance is None  # noqa: SLF001
+        await agent_factory.close(root_agent)
 
     async def test_close_with_agent_tools(
         self,
@@ -605,16 +599,14 @@ class TestAgentClose:
         mock_system_context: Mock,
     ) -> None:
         """Test that close() handles agents with agent tools."""
-        dsl_agent = compile_and_load(HIERARCHICAL_DSL)
+        agent_factory = compile_and_load(HIERARCHICAL_DSL)
 
-        root_agent = await dsl_agent.create_agent(
+        root_agent = await agent_factory.create_root_agent(
             mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
         # Should not raise even with agent tools
-        await dsl_agent.close(root_agent)
-
-        assert dsl_agent._workflow_instance is None  # noqa: SLF001
+        await agent_factory.close(root_agent)
 
 
 class TestWorkflowAttributes:
@@ -622,8 +614,8 @@ class TestWorkflowAttributes:
 
     def test_workflow_has_agents_dict(self) -> None:
         """Test that compiled workflow has _agents dict."""
-        dsl_agent = compile_and_load(COORDINATOR_DSL)
-        workflow_class = dsl_agent._workflow_class  # noqa: SLF001
+        agent_factory = compile_and_load(COORDINATOR_DSL)
+        workflow_class = agent_factory.workflow_class
 
         assert hasattr(workflow_class, "_agents")
         agents = workflow_class._agents  # noqa: SLF001
@@ -635,8 +627,8 @@ class TestWorkflowAttributes:
 
     def test_workflow_agents_have_sub_agents_field(self) -> None:
         """Test that agents in workflow have sub_agents field from delegate."""
-        dsl_agent = compile_and_load(COORDINATOR_DSL)
-        workflow_class = dsl_agent._workflow_class  # noqa: SLF001
+        agent_factory = compile_and_load(COORDINATOR_DSL)
+        workflow_class = agent_factory.workflow_class
 
         default_agent = workflow_class._agents["default"]  # noqa: SLF001
         assert "sub_agents" in default_agent
@@ -644,8 +636,8 @@ class TestWorkflowAttributes:
 
     def test_workflow_agents_have_agent_tools_field(self) -> None:
         """Test that agents in workflow have agent_tools field from use."""
-        dsl_agent = compile_and_load(HIERARCHICAL_DSL)
-        workflow_class = dsl_agent._workflow_class  # noqa: SLF001
+        agent_factory = compile_and_load(HIERARCHICAL_DSL)
+        workflow_class = agent_factory.workflow_class
 
         default_agent = workflow_class._agents["default"]  # noqa: SLF001
         assert "agent_tools" in default_agent
@@ -653,8 +645,8 @@ class TestWorkflowAttributes:
 
     def test_workflow_has_prompts_dict(self) -> None:
         """Test that compiled workflow has _prompts dict."""
-        dsl_agent = compile_and_load(COORDINATOR_DSL)
-        workflow_class = dsl_agent._workflow_class  # noqa: SLF001
+        agent_factory = compile_and_load(COORDINATOR_DSL)
+        workflow_class = agent_factory.workflow_class
 
         assert hasattr(workflow_class, "_prompts")
         prompts = workflow_class._prompts  # noqa: SLF001

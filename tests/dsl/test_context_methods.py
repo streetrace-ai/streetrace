@@ -10,17 +10,24 @@ import pytest
 
 if TYPE_CHECKING:
     from streetrace.dsl.runtime.context import WorkflowContext
+    from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+
+
+@pytest.fixture
+def mock_workflow() -> "DslAgentWorkflow":
+    """Create a mock DslAgentWorkflow for testing."""
+    return MagicMock()
 
 
 class TestProcess:
     """Test WorkflowContext.process() method."""
 
     @pytest.fixture
-    def workflow_context(self) -> "WorkflowContext":
+    def workflow_context(self, mock_workflow: "DslAgentWorkflow") -> "WorkflowContext":
         """Create a WorkflowContext instance."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        return WorkflowContext()
+        return WorkflowContext(workflow=mock_workflow)
 
     def test_process_returns_input_unchanged(
         self,
@@ -64,11 +71,11 @@ class TestEscalateToHuman:
     """Test WorkflowContext.escalate_to_human() method."""
 
     @pytest.fixture
-    def workflow_context(self) -> "WorkflowContext":
+    def workflow_context(self, mock_workflow: "DslAgentWorkflow") -> "WorkflowContext":
         """Create a WorkflowContext instance."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        return WorkflowContext()
+        return WorkflowContext(workflow=mock_workflow)
 
     @pytest.mark.asyncio
     async def test_escalate_to_human_logs_message(
@@ -135,34 +142,34 @@ class TestEscalateToHuman:
 class TestContextConfiguration:
     """Test WorkflowContext configuration methods."""
 
-    def test_set_ui_bus(self) -> None:
+    def test_set_ui_bus(self, mock_workflow: "DslAgentWorkflow") -> None:
         """set_ui_bus configures the UI bus."""
         from streetrace.dsl.runtime.context import WorkflowContext
         from streetrace.ui.ui_bus import UiBus
 
-        ctx = WorkflowContext()
+        ctx = WorkflowContext(workflow=mock_workflow)
         ui_bus = MagicMock(spec=UiBus)
 
         ctx.set_ui_bus(ui_bus)
 
         assert ctx._ui_bus is ui_bus  # noqa: SLF001
 
-    def test_set_escalation_callback(self) -> None:
+    def test_set_escalation_callback(self, mock_workflow: "DslAgentWorkflow") -> None:
         """set_escalation_callback configures the callback."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        ctx = WorkflowContext()
+        ctx = WorkflowContext(workflow=mock_workflow)
         callback = MagicMock()
 
         ctx.set_escalation_callback(callback)
 
         assert ctx._escalation_callback is callback  # noqa: SLF001
 
-    def test_set_prompt_models(self) -> None:
+    def test_set_prompt_models(self, mock_workflow: "DslAgentWorkflow") -> None:
         """set_prompt_models configures prompt-to-model mapping."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        ctx = WorkflowContext()
+        ctx = WorkflowContext(workflow=mock_workflow)
         prompt_models = {"greeting": "main", "analysis": "fast"}
 
         ctx.set_prompt_models(prompt_models)

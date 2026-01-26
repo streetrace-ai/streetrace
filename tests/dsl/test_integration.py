@@ -4,6 +4,9 @@ Test the full compile-to-run pipeline including compilation,
 workflow creation, and error handling.
 """
 
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
+
 import pytest
 
 from streetrace.dsl import (
@@ -14,6 +17,40 @@ from streetrace.dsl import (
     validate_dsl,
 )
 from streetrace.dsl.runtime import WorkflowContext
+
+if TYPE_CHECKING:
+    from google.adk.sessions.base_session_service import BaseSessionService
+
+    from streetrace.llm.model_factory import ModelFactory
+    from streetrace.system_context import SystemContext
+    from streetrace.tools.tool_provider import ToolProvider
+
+
+@pytest.fixture
+def mock_model_factory() -> "ModelFactory":
+    """Create a mock ModelFactory."""
+    factory = MagicMock()
+    factory.get_current_model.return_value = MagicMock()
+    factory.get_llm_interface.return_value = MagicMock()
+    return factory
+
+
+@pytest.fixture
+def mock_tool_provider() -> "ToolProvider":
+    """Create a mock ToolProvider."""
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_system_context() -> "SystemContext":
+    """Create a mock SystemContext."""
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_session_service() -> "BaseSessionService":
+    """Create a mock BaseSessionService."""
+    return MagicMock()
 
 # =============================================================================
 # Test DSL Sources
@@ -184,22 +221,44 @@ class TestCompilationPipeline:
         assert workflow_class is not None
         assert issubclass(workflow_class, DslAgentWorkflow)
 
-    def test_workflow_can_be_instantiated(self) -> None:
+    def test_workflow_can_be_instantiated(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
         """Compiled workflow class should be instantiable."""
         bytecode, _ = compile_dsl(MINIMAL_AGENT_SOURCE, "test.sr")
 
         workflow_class = _execute_bytecode(bytecode)
 
-        instance = workflow_class()
+        instance = workflow_class(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
         assert isinstance(instance, DslAgentWorkflow)
 
-    def test_workflow_creates_context(self) -> None:
+    def test_workflow_creates_context(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
         """Workflow should create valid context."""
         bytecode, _ = compile_dsl(MINIMAL_AGENT_SOURCE, "test.sr")
 
         workflow_class = _execute_bytecode(bytecode)
 
-        instance = workflow_class()
+        instance = workflow_class(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
         ctx = instance.create_context()
 
         assert isinstance(ctx, WorkflowContext)

@@ -40,7 +40,7 @@ Workload Discovery Flow:
                                   +----------------------+
 
 Location Priority:
-1. Current working directory (./agents, ., .streetrace/agents)
+1. Current working directory (./agents, .streetrace/agents)
 2. User home directory (~/.streetrace/agents)
 3. Bundled agents (src/streetrace/agents/)
 
@@ -59,23 +59,25 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
+from opentelemetry import trace
+
 if TYPE_CHECKING:
-    from google.adk.agents import BaseAgent
     from google.adk.sessions.base_session_service import BaseSessionService
 
-    from streetrace.agents.dsl_agent_loader import DslStreetRaceAgent
-    from streetrace.agents.street_race_agent import StreetRaceAgent
-
-from streetrace.agents.base_agent_loader import AgentInfo, AgentLoader
-from streetrace.agents.dsl_agent_loader import DslAgentLoader
-from streetrace.agents.py_agent_loader import PythonAgentLoader
-from streetrace.agents.yaml_agent_loader import YamlAgentLoader
+# Import DSL compiler exceptions for error handling
+from streetrace.agents.base_agent_loader import AgentValidationError
+from streetrace.agents.resolver import SourceResolver
+from streetrace.dsl.compiler import DslSemanticError, DslSyntaxError
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.log import get_logger
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
-from streetrace.workloads.basic_workload import BasicAgentWorkload
+from streetrace.workloads.definition import WorkloadDefinition
+from streetrace.workloads.dsl_loader import DslDefinitionLoader
+from streetrace.workloads.loader import DefinitionLoader
 from streetrace.workloads.protocol import Workload
+from streetrace.workloads.python_loader import PythonDefinitionLoader
+from streetrace.workloads.yaml_loader import YamlDefinitionLoader
 
 logger = get_logger(__name__)
 
@@ -83,60 +85,57 @@ _DEFAULT_AGENT = "Streetrace_Coding_Agent"
 """Default agent name used when 'default' is specified."""
 
 
-def _set_agent_telemetry_attributes(
-    agent_definition: "StreetRaceAgent",
-    agent_identifier: str,
+class WorkloadNotFoundError(Exception):
+    """Raised when a workload definition cannot be found by name."""
+
+    def __init__(self, name: str) -> None:
+        """Initialize with the workload name that was not found.
+
+        Args:
+            name: The name of the workload that could not be found.
+
+        """
+        self.name = name
+        super().__init__(f"Workload '{name}' not found")
+
+
+def _set_workload_telemetry_attributes(
+    definition: WorkloadDefinition,
+    identifier: str,
 ) -> None:
-    """Set telemetry attributes on the current span from agent definition.
+    """Set telemetry attributes on the current span from workload definition.
 
     Args:
-        agent_definition: The agent definition to extract attributes from
-        agent_identifier: The agent identifier (name, path, or URL)
+        definition: The workload definition to extract attributes from
+        identifier: The workload identifier (name, path, or URL)
 
     """
-    from opentelemetry import trace
-
     current_span = trace.get_current_span()
     if current_span is None or not current_span.is_recording():
         return
 
     from streetrace.version import get_streetrace_version
 
-    # Add custom attributes from agent definition
-    for key, value in agent_definition.get_attributes().items():
-        # Prefix with langfuse.trace. if not already present
-        if key.startswith("langfuse.trace."):
-            prefixed_key = key
-        else:
-            prefixed_key = f"langfuse.trace.{key}"
-        current_span.set_attribute(prefixed_key, value)
-        if key == "streetrace.org.id":
-            org_id = str(value)
-            # set langfuse org id attribute
-            current_span.set_attribute("langfuse.trace.tags", [f"org:{org_id}"])
-
-    # Add agent version if available
-    agent_version = agent_definition.get_version()
-    if agent_version is not None:
-        current_span.set_attribute(
-            "langfuse.trace.streetrace.agent.version",
-            agent_version,
-        )
-
-    # Add system prompt if available
-    system_prompt = agent_definition.get_system_prompt()
-    if system_prompt is not None:
-        current_span.set_attribute(
-            "langfuse.trace.streetrace.agent.system_prompt",
-            system_prompt,
-        )
-
-    # Add streetrace-specific attributes
-    agent_card = agent_definition.get_agent_card()
+    # Add workload metadata
     current_span.set_attribute(
-        "langfuse.trace.streetrace.agent.name",
-        agent_card.name or agent_identifier,
+        "langfuse.trace.streetrace.workload.name",
+        definition.name,
     )
+    current_span.set_attribute(
+        "langfuse.trace.streetrace.workload.format",
+        definition.metadata.format,
+    )
+    current_span.set_attribute(
+        "langfuse.trace.streetrace.workload.identifier",
+        identifier,
+    )
+
+    # Add source path if available
+    if definition.metadata.source_path:
+        current_span.set_attribute(
+            "langfuse.trace.streetrace.workload.source_path",
+            str(definition.metadata.source_path),
+        )
 
     # Add streetrace binary version
     current_span.set_attribute(
@@ -149,24 +148,24 @@ class WorkloadManager:
     """Manage workload discovery and creation with location-first priority.
 
     The WorkloadManager implements location-first workload resolution:
-    - For HTTP URLs: Load immediately (format auto-detected)
+    - For HTTP URLs: Load immediately (YAML only, others rejected for security)
     - For explicit paths: Load from that path (format auto-detected)
     - For workload names: Search locations in order, first match wins (any format)
 
     Search locations (in priority order):
-    1. Current working directory (./agents, ., .streetrace/agents)
+    1. Current working directory (./agents, .streetrace/agents)
     2. User home directory (~/.streetrace/agents)
     3. Bundled agents (src/streetrace/agents/*/agent.py and *.yaml)
 
-    This class was renamed from AgentManager to reflect the true abstraction:
-    StreetRace runs Supervisor which supervises Workloads.
+    This class uses only DefinitionLoader instances for loading all formats.
+    The old AgentLoader infrastructure has been removed.
     """
 
     # Search locations in priority order
     # Each entry is (name, relative_paths)
     # Special handling: "bundled" uses __file__ to find agents relative to this module
     SEARCH_LOCATION_SPECS: ClassVar[list[tuple[str, list[str]]]] = [
-        ("cwd", ["./agents", ".", ".streetrace/agents"]),
+        ("cwd", ["./agents", ".streetrace/agents"]),
         ("home", ["~/.streetrace/agents"]),
         ("bundled", []),  # Will be computed from __file__ in _compute_search_locations
     ]
@@ -201,15 +200,17 @@ class WorkloadManager:
         # Compute search locations
         self.search_locations = self._compute_search_locations()
 
-        # Initialize format loaders
-        self.format_loaders: dict[str, AgentLoader] = {
-            "yaml": YamlAgentLoader(http_auth=http_auth),
-            "python": PythonAgentLoader(),
-            "dsl": DslAgentLoader(),
+        # Definition loaders mapped by file extension or special key
+        # Python loader uses "python" key since it handles directories, not extensions
+        self._definition_loaders: dict[str, DefinitionLoader] = {
+            ".sr": DslDefinitionLoader(),
+            ".yaml": YamlDefinitionLoader(http_auth=http_auth),
+            ".yml": YamlDefinitionLoader(http_auth=http_auth),
+            "python": PythonDefinitionLoader(),
         }
 
-        # Cache for discovered agents (name -> (location, AgentInfo))
-        self._discovery_cache: dict[str, tuple[str, AgentInfo]] | None = None
+        # Cache for WorkloadDefinition objects (name -> WorkloadDefinition)
+        self._definitions: dict[str, WorkloadDefinition] = {}
 
         # Track errors from last load attempt for better error messages
         self._last_load_errors: list[str] = []
@@ -275,66 +276,6 @@ class WorkloadManager:
 
         return locations
 
-    def discover(self) -> list[AgentInfo]:
-        """Discover all known workloads with location-first priority.
-
-        For each location, discovers agents of all formats. First match by name wins.
-
-        Returns:
-            List of AgentInfo objects (deduplicated by name, location priority)
-
-        """
-        if self._discovery_cache is not None:
-            return [info for _, info in self._discovery_cache.values()]
-
-        discovered: dict[str, tuple[str, AgentInfo]] = {}
-
-        # Iterate locations in priority order
-        for location_name, paths in self.search_locations:
-            # Discover from all formats in this location
-            location_agents = self._discover_in_location(paths)
-
-            # Add to cache if not already found in higher-priority location
-            for agent_info in location_agents:
-                name_lower = agent_info.name.lower()
-                if name_lower not in discovered:
-                    discovered[name_lower] = (location_name, agent_info)
-                    logger.debug(
-                        "Discovered agent '%s' (%s) in %s",
-                        agent_info.name,
-                        agent_info.kind,
-                        location_name,
-                    )
-
-        self._discovery_cache = discovered
-        return [info for _, info in discovered.values()]
-
-    def _discover_in_location(self, paths: list[Path]) -> list[AgentInfo]:
-        """Discover all agents in given paths (all formats).
-
-        Args:
-            paths: Paths to search in
-
-        Returns:
-            List of discovered agents
-
-        """
-        agents = []
-
-        for format_name, loader in self.format_loaders.items():
-            try:
-                format_agents = loader.discover_in_paths(paths)
-                agents.extend(format_agents)
-            except (ValueError, OSError, ImportError) as e:
-                logger.debug(
-                    "Failed to discover %s agents in %s: %s",
-                    format_name,
-                    paths,
-                    e,
-                )
-
-        return agents
-
     @asynccontextmanager
     async def create_workload(
         self,
@@ -343,7 +284,8 @@ class WorkloadManager:
         """Create a runnable workload from identifier.
 
         This is the main entry point for creating workloads. It loads the
-        definition and creates an appropriate workload based on the definition type.
+        definition using the appropriate DefinitionLoader and creates a
+        workload from it.
 
         Args:
             identifier: Workload identifier (name, path, or URL)
@@ -359,337 +301,186 @@ class WorkloadManager:
         if identifier == "default":
             identifier = _DEFAULT_AGENT
 
-        # Load agent definition
-        agent_definition = self._load_definition(identifier)
+        # Load workload definition using definition loaders
+        definition = self._load_definition_from_identifier(identifier)
 
-        if not agent_definition:
+        if definition is None:
             # Build detailed error message with context
             error_details = (
                 "\n".join(f"  - {err}" for err in self._last_load_errors)
                 if self._last_load_errors
-                else "  - Unknown error during agent loading"
+                else "  - Unknown error during workload loading"
             )
             msg = (
-                f"Agent '{identifier}' not found.\n"
+                f"Workload '{identifier}' not found.\n"
                 f"Details:\n{error_details}\n"
-                f"Try --list-agents to see available agents."
+                f"Try --list-agents to see available workloads."
             )
             raise ValueError(msg)
 
-        # Set telemetry attributes from agent definition
-        _set_agent_telemetry_attributes(agent_definition, identifier)
+        # Set telemetry attributes from workload definition
+        _set_workload_telemetry_attributes(definition, identifier)
 
-        # Create appropriate workload based on definition type
+        # Validate session_service is available
         if self.session_service is None:
             msg = "session_service is required to create workloads"
             raise ValueError(msg)
 
-        # Route to DSL workload or basic workload based on definition type
-        if self._is_dsl_definition(agent_definition):
-            # Import at runtime to avoid circular imports
-            # Type narrowing is done via duck-typing (_workflow_class attribute)
-            from streetrace.agents.dsl_agent_loader import DslStreetRaceAgent
-
-            dsl_agent_def: DslStreetRaceAgent = agent_definition  # type: ignore[assignment]
-            workload = self._create_dsl_workload(dsl_agent_def)
-        else:
-            workload = self._create_basic_workload(agent_definition)
-
-        try:
-            yield workload
-        finally:
-            await workload.close()
-
-    @asynccontextmanager
-    async def create_agent(
-        self,
-        agent_identifier: str,
-    ) -> AsyncGenerator["BaseAgent", None]:
-        """Create agent from identifier with location-first priority.
-
-        This method maintains backward compatibility with the original AgentManager
-        interface. It creates a workload and returns the underlying agent.
-
-        Resolution order:
-        1. If HTTP URL -> load directly (bypasses location priority)
-        2. If file path -> load directly from that path
-        3. If agent name -> use location-first discovery
-
-        Args:
-            agent_identifier: Agent identifier (name, path, or URL)
-
-        Yields:
-            The created agent
-
-        Raises:
-            ValueError: If agent creation fails
-
-        """
-        # Handle "default" alias
-        if agent_identifier == "default":
-            agent_identifier = _DEFAULT_AGENT
-
-        # Load agent definition
-        agent_definition = self._load_definition(agent_identifier)
-
-        if not agent_definition:
-            # Build detailed error message with context
-            error_details = (
-                "\n".join(f"  - {err}" for err in self._last_load_errors)
-                if self._last_load_errors
-                else "  - Unknown error during agent loading"
-            )
-            msg = (
-                f"Agent '{agent_identifier}' not found.\n"
-                f"Details:\n{error_details}\n"
-                f"Try --list-agents to see available agents."
-            )
-            raise ValueError(msg)
-
-        # Set telemetry attributes from agent definition
-        _set_agent_telemetry_attributes(agent_definition, agent_identifier)
-
-        # Create and yield agent
-        agent: BaseAgent | None = None
-        try:
-            agent = await agent_definition.create_agent(
-                self.model_factory,
-                self.tool_provider,
-                self.system_context,
-            )
-            yield agent
-        finally:
-            if agent:
-                await agent_definition.close(agent)
-
-    def _is_dsl_definition(self, agent_definition: "StreetRaceAgent") -> bool:
-        """Check if the agent definition is a DSL definition.
-
-        DSL definitions have a _workflow_class attribute that contains
-        the compiled workflow class.
-
-        Args:
-            agent_definition: The agent definition to check
-
-        Returns:
-            True if this is a DSL definition, False otherwise
-
-        """
-        return hasattr(agent_definition, "_workflow_class")
-
-    def _create_dsl_workload(
-        self,
-        agent_definition: "DslStreetRaceAgent",
-    ) -> Workload:
-        """Create DSL workload from DslStreetRaceAgent definition.
-
-        DslAgentWorkflow is the Python representation of the .sr file.
-        It uses DslStreetRaceAgent (via composition) for agent creation.
-
-        Args:
-            agent_definition: The DslStreetRaceAgent definition
-
-        Returns:
-            DslAgentWorkflow instance configured with all dependencies
-
-        """
-        # Get the workflow class from the definition
-        workflow_class = agent_definition._workflow_class  # noqa: SLF001
-
-        # Instantiate with all dependencies
-        return workflow_class(
-            agent_definition=agent_definition,
+        # Create workload from definition
+        workload = definition.create_workload(
             model_factory=self.model_factory,
             tool_provider=self.tool_provider,
             system_context=self.system_context,
             session_service=self.session_service,
         )
 
-    def _create_basic_workload(
+        try:
+            yield workload
+        finally:
+            await workload.close()
+
+    def _load_definition_from_identifier(
         self,
-        agent_definition: "StreetRaceAgent",
-    ) -> BasicAgentWorkload:
-        """Create basic workload for PY/YAML agents.
+        identifier: str,
+    ) -> WorkloadDefinition | None:
+        """Load workload definition from identifier.
+
+        Routes to the appropriate loading strategy:
+        1. HTTP URLs -> YAML loader only (others rejected for security)
+        2. File paths -> Appropriate loader based on extension/type
+        3. Names -> Discover and load
 
         Args:
-            agent_definition: The StreetRaceAgent definition
+            identifier: Workload identifier (URL, path, or name)
 
         Returns:
-            BasicAgentWorkload instance configured with all dependencies
-
-        """
-        return BasicAgentWorkload(
-            agent_definition=agent_definition,
-            model_factory=self.model_factory,
-            tool_provider=self.tool_provider,
-            system_context=self.system_context,
-            session_service=self.session_service,  # type: ignore[arg-type]
-        )
-
-    def _load_definition(self, identifier: str) -> "StreetRaceAgent | None":
-        """Load workload definition from identifier with detailed error tracking.
-
-        Args:
-            identifier: Workload identifier (name, path, or URL)
-
-        Returns:
-            Loaded agent definition or None if not found
+            WorkloadDefinition or None if not found
 
         """
         # Clear previous errors
         self._last_load_errors = []
 
-        # Case 1: HTTP URL (bypass location priority)
+        # Case 1: HTTP URL
         if identifier.startswith(("http://", "https://")):
-            return self._load_from_http(identifier)
+            return self._load_from_url(identifier)
 
         # Case 2: Explicit file path
         if self._is_file_path(identifier):
-            path = Path(identifier)
+            path = Path(identifier).expanduser().resolve()
             return self._load_from_path(path)
 
-        # Case 3: Agent name (use location-first discovery)
-        agent = self._load_by_name(identifier)
-        if not agent:
-            searched_locations = [name for name, _ in self.search_locations]
-            self._last_load_errors.append(
-                f"Agent '{identifier}' not found in locations: "
-                f"{', '.join(searched_locations)}",
-            )
-        return agent
+        # Case 3: Name lookup via discovery
+        return self._load_by_name(identifier)
 
-    def _load_from_http(self, url: str) -> "StreetRaceAgent | None":
-        """Load agent from HTTP URL.
+    def _load_from_url(self, url: str) -> WorkloadDefinition | None:
+        """Load workload definition from HTTP URL.
+
+        DSL and YAML are supported for HTTP loading. Python is rejected
+        for security reasons (requires code import).
 
         Args:
             url: HTTP(S) URL
 
         Returns:
-            Loaded agent or None if cannot load
+            WorkloadDefinition or None
 
         """
-        # Try YAML first (most common for HTTP)
-        for format_name in ["yaml"]:
-            if format_name not in self.format_loaders:
-                continue
+        # Use SourceResolver to fetch and detect format
+        resolver = SourceResolver(http_auth=self.http_auth)
+        try:
+            resolution = resolver.resolve(url)
+        except ValueError as e:
+            self._last_load_errors.append(f"Failed to load from {url}: {e}")
+            raise
 
-            loader = self.format_loaders[format_name]
-            try:
-                return loader.load_from_url(url)
-            except ValueError as e:
-                logger.debug("Failed to load as %s from %s: %s", format_name, url, e)
-                # Store the actual error message for better user feedback
-                self._last_load_errors.append(f"Failed to load from {url}: {e}")
+        # Get appropriate loader based on detected format
+        loader = self._get_loader_for_format(resolution.format)
+        if loader is None:
+            msg = f"No loader available for format: {resolution.format}"
+            self._last_load_errors.append(msg)
+            raise ValueError(msg)
 
-        return None
+        try:
+            return loader.load(resolution)
+        except (ValueError, OSError, DslSyntaxError, DslSemanticError) as e:
+            self._last_load_errors.append(f"Failed to load from {url}: {e}")
+            raise
 
-    def _load_from_path(self, path: Path) -> "StreetRaceAgent | None":
-        """Load agent from explicit file/directory path with smart format detection.
+    def _load_from_path(self, path: Path) -> WorkloadDefinition | None:
+        """Load workload definition from file path.
 
-        Use file extension hints to try the most likely format first,
-        then falls back to trying all formats.
+        Uses SourceResolver to read content and detect format.
 
         Args:
             path: File or directory path
 
         Returns:
-            Loaded agent or None if cannot load
+            WorkloadDefinition or None
 
         """
-        # Define format hints based on file extension
-        format_hints: dict[str, list[str]] = {
-            ".yaml": ["yaml"],
-            ".yml": ["yaml"],
-            ".md": ["markdown"],
-            ".py": ["python"],
-            ".sr": ["dsl"],
-        }
+        # Use SourceResolver to resolve and read the file
+        resolver = SourceResolver(http_auth=self.http_auth)
+        try:
+            resolution = resolver.resolve(str(path))
+        except ValueError as e:
+            self._last_load_errors.append(f"Failed to resolve {path}: {e}")
+            return None
 
-        # Try format based on file extension first (if it's a file)
-        if path.is_file():
-            ext = path.suffix.lower()
-            if ext in format_hints:
-                for format_name in format_hints[ext]:
-                    if format_name in self.format_loaders:
-                        try:
-                            agent = self.format_loaders[format_name].load_from_path(
-                                path,
-                            )
-                            logger.debug(
-                                "Loaded agent from %s using %s format (extension hint)",
-                                path,
-                                format_name,
-                            )
-                        except ValueError as e:
-                            logger.debug(
-                                "Failed to load as %s from %s: %s",
-                                format_name,
-                                path,
-                                e,
-                            )
-                            # Store the actual error for better user feedback
-                            self._last_load_errors.append(
-                                f"Failed to load from {path}: {e}",
-                            )
-                        else:
-                            return agent
+        # Get appropriate loader based on detected format
+        loader = self._get_loader_for_format(resolution.format)
+        if loader is None:
+            self._last_load_errors.append(
+                f"No loader available for format: {resolution.format}",
+            )
+            return None
 
-        # Fallback: try all formats
-        for format_name, loader in self.format_loaders.items():
-            try:
-                agent = loader.load_from_path(path)
-                logger.debug(
-                    "Loaded agent from %s using %s format (fallback)",
-                    path,
-                    format_name,
-                )
-            except ValueError as e:
-                logger.debug("Failed to load as %s from %s: %s", format_name, path, e)
-                # Store the actual error for better user feedback
-                self._last_load_errors.append(f"Failed to load from {path}: {e}")
-            else:
-                return agent
+        try:
+            return loader.load(resolution)
+        except (
+            ValueError,
+            FileNotFoundError,
+            ImportError,
+            DslSyntaxError,
+            DslSemanticError,
+        ) as e:
+            self._last_load_errors.append(f"Failed to load from {path}: {e}")
+            return None
 
-        return None
+    def _load_by_name(self, name: str) -> WorkloadDefinition | None:
+        """Load workload definition by name via discovery.
 
-    def _load_by_name(self, name: str) -> "StreetRaceAgent | None":
-        """Load agent by name using location-first discovery with observability.
+        Discovers all workloads and looks up by name.
 
         Args:
-            name: Agent name
+            name: Workload name
 
         Returns:
-            Loaded agent or None if not found
+            WorkloadDefinition or None
 
         """
-        # Ensure discovery has run
-        self.discover()
-
-        # Look up in cache (already has location priority)
+        # Check cache first
         name_lower = name.lower()
-        if self._discovery_cache and name_lower in self._discovery_cache:
-            location, agent_info = self._discovery_cache[name_lower]
+        if name_lower in self._definitions:
+            return self._definitions[name_lower]
 
-            # Log with structured data for observability
+        # Discover all definitions
+        self.discover_definitions()
+
+        # Look up by name (case-insensitive)
+        if name_lower in self._definitions:
             logger.info(
-                "Loading agent '%s' (%s) from %s",
+                "Loading workload '%s' from discovery cache",
                 name,
-                agent_info.kind,
-                location,
-                extra={
-                    "agent_name": name,
-                    "agent_format": agent_info.kind,
-                    "agent_location": location,
-                    "agent_path": (
-                        str(agent_info.file_path) if agent_info.file_path else None
-                    ),
-                },
+                extra={"workload_name": name},
             )
+            return self._definitions[name_lower]
 
-            # Load using the appropriate format loader
-            format_loader = self.format_loaders[agent_info.kind]
-            return format_loader.load_agent(agent_info)
-
+        # Not found
+        searched_locations = [loc_name for loc_name, _ in self.search_locations]
+        locations_str = ", ".join(searched_locations)
+        self._last_load_errors.append(
+            f"Workload '{name}' not found in locations: {locations_str}",
+        )
         return None
 
     def _is_file_path(self, identifier: str) -> bool:
@@ -703,5 +494,200 @@ class WorkloadManager:
 
         """
         return (
-            identifier.startswith(("/", "~/", "./", "../")) or Path(identifier).exists()
+            identifier.startswith(("/", "~/", "./", "../"))
+            or Path(identifier).exists()
         )
+
+    def discover_definitions(self) -> list[WorkloadDefinition]:
+        """Discover and compile all workload definitions.
+
+        Uses the DefinitionLoader system. Compilation happens immediately
+        during load(), ensuring invalid files are rejected early.
+
+        Implements location-first priority: for duplicate names, the first
+        location wins.
+
+        Returns:
+            List of successfully loaded WorkloadDefinition objects
+
+        """
+        definitions: list[WorkloadDefinition] = []
+
+        # Track seen names for deduplication (location priority)
+        seen_names: set[str] = set()
+
+        # Process locations in priority order
+        for location_name, paths in self.search_locations:
+            location_defs = self._discover_in_location(paths, seen_names)
+            for definition in location_defs:
+                name_lower = definition.name.lower()
+                if name_lower not in seen_names:
+                    seen_names.add(name_lower)
+                    definitions.append(definition)
+                    self._definitions[name_lower] = definition
+                    logger.debug(
+                        "Discovered workload '%s' (%s) in %s",
+                        definition.name,
+                        definition.metadata.format,
+                        location_name,
+                    )
+
+        return definitions
+
+    def _discover_in_location(
+        self,
+        paths: list[Path],
+        seen_names: set[str],
+    ) -> list[WorkloadDefinition]:
+        """Discover workload definitions in specific paths.
+
+        Uses SourceResolver to discover all agents in the given paths,
+        then loads each one with the appropriate loader.
+
+        Args:
+            paths: Paths to search in
+            seen_names: Names already discovered (for deduplication)
+
+        Returns:
+            List of discovered WorkloadDefinition objects
+
+        """
+        definitions: list[WorkloadDefinition] = []
+
+        # Use SourceResolver to discover all agents in the paths
+        resolver = SourceResolver(http_auth=self.http_auth)
+        discovered = resolver.discover(paths)
+
+        # Load each discovered resolution
+        for name, resolution in discovered.items():
+            if name in seen_names:
+                continue
+
+            loader = self._get_loader_for_format(resolution.format)
+            if loader is None:
+                logger.warning(
+                    "No loader for format '%s' for %s",
+                    resolution.format,
+                    resolution.source,
+                )
+                continue
+
+            try:
+                definition = loader.load(resolution)
+                definitions.append(definition)
+            except (
+                ValueError,
+                FileNotFoundError,
+                OSError,
+                SyntaxError,
+                DslSyntaxError,
+                DslSemanticError,
+                ImportError,
+                AgentValidationError,
+            ) as e:
+                logger.warning("Failed to load %s: %s", resolution.source, e)
+
+        return definitions
+
+    def create_workload_from_definition(self, name: str) -> Workload:
+        """Create a runnable workload by name using the definition system.
+
+        Args:
+            name: The workload name to create
+
+        Returns:
+            A Workload instance ready for execution
+
+        Raises:
+            WorkloadNotFoundError: If no definition with this name is found
+
+        """
+        name_lower = name.lower()
+        definition = self._definitions.get(name_lower)
+
+        if definition is None:
+            # Try to discover definitions and retry
+            self.discover_definitions()
+            definition = self._definitions.get(name_lower)
+
+        if definition is None:
+            raise WorkloadNotFoundError(name)
+
+        if self.session_service is None:
+            msg = "session_service is required to create workloads"
+            raise ValueError(msg)
+
+        return definition.create_workload(
+            model_factory=self.model_factory,
+            tool_provider=self.tool_provider,
+            system_context=self.system_context,
+            session_service=self.session_service,
+        )
+
+    def _find_workload_files(self) -> list[Path]:
+        """Find all loadable workload files in search paths.
+
+        Uses SourceResolver to discover all agents in search locations.
+
+        Returns:
+            List of paths to loadable workload files
+
+        """
+        files: list[Path] = []
+
+        # Flatten search paths for discovery
+        all_paths = []
+        for _, paths in self.search_locations:
+            all_paths.extend(paths)
+
+        # Use SourceResolver to discover all agents
+        resolver = SourceResolver(http_auth=self.http_auth)
+        discovered = resolver.discover(all_paths)
+
+        # Extract file paths from resolutions
+        for resolution in discovered.values():
+            if resolution.file_path and resolution.file_path not in files:
+                files.append(resolution.file_path)
+
+        return files
+
+    def _get_loader_for_format(self, fmt: str | None) -> DefinitionLoader | None:
+        """Get the appropriate definition loader for a format.
+
+        Args:
+            fmt: Format string ("dsl", "yaml", "python") or None
+
+        Returns:
+            The DefinitionLoader instance for this format, or None if
+            no loader can handle this format
+
+        """
+        if fmt == "dsl":
+            return self._definition_loaders[".sr"]
+        if fmt == "yaml":
+            return self._definition_loaders[".yaml"]
+        if fmt == "python":
+            return self._definition_loaders["python"]
+        return None
+
+    def _get_definition_loader(self, path: Path) -> DefinitionLoader | None:
+        """Get the appropriate definition loader for a file path.
+
+        Args:
+            path: Path to the file to load
+
+        Returns:
+            The DefinitionLoader instance for this file type, or None if
+            no loader can handle this file
+
+        """
+        # Check for Python agent directory
+        if path.is_dir():
+            agent_file = path / "agent.py"
+            if agent_file.exists():
+                return self._definition_loaders["python"]
+            return None
+
+        # Check by file extension
+        ext = path.suffix.lower()
+        return self._definition_loaders.get(ext)

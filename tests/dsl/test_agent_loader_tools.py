@@ -1,13 +1,28 @@
 """Tests for DSL agent loader tool loading functionality.
 
 Test that tools defined in DSL files are properly loaded and passed
-to ADK agents.
+to ADK agents via DslDefinitionLoader and DslAgentFactory.
 """
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from streetrace.agents.resolver import SourceResolution, SourceType
+from streetrace.workloads.dsl_loader import DslDefinitionLoader
+
+
+def make_dsl_resolution_from_path(file_path: Path) -> SourceResolution:
+    """Create a SourceResolution by reading content from file."""
+    content = file_path.read_text()
+    return SourceResolution(
+        content=content,
+        source=str(file_path),
+        source_type=SourceType.FILE_PATH,
+        file_path=file_path,
+        format="dsl",
+    )
 
 # DSL sources for testing tool loading
 DSL_WITH_BUILTIN_TOOL = """\
@@ -101,34 +116,32 @@ class TestToolLoadingFromDsl:
 
     def test_builtin_tool_loading_from_dsl(self, tmp_path: Path) -> None:
         """Builtin tools defined in DSL are loaded into agent."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         # Create DSL file with builtin tool
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_BUILTIN_TOOL)
 
-        loader = DslAgentLoader()
-        agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Check that the workflow class has the tool defined
-        workflow_class = agent._workflow_class  # noqa: SLF001
+        workflow_class = agent_factory.workflow_class
         assert hasattr(workflow_class, "_tools")
         assert "fs" in workflow_class._tools  # noqa: SLF001
         assert workflow_class._tools["fs"]["type"] == "builtin"  # noqa: SLF001
 
     def test_mcp_tool_loading_from_dsl(self, tmp_path: Path) -> None:
         """MCP tools defined in DSL are loaded into agent."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         # Create DSL file with MCP tool
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_MCP_TOOL)
 
-        loader = DslAgentLoader()
-        agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Check that the workflow class has the tool defined
-        workflow_class = agent._workflow_class  # noqa: SLF001
+        workflow_class = agent_factory.workflow_class
         assert hasattr(workflow_class, "_tools")
         assert "github" in workflow_class._tools  # noqa: SLF001
         assert workflow_class._tools["github"]["type"] == "mcp"  # noqa: SLF001
@@ -136,17 +149,16 @@ class TestToolLoadingFromDsl:
 
     def test_multiple_tools_defined_in_dsl(self, tmp_path: Path) -> None:
         """Multiple tools defined in DSL are all stored in _tools dict."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         # Create DSL file with multiple tools defined (even if agent only uses one)
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_MULTIPLE_TOOLS)
 
-        loader = DslAgentLoader()
-        agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Check that the workflow class has all tools defined
-        workflow_class = agent._workflow_class  # noqa: SLF001
+        workflow_class = agent_factory.workflow_class
         assert hasattr(workflow_class, "_tools")
         tools = workflow_class._tools  # noqa: SLF001
 
@@ -158,17 +170,16 @@ class TestToolLoadingFromDsl:
 
     def test_agent_has_tool_refs_in_agents_dict(self, tmp_path: Path) -> None:
         """Agent definitions include tool references."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         # Create DSL file with a tool
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_BUILTIN_TOOL)
 
-        loader = DslAgentLoader()
-        agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Check that the agent definition includes tools
-        workflow_class = agent._workflow_class  # noqa: SLF001
+        workflow_class = agent_factory.workflow_class
         agents = workflow_class._agents  # noqa: SLF001
         default_agent = agents.get("default")
 
@@ -185,20 +196,19 @@ class TestToolLoadingFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """Tools are passed to the LlmAgent during create_agent."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         # Create DSL file with builtin tool
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_BUILTIN_TOOL)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Mock LlmAgent to capture constructor args
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,
@@ -218,15 +228,15 @@ class TestToolLoadingFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """ToolProvider is used to resolve builtin tool definitions."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
         from streetrace.tools.tool_provider import ToolProvider
 
         # Create DSL file with builtin tool
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_BUILTIN_TOOL)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Create a real tool provider with mocked internals
         tool_provider = MagicMock(spec=ToolProvider)
@@ -236,7 +246,7 @@ class TestToolLoadingFromDsl:
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=tool_provider,
                 system_context=mock_system_context,
@@ -253,15 +263,15 @@ class TestToolLoadingFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """ToolProvider is used to resolve MCP tool definitions."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
         from streetrace.tools.tool_provider import ToolProvider
 
         # Create DSL file with MCP tool
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_MCP_TOOL)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Create a mock tool provider
         tool_provider = MagicMock(spec=ToolProvider)
@@ -271,7 +281,7 @@ class TestToolLoadingFromDsl:
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=tool_provider,
                 system_context=mock_system_context,
@@ -289,19 +299,18 @@ class TestToolLoadingFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """Agent with no tools specified passes empty tools list."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         # Create DSL file with no tools
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_NO_TOOLS)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,

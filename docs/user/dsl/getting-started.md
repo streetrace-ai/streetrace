@@ -254,27 +254,32 @@ This helps understand what your DSL compiles to and can aid debugging.
 
 ## Programmatic Loading
 
-To use DSL agents programmatically:
+To load and use DSL agents programmatically:
 
 ```python
 from pathlib import Path
-from streetrace.dsl.loader import DslAgentLoader
+from streetrace.workloads import DslDefinitionLoader
 
-loader = DslAgentLoader()
-workflow_class = loader.load(Path("my_agent.sr"))
-workflow = workflow_class()
-ctx = workflow.create_context()
+# Load the DSL definition
+loader = DslDefinitionLoader()
+definition = loader.load(Path("my_agent.sr"))
+
+# Access the compiled workflow class
+workflow_class = definition.workflow_class
+print(f"Loaded: {definition.name}")
+print(f"Format: {definition.metadata.format}")
 ```
 
-The `DslStreetRaceAgent` wrapper provides full runtime integration with the WorkloadManager:
+For full runtime integration with workload execution:
 
 ```python
 from pathlib import Path
-from streetrace.agents.dsl_agent_loader import DslAgentLoader
+from streetrace.workloads import WorkloadManager
 
-loader = DslAgentLoader()
-agent = loader.load_from_path(Path("my_agent.sr"))
-# Use with AgentManager...
+# WorkloadManager handles discovery and workload creation
+async with manager.create_workload("my_agent") as workload:
+    async for event in workload.run_async(session, message):
+        process_event(event)
 ```
 
 ## Next Steps

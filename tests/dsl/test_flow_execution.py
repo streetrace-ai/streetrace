@@ -4,25 +4,33 @@ Test that generated flows properly execute with ADK integration
 and yield events from agent runs.
 """
 
-from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 if TYPE_CHECKING:
     from streetrace.dsl.runtime.context import WorkflowContext
+    from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+
+
+@pytest.fixture
+def mock_workflow() -> "DslAgentWorkflow":
+    """Create a mock DslAgentWorkflow for testing."""
+    workflow = MagicMock()
+    workflow.run_agent = AsyncMock(return_value="agent_result")
+    return workflow
 
 
 class TestFlowExecution:
-    """Test flow execution basics."""
+    """Test flow execution basics - context delegation to workflow."""
 
     @pytest.fixture
-    def workflow_context(self) -> "WorkflowContext":
+    def workflow_context(self, mock_workflow: "DslAgentWorkflow") -> "WorkflowContext":
         """Create a WorkflowContext with test configuration."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        ctx = WorkflowContext()
+        ctx = WorkflowContext(workflow=mock_workflow)
 
         # Set up models
         ctx.set_models({
@@ -60,102 +68,55 @@ class TestFlowExecution:
     async def test_simple_flow_runs_agent(
         self,
         workflow_context: "WorkflowContext",
+        mock_workflow: "DslAgentWorkflow",
     ) -> None:
-        """A simple flow that runs a single agent should execute properly."""
-        # Create a mock event that represents a final response
-        mock_event = MagicMock()
-        mock_event.is_final_response.return_value = True
-        mock_event.content = MagicMock()
-        mock_event.content.parts = [MagicMock(text="Analysis result")]
+        """A simple flow that runs a single agent delegates to workflow."""
+        mock_workflow.run_agent.return_value = "Analysis result"
 
-        async def mock_run_async(
-            *_args: object,
-            **_kwargs: object,
-        ) -> AsyncGenerator[object, None]:
-            yield mock_event
+        # Run agent and check result
+        workflow_context.vars["input_prompt"] = "test input"
+        result = await workflow_context.run_agent("analyzer", "test input")
 
-        with (
-            patch("google.adk.Runner") as mock_runner_class,
-            patch("google.adk.agents.LlmAgent"),
-            patch("google.adk.sessions.InMemorySessionService"),
-        ):
-            mock_runner = MagicMock()
-            mock_runner.run_async = mock_run_async
-            mock_runner_class.return_value = mock_runner
-
-            # Run agent and check result
-            workflow_context.vars["input_prompt"] = "test input"
-            result = await workflow_context.run_agent("analyzer", "test input")
-
-            assert result == "Analysis result"
+        mock_workflow.run_agent.assert_called_once_with("analyzer", "test input")
+        assert result == "Analysis result"
 
     @pytest.mark.asyncio
     async def test_flow_variable_passing(
         self,
         workflow_context: "WorkflowContext",
+        mock_workflow: "DslAgentWorkflow",
     ) -> None:
-        """Flow variables should be properly passed between agent runs."""
-        # First agent returns "step1 result"
-        mock_event1 = MagicMock()
-        mock_event1.is_final_response.return_value = True
-        mock_event1.content = MagicMock()
-        mock_event1.content.parts = [MagicMock(text="step1 result")]
+        """Flow variables can be passed between delegated agent runs."""
+        # Mock workflow to return different results on consecutive calls
+        mock_workflow.run_agent.side_effect = ["step1 result", "step2 result"]
 
-        # Second agent returns "step2 result"
-        mock_event2 = MagicMock()
-        mock_event2.is_final_response.return_value = True
-        mock_event2.content = MagicMock()
-        mock_event2.content.parts = [MagicMock(text="step2 result")]
+        # Simulate flow: $analysis = run agent analyzer
+        # $summary = run agent summarizer $analysis
+        workflow_context.vars["input_prompt"] = "test input"
 
-        call_count = 0
+        # Step 1: Run analyzer
+        result1 = await workflow_context.run_agent("analyzer")
+        workflow_context.vars["analysis"] = result1
 
-        async def mock_run_async(
-            *_args: object,
-            **_kwargs: object,
-        ) -> AsyncGenerator[object, None]:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                yield mock_event1
-            else:
-                yield mock_event2
+        # Step 2: Run summarizer with analysis result
+        result2 = await workflow_context.run_agent(
+            "summarizer", workflow_context.vars["analysis"],
+        )
+        workflow_context.vars["summary"] = result2
 
-        with (
-            patch("google.adk.Runner") as mock_runner_class,
-            patch("google.adk.agents.LlmAgent"),
-            patch("google.adk.sessions.InMemorySessionService"),
-        ):
-            mock_runner = MagicMock()
-            mock_runner.run_async = mock_run_async
-            mock_runner_class.return_value = mock_runner
-
-            # Simulate flow: $analysis = run agent analyzer
-            # $summary = run agent summarizer $analysis
-            workflow_context.vars["input_prompt"] = "test input"
-
-            # Step 1: Run analyzer
-            result1 = await workflow_context.run_agent("analyzer")
-            workflow_context.vars["analysis"] = result1
-
-            # Step 2: Run summarizer with analysis result
-            result2 = await workflow_context.run_agent(
-                "summarizer", workflow_context.vars["analysis"],
-            )
-            workflow_context.vars["summary"] = result2
-
-            assert workflow_context.vars["analysis"] == "step1 result"
-            assert workflow_context.vars["summary"] == "step2 result"
+        assert workflow_context.vars["analysis"] == "step1 result"
+        assert workflow_context.vars["summary"] == "step2 result"
 
 
 class TestSequentialFlowExecution:
     """Test sequential flow execution patterns."""
 
     @pytest.fixture
-    def workflow_context(self) -> "WorkflowContext":
+    def workflow_context(self, mock_workflow: "DslAgentWorkflow") -> "WorkflowContext":
         """Create a WorkflowContext for sequential flow tests."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        ctx = WorkflowContext()
+        ctx = WorkflowContext(workflow=mock_workflow)
         ctx.set_models({"main": "test-model"})
         ctx.set_prompts({
             "step1_prompt": lambda _: "Step 1 instruction",
@@ -171,70 +132,38 @@ class TestSequentialFlowExecution:
     async def test_sequential_flow_runs_agents_in_order(
         self,
         workflow_context: "WorkflowContext",
+        mock_workflow: "DslAgentWorkflow",
     ) -> None:
-        """Sequential agents should run in order."""
+        """Sequential agents should call workflow.run_agent in order."""
         execution_order: list[str] = []
 
-        async def create_mock_run_async(
+        async def mock_run_agent(
             agent_name: str,
-        ) -> AsyncGenerator[object, None]:
-            """Create a mock run_async that tracks execution order."""
+            *_args: object,
+        ) -> str:
             execution_order.append(agent_name)
-            mock_event = MagicMock()
-            mock_event.is_final_response.return_value = True
-            mock_event.content = MagicMock()
-            mock_event.content.parts = [MagicMock(text=f"{agent_name} result")]
-            yield mock_event
+            return f"{agent_name} result"
 
-        with (
-            patch("google.adk.Runner") as mock_runner_class,
-            patch("google.adk.agents.LlmAgent") as mock_llm_agent,
-            patch("google.adk.sessions.InMemorySessionService"),
-        ):
+        mock_workflow.run_agent = mock_run_agent
 
-            def create_runner_for_agent(**kwargs: object) -> MagicMock:
-                mock_runner = MagicMock()
-                agent = kwargs.get("agent")
-                agent_name = (
-                    getattr(agent, "name", "unknown") if agent else "unknown"
-                )
+        # Run sequential flow
+        result1 = await workflow_context.run_agent("step1_agent")
+        result2 = await workflow_context.run_agent("step2_agent")
 
-                def bound_run_async(
-                    **_run_kwargs: object,
-                ) -> AsyncGenerator[object, None]:
-                    return create_mock_run_async(agent_name)
-
-                mock_runner.run_async = bound_run_async
-                return mock_runner
-
-            mock_runner_class.side_effect = create_runner_for_agent
-
-            # Make LlmAgent remember its name
-            def create_agent(**kwargs: object) -> MagicMock:
-                agent = MagicMock()
-                agent.name = kwargs.get("name", "unknown")
-                return agent
-
-            mock_llm_agent.side_effect = create_agent
-
-            # Run sequential flow
-            result1 = await workflow_context.run_agent("step1_agent")
-            result2 = await workflow_context.run_agent("step2_agent")
-
-            assert result1 == "step1_agent result"
-            assert result2 == "step2_agent result"
-            assert execution_order == ["step1_agent", "step2_agent"]
+        assert result1 == "step1_agent result"
+        assert result2 == "step2_agent result"
+        assert execution_order == ["step1_agent", "step2_agent"]
 
 
 class TestFlowWithDataTransformation:
     """Test flow execution with data transformations."""
 
     @pytest.fixture
-    def workflow_context(self) -> "WorkflowContext":
+    def workflow_context(self, mock_workflow: "DslAgentWorkflow") -> "WorkflowContext":
         """Create a WorkflowContext for data transformation tests."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        ctx = WorkflowContext()
+        ctx = WorkflowContext(workflow=mock_workflow)
         ctx.set_models({"main": "test-model"})
         ctx.set_prompts({
             "analysis_prompt": lambda _: "Analyze the input",
@@ -250,54 +179,27 @@ class TestFlowWithDataTransformation:
     async def test_flow_with_data_transformation(
         self,
         workflow_context: "WorkflowContext",
+        mock_workflow: "DslAgentWorkflow",
     ) -> None:
-        """Flow should handle data transformation between agents."""
-        # First agent returns raw data
-        mock_event1 = MagicMock()
-        mock_event1.is_final_response.return_value = True
-        mock_event1.content = MagicMock()
-        mock_event1.content.parts = [MagicMock(text='{"key": "value"}')]
+        """Flow should delegate data transformation to workflow."""
+        # Mock workflow to return different results for each agent
+        mock_workflow.run_agent.side_effect = [
+            '{"key": "value"}',
+            "Formatted: key=value",
+        ]
 
-        # Second agent returns formatted data
-        mock_event2 = MagicMock()
-        mock_event2.is_final_response.return_value = True
-        mock_event2.content = MagicMock()
-        mock_event2.content.parts = [MagicMock(text="Formatted: key=value")]
+        # Step 1: Get raw analysis
+        raw_analysis = await workflow_context.run_agent("analyzer", "input data")
+        workflow_context.vars["analysis"] = raw_analysis
 
-        call_count = 0
+        # Step 2: Format the analysis
+        formatted = await workflow_context.run_agent(
+            "formatter", workflow_context.vars["analysis"],
+        )
+        workflow_context.vars["result"] = formatted
 
-        async def mock_run_async(
-            *_args: object,
-            **_kwargs: object,
-        ) -> AsyncGenerator[object, None]:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                yield mock_event1
-            else:
-                yield mock_event2
-
-        with (
-            patch("google.adk.Runner") as mock_runner_class,
-            patch("google.adk.agents.LlmAgent"),
-            patch("google.adk.sessions.InMemorySessionService"),
-        ):
-            mock_runner = MagicMock()
-            mock_runner.run_async = mock_run_async
-            mock_runner_class.return_value = mock_runner
-
-            # Step 1: Get raw analysis
-            raw_analysis = await workflow_context.run_agent("analyzer", "input data")
-            workflow_context.vars["analysis"] = raw_analysis
-
-            # Step 2: Format the analysis
-            formatted = await workflow_context.run_agent(
-                "formatter", workflow_context.vars["analysis"],
-            )
-            workflow_context.vars["result"] = formatted
-
-            assert workflow_context.vars["analysis"] == '{"key": "value"}'
-            assert workflow_context.vars["result"] == "Formatted: key=value"
+        assert workflow_context.vars["analysis"] == '{"key": "value"}'
+        assert workflow_context.vars["result"] == "Formatted: key=value"
 
 
 class TestExpressionVisitorTokenHandling:

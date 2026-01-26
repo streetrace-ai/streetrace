@@ -19,7 +19,9 @@ from streetrace.dsl.compiler import (
 )
 from streetrace.dsl.errors import Diagnostic, DiagnosticReporter, ErrorCode, Severity
 from streetrace.dsl.grammar import ParserFactory, StreetraceIndenter
-from streetrace.dsl.loader import DslAgentLoader
+
+# Note: DslAgentLoader has been removed. For DSL loading, use:
+# streetrace.workloads.DslDefinitionLoader
 from streetrace.dsl.runtime import DslAgentWorkflow, WorkflowContext
 from streetrace.dsl.semantic import SemanticAnalyzer
 from streetrace.dsl.semantic.analyzer import AnalysisResult
@@ -36,7 +38,7 @@ __all__ = [
     "CodeGenerator",
     "Diagnostic",
     "DiagnosticReporter",
-    "DslAgentLoader",
+    # "DslAgentLoader" - REMOVED: Use DslDefinitionLoader from streetrace.workloads
     "DslAgentWorkflow",
     "DslError",
     "DslSemanticError",

@@ -408,13 +408,14 @@ Entry point: agent/default
 Entry point: agent/first_agent
 ```
 
-### Verify Agent Creation via Composition
+### Verify Agent Creation via DslAgentFactory
 
-For DSL agents, verify composition is used:
+For DSL agents, verify DslAgentFactory is used:
 
 ```
-# Delegating to DslStreetRaceAgent
-Delegating agent creation to DslStreetRaceAgent
+# Creating root agent via DslAgentFactory
+Created DslAgentFactory for workflow from source.sr
+Creating root agent with DslAgentFactory
 ```
 
 ## Common Issues
@@ -425,7 +426,7 @@ Delegating agent creation to DslStreetRaceAgent
 
 **Likely Cause**: Workflow not properly initialized.
 
-**Debug**: Check that `agent_definition` is passed to DslAgentWorkflow constructor.
+**Debug**: Check that `agent_factory` is passed to DslAgentWorkflow constructor.
 
 ### Issue: Entry Point Not Selected Correctly
 

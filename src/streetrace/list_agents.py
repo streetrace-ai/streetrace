@@ -4,9 +4,9 @@ from typing import TYPE_CHECKING
 
 from rich.table import Table
 
-from streetrace.agents.base_agent_loader import AgentInfo
 from streetrace.ui.render_protocol import register_renderer
 from streetrace.ui.ui_bus import UiBus
+from streetrace.workloads.definition import WorkloadDefinition
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -14,13 +14,16 @@ if TYPE_CHECKING:
     from streetrace.workloads import WorkloadManager
 
 
-class AgentInfoList(list[AgentInfo]):
-    """A list of AgentInfo objects."""
+class WorkloadDefinitionList(list[WorkloadDefinition]):
+    """A list of WorkloadDefinition objects."""
 
 
 @register_renderer
-def render_agent_info_list(obj: AgentInfoList, console: "Console") -> None:
-    """Render a list of AgentInfo objects as a formatted table."""
+def render_workload_definition_list(
+    obj: WorkloadDefinitionList,
+    console: "Console",
+) -> None:
+    """Render a list of WorkloadDefinition objects as a formatted table."""
     if not obj:
         console.print("[yellow]No agents found.[/yellow]")
         return
@@ -37,12 +40,16 @@ def render_agent_info_list(obj: AgentInfoList, console: "Console") -> None:
     table.add_column("Description", style="dim")
     table.add_column("Location", style="blue", no_wrap=False)
 
-    for agent in obj:
-        location = str(agent.file_path) if agent.file_path else "Built-in"
+    for definition in obj:
+        location = (
+            str(definition.metadata.source_path)
+            if definition.metadata.source_path
+            else "Built-in"
+        )
         table.add_row(
-            agent.name,
-            agent.kind,
-            agent.description,
+            definition.name,
+            definition.metadata.format,
+            definition.metadata.description,
             location,
         )
 
@@ -51,4 +58,6 @@ def render_agent_info_list(obj: AgentInfoList, console: "Console") -> None:
 
 def list_available_agents(workload_manager: "WorkloadManager", ui: UiBus) -> None:
     """Discover and return all available agents/workloads."""
-    ui.dispatch_ui_update(AgentInfoList(workload_manager.discover()))
+    ui.dispatch_ui_update(
+        WorkloadDefinitionList(workload_manager.discover_definitions()),
+    )

@@ -38,7 +38,7 @@ def mock_workload_manager(
     workload_manager.tool_provider = mock_tool_provider
     workload_manager.work_dir = work_dir
     workload_manager.create_workload.return_value = mock_create_workload_context_manager
-    workload_manager.discover.return_value = []
+    workload_manager.discover_definitions.return_value = []
     return workload_manager
 
 

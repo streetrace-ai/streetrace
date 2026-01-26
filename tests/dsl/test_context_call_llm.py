@@ -11,17 +11,24 @@ import pytest
 
 if TYPE_CHECKING:
     from streetrace.dsl.runtime.context import WorkflowContext
+    from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+
+
+@pytest.fixture
+def mock_workflow() -> "DslAgentWorkflow":
+    """Create a mock DslAgentWorkflow for testing."""
+    return MagicMock()
 
 
 class TestCallLlm:
     """Test WorkflowContext.call_llm() method."""
 
     @pytest.fixture
-    def workflow_context(self) -> "WorkflowContext":
+    def workflow_context(self, mock_workflow: "DslAgentWorkflow") -> "WorkflowContext":
         """Create a WorkflowContext with test configuration."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        ctx = WorkflowContext()
+        ctx = WorkflowContext(workflow=mock_workflow)
 
         # Set up models
         ctx.set_models({

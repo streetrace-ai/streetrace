@@ -132,13 +132,15 @@ class WorkflowContext:
 
     Provide access to variables, agents, LLM calls, and other
     runtime services needed by generated workflow code.
+
+    The workflow reference is REQUIRED - there are no fallback code paths.
     """
 
-    def __init__(self, workflow: DslAgentWorkflow | None = None) -> None:
+    def __init__(self, workflow: DslAgentWorkflow) -> None:
         """Initialize the workflow context.
 
         Args:
-            workflow: Parent workflow for delegation.
+            workflow: Parent workflow for delegation. REQUIRED.
 
         """
         self.vars: dict[str, object] = {}
@@ -233,143 +235,32 @@ class WorkflowContext:
     async def run_agent(self, agent_name: str, *args: object) -> object:
         """Run a named agent with arguments.
 
-        Delegate to parent workflow for proper agent creation when connected.
-        Falls back to creating a simple LlmAgent if no workflow is available.
+        Always delegates to the parent workflow.
 
         Args:
             agent_name: Name of the agent to run.
             *args: Arguments to pass to the agent (joined as prompt text).
 
         Returns:
-            Result from the agent execution, or None if agent not found.
+            Result from the agent execution.
 
         """
-        # Delegate to workflow when connected (preferred path)
-        if self._workflow:
-            return await self._workflow.run_agent(agent_name, *args)
+        return await self._workflow.run_agent(agent_name, *args)
 
-        # Fallback implementation for backward compatibility
-        return await self._run_agent_fallback(agent_name, *args)
+    async def run_flow(self, flow_name: str, *args: object) -> object:
+        """Run a named flow with arguments.
 
-    async def _run_agent_fallback(self, agent_name: str, *args: object) -> object:
-        """Fallback implementation for run_agent without workflow.
-
-        Create a simple LlmAgent from the agent configuration and execute it.
-        Used for backward compatibility when no workflow is connected.
+        Always delegates to the parent workflow.
 
         Args:
-            agent_name: Name of the agent to run.
-            *args: Arguments to pass to the agent (joined as prompt text).
+            flow_name: Name of the flow to run.
+            *args: Arguments to pass to the flow.
 
         Returns:
-            Result from the agent execution, or None if agent not found.
+            Result from the flow execution.
 
         """
-        from google.adk import Runner
-        from google.adk.agents import LlmAgent
-        from google.adk.sessions import InMemorySessionService
-        from google.genai import types as genai_types
-
-        logger.info("Running agent: %s with %d args", agent_name, len(args))
-
-        # Look up agent configuration
-        agent_def = self._agents.get(agent_name)
-        if not agent_def:
-            logger.warning("Agent '%s' not found in workflow context", agent_name)
-            return None
-
-        # Resolve instruction and model
-        instruction_name = agent_def.get("instruction")
-        instruction = self._resolve_instruction(instruction_name)
-        instr_name_str = instruction_name if isinstance(instruction_name, str) else None
-        model = self._resolve_agent_model(instr_name_str)
-
-        # Create LlmAgent with configuration
-        agent = LlmAgent(
-            name=agent_name,
-            model=model,
-            instruction=instruction,
-        )
-
-        # Build prompt from args
-        prompt_text = " ".join(str(arg) for arg in args) if args else ""
-
-        # Create message content
-        content = None
-        if prompt_text:
-            parts = [genai_types.Part.from_text(text=prompt_text)]
-            content = genai_types.Content(role="user", parts=parts)
-
-        # Execute via ADK Runner
-        session_service = InMemorySessionService()  # type: ignore[no-untyped-call]
-        runner = Runner(
-            app_name="dsl_workflow",
-            session_service=session_service,
-            agent=agent,
-        )
-
-        return await self._extract_final_response(runner, content)
-
-    def _resolve_instruction(self, instruction_name: object) -> str:
-        """Resolve instruction from agent definition.
-
-        Args:
-            instruction_name: Name of the instruction prompt.
-
-        Returns:
-            The resolved instruction string.
-
-        """
-        if not instruction_name or not isinstance(instruction_name, str):
-            return ""
-
-        prompt_value = self._prompts.get(instruction_name)
-        if callable(prompt_value):
-            try:
-                return str(prompt_value(self))
-            except (TypeError, KeyError) as e:
-                logger.warning(
-                    "Failed to evaluate prompt '%s': %s",
-                    instruction_name,
-                    e,
-                )
-                return ""
-        elif prompt_value:
-            return str(prompt_value)
-        return ""
-
-    async def _extract_final_response(
-        self,
-        runner: object,
-        content: object,
-    ) -> object:
-        """Extract final response from runner execution.
-
-        Args:
-            runner: ADK Runner instance.
-            content: Message content to send.
-
-        Returns:
-            Final response text or None.
-
-        """
-        # Call run_async on the runner-like object
-        run_async_fn = getattr(runner, "run_async", None)
-        if not callable(run_async_fn):
-            return None
-
-        final_response: object = None
-        async for event in run_async_fn(
-            user_id="workflow_user",
-            session_id="workflow_session",
-            new_message=content,
-        ):
-            if event.is_final_response():
-                if event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
-                break
-
-        return final_response
+        return await self._workflow.run_flow(flow_name, *args)
 
     def _resolve_agent_model(self, instruction_name: str | None) -> str:
         """Resolve the model for an agent based on its instruction.

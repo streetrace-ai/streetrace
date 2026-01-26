@@ -1,4 +1,8 @@
-"""Tests for YAML agent loader."""
+"""Tests for YAML agent loader helper functions.
+
+Tests for YAML parsing, validation, and reference resolution functions
+used by YamlDefinitionLoader.
+"""
 
 import tempfile
 from pathlib import Path
@@ -6,14 +10,16 @@ from textwrap import dedent
 
 import pytest
 
-from streetrace.agents.yaml_agent_loader import (
+from streetrace.agents.base_agent_loader import (
     AgentCycleError,
     AgentValidationError,
+)
+from streetrace.agents.yaml_agent_loader import (
     InlineAgentSpec,
-    YamlAgentLoader,
     _load_agent_yaml,
 )
 from streetrace.agents.yaml_models import ToolSpec, YamlAgentDocument
+from streetrace.workloads.yaml_loader import YamlDefinitionLoader
 
 
 class TestAgentLoading:
@@ -269,18 +275,47 @@ class TestReferenceResolution:
                 _load_agent_yaml(tmppath / "agent0.yml")
 
 
-class TestAgentDiscovery:
-    """Test agent discovery functionality."""
+class TestYamlDefinitionLoaderWithSourceResolution:
+    """Test YAML definition loader with SourceResolution API.
 
-    def test_discover_agents_empty(self):
-        """Test discovering agents in empty environment."""
-        # Override search paths to return empty list
-        loader = YamlAgentLoader([])
-        agents = loader.discover()
-        assert agents == []
+    Note: Discovery is handled by SourceResolver, not by loaders.
+    These tests verify the loader's load(resolution) method.
+    """
 
-    def test_discover_agents_with_valid_agents(self):
-        """Test discovering valid agents."""
+    def test_load_yaml_from_resolution(self):
+        """Test loading from SourceResolution."""
+        from streetrace.agents.resolver import SourceResolution, SourceType
+
+        agent_yaml = dedent("""
+            version: 1
+            kind: agent
+            name: agent1
+            description: First agent
+        """)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmppath = Path(tmpdir)
+            file_path = tmppath / "agent1.yml"
+            file_path.write_text(agent_yaml)
+
+            resolution = SourceResolution(
+                content=agent_yaml,
+                source=str(file_path),
+                source_type=SourceType.FILE_PATH,
+                file_path=file_path,
+                format="yaml",
+            )
+
+            loader = YamlDefinitionLoader()
+            definition = loader.load(resolution)
+
+            assert definition.metadata.name == "agent1"
+            assert definition.metadata.description == "First agent"
+
+    def test_load_multiple_agents_from_resolutions(self):
+        """Test loading multiple agents via SourceResolver discovery."""
+        from streetrace.agents.resolver import SourceResolver
+
         agent1_yaml = dedent("""
             version: 1
             kind: agent
@@ -301,18 +336,25 @@ class TestAgentDiscovery:
             (tmppath / "agent1.yml").write_text(agent1_yaml)
             (tmppath / "agent2.yml").write_text(agent2_yaml)
 
-            loader = YamlAgentLoader([tmppath])
-            agents = loader.discover()
-            assert len(agents) == 2
-            names = {agent.name for agent in agents}
+            # Use SourceResolver for discovery
+            resolver = SourceResolver()
+            discovered = resolver.discover([tmppath])
+            assert len(discovered) == 2
+
+            # Load the discovered resolutions
+            loader = YamlDefinitionLoader()
+            definitions = [loader.load(r) for r in discovered.values()]
+            names = {d.metadata.name for d in definitions}
             assert names == {"agent1", "agent2"}
 
 
-class TestAgentFinding:
-    """Test agent finding by name."""
+class TestYamlDefinitionLoaderLoading:
+    """Test YAML definition loader loading functionality."""
 
-    def test_find_agent_by_name_exists(self):
-        """Test finding existing agent by name."""
+    def test_load_agent_from_resolution(self):
+        """Test loading existing agent via SourceResolution."""
+        from streetrace.agents.resolver import SourceResolution, SourceType
+
         agent_yaml = dedent("""
             version: 1
             kind: agent
@@ -322,32 +364,35 @@ class TestAgentFinding:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
-            (tmppath / "agent.yml").write_text(agent_yaml)
+            file_path = tmppath / "agent.yml"
+            file_path.write_text(agent_yaml)
 
-            loader = YamlAgentLoader([tmppath])
-            agents = loader.discover()
-            assert len(agents) == 1
-            assert agents[0].name == "findable_agent"
+            resolution = SourceResolution(
+                content=agent_yaml,
+                source=str(file_path),
+                source_type=SourceType.FILE_PATH,
+                file_path=file_path,
+                format="yaml",
+            )
 
-            # Load using the discovered AgentInfo
-            agent = loader.load_agent(agents[0])
-            assert agent is not None
-            assert agent.get_agent_card().name == "findable_agent"
+            loader = YamlDefinitionLoader()
+            definition = loader.load(resolution)
 
-    def test_find_agent_by_name_not_exists(self):
-        """Test finding non-existent agent by name."""
-        # Override search paths to return empty
+            assert definition is not None
+            assert definition.metadata.name == "findable_agent"
 
-        agents = YamlAgentLoader([]).discover()
-        assert len(agents) == 0
+    def test_load_agent_invalid_yaml_in_resolution(self):
+        """Test loading invalid YAML content via SourceResolution."""
+        from streetrace.agents.resolver import SourceResolution, SourceType
 
-        # Try to load from a non-existent path
-        from streetrace.agents.base_agent_loader import AgentInfo
-        fake_agent_info = AgentInfo(
-            name="nonexistent_agent",
-            description="Fake agent",
-            file_path=Path("/nonexistent/path.yaml"),
+        resolution = SourceResolution(
+            content="invalid: yaml: [",
+            source="/test/path.yaml",
+            source_type=SourceType.FILE_PATH,
+            file_path=None,
+            format="yaml",
         )
 
-        with pytest.raises(ValueError, match="AgentInfo .* is not a YAML agent"):
-            YamlAgentLoader([]).load_agent(fake_agent_info)
+        loader = YamlDefinitionLoader()
+        with pytest.raises(AgentValidationError, match="Invalid YAML"):
+            loader.load(resolution)

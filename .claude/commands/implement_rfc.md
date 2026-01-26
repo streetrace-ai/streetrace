@@ -14,11 +14,13 @@ First, read all provided design documents and extract file references.
 
 **Documents provided**: $ARGUMENTS
 
-Scan these documents for references to other design docs, RFCs, or specifications.
+Scan these documents for references to other design docs, RFCs, code pointers, or specifications.
 
 Read the referenced files to build complete implementation context.
 
 ## Step 2: Create Task Definition
+
+Infer feature and task names from the provided design docs, paths, or context.
 
 Create `./docs/tasks/{feature}/{task}/task.md` containing:
 - Feature name and ID (derived from design doc name)

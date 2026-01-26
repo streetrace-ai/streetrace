@@ -1,7 +1,7 @@
 """Tests for DSL agent ADK integration with agentic patterns.
 
 Test the integration of DSL agentic patterns (delegate, use) with
-StreetRace's ADK agent creation pipeline.
+StreetRace's ADK agent creation pipeline via DslAgentFactory.
 """
 
 from pathlib import Path
@@ -11,11 +11,11 @@ import pytest
 from google.adk.agents import BaseAgent, LlmAgent
 from google.adk.tools.agent_tool import AgentTool
 
-from streetrace.agents.dsl_agent_loader import DslStreetRaceAgent
 from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
+from streetrace.workloads.dsl_agent_factory import DslAgentFactory
 
 
 class MockTool:
@@ -83,22 +83,27 @@ def mock_system_context() -> Mock:
     return Mock(spec=SystemContext)
 
 
-def create_workflow_class(agents: dict, prompts: dict | None = None) -> type:
+def create_workflow_class(
+    agents: dict, prompts: dict | None = None, models: dict | None = None,
+) -> type:
     """Create a workflow class with specified agents and prompts.
 
     Args:
         agents: Agent definitions dict.
         prompts: Optional prompts dict.
+        models: Optional models dict.
 
     Returns:
         A workflow class type.
 
     """
     prompts = prompts or {}
+    models = models or {"main": "test-model"}
 
     class TestWorkflow(DslAgentWorkflow):
         _agents = agents
         _prompts = prompts
+        _models = models
 
     return TestWorkflow
 
@@ -124,16 +129,15 @@ class TestResolveSubAgents:
             },
             prompts={"main_prompt": lambda _ctx: "Do something"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         agent_def = {"sub_agents": []}
         with patch.object(LlmAgent, "__init__", return_value=None):
-            result = await agent._resolve_sub_agents(  # noqa: SLF001
+            result = await factory._resolve_sub_agents(  # noqa: SLF001
                 agent_def, mock_model_factory, mock_tool_provider, mock_system_context,
             )
 
@@ -150,16 +154,15 @@ class TestResolveSubAgents:
             agents={"default": {"tools": [], "instruction": "main_prompt"}},
             prompts={"main_prompt": lambda _ctx: "Do something"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         agent_def = {}
         with patch.object(LlmAgent, "__init__", return_value=None):
-            result = await agent._resolve_sub_agents(  # noqa: SLF001
+            result = await factory._resolve_sub_agents(  # noqa: SLF001
                 agent_def, mock_model_factory, mock_tool_provider, mock_system_context,
             )
 
@@ -190,12 +193,11 @@ class TestResolveSubAgents:
                 "expert_prompt": lambda _ctx: "Provide expertise",
             },
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         agent_def = {"sub_agents": ["expert"]}
 
@@ -203,7 +205,7 @@ class TestResolveSubAgents:
             mock_agent_instance = Mock(spec=LlmAgent)
             mock_llm_agent.return_value = mock_agent_instance
 
-            result = await agent._resolve_sub_agents(  # noqa: SLF001
+            result = await factory._resolve_sub_agents(  # noqa: SLF001
                 agent_def, mock_model_factory, mock_tool_provider, mock_system_context,
             )
 
@@ -235,12 +237,11 @@ class TestResolveSubAgents:
                 "expert3_prompt": lambda _ctx: "Expert 3",
             },
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         agent_def = {"sub_agents": ["expert1", "expert2", "expert3"]}
 
@@ -248,7 +249,7 @@ class TestResolveSubAgents:
             mock_agents = [Mock(spec=LlmAgent) for _ in range(3)]
             mock_llm_agent.side_effect = mock_agents
 
-            result = await agent._resolve_sub_agents(  # noqa: SLF001
+            result = await factory._resolve_sub_agents(  # noqa: SLF001
                 agent_def, mock_model_factory, mock_tool_provider, mock_system_context,
             )
 
@@ -273,16 +274,15 @@ class TestResolveSubAgents:
             },
             prompts={"main_prompt": lambda _ctx: "Do something"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         agent_def = {"sub_agents": ["undefined_agent"]}
 
-        result = await agent._resolve_sub_agents(  # noqa: SLF001
+        result = await factory._resolve_sub_agents(  # noqa: SLF001
             agent_def, mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -311,16 +311,15 @@ class TestResolveAgentTools:
             },
             prompts={"main_prompt": lambda _ctx: "Do something"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         agent_def = {"agent_tools": []}
 
-        result = await agent._resolve_agent_tools(  # noqa: SLF001
+        result = await factory._resolve_agent_tools(  # noqa: SLF001
             agent_def, mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -337,16 +336,15 @@ class TestResolveAgentTools:
             agents={"default": {"tools": [], "instruction": "main_prompt"}},
             prompts={"main_prompt": lambda _ctx: "Do something"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         agent_def = {}
 
-        result = await agent._resolve_agent_tools(  # noqa: SLF001
+        result = await factory._resolve_agent_tools(  # noqa: SLF001
             agent_def, mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -377,12 +375,11 @@ class TestResolveAgentTools:
                 "extractor_prompt": lambda _ctx: "Extract data",
             },
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         agent_def = {"agent_tools": ["extractor"]}
 
@@ -399,7 +396,7 @@ class TestResolveAgentTools:
             mock_tool_instance = Mock(spec=AgentTool)
             mock_agent_tool_cls.return_value = mock_tool_instance
 
-            result = await agent._resolve_agent_tools(  # noqa: SLF001
+            result = await factory._resolve_agent_tools(  # noqa: SLF001
                 agent_def, mock_model_factory, mock_tool_provider, mock_system_context,
             )
 
@@ -430,12 +427,11 @@ class TestResolveAgentTools:
                 "tool2_prompt": lambda _ctx: "Tool 2",
             },
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         agent_def = {"agent_tools": ["tool1", "tool2"]}
 
@@ -453,7 +449,7 @@ class TestResolveAgentTools:
             mock_tools = [Mock(spec=AgentTool) for _ in range(2)]
             mock_agent_tool_cls.side_effect = mock_tools
 
-            result = await agent._resolve_agent_tools(  # noqa: SLF001
+            result = await factory._resolve_agent_tools(  # noqa: SLF001
                 agent_def, mock_model_factory, mock_tool_provider, mock_system_context,
             )
 
@@ -478,16 +474,15 @@ class TestResolveAgentTools:
             },
             prompts={"main_prompt": lambda _ctx: "Do something"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         agent_def = {"agent_tools": ["undefined_tool"]}
 
-        result = await agent._resolve_agent_tools(  # noqa: SLF001
+        result = await factory._resolve_agent_tools(  # noqa: SLF001
             agent_def, mock_model_factory, mock_tool_provider, mock_system_context,
         )
 
@@ -497,7 +492,7 @@ class TestResolveAgentTools:
 
 @pytest.mark.asyncio
 class TestCreateAgentFromDef:
-    """Test cases for _create_agent_from_def method."""
+    """Test cases for create_agent method."""
 
     async def test_creates_agent_with_description(
         self,
@@ -516,26 +511,18 @@ class TestCreateAgentFromDef:
             },
             prompts={"expert_prompt": lambda _ctx: "Be an expert"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
-
-        agent_def = {
-            "tools": [],
-            "instruction": "expert_prompt",
-            "description": "An expert agent for testing",
-        }
 
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_agent_instance = Mock(spec=LlmAgent)
             mock_llm_agent.return_value = mock_agent_instance
 
-            await agent._create_agent_from_def(  # noqa: SLF001
-                name="expert",
-                agent_def=agent_def,
+            await factory.create_agent(
+                agent_name="expert",
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,
@@ -555,22 +542,18 @@ class TestCreateAgentFromDef:
             agents={"expert": {"tools": [], "instruction": "expert_prompt"}},
             prompts={"expert_prompt": lambda _ctx: "Be an expert"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
-
-        agent_def = {"tools": [], "instruction": "expert_prompt"}
 
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_agent_instance = Mock(spec=LlmAgent)
             mock_llm_agent.return_value = mock_agent_instance
 
-            await agent._create_agent_from_def(  # noqa: SLF001
-                name="expert",
-                agent_def=agent_def,
+            await factory.create_agent(
+                agent_name="expert",
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,
@@ -581,8 +564,8 @@ class TestCreateAgentFromDef:
 
 
 @pytest.mark.asyncio
-class TestCreateAgent:
-    """Test cases for create_agent method."""
+class TestCreateRootAgent:
+    """Test cases for create_root_agent method."""
 
     async def test_creates_agent_with_sub_agents(
         self,
@@ -590,7 +573,7 @@ class TestCreateAgent:
         mock_tool_provider: Mock,
         mock_system_context: Mock,
     ) -> None:
-        """Test that create_agent passes sub_agents to LlmAgent."""
+        """Test that create_root_agent passes sub_agents to LlmAgent."""
         workflow_class = create_workflow_class(
             agents={
                 "default": {
@@ -609,7 +592,7 @@ class TestCreateAgent:
                 "expert_prompt": lambda _ctx: "Expertise",
             },
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
@@ -621,7 +604,7 @@ class TestCreateAgent:
             mock_root_agent = Mock(spec=LlmAgent)
             mock_llm_agent.side_effect = [mock_sub_agent, mock_root_agent]
 
-            await agent.create_agent(
+            await factory.create_root_agent(
                 mock_model_factory, mock_tool_provider, mock_system_context,
             )
 
@@ -636,7 +619,7 @@ class TestCreateAgent:
         mock_tool_provider: Mock,
         mock_system_context: Mock,
     ) -> None:
-        """Test that create_agent adds agent tools to tools list."""
+        """Test that create_root_agent adds agent tools to tools list."""
         workflow_class = create_workflow_class(
             agents={
                 "default": {
@@ -655,7 +638,7 @@ class TestCreateAgent:
                 "helper_prompt": lambda _ctx: "Help",
             },
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
@@ -675,7 +658,7 @@ class TestCreateAgent:
             mock_agent_tool = Mock(spec=AgentTool)
             mock_agent_tool_cls.return_value = mock_agent_tool
 
-            await agent.create_agent(
+            await factory.create_root_agent(
                 mock_model_factory, mock_tool_provider, mock_system_context,
             )
 
@@ -690,7 +673,7 @@ class TestCreateAgent:
         mock_tool_provider: Mock,
         mock_system_context: Mock,
     ) -> None:
-        """Test that create_agent handles both delegate and use patterns."""
+        """Test that create_root_agent handles both delegate and use patterns."""
         workflow_class = create_workflow_class(
             agents={
                 "default": {
@@ -716,7 +699,7 @@ class TestCreateAgent:
                 "summarizer_prompt": lambda _ctx: "Summarize",
             },
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
@@ -742,7 +725,7 @@ class TestCreateAgent:
             mock_agent_tool = Mock(spec=AgentTool)
             mock_agent_tool_cls.return_value = mock_agent_tool
 
-            await agent.create_agent(
+            await factory.create_root_agent(
                 mock_model_factory, mock_tool_provider, mock_system_context,
             )
 
@@ -763,20 +746,18 @@ class TestClose:
             agents={"default": {"tools": [], "instruction": "main_prompt"}},
             prompts={"main_prompt": lambda _ctx: "Do something"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         mock_agent_instance = Mock(spec=LlmAgent)
         mock_agent_instance.sub_agents = []
         mock_agent_instance.tools = None
 
-        await agent.close(mock_agent_instance)
-
-        assert agent._workflow_instance is None  # noqa: SLF001
+        # Should complete without error
+        await factory.close(mock_agent_instance)
 
     async def test_close_agent_with_sub_agents(self) -> None:
         """Test closing an agent with sub-agents."""
@@ -784,12 +765,11 @@ class TestClose:
             agents={"default": {"tools": [], "instruction": "main_prompt"}},
             prompts={"main_prompt": lambda _ctx: "Do something"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         sub_tool = MockTool("sub_tool")
         sub_agent = MockLlmAgent(name="sub_agent", tools=[sub_tool])
@@ -801,7 +781,7 @@ class TestClose:
             sub_agents=[sub_agent],
         )
 
-        await agent.close(root_agent)
+        await factory.close(root_agent)
 
         assert sub_tool.closed
         assert root_tool.closed
@@ -812,12 +792,11 @@ class TestClose:
             agents={"default": {"tools": [], "instruction": "main_prompt"}},
             prompts={"main_prompt": lambda _ctx: "Do something"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         wrapped_tool = MockTool("wrapped_tool")
         wrapped_agent = MockLlmAgent(name="wrapped_agent", tools=[wrapped_tool])
@@ -826,7 +805,7 @@ class TestClose:
 
         root_agent = MockLlmAgent(name="root_agent", tools=[agent_tool])
 
-        await agent.close(root_agent)
+        await factory.close(root_agent)
 
         assert wrapped_tool.closed
         assert agent_tool.closed
@@ -837,12 +816,11 @@ class TestClose:
             agents={"default": {"tools": [], "instruction": "main_prompt"}},
             prompts={"main_prompt": lambda _ctx: "Do something"},
         )
-        agent = DslStreetRaceAgent(
+        factory = DslAgentFactory(
             workflow_class=workflow_class,
             source_file=Path("test.sr"),
             source_map=[],
         )
-        agent._workflow_instance = workflow_class()  # noqa: SLF001
 
         close_order: list[str] = []
 
@@ -867,7 +845,7 @@ class TestClose:
             sub_agents=[sub_agent],
         )
 
-        await agent.close(root_agent)
+        await factory.close(root_agent)
 
         # Sub-agent's tools should be closed before root agent's tools
         assert close_order == ["sub_tool", "root_tool"]

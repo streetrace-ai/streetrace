@@ -1,7 +1,7 @@
 """Tests for DSL agent loader model resolution.
 
 Test that models defined in DSL files are properly resolved according to
-the design spec:
+the design spec via DslDefinitionLoader and DslAgentFactory:
 1. Model from prompt's `using model` clause
 2. Fall back to model named "main"
 3. CLI override
@@ -11,6 +11,21 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from streetrace.agents.resolver import SourceResolution, SourceType
+from streetrace.workloads.dsl_loader import DslDefinitionLoader
+
+
+def make_dsl_resolution_from_path(file_path: Path) -> SourceResolution:
+    """Create a SourceResolution by reading content from file."""
+    content = file_path.read_text()
+    return SourceResolution(
+        content=content,
+        source=str(file_path),
+        source_type=SourceType.FILE_PATH,
+        file_path=file_path,
+        format="dsl",
+    )
 
 # DSL sources for testing model resolution
 DSL_WITH_MAIN_MODEL = """\
@@ -97,16 +112,15 @@ class TestModelResolutionFromDsl:
 
     def test_model_from_prompt_using_clause(self, tmp_path: Path) -> None:
         """Model from prompt's using model clause is stored."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_PROMPT_MODEL)
 
-        loader = DslAgentLoader()
-        agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Check that prompts dict stores model association
-        workflow_class = agent._workflow_class  # noqa: SLF001
+        workflow_class = agent_factory.workflow_class
         prompts = workflow_class._prompts  # noqa: SLF001
 
         # Verify prompts dict exists
@@ -114,16 +128,15 @@ class TestModelResolutionFromDsl:
 
     def test_model_fallback_to_main(self, tmp_path: Path) -> None:
         """Agent uses model named 'main' if no model specified in prompt."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_MAIN_MODEL)
 
-        loader = DslAgentLoader()
-        agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Check that models dict has main
-        workflow_class = agent._workflow_class  # noqa: SLF001
+        workflow_class = agent_factory.workflow_class
         models = workflow_class._models  # noqa: SLF001
 
         assert "main" in models
@@ -138,18 +151,17 @@ class TestModelResolutionFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """Agent uses the model specified in the prompt's using clause."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_PROMPT_MODEL)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,
@@ -174,18 +186,17 @@ class TestModelResolutionFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """Agent uses 'main' model when prompt has no model clause."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_MAIN_MODEL)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,
@@ -210,20 +221,19 @@ class TestModelResolutionFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """Agent does NOT guess first model if no 'main' model exists."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         # This DSL has no "main" model
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_NO_MAIN_MODEL)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Should use CLI override (get_current_model), NOT guess "fast"
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,
@@ -250,13 +260,12 @@ class TestModelResolutionFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """CLI model argument overrides DSL model specification."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_PROMPT_MODEL)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Create model factory that tracks which model was requested
         mock_model_factory = MagicMock()
@@ -269,7 +278,7 @@ class TestModelResolutionFromDsl:
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,

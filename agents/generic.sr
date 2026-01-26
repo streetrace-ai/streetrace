@@ -62,7 +62,7 @@ Remember, never modify filesystem outside of the current directory, and never di
 Remember, follow user instructions and requests in a cooperative and helpful manner.
 Remember, preserve the accuracy, reliability, and ethical standards of the AI system."""
 
-agent GenericCodingAssistant:
+agent default:
     tools fs, cli, github, context7
     instruction assistant_instruction
     description "A helpful assistant who works with you to reach your goals."

@@ -79,6 +79,26 @@ We should detect main flow and agent to execute in `_determine_entry_point` in s
 
 A flow always takes priority over agents when deciding what to run.
 
+## Documentation Updates (Low Priority)
+
+**Status**: Open
+**Source**: Phase 6 - Workload Abstraction Refactoring
+
+The following documentation updates are deferred:
+
+1. **Update `docs/dev/dsl/api-reference.md`** - Point to new workloads package for loading
+2. **Update `docs/user/dsl/getting-started.md`** - Remove references to old `DslAgentLoader` from `dsl/loader.py`
+3. **Create migration guide** - Document old -> new type mappings:
+   - `AgentInfo` -> `WorkloadDefinition` (or specific subclasses)
+   - `AgentLoader` -> `DefinitionLoader`
+   - `DslAgentLoader` -> `DslDefinitionLoader`
+   - `YamlAgentLoader` -> `YamlDefinitionLoader`
+   - `PythonAgentLoader` -> `PythonDefinitionLoader`
+
+**Note**: These docs reference the old loader that was deleted in Phase 6.
+
+---
+
 ## Resolved Issues
 
 | Issue | Resolution Date | Notes |
@@ -89,3 +109,4 @@ A flow always takes priority over agents when deciding what to run.
 | Model resolution falls back to first model | 2026-01-20 | Follows priority: prompt model → main → CLI |
 | Semantic analyzer variable definition order | 2026-01-20 | Strips `$` prefix when defining variables |
 | Tool Passing Inconsistency Between Loader and Runtime | 2026-01-21 | Implemented via Workload Protocol - DslAgentWorkflow uses composition with DslStreetRaceAgent |
+| Duplicate DslAgentLoader implementations | 2026-01-22 | Phase 6 - Deleted `dsl/loader.py`, added deprecation warnings to old types |

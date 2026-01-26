@@ -175,42 +175,94 @@ class ExternalAgentWorkload:
 
 To use custom workloads with the WorkloadManager, you have two options:
 
-### Option 1: Create a Custom Loader
+### Option 1: Create a Custom DefinitionLoader
 
-Create an agent loader that returns your custom agent definition:
+Create a definition loader that implements the `DefinitionLoader` protocol:
 
 ```python
 from pathlib import Path
 
-from streetrace.agents.base_agent_loader import AgentInfo, AgentLoader
-from streetrace.agents.street_race_agent import StreetRaceAgent
+from streetrace.workloads import (
+    DefinitionLoader,
+    WorkloadDefinition,
+    WorkloadMetadata,
+)
 
 
-class ExternalAgentLoader(AgentLoader):
-    """Loader for external agent configurations."""
+class ExternalWorkloadDefinition(WorkloadDefinition):
+    """Definition for external workloads."""
 
-    def discover_in_paths(self, paths: list[Path]) -> list[AgentInfo]:
-        """Discover external agents in paths."""
-        agents = []
-        for path in paths:
-            for config_file in path.glob("*.external.yaml"):
-                agents.append(AgentInfo(
-                    name=config_file.stem.replace(".external", ""),
-                    kind="external",
-                    file_path=config_file,
-                ))
-        return agents
+    def __init__(
+        self,
+        metadata: WorkloadMetadata,
+        config: dict[str, object],
+    ) -> None:
+        super().__init__(metadata)
+        self._config = config
 
-    def load_from_path(self, path: Path) -> StreetRaceAgent:
-        """Load external agent from path."""
-        # Load and return your StreetRaceAgent implementation
-        ...
+    @property
+    def config(self) -> dict[str, object]:
+        return self._config
 
-    def load_agent(self, agent_info: AgentInfo) -> StreetRaceAgent:
-        """Load external agent from AgentInfo."""
-        if agent_info.file_path:
-            return self.load_from_path(agent_info.file_path)
-        raise ValueError(f"No file path for agent: {agent_info.name}")
+    def create_workload(
+        self,
+        model_factory,
+        tool_provider,
+        system_context,
+        session_service,
+    ):
+        return ExternalAgentWorkload(
+            agent_config=self._config,
+            model_factory=model_factory,
+            tool_provider=tool_provider,
+            system_context=system_context,
+            session_service=session_service,
+        )
+
+
+class ExternalDefinitionLoader:
+    """Loader for external workload configurations."""
+
+    def can_load(self, path: Path) -> bool:
+        """Check if path is an external config file."""
+        return path.suffix == ".external" and path.is_file()
+
+    def load(self, path: Path) -> ExternalWorkloadDefinition:
+        """Load external workload from path."""
+        import yaml
+
+        with path.open() as f:
+            config = yaml.safe_load(f)
+
+        metadata = WorkloadMetadata(
+            name=config.get("name", path.stem),
+            description=config.get("description", ""),
+            source_path=path,
+            format="external",  # Custom format identifier
+        )
+        return ExternalWorkloadDefinition(metadata, config)
+
+    def discover(self, directory: Path) -> list[Path]:
+        """Discover external config files in directory."""
+        return list(directory.rglob("*.external"))
+
+    def load_from_url(self, url: str) -> WorkloadDefinition:
+        """HTTP loading not supported for external workloads."""
+        msg = "HTTP loading not supported for external workloads"
+        raise ValueError(msg)
+
+    def load_from_source(
+        self,
+        identifier: str,
+        base_path: Path | None = None,
+    ) -> WorkloadDefinition:
+        """Load from any source type."""
+        if identifier.startswith(("http://", "https://")):
+            return self.load_from_url(identifier)
+        path = Path(identifier).expanduser()
+        if base_path and not path.is_absolute():
+            path = (base_path.parent / path).resolve()
+        return self.load(path)
 ```
 
 ### Option 2: Extend WorkloadManager

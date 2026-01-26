@@ -192,21 +192,27 @@ class TestGuardrailIntegration:
     @pytest.mark.asyncio
     async def test_workflow_context_has_guardrails(self) -> None:
         """WorkflowContext has guardrails provider."""
+        from unittest.mock import MagicMock
+
         from streetrace.dsl.runtime.context import (
             GuardrailProvider,
             WorkflowContext,
         )
 
-        ctx = WorkflowContext()
+        mock_workflow = MagicMock()
+        ctx = WorkflowContext(workflow=mock_workflow)
         assert hasattr(ctx, "guardrails")
         assert isinstance(ctx.guardrails, GuardrailProvider)
 
     @pytest.mark.asyncio
     async def test_guardrails_can_be_used_from_context(self) -> None:
         """Guardrails can be called from workflow context."""
+        from unittest.mock import MagicMock
+
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        ctx = WorkflowContext()
+        mock_workflow = MagicMock()
+        ctx = WorkflowContext(workflow=mock_workflow)
 
         # Mask PII
         masked = await ctx.guardrails.mask("pii", "Email: test@example.com")

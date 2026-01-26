@@ -1,7 +1,7 @@
 """Tests for DslAgentWorkflow as Workload.
 
 Test that DslAgentWorkflow implements the Workload protocol and properly
-delegates agent creation to DslStreetRaceAgent via composition.
+delegates agent creation to DslAgentFactory via composition.
 """
 
 from collections.abc import AsyncGenerator
@@ -16,10 +16,10 @@ if TYPE_CHECKING:
     from google.adk.sessions.base_session_service import BaseSessionService
     from google.genai.types import Content
 
-    from streetrace.agents.dsl_agent_loader import DslStreetRaceAgent
     from streetrace.llm.model_factory import ModelFactory
     from streetrace.system_context import SystemContext
     from streetrace.tools.tool_provider import ToolProvider
+    from streetrace.workloads.dsl_agent_factory import DslAgentFactory
 
 
 @pytest.fixture
@@ -50,12 +50,12 @@ def mock_session_service() -> "BaseSessionService":
 
 
 @pytest.fixture
-def mock_dsl_agent() -> "DslStreetRaceAgent":
-    """Create a mock DslStreetRaceAgent."""
-    agent = MagicMock()
-    agent._create_agent_from_def = AsyncMock()  # noqa: SLF001
-    agent.close = AsyncMock()
-    return agent
+def mock_agent_factory() -> "DslAgentFactory":
+    """Create a mock DslAgentFactory."""
+    factory = MagicMock()
+    factory.create_agent = AsyncMock()
+    factory.close = AsyncMock()
+    return factory
 
 
 @pytest.fixture
@@ -77,23 +77,17 @@ def mock_content() -> "Content":
 class TestDslAgentWorkflowInstantiation:
     """Test cases for DslAgentWorkflow instantiation."""
 
-    def test_init_without_dependencies_for_backward_compat(self) -> None:
-        """DslAgentWorkflow can be instantiated without dependencies."""
+    def test_init_requires_all_dependencies(self) -> None:
+        """DslAgentWorkflow requires all dependencies via constructor."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
-        workflow = DslAgentWorkflow()
-
-        assert workflow._agent_def is None  # noqa: SLF001
-        assert workflow._model_factory is None  # noqa: SLF001
-        assert workflow._tool_provider is None  # noqa: SLF001
-        assert workflow._system_context is None  # noqa: SLF001
-        assert workflow._session_service is None  # noqa: SLF001
-        assert workflow._context is None  # noqa: SLF001
-        assert workflow._created_agents == []  # noqa: SLF001
+        # Missing required arguments should raise TypeError
+        with pytest.raises(TypeError):
+            DslAgentWorkflow()  # type: ignore[call-arg]
 
     def test_init_stores_all_dependencies(
         self,
-        mock_dsl_agent: "DslStreetRaceAgent",
+        mock_agent_factory: "DslAgentFactory",
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
@@ -103,14 +97,14 @@ class TestDslAgentWorkflowInstantiation:
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         workflow = DslAgentWorkflow(
-            agent_definition=mock_dsl_agent,
+            agent_factory=mock_agent_factory,
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
             session_service=mock_session_service,
         )
 
-        assert workflow._agent_def is mock_dsl_agent  # noqa: SLF001
+        assert workflow._agent_factory is mock_agent_factory  # noqa: SLF001
         assert workflow._model_factory is mock_model_factory  # noqa: SLF001
         assert workflow._tool_provider is mock_tool_provider  # noqa: SLF001
         assert workflow._system_context is mock_system_context  # noqa: SLF001
@@ -118,7 +112,7 @@ class TestDslAgentWorkflowInstantiation:
 
     def test_init_created_agents_list_is_empty(
         self,
-        mock_dsl_agent: "DslStreetRaceAgent",
+        mock_agent_factory: "DslAgentFactory",
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
@@ -128,7 +122,7 @@ class TestDslAgentWorkflowInstantiation:
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         workflow = DslAgentWorkflow(
-            agent_definition=mock_dsl_agent,
+            agent_factory=mock_agent_factory,
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -149,7 +143,13 @@ class TestDslAgentWorkflowEntryPoint:
         assert entry.type == "flow"
         assert entry.name == "main"
 
-    def test_determine_entry_point_returns_main_flow_when_exists(self) -> None:
+    def test_determine_entry_point_returns_main_flow_when_exists(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
         """_determine_entry_point returns flow entry point for 'main' flow."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
@@ -159,7 +159,12 @@ class TestDslAgentWorkflowEntryPoint:
             async def flow_main(self, ctx: object) -> None:
                 pass
 
-        workflow = TestWorkflow()
+        workflow = TestWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
         entry = workflow._determine_entry_point()  # noqa: SLF001
 
         assert entry.type == "flow"
@@ -167,6 +172,10 @@ class TestDslAgentWorkflowEntryPoint:
 
     def test_determine_entry_point_returns_default_agent_when_no_main_flow(
         self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
     ) -> None:
         """_determine_entry_point returns default agent when no main flow."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
@@ -174,32 +183,59 @@ class TestDslAgentWorkflowEntryPoint:
         class TestWorkflow(DslAgentWorkflow):
             _agents = {"default": {}, "other": {}}  # noqa: RUF012
 
-        workflow = TestWorkflow()
+        workflow = TestWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
         entry = workflow._determine_entry_point()  # noqa: SLF001
 
         assert entry.type == "agent"
         assert entry.name == "default"
 
-    def test_determine_entry_point_returns_first_agent_when_no_default(self) -> None:
-        """_determine_entry_point returns first agent when no default."""
+    def test_determine_entry_point_returns_first_agent_when_no_default(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
+        """_determine_entry_point raises when no default agent."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         class TestWorkflow(DslAgentWorkflow):
             _agents = {"analyzer": {}, "writer": {}}  # noqa: RUF012
 
-        workflow = TestWorkflow()
+        workflow = TestWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
 
         with pytest.raises(ValueError, match="No entry point found"):
             workflow._determine_entry_point()  # noqa: SLF001
 
-    def test_determine_entry_point_raises_when_no_entry_point(self) -> None:
+    def test_determine_entry_point_raises_when_no_entry_point(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
         """_determine_entry_point raises ValueError when no entry point."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         class TestWorkflow(DslAgentWorkflow):
             _agents = {}  # noqa: RUF012
 
-        workflow = TestWorkflow()
+        workflow = TestWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
 
         with pytest.raises(ValueError, match="No entry point found"):
             workflow._determine_entry_point()  # noqa: SLF001
@@ -209,26 +245,26 @@ class TestDslAgentWorkflowCreateAgent:
     """Test cases for _create_agent method."""
 
     @pytest.mark.asyncio
-    async def test_create_agent_delegates_to_dsl_streetrace_agent(
+    async def test_create_agent_delegates_to_agent_factory(
         self,
-        mock_dsl_agent: "DslStreetRaceAgent",
+        mock_agent_factory: "DslAgentFactory",
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
         mock_session_service: "BaseSessionService",
     ) -> None:
-        """_create_agent delegates to DslStreetRaceAgent._create_agent_from_def."""
+        """_create_agent delegates to DslAgentFactory.create_agent."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         # Create mock agent to be returned
         mock_base_agent = MagicMock()
-        mock_dsl_agent._create_agent_from_def.return_value = mock_base_agent  # noqa: SLF001
+        mock_agent_factory.create_agent.return_value = mock_base_agent
 
         class TestWorkflow(DslAgentWorkflow):
             _agents = {"test_agent": {"instruction": "test_prompt"}}  # noqa: RUF012
 
         workflow = TestWorkflow(
-            agent_definition=mock_dsl_agent,
+            agent_factory=mock_agent_factory,
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -237,19 +273,18 @@ class TestDslAgentWorkflowCreateAgent:
 
         result = await workflow._create_agent("test_agent")  # noqa: SLF001
 
-        mock_dsl_agent._create_agent_from_def.assert_called_once_with(  # noqa: SLF001
-            "test_agent",
-            {"instruction": "test_prompt"},
-            mock_model_factory,
-            mock_tool_provider,
-            mock_system_context,
+        mock_agent_factory.create_agent.assert_called_once_with(
+            agent_name="test_agent",
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
         )
         assert result is mock_base_agent
 
     @pytest.mark.asyncio
     async def test_create_agent_tracks_created_agent(
         self,
-        mock_dsl_agent: "DslStreetRaceAgent",
+        mock_agent_factory: "DslAgentFactory",
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
@@ -259,13 +294,13 @@ class TestDslAgentWorkflowCreateAgent:
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         mock_base_agent = MagicMock()
-        mock_dsl_agent._create_agent_from_def.return_value = mock_base_agent  # noqa: SLF001
+        mock_agent_factory.create_agent.return_value = mock_base_agent
 
         class TestWorkflow(DslAgentWorkflow):
             _agents = {"test_agent": {}}  # noqa: RUF012
 
         workflow = TestWorkflow(
-            agent_definition=mock_dsl_agent,
+            agent_factory=mock_agent_factory,
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -277,43 +312,28 @@ class TestDslAgentWorkflowCreateAgent:
         assert mock_base_agent in workflow._created_agents  # noqa: SLF001
 
     @pytest.mark.asyncio
-    async def test_create_agent_raises_when_not_initialized(self) -> None:
-        """_create_agent raises ValueError when not properly initialized."""
-        from streetrace.dsl.runtime.workflow import DslAgentWorkflow
-
-        class TestWorkflow(DslAgentWorkflow):
-            _agents = {"test_agent": {}}  # noqa: RUF012
-
-        workflow = TestWorkflow()
-
-        with pytest.raises(ValueError, match="not properly initialized"):
-            await workflow._create_agent("test_agent")  # noqa: SLF001
-
-    @pytest.mark.asyncio
-    async def test_create_agent_raises_for_unknown_agent(
+    async def test_create_agent_raises_without_agent_factory(
         self,
-        mock_dsl_agent: "DslStreetRaceAgent",
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
         mock_session_service: "BaseSessionService",
     ) -> None:
-        """_create_agent raises ValueError for unknown agent name."""
+        """_create_agent raises ValueError when no agent_factory."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         class TestWorkflow(DslAgentWorkflow):
             _agents = {"known_agent": {}}  # noqa: RUF012
 
         workflow = TestWorkflow(
-            agent_definition=mock_dsl_agent,
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
             session_service=mock_session_service,
         )
 
-        with pytest.raises(ValueError, match="not found in workflow"):
-            await workflow._create_agent("unknown_agent")  # noqa: SLF001
+        with pytest.raises(ValueError, match="requires agent_factory"):
+            await workflow._create_agent("known_agent")  # noqa: SLF001
 
 
 class TestDslAgentWorkflowClose:
@@ -322,27 +342,24 @@ class TestDslAgentWorkflowClose:
     @pytest.mark.asyncio
     async def test_close_cleans_up_created_agents(
         self,
-        mock_dsl_agent: "DslStreetRaceAgent",
+        mock_agent_factory: "DslAgentFactory",
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
         mock_session_service: "BaseSessionService",
     ) -> None:
-        """close() calls close on all created agents via agent_def."""
+        """close() calls close on all created agents via agent_factory."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         mock_agent1 = MagicMock()
         mock_agent2 = MagicMock()
-        mock_dsl_agent._create_agent_from_def.side_effect = [  # noqa: SLF001
-            mock_agent1,
-            mock_agent2,
-        ]
+        mock_agent_factory.create_agent.side_effect = [mock_agent1, mock_agent2]
 
         class TestWorkflow(DslAgentWorkflow):
             _agents = {"agent1": {}, "agent2": {}}  # noqa: RUF012
 
         workflow = TestWorkflow(
-            agent_definition=mock_dsl_agent,
+            agent_factory=mock_agent_factory,
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -357,14 +374,14 @@ class TestDslAgentWorkflowClose:
         await workflow.close()
 
         # Verify close was called for both agents
-        assert mock_dsl_agent.close.call_count == 2
-        mock_dsl_agent.close.assert_any_call(mock_agent1)
-        mock_dsl_agent.close.assert_any_call(mock_agent2)
+        assert mock_agent_factory.close.call_count == 2
+        mock_agent_factory.close.assert_any_call(mock_agent1)
+        mock_agent_factory.close.assert_any_call(mock_agent2)
 
     @pytest.mark.asyncio
     async def test_close_clears_created_agents_list(
         self,
-        mock_dsl_agent: "DslStreetRaceAgent",
+        mock_agent_factory: "DslAgentFactory",
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
@@ -374,13 +391,13 @@ class TestDslAgentWorkflowClose:
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         mock_base_agent = MagicMock()
-        mock_dsl_agent._create_agent_from_def.return_value = mock_base_agent  # noqa: SLF001
+        mock_agent_factory.create_agent.return_value = mock_base_agent
 
         class TestWorkflow(DslAgentWorkflow):
             _agents = {"test_agent": {}}  # noqa: RUF012
 
         workflow = TestWorkflow(
-            agent_definition=mock_dsl_agent,
+            agent_factory=mock_agent_factory,
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -395,11 +412,22 @@ class TestDslAgentWorkflowClose:
         assert workflow._created_agents == []  # noqa: SLF001
 
     @pytest.mark.asyncio
-    async def test_close_works_without_agent_def(self) -> None:
-        """close() works when no agent_def is set."""
+    async def test_close_works_without_agent_factory(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
+        """close() works when no agent_factory is set."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
-        workflow = DslAgentWorkflow()
+        workflow = DslAgentWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
 
         # Should not raise
         await workflow.close()
@@ -421,7 +449,7 @@ class TestDslAgentWorkflowRunAsync:
     @pytest.mark.asyncio
     async def test_run_async_yields_events_from_agent(
         self,
-        mock_dsl_agent: "DslStreetRaceAgent",
+        mock_agent_factory: "DslAgentFactory",
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
@@ -433,7 +461,7 @@ class TestDslAgentWorkflowRunAsync:
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         mock_base_agent = MagicMock()
-        mock_dsl_agent._create_agent_from_def.return_value = mock_base_agent  # noqa: SLF001
+        mock_agent_factory.create_agent.return_value = mock_base_agent
 
         mock_event1 = MagicMock()
         mock_event2 = MagicMock()
@@ -442,7 +470,7 @@ class TestDslAgentWorkflowRunAsync:
             _agents = {"default": {"instruction": "test"}}  # noqa: RUF012
 
         workflow = TestWorkflow(
-            agent_definition=mock_dsl_agent,
+            agent_factory=mock_agent_factory,
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -475,7 +503,7 @@ class TestDslAgentWorkflowRunAgent:
     @pytest.mark.asyncio
     async def test_run_agent_creates_agent_via_delegation(
         self,
-        mock_dsl_agent: "DslStreetRaceAgent",
+        mock_agent_factory: "DslAgentFactory",
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
@@ -485,13 +513,13 @@ class TestDslAgentWorkflowRunAgent:
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         mock_base_agent = MagicMock()
-        mock_dsl_agent._create_agent_from_def.return_value = mock_base_agent  # noqa: SLF001
+        mock_agent_factory.create_agent.return_value = mock_base_agent
 
         class TestWorkflow(DslAgentWorkflow):
             _agents = {"analyzer": {"instruction": "analyze"}}  # noqa: RUF012
 
         workflow = TestWorkflow(
-            agent_definition=mock_dsl_agent,
+            agent_factory=mock_agent_factory,
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -524,40 +552,21 @@ class TestDslAgentWorkflowRunAgent:
         ):
             result = await workflow.run_agent("analyzer", "analyze this")
 
-        assert mock_dsl_agent._create_agent_from_def.called  # noqa: SLF001
+        assert mock_agent_factory.create_agent.called
         assert result == "result"
-
-    @pytest.mark.asyncio
-    async def test_run_agent_raises_without_session_service(
-        self,
-        mock_dsl_agent: "DslStreetRaceAgent",
-        mock_model_factory: "ModelFactory",
-        mock_tool_provider: "ToolProvider",
-        mock_system_context: "SystemContext",
-    ) -> None:
-        """run_agent raises ValueError without session_service."""
-        from streetrace.dsl.runtime.workflow import DslAgentWorkflow
-
-        class TestWorkflow(DslAgentWorkflow):
-            _agents = {"analyzer": {}}  # noqa: RUF012
-
-        workflow = TestWorkflow(
-            agent_definition=mock_dsl_agent,
-            model_factory=mock_model_factory,
-            tool_provider=mock_tool_provider,
-            system_context=mock_system_context,
-            session_service=None,  # No session service
-        )
-
-        with pytest.raises(ValueError, match="Session service not available"):
-            await workflow.run_agent("analyzer")
 
 
 class TestDslAgentWorkflowRunFlow:
     """Test cases for run_flow method."""
 
     @pytest.mark.asyncio
-    async def test_run_flow_calls_flow_method(self) -> None:
+    async def test_run_flow_calls_flow_method(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
         """run_flow calls the corresponding flow method."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
@@ -565,22 +574,38 @@ class TestDslAgentWorkflowRunFlow:
             _agents = {}  # noqa: RUF012
             flow_called = False
 
-            async def flow_test(self, ctx: object) -> str:  # noqa: ARG002
+            async def flow_test(self, _ctx: object) -> str:
                 self.flow_called = True
                 return "flow_result"
 
-        workflow = TestWorkflow()
+        workflow = TestWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
         result = await workflow.run_flow("test")
 
         assert workflow.flow_called
         assert result == "flow_result"
 
     @pytest.mark.asyncio
-    async def test_run_flow_raises_for_unknown_flow(self) -> None:
+    async def test_run_flow_raises_for_unknown_flow(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
         """run_flow raises ValueError for unknown flow."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
-        workflow = DslAgentWorkflow()
+        workflow = DslAgentWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
 
         with pytest.raises(ValueError, match="not found"):
             await workflow.run_flow("nonexistent")
@@ -589,28 +614,52 @@ class TestDslAgentWorkflowRunFlow:
 class TestWorkflowContextDelegation:
     """Test cases for WorkflowContext delegation to workflow."""
 
-    def test_context_accepts_workflow_parameter(self) -> None:
+    def test_context_accepts_workflow_parameter(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
         """WorkflowContext accepts workflow parameter in constructor."""
         from streetrace.dsl.runtime.context import WorkflowContext
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
-        workflow = DslAgentWorkflow()
+        workflow = DslAgentWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
         ctx = WorkflowContext(workflow=workflow)
 
         assert ctx._workflow is workflow  # noqa: SLF001
 
-    def test_context_without_workflow_for_backward_compat(self) -> None:
-        """WorkflowContext works without workflow for backward compatibility."""
+    def test_context_requires_workflow(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
+        """WorkflowContext requires workflow parameter."""
         from streetrace.dsl.runtime.context import WorkflowContext
+        from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
-        ctx = WorkflowContext()
-
-        assert ctx._workflow is None  # noqa: SLF001
+        # Creating WorkflowContext requires a workflow
+        workflow = DslAgentWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
+        ctx = WorkflowContext(workflow=workflow)
+        assert ctx._workflow is workflow  # noqa: SLF001
 
     @pytest.mark.asyncio
     async def test_context_run_agent_delegates_to_workflow(
         self,
-        mock_dsl_agent: "DslStreetRaceAgent",
+        mock_agent_factory: "DslAgentFactory",
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
@@ -621,13 +670,13 @@ class TestWorkflowContextDelegation:
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         mock_base_agent = MagicMock()
-        mock_dsl_agent._create_agent_from_def.return_value = mock_base_agent  # noqa: SLF001
+        mock_agent_factory.create_agent.return_value = mock_base_agent
 
         class TestWorkflow(DslAgentWorkflow):
             _agents = {"test_agent": {"instruction": "test"}}  # noqa: RUF012
 
         workflow = TestWorkflow(
-            agent_definition=mock_dsl_agent,
+            agent_factory=mock_agent_factory,
             model_factory=mock_model_factory,
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
@@ -644,30 +693,42 @@ class TestWorkflowContextDelegation:
         assert result == "workflow_result"
 
     @pytest.mark.asyncio
-    async def test_context_run_agent_uses_fallback_without_workflow(self) -> None:
-        """WorkflowContext.run_agent uses original implementation without workflow."""
+    async def test_context_run_agent_always_delegates(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
+        """WorkflowContext.run_agent always delegates to workflow."""
         from streetrace.dsl.runtime.context import WorkflowContext
+        from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
-        ctx = WorkflowContext()
-        ctx.set_agents(
-            {
-                "test_agent": {"instruction": "test"},
-            },
+        workflow = DslAgentWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
         )
-        ctx.set_models({"main": "test-model"})
-        ctx.set_prompts({"test": lambda _: "test prompt"})
+        workflow.run_agent = AsyncMock(return_value="delegated_result")
 
-        # Without workflow, should use fallback implementation
-        # which returns None for unknown agents
-        result = await ctx.run_agent("nonexistent_agent")
+        ctx = WorkflowContext(workflow=workflow)
+        result = await ctx.run_agent("test_agent", "arg1")
 
-        assert result is None
+        workflow.run_agent.assert_called_once_with("test_agent", "arg1")
+        assert result == "delegated_result"
 
 
 class TestCreateContextConnectsWorkflow:
     """Test cases for create_context connecting workflow reference."""
 
-    def test_create_context_passes_workflow_reference(self) -> None:
+    def test_create_context_passes_workflow_reference(
+        self,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
         """create_context passes workflow reference to context."""
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
@@ -676,7 +737,12 @@ class TestCreateContextConnectsWorkflow:
             _prompts = {}  # noqa: RUF012
             _agents = {}  # noqa: RUF012
 
-        workflow = TestWorkflow()
+        workflow = TestWorkflow(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
         ctx = workflow.create_context()
 
         assert ctx._workflow is workflow  # noqa: SLF001

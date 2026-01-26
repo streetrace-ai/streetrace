@@ -1,26 +1,24 @@
-"""DSL agent loader for .sr files.
+"""DSL agent factory for creating ADK agents from DSL workflows.
 
-Provide loading and discovery of Streetrace DSL agent files for integration
-with the AgentManager through the AgentLoader interface.
+This module provides the DslAgentFactory class that contains the agent creation
+logic extracted from DslStreetRaceAgent. It can be used by DslWorkload without
+depending on the deprecated DslStreetRaceAgent class.
 """
 
 import inspect
 from pathlib import Path
-from types import CodeType
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from google.adk.agents import BaseAgent
     from google.adk.models.base_llm import BaseLlm
+    from google.adk.tools.agent_tool import AgentTool
 
-    from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
     from streetrace.llm.model_factory import ModelFactory
     from streetrace.system_context import SystemContext
     from streetrace.tools.tool_provider import AdkTool, ToolProvider
     from streetrace.tools.tool_refs import StreetraceToolRef
 
-from streetrace.agents.base_agent_loader import AgentInfo, AgentLoader
-from streetrace.agents.street_race_agent import StreetRaceAgent
 from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 from streetrace.dsl.sourcemap import SourceMapping
 from streetrace.log import get_logger
@@ -28,379 +26,67 @@ from streetrace.log import get_logger
 logger = get_logger(__name__)
 
 
-class DslAgentInfo(AgentInfo):
-    """Agent information container for DSL agents."""
+class DslAgentFactory:
+    """Factory for creating ADK agents from DSL workflow definitions.
 
-    def __init__(
-        self,
-        name: str,
-        description: str,
-        file_path: Path,
-        workflow_class: type[DslAgentWorkflow] | None = None,
-    ) -> None:
-        """Initialize DSL agent info.
-
-        Args:
-            name: Agent name.
-            description: Agent description.
-            file_path: Path to the .sr file.
-            workflow_class: Compiled workflow class (optional).
-
-        """
-        super().__init__(name=name, description=description, file_path=file_path)
-        self.workflow_class = workflow_class
-
-    @property
-    def kind(self) -> str:  # type: ignore[override]
-        """Get the definition type of the agent."""
-        return "dsl"
-
-
-class DslAgentLoader(AgentLoader):
-    """Agent loader for .sr DSL files.
-
-    Discover and load Streetrace DSL files, compiling them to executable
-    workflow classes that can be used as agents.
-    """
-
-    def __init__(self) -> None:
-        """Initialize the DSL agent loader."""
-        logger.debug("Created DslAgentLoader")
-
-    def discover_in_paths(self, paths: list[Path]) -> list[AgentInfo]:
-        """Discover .sr agents in specific paths.
-
-        Args:
-            paths: Specific paths to search in.
-
-        Returns:
-            List of discovered DSL agents.
-
-        """
-        discovered: list[AgentInfo] = []
-
-        for search_path in paths:
-            if not search_path.exists():
-                continue
-
-            # Find all .sr files
-            if search_path.is_file() and search_path.suffix == ".sr":
-                sr_files = [search_path]
-            elif search_path.is_dir():
-                sr_files = list(search_path.glob("*.sr"))
-            else:
-                continue
-
-            for sr_file in sr_files:
-                try:
-                    agent_info = self._extract_agent_info(sr_file)
-                    discovered.append(agent_info)
-                    logger.debug(
-                        "Discovered DSL agent '%s' at %s",
-                        agent_info.name,
-                        sr_file,
-                    )
-                except (ValueError, OSError) as e:
-                    logger.debug(
-                        "Failed to extract agent info from %s: %s",
-                        sr_file,
-                        e,
-                    )
-
-        return discovered
-
-    def _extract_agent_info(self, file_path: Path) -> DslAgentInfo:
-        """Extract agent information from a .sr file.
-
-        Args:
-            file_path: Path to the .sr file.
-
-        Returns:
-            DslAgentInfo with basic metadata.
-
-        """
-        # Use filename (without extension) as agent name
-        name = file_path.stem
-
-        # Try to extract description from file header comments
-        description = f"DSL agent from {file_path.name}"
-        try:
-            source = file_path.read_text()
-            # Look for description in first comment block
-            for raw_line in source.split("\n")[:10]:
-                stripped = raw_line.strip()
-                if stripped.startswith("#"):
-                    # Use first comment line as description
-                    description = stripped.lstrip("# ").strip()
-                    break
-        except OSError:
-            pass
-
-        return DslAgentInfo(
-            name=name,
-            description=description,
-            file_path=file_path,
-        )
-
-    def load_from_path(self, path: Path) -> StreetRaceAgent:
-        """Load agent from explicit file path.
-
-        Args:
-            path: Path to .sr file.
-
-        Returns:
-            Loaded DSL agent.
-
-        Raises:
-            ValueError: If cannot load from this path.
-
-        """
-        if not path.exists():
-            msg = f"DSL file not found: {path}"
-            raise ValueError(msg)
-
-        if path.is_dir():
-            # Look for .sr files in directory
-            sr_files = list(path.glob("*.sr"))
-            if not sr_files:
-                msg = f"No .sr files found in directory: {path}"
-                raise ValueError(msg)
-            path = sr_files[0]
-
-        if path.suffix != ".sr":
-            msg = f"Not a DSL file (.sr): {path}"
-            raise ValueError(msg)
-
-        return self._load_dsl_file(path)
-
-    def load_from_url(self, url: str) -> StreetRaceAgent:
-        """Load agent from HTTP URL.
-
-        DSL files from URLs are not currently supported.
-
-        Args:
-            url: HTTP(S) URL.
-
-        Raises:
-            ValueError: Always, as URL loading is not supported.
-
-        """
-        msg = f"Loading DSL agents from URLs is not supported: {url}"
-        raise ValueError(msg)
-
-    def load_agent(self, agent_info: AgentInfo) -> StreetRaceAgent:
-        """Load agent from AgentInfo (from discovery).
-
-        Args:
-            agent_info: Previously discovered agent info.
-
-        Returns:
-            Loaded DSL agent.
-
-        Raises:
-            ValueError: If cannot load this agent.
-
-        """
-        if not agent_info.file_path:
-            msg = f"AgentInfo for '{agent_info.name}' has no file path"
-            raise ValueError(msg)
-
-        return self._load_dsl_file(agent_info.file_path)
-
-    def _load_dsl_file(self, path: Path) -> StreetRaceAgent:
-        """Load and compile a DSL file.
-
-        Args:
-            path: Path to the .sr file.
-
-        Returns:
-            DslStreetRaceAgent wrapping the compiled workflow.
-
-        Raises:
-            ValueError: If compilation fails.
-
-        """
-        from streetrace.dsl import DslSemanticError, DslSyntaxError, compile_dsl
-
-        logger.debug("Loading DSL agent from %s", path)
-
-        try:
-            source = path.read_text()
-        except OSError as e:
-            msg = f"Failed to read DSL file {path}: {e}"
-            raise ValueError(msg) from e
-
-        try:
-            bytecode, source_map = compile_dsl(source, str(path))
-        except DslSyntaxError as e:
-            msg = f"Syntax error in {path}: {e}"
-            raise ValueError(msg) from e
-        except DslSemanticError as e:
-            msg = f"Semantic error in {path}: {e}"
-            raise ValueError(msg) from e
-
-        # Execute bytecode to get workflow class
-        namespace: dict[str, object] = {}
-        # SECURITY NOTE: exec is used intentionally here to load validated DSL bytecode.
-        # The bytecode is generated from a DSL file that has passed semantic analysis.
-        # This is similar to how Python's importlib loads compiled .pyc files.
-        compiled_exec(bytecode, namespace)
-
-        # Find the generated workflow class
-        workflow_class: type[DslAgentWorkflow] | None = None
-        for obj_name, obj in namespace.items():
-            if not isinstance(obj, type):
-                continue
-            if not issubclass(obj, DslAgentWorkflow):
-                continue
-            if obj_name == "DslAgentWorkflow":
-                continue
-            workflow_class = obj
-            break
-
-        if workflow_class is None:
-            msg = f"No workflow class found in compiled DSL: {path}"
-            raise ValueError(msg)
-
-        logger.debug("Loaded workflow class %s from %s", workflow_class.__name__, path)
-
-        # Create and return the StreetRaceAgent wrapper
-        return DslStreetRaceAgent(
-            workflow_class=workflow_class,
-            source_file=path,
-            source_map=source_map,
-        )
-
-
-def compiled_exec(bytecode: CodeType, namespace: dict[str, object]) -> None:
-    """Execute compiled bytecode in a namespace.
-
-    This function wraps exec for executing validated DSL bytecode.
-    The bytecode has been generated from a DSL source that passed
-    semantic validation.
-
-    Args:
-        bytecode: Compiled Python bytecode.
-        namespace: Namespace to execute in.
-
-    """
-    # SECURITY: exec is intentional here for validated DSL bytecode loading.
-    exec(bytecode, namespace)  # noqa: S102  # nosec B102
-
-
-class DslStreetRaceAgent(StreetRaceAgent):
-    """StreetRaceAgent wrapper for compiled DSL workflows.
-
-    Wrap a compiled DSL workflow class to implement the StreetRaceAgent
-    interface required by the AgentManager.
+    This class contains the agent creation logic extracted from DslStreetRaceAgent.
+    It can create ADK LlmAgent instances from compiled DSL workflow classes,
+    supporting agentic patterns like coordinator (delegate) and hierarchical (use).
     """
 
     def __init__(
         self,
         workflow_class: type[DslAgentWorkflow],
-        source_file: Path,
+        source_file: Path | None,
         source_map: list[SourceMapping],
     ) -> None:
-        """Initialize the DSL agent wrapper.
+        """Initialize the DSL agent factory.
 
         Args:
-            workflow_class: Compiled workflow class.
-            source_file: Path to the source .sr file.
+            workflow_class: The compiled DSL workflow class.
+            source_file: Path to the source .sr file, or None for HTTP sources.
             source_map: Source mappings for error translation.
 
         """
         self._workflow_class = workflow_class
         self._source_file = source_file
         self._source_map = source_map
-        self._workflow_instance: DslAgentWorkflow | None = None
 
-    def get_agent_card(self) -> "StreetRaceAgentCard":
-        """Provide an A2A AgentCard."""
-        from a2a.types import AgentCapabilities, AgentSkill
-
-        from streetrace.agents.street_race_agent_card import StreetRaceAgentCard
-
-        name = self._source_file.stem
-        skill = AgentSkill(
-            id=f"dsl_{name}",
-            name=name,
-            description=f"DSL agent from {self._source_file.name}",
-            tags=["dsl"],
-            examples=[f"Use the {name} DSL agent"],
-        )
-        return StreetRaceAgentCard(
-            name=name,
-            description=f"DSL agent from {self._source_file.name}",
-            version="1.0.0",
-            defaultInputModes=["text"],
-            defaultOutputModes=["text"],
-            capabilities=AgentCapabilities(streaming=True),
-            skills=[skill],
+        logger.debug(
+            "Created DslAgentFactory for %s from %s",
+            workflow_class.__name__,
+            source_file or "(HTTP source)",
         )
 
-    async def create_agent(
-        self,
-        model_factory: "ModelFactory",
-        tool_provider: "ToolProvider",
-        system_context: "SystemContext",
-    ) -> "BaseAgent":
-        """Create the ADK agent from the DSL workflow.
-
-        Create the root LlmAgent with support for agentic patterns:
-        - Coordinator/dispatcher pattern via sub_agents (delegate keyword)
-        - Hierarchical pattern via agent_tools (use keyword)
-
-        Args:
-            model_factory: Factory for creating LLM models.
-            tool_provider: Provider for tools.
-            system_context: System context.
+    @property
+    def workflow_class(self) -> type[DslAgentWorkflow]:
+        """Get the workflow class.
 
         Returns:
-            The root ADK agent.
+            The compiled DSL workflow class.
 
         """
-        from google.adk.agents import LlmAgent
+        return self._workflow_class
 
-        # Create workflow instance
-        self._workflow_instance = self._workflow_class()
+    @property
+    def source_file(self) -> Path | None:
+        """Get the source file path.
 
-        # Get the agent definition from _agents dict
-        agent_def = self._get_default_agent_def()
+        Returns:
+            Path to the source .sr file, or None for HTTP sources.
 
-        # Get instruction from the agent's instruction field (not keyword matching)
-        instruction = self._resolve_instruction(agent_def)
+        """
+        return self._source_file
 
-        # Resolve model following the design spec:
-        # 1. Model from prompt's `using model` clause
-        # 2. Fall back to model named "main"
-        # 3. CLI override (handled by model_factory)
-        model = self._resolve_model(model_factory, agent_def)
+    @property
+    def source_map(self) -> list[SourceMapping]:
+        """Get the source mappings.
 
-        # Resolve tools from the agent's tools list
-        tools = self._resolve_tools(tool_provider, agent_def)
+        Returns:
+            List of source mappings for error translation.
 
-        # Resolve sub_agents for delegate pattern
-        sub_agents = await self._resolve_sub_agents(
-            agent_def, model_factory, tool_provider, system_context,
-        )
-
-        # Resolve agent_tools for use pattern (adds to tools list)
-        agent_tools = await self._resolve_agent_tools(
-            agent_def, model_factory, tool_provider, system_context,
-        )
-        tools.extend(agent_tools)
-
-        # Build LlmAgent with all components
-        agent_kwargs: dict[str, Any] = {
-            "name": self._source_file.stem,
-            "model": model,
-            "instruction": instruction,
-            "tools": tools,
-        }
-        if sub_agents:
-            agent_kwargs["sub_agents"] = sub_agents
-
-        return LlmAgent(**agent_kwargs)
+        """
+        return self._source_map
 
     def _get_default_agent_def(self) -> dict[str, object]:
         """Get the default agent definition.
@@ -453,11 +139,11 @@ class DslStreetRaceAgent(StreetRaceAgent):
 
         prompt_value = prompts[instruction_name]
 
-        # Evaluate prompt lambda with empty context
+        # Evaluate prompt lambda with minimal context for prompt resolution
         if callable(prompt_value):
-            from streetrace.dsl.runtime.context import WorkflowContext
+            from streetrace.dsl.runtime.prompt_context import PromptResolutionContext
 
-            ctx = WorkflowContext()
+            ctx = PromptResolutionContext()
             try:
                 return str(prompt_value(ctx))
             except (TypeError, KeyError) as e:
@@ -641,10 +327,9 @@ class DslStreetRaceAgent(StreetRaceAgent):
 
         return refs
 
-    async def _create_agent_from_def(
+    async def create_agent(
         self,
-        name: str,
-        agent_def: dict[str, object],
+        agent_name: str,
         model_factory: "ModelFactory",
         tool_provider: "ToolProvider",
         system_context: "SystemContext",
@@ -656,8 +341,7 @@ class DslStreetRaceAgent(StreetRaceAgent):
         resolves nested patterns.
 
         Args:
-            name: Name for the agent.
-            agent_def: Agent definition dict with tools, instruction, etc.
+            agent_name: Name of the agent to create.
             model_factory: Factory for creating LLM models.
             tool_provider: Provider for tools.
             system_context: System context.
@@ -665,8 +349,22 @@ class DslStreetRaceAgent(StreetRaceAgent):
         Returns:
             The created ADK agent.
 
+        Raises:
+            ValueError: If agent not found in workflow.
+
         """
         from google.adk.agents import LlmAgent
+
+        agents = getattr(self._workflow_class, "_agents", {})
+        agent_def = agents.get(agent_name)
+
+        if agent_def is None:
+            msg = f"Agent '{agent_name}' not found in workflow"
+            raise ValueError(msg)
+
+        if not isinstance(agent_def, dict):
+            msg = f"Agent definition for '{agent_name}' is not a dict"
+            raise TypeError(msg)
 
         instruction = self._resolve_instruction(agent_def)
         model = self._resolve_model(model_factory, agent_def)
@@ -682,14 +380,80 @@ class DslStreetRaceAgent(StreetRaceAgent):
         tools.extend(agent_tools)
 
         # Get description from agent definition or use default
-        description = agent_def.get("description", f"Agent: {name}")
+        description = agent_def.get("description", f"Agent: {agent_name}")
 
         agent_kwargs: dict[str, Any] = {
-            "name": name,
+            "name": agent_name,
             "model": model,
             "instruction": instruction,
             "tools": tools,
             "description": description,
+        }
+        if sub_agents:
+            agent_kwargs["sub_agents"] = sub_agents
+
+        return LlmAgent(**agent_kwargs)
+
+    async def create_root_agent(
+        self,
+        model_factory: "ModelFactory",
+        tool_provider: "ToolProvider",
+        system_context: "SystemContext",
+    ) -> "BaseAgent":
+        """Create the root ADK agent from the DSL workflow.
+
+        Create the root LlmAgent with support for agentic patterns:
+        - Coordinator/dispatcher pattern via sub_agents (delegate keyword)
+        - Hierarchical pattern via agent_tools (use keyword)
+
+        Args:
+            model_factory: Factory for creating LLM models.
+            tool_provider: Provider for tools.
+            system_context: System context.
+
+        Returns:
+            The root ADK agent.
+
+        """
+        from google.adk.agents import LlmAgent
+
+        # Get the agent definition from _agents dict (class-level data)
+        agent_def = self._get_default_agent_def()
+
+        # Get instruction from the agent's instruction field (not keyword matching)
+        instruction = self._resolve_instruction(agent_def)
+
+        # Resolve model following the design spec:
+        # 1. Model from prompt's `using model` clause
+        # 2. Fall back to model named "main"
+        # 3. CLI override (handled by model_factory)
+        model = self._resolve_model(model_factory, agent_def)
+
+        # Resolve tools from the agent's tools list
+        tools = self._resolve_tools(tool_provider, agent_def)
+
+        # Resolve sub_agents for delegate pattern
+        sub_agents = await self._resolve_sub_agents(
+            agent_def, model_factory, tool_provider, system_context,
+        )
+
+        # Resolve agent_tools for use pattern (adds to tools list)
+        agent_tools = await self._resolve_agent_tools(
+            agent_def, model_factory, tool_provider, system_context,
+        )
+        tools.extend(agent_tools)
+
+        # Build LlmAgent with all components
+        # Use filename stem or workflow class name for HTTP sources
+        if self._source_file:
+            agent_name = self._source_file.stem
+        else:
+            agent_name = self._workflow_class.__name__
+        agent_kwargs: dict[str, Any] = {
+            "name": agent_name,
+            "model": model,
+            "instruction": instruction,
+            "tools": tools,
         }
         if sub_agents:
             agent_kwargs["sub_agents"] = sub_agents
@@ -737,9 +501,8 @@ class DslStreetRaceAgent(StreetRaceAgent):
             if not isinstance(sub_agent_def, dict):
                 continue
 
-            sub_agent = await self._create_agent_from_def(
-                name=agent_name,
-                agent_def=sub_agent_def,
+            sub_agent = await self.create_agent(
+                agent_name=agent_name,
                 model_factory=model_factory,
                 tool_provider=tool_provider,
                 system_context=system_context,
@@ -754,7 +517,7 @@ class DslStreetRaceAgent(StreetRaceAgent):
         model_factory: "ModelFactory",
         tool_provider: "ToolProvider",
         system_context: "SystemContext",
-    ) -> list["AdkTool"]:
+    ) -> list["AgentTool"]:
         """Resolve agent_tools for the hierarchical pattern.
 
         Create AgentTool wrappers for each agent listed in 'agent_tools'.
@@ -778,7 +541,7 @@ class DslStreetRaceAgent(StreetRaceAgent):
             return []
 
         agents = self._workflow_class._agents  # noqa: SLF001
-        agent_tools: list[AdkTool] = []
+        agent_tools: list[AgentTool] = []
 
         for agent_name in agent_tool_names:
             if not isinstance(agent_name, str):
@@ -791,9 +554,8 @@ class DslStreetRaceAgent(StreetRaceAgent):
             if not isinstance(sub_agent_def, dict):
                 continue
 
-            sub_agent = await self._create_agent_from_def(
-                name=agent_name,
-                agent_def=sub_agent_def,
+            sub_agent = await self.create_agent(
+                agent_name=agent_name,
                 model_factory=model_factory,
                 tool_provider=tool_provider,
                 system_context=system_context,
@@ -810,7 +572,6 @@ class DslStreetRaceAgent(StreetRaceAgent):
 
         """
         await self._close_agent_recursive(agent_instance)
-        self._workflow_instance = None
 
     async def _close_agent_recursive(self, agent: "BaseAgent") -> None:
         """Recursively close agent, its sub-agents, and tools.
@@ -840,28 +601,3 @@ class DslStreetRaceAgent(StreetRaceAgent):
                 ret = close_fn()
                 if inspect.isawaitable(ret):
                     await ret
-
-    def get_attributes(self) -> dict[str, Any]:
-        """Get custom attributes for this agent."""
-        return {
-            "streetrace.agent.type": "dsl",
-            "streetrace.agent.source": str(self._source_file),
-        }
-
-    def get_version(self) -> str | None:
-        """Get the version of this agent."""
-        return None
-
-    def get_system_prompt(self) -> str | None:
-        """Get the system prompt for this agent."""
-        # Get the agent's instruction from the agent definition
-        agent_def = self._get_default_agent_def()
-        instruction_name = agent_def.get("instruction")
-        if instruction_name:
-            return f"<prompt: {instruction_name}>"
-        return None
-
-    @property
-    def user_prompt(self) -> str | None:
-        """Get the user prompt for this agent."""
-        return None

@@ -1,14 +1,55 @@
-"""Tests for DslAgentLoader.
+"""Tests for DslDefinitionLoader.
 
-Test the DSL agent loader for .sr file support.
+Test the DSL definition loader for .sr file support.
+
+Note: This file previously tested the old DslAgentLoader from streetrace.dsl.loader.
+It has been updated to test the new DslDefinitionLoader from streetrace.workloads.
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 
-from streetrace.dsl.loader import DslAgentLoader
+from streetrace.agents.resolver import SourceResolution, SourceType
 from streetrace.dsl.runtime import DslAgentWorkflow
+from streetrace.workloads import DslDefinitionLoader
+
+if TYPE_CHECKING:
+    from google.adk.sessions.base_session_service import BaseSessionService
+
+    from streetrace.llm.model_factory import ModelFactory
+    from streetrace.system_context import SystemContext
+    from streetrace.tools.tool_provider import ToolProvider
+
+
+@pytest.fixture
+def mock_model_factory() -> "ModelFactory":
+    """Create a mock ModelFactory."""
+    factory = MagicMock()
+    factory.get_current_model.return_value = MagicMock()
+    factory.get_llm_interface.return_value = MagicMock()
+    return factory
+
+
+@pytest.fixture
+def mock_tool_provider() -> "ToolProvider":
+    """Create a mock ToolProvider."""
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_system_context() -> "SystemContext":
+    """Create a mock SystemContext."""
+    return MagicMock()
+
+
+@pytest.fixture
+def mock_session_service() -> "BaseSessionService":
+    """Create a mock BaseSessionService."""
+    return MagicMock()
+
 
 # =============================================================================
 # Sample DSL Sources for Testing
@@ -41,38 +82,19 @@ end
 """
 
 
-# =============================================================================
-# can_load Tests
-# =============================================================================
-
-
-class TestCanLoad:
-    """Test DslAgentLoader.can_load method."""
-
-    def test_can_load_sr_files(self) -> None:
-        """Loader should handle .sr files."""
-        loader = DslAgentLoader()
-        assert loader.can_load(Path("agent.sr"))
-        assert loader.can_load(Path("/path/to/my_agent.sr"))
-        assert loader.can_load(Path("./agents/workflow.sr"))
-
-    def test_cannot_load_py_files(self) -> None:
-        """Loader should not handle .py files."""
-        loader = DslAgentLoader()
-        assert not loader.can_load(Path("agent.py"))
-
-    def test_cannot_load_yaml_files(self) -> None:
-        """Loader should not handle .yaml files."""
-        loader = DslAgentLoader()
-        assert not loader.can_load(Path("agent.yaml"))
-        assert not loader.can_load(Path("agent.yml"))
-
-    def test_cannot_load_other_extensions(self) -> None:
-        """Loader should not handle other file types."""
-        loader = DslAgentLoader()
-        assert not loader.can_load(Path("agent.md"))
-        assert not loader.can_load(Path("agent.json"))
-        assert not loader.can_load(Path("agent.txt"))
+def make_resolution(
+    content: str,
+    source: str = "test.sr",
+    file_path: Path | None = None,
+) -> SourceResolution:
+    """Create a SourceResolution for testing."""
+    return SourceResolution(
+        content=content,
+        source=source,
+        source_type=SourceType.FILE_PATH,
+        file_path=file_path,
+        format="dsl",
+    )
 
 
 # =============================================================================
@@ -81,134 +103,100 @@ class TestCanLoad:
 
 
 class TestLoad:
-    """Test DslAgentLoader.load method."""
+    """Test DslDefinitionLoader.load method."""
 
-    def test_load_returns_workflow_class(self, tmp_path: Path) -> None:
-        """Loading a .sr file should return a workflow class."""
+    def test_load_returns_definition_with_workflow_class(self, tmp_path: Path) -> None:
+        """Loading a .sr file should return a definition with workflow class."""
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(MINIMAL_AGENT_SOURCE)
+        resolution = make_resolution(MINIMAL_AGENT_SOURCE, str(dsl_file), dsl_file)
 
-        loader = DslAgentLoader()
-        workflow_class = loader.load(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(resolution)
 
-        assert isinstance(workflow_class, type)
-        assert issubclass(workflow_class, DslAgentWorkflow)
+        assert isinstance(definition.workflow_class, type)
+        assert issubclass(definition.workflow_class, DslAgentWorkflow)
 
-    def test_load_workflow_can_be_instantiated(self, tmp_path: Path) -> None:
+    def test_load_workflow_can_be_instantiated(
+        self,
+        tmp_path: Path,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
         """Loaded workflow class should be instantiable."""
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(MINIMAL_AGENT_SOURCE)
+        resolution = make_resolution(MINIMAL_AGENT_SOURCE, str(dsl_file), dsl_file)
 
-        loader = DslAgentLoader()
-        workflow_class = loader.load(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(resolution)
 
-        # Should be able to create an instance
-        instance = workflow_class()
+        # Should be able to create an instance with required dependencies
+        instance = definition.workflow_class(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
         assert isinstance(instance, DslAgentWorkflow)
 
     def test_load_preserves_workflow_name(self, tmp_path: Path) -> None:
         """Workflow class name should be derived from file name."""
         dsl_file = tmp_path / "my_cool_agent.sr"
         dsl_file.write_text(MINIMAL_AGENT_SOURCE)
+        resolution = make_resolution(MINIMAL_AGENT_SOURCE, str(dsl_file), dsl_file)
 
-        loader = DslAgentLoader()
-        workflow_class = loader.load(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(resolution)
 
         # Class name should be CamelCase version of filename
-        assert "Workflow" in workflow_class.__name__
+        assert "Workflow" in definition.workflow_class.__name__
 
-    def test_load_file_not_found_raises(self, tmp_path: Path) -> None:
-        """Loading nonexistent file should raise FileNotFoundError."""
-        dsl_file = tmp_path / "nonexistent.sr"
+    def test_load_extracts_metadata(self, tmp_path: Path) -> None:
+        """Load should extract metadata from DSL file."""
+        dsl_file = tmp_path / "test_agent.sr"
+        dsl_file.write_text(MINIMAL_AGENT_SOURCE)
+        resolution = make_resolution(MINIMAL_AGENT_SOURCE, str(dsl_file), dsl_file)
 
-        loader = DslAgentLoader()
+        loader = DslDefinitionLoader()
+        definition = loader.load(resolution)
 
-        with pytest.raises(FileNotFoundError):
-            loader.load(dsl_file)
+        assert definition.metadata.name == "test_agent"
+        assert definition.metadata.format == "dsl"
+        assert definition.metadata.source_path == dsl_file
 
     def test_load_syntax_error_raises(self, tmp_path: Path) -> None:
         """Loading file with syntax errors should raise."""
+        from streetrace.dsl.compiler import DslSyntaxError
+
         dsl_file = tmp_path / "broken.sr"
-        dsl_file.write_text("model = broken syntax")
+        resolution = make_resolution("model = broken syntax", str(dsl_file), dsl_file)
 
-        loader = DslAgentLoader()
+        loader = DslDefinitionLoader()
 
-        with pytest.raises(Exception):  # noqa: B017
-            loader.load(dsl_file)
+        with pytest.raises(DslSyntaxError):
+            loader.load(resolution)
 
     def test_load_semantic_error_raises(self, tmp_path: Path) -> None:
         """Loading file with semantic errors should raise."""
-        dsl_file = tmp_path / "invalid.sr"
-        dsl_file.write_text(
-            """\
+        from streetrace.dsl.compiler import DslSemanticError
+
+        invalid_source = """\
 streetrace v1
 
 model main = anthropic/claude-sonnet
 
 prompt greeting using model "undefined_model": \"\"\"Hello!\"\"\"
-""",
-        )
+"""
+        dsl_file = tmp_path / "invalid.sr"
+        resolution = make_resolution(invalid_source, str(dsl_file), dsl_file)
 
-        loader = DslAgentLoader()
+        loader = DslDefinitionLoader()
 
-        with pytest.raises(Exception):  # noqa: B017
-            loader.load(dsl_file)
-
-
-# =============================================================================
-# discover Tests
-# =============================================================================
-
-
-class TestDiscover:
-    """Test DslAgentLoader.discover method."""
-
-    def test_discover_finds_sr_files(self, tmp_path: Path) -> None:
-        """Discover should find all .sr files in directory."""
-        (tmp_path / "agent1.sr").write_text(MINIMAL_AGENT_SOURCE)
-        (tmp_path / "agent2.sr").write_text(MINIMAL_AGENT_SOURCE)
-
-        loader = DslAgentLoader()
-        discovered = loader.discover(tmp_path)
-
-        assert len(discovered) == 2
-        names = {p.name for p in discovered}
-        assert "agent1.sr" in names
-        assert "agent2.sr" in names
-
-    def test_discover_finds_nested_files(self, tmp_path: Path) -> None:
-        """Discover should find .sr files in subdirectories."""
-        subdir = tmp_path / "subdir"
-        subdir.mkdir()
-        (tmp_path / "top.sr").write_text(MINIMAL_AGENT_SOURCE)
-        (subdir / "nested.sr").write_text(MINIMAL_AGENT_SOURCE)
-
-        loader = DslAgentLoader()
-        discovered = loader.discover(tmp_path)
-
-        assert len(discovered) == 2
-        names = {p.name for p in discovered}
-        assert "top.sr" in names
-        assert "nested.sr" in names
-
-    def test_discover_empty_directory(self, tmp_path: Path) -> None:
-        """Discover in empty directory returns empty list."""
-        loader = DslAgentLoader()
-        discovered = loader.discover(tmp_path)
-
-        assert discovered == []
-
-    def test_discover_ignores_other_files(self, tmp_path: Path) -> None:
-        """Discover should ignore non-.sr files."""
-        (tmp_path / "agent.sr").write_text(MINIMAL_AGENT_SOURCE)
-        (tmp_path / "agent.py").write_text("# Python file")
-        (tmp_path / "agent.yaml").write_text("name: test")
-
-        loader = DslAgentLoader()
-        discovered = loader.discover(tmp_path)
-
-        assert len(discovered) == 1
-        assert discovered[0].name == "agent.sr"
+        with pytest.raises(DslSemanticError):
+            loader.load(resolution)
 
 
 # =============================================================================
@@ -217,38 +205,39 @@ class TestDiscover:
 
 
 class TestCacheIntegration:
-    """Test DslAgentLoader caching behavior."""
+    """Test DslDefinitionLoader caching behavior."""
 
-    def test_cached_load_hits_cache(self, tmp_path: Path) -> None:
-        """Loading same file twice should use bytecode cache."""
+    def test_cached_load_produces_valid_workflow(self, tmp_path: Path) -> None:
+        """Loading same content twice should produce valid workflow classes."""
         dsl_file = tmp_path / "cached_agent.sr"
         dsl_file.write_text(MINIMAL_AGENT_SOURCE)
+        resolution = make_resolution(MINIMAL_AGENT_SOURCE, str(dsl_file), dsl_file)
 
-        loader = DslAgentLoader()
-        class1 = loader.load(dsl_file)
-        class2 = loader.load(dsl_file)
+        loader = DslDefinitionLoader()
+        def1 = loader.load(resolution)
+        def2 = loader.load(resolution)
 
-        # Both classes should be valid DslAgentWorkflow subclasses
-        assert issubclass(class1, DslAgentWorkflow)
-        assert issubclass(class2, DslAgentWorkflow)
+        # Both definitions should have valid DslAgentWorkflow subclasses
+        assert issubclass(def1.workflow_class, DslAgentWorkflow)
+        assert issubclass(def2.workflow_class, DslAgentWorkflow)
         # Classes have the same name (from same source)
-        assert class1.__name__ == class2.__name__
+        assert def1.workflow_class.__name__ == def2.workflow_class.__name__
 
-    def test_modified_file_recompiles(self, tmp_path: Path) -> None:
-        """Modified file should be recompiled."""
+    def test_different_content_produces_different_workflows(
+        self, tmp_path: Path,
+    ) -> None:
+        """Different content should produce different workflow classes."""
         dsl_file = tmp_path / "changing_agent.sr"
-        dsl_file.write_text(MINIMAL_AGENT_SOURCE)
+        res1 = make_resolution(MINIMAL_AGENT_SOURCE, str(dsl_file), dsl_file)
+        res2 = make_resolution(AGENT_WITH_HANDLER_SOURCE, str(dsl_file), dsl_file)
 
-        loader = DslAgentLoader()
-        class1 = loader.load(dsl_file)
+        loader = DslDefinitionLoader()
+        def1 = loader.load(res1)
+        def2 = loader.load(res2)
 
-        # Modify the file
-        dsl_file.write_text(AGENT_WITH_HANDLER_SOURCE)
-        class2 = loader.load(dsl_file)
-
-        # Both classes should be valid but potentially different names
-        assert issubclass(class1, DslAgentWorkflow)
-        assert issubclass(class2, DslAgentWorkflow)
+        # Both definitions should have valid workflow classes
+        assert issubclass(def1.workflow_class, DslAgentWorkflow)
+        assert issubclass(def2.workflow_class, DslAgentWorkflow)
 
 
 # =============================================================================
@@ -263,22 +252,36 @@ class TestLoadedWorkflowFunctionality:
         """Loaded workflow should have model definitions."""
         dsl_file = tmp_path / "model_agent.sr"
         dsl_file.write_text(MINIMAL_AGENT_SOURCE)
+        resolution = make_resolution(MINIMAL_AGENT_SOURCE, str(dsl_file), dsl_file)
 
-        loader = DslAgentLoader()
-        workflow_class = loader.load(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(resolution)
 
         # Workflow should have _models attribute
-        models = getattr(workflow_class, "_models", {})
+        models = getattr(definition.workflow_class, "_models", {})
         assert "main" in models or isinstance(models, dict)
 
-    def test_workflow_creates_context(self, tmp_path: Path) -> None:
+    def test_workflow_creates_context(
+        self,
+        tmp_path: Path,
+        mock_model_factory: "ModelFactory",
+        mock_tool_provider: "ToolProvider",
+        mock_system_context: "SystemContext",
+        mock_session_service: "BaseSessionService",
+    ) -> None:
         """Loaded workflow should create execution context."""
         dsl_file = tmp_path / "context_agent.sr"
         dsl_file.write_text(MINIMAL_AGENT_SOURCE)
+        resolution = make_resolution(MINIMAL_AGENT_SOURCE, str(dsl_file), dsl_file)
 
-        loader = DslAgentLoader()
-        workflow_class = loader.load(dsl_file)
-        instance = workflow_class()
+        loader = DslDefinitionLoader()
+        definition = loader.load(resolution)
+        instance = definition.workflow_class(
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+            session_service=mock_session_service,
+        )
 
         ctx = instance.create_context()
         assert ctx is not None

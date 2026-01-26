@@ -47,7 +47,7 @@ _.cost_str  # unused property (src/streetrace/costs.py:16)
 _.completion_tokens_str  # unused property (src/streetrace/costs.py:23)
 _.prompt_tokens_str  # unused property (src/streetrace/costs.py:30)
 _.reset_turn  # unused method (src/streetrace/costs.py:67)
-render_agent_info_list  # unused function (src/streetrace/list_agents.py:21)
+render_workload_definition_list  # unused function (src/streetrace/list_agents.py:21) - called dynamically by renderer registry
 _.callbacks  # unused attribute (src/streetrace/llm/lite_llm_client.py:35)
 BaseLlm  # unused import (src/streetrace/llm/llm_interface.py:20)
 _.generate_async  # unused method (src/streetrace/llm/llm_interface.py:46)
@@ -375,15 +375,51 @@ format_error_message  # unused function (codes.py) - public API for formatting e
 _.with_help  # unused method (diagnostics.py) - public API for adding help text
 _.with_note  # unused method (diagnostics.py) - public API for adding related notes
 
-# DslAgentLoader - public API for loading DSL agent files
-_to_class_name  # unused function (loader.py) - utility for class name generation
-_.can_load  # unused method (loader.py) - public API for checking file compatibility
-_.load  # unused method (loader.py) - public API for loading DSL files
-source_map  # unused variable (loader.py) - captured from compile_dsl for future use
-
 # DslStreetRaceAgent - internal state for agent lifecycle
 _._source_map  # unused attribute (dsl_agent_loader.py) - stored for error translation
 _._workflow_instance  # unused attribute (dsl_agent_loader.py) - internal workflow state
 
+# DslDefinitionLoader - public API for loading DSL definition files
+_.can_load  # unused method (dsl_loader.py) - public API for checking file compatibility
+
 # BaseSessionService - used in type annotations and string literals for TYPE_CHECKING
 BaseSessionService  # unused import - used in type annotations and TYPE_CHECKING blocks
+
+# WorkloadMetadata - dataclass fields are used when creating instances
+source_path  # unused variable (metadata.py) - dataclass field for WorkloadMetadata
+
+# WorkloadManager - public API methods
+_.create_workload_from_definition  # unused method (manager.py) - public API for definition-based workloads
+_.discover_definitions  # unused method (manager.py) - public API for discovering workload definitions
+_._find_workload_files  # unused method (manager.py) - helper method used for discovery
+
+# DefinitionLoader - public API and implementations
+_.load_from_source  # unused method (loader.py) - public API for loading from identifier
+_.can_load  # unused method - public API for checking file compatibility
+
+# Deprecated AgentLoader classes - kept for backward compatibility
+DslAgentLoader  # unused class (dsl_agent_loader.py) - deprecated, use DslDefinitionLoader
+PythonAgentLoader  # unused class (py_agent_loader.py) - deprecated, use PythonDefinitionLoader
+YamlAgentLoader  # unused class (yaml_agent_loader.py) - deprecated, use YamlDefinitionLoader
+_.load_from_path  # unused method - deprecated method on AgentLoader classes
+
+# StreetRaceAgent interface methods - used by agent implementations
+_.get_attributes  # unused method (street_race_agent.py) - telemetry attribute interface
+_.get_version  # unused method (street_race_agent.py) - version interface
+_.get_system_prompt  # unused method (street_race_agent.py) - prompt interface
+
+# DslAgentFactory - public API
+_.create_root_agent  # unused method (dsl_agent_factory.py) - factory method for creating agents
+
+# YAML agent loader helper functions - used by tests and YamlDefinitionLoader
+_load_agent_yaml  # unused function (yaml_agent_loader.py) - used by tests and internal loading
+
+# YamlAgentDocument methods - used by tests
+_.get_name  # unused method (yaml_models.py) - public API for getting agent name
+_.get_description  # unused method (yaml_models.py) - public API for getting agent description
+
+# File discovery utility - used by tests
+find_files  # unused function (src/streetrace/utils/file_discovery.py:17) - used by tests
+
+# WorkloadManager helper - used by tests
+_._get_definition_loader  # unused method (manager.py) - used by tests for loader lookup

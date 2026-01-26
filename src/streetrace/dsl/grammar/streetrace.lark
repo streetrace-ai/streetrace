@@ -301,7 +301,9 @@ prompt_body: TRIPLE_QUOTED_STRING
 
 // Triple-quoted string captures multi-line prompt content
 // Supports both triple-single and triple-double quotes
-TRIPLE_QUOTED_STRING: /\"{3}[^\"]*\"{3}/ | /'{3}[^']*'{3}/
+// Pattern allows single/double quotes inside - only triple-quote sequence ends the string
+// Uses non-greedy match: """ followed by any chars (non-greedy) followed by """
+TRIPLE_QUOTED_STRING: /\"{3}[\s\S]*?\"{3}/ | /'{3}[\s\S]*?'{3}/
 
 // ----------------------------------------------------------------------------
 // CONTROL FLOW

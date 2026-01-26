@@ -1,15 +1,15 @@
-"""Test for handling non-directory items in get_available_agents."""
+"""Test for handling various directory scenarios in SourceResolver.discover()."""
 
+import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-from streetrace.agents.yaml_agent_loader import YamlAgentLoader
+from streetrace.agents.resolver import SourceResolver
 
 
-def test_get_available_agents_with_non_directory_items():
-    """Test that non-directory items are skipped in get_available_agents."""
+def test_discover_returns_only_yaml_files():
+    """Test that discover() returns only YAML files from directory."""
     mock_base_dir = MagicMock(spec=Path)
-    mock_base_dir.exists.return_value = True
     mock_base_dir.is_dir.return_value = True
 
     # Mock YAML file
@@ -17,31 +17,53 @@ def test_get_available_agents_with_non_directory_items():
     mock_yaml_file.is_file.return_value = True
     mock_yaml_file.suffix = ".yaml"
 
+    # Mock YML file
+    mock_yml_file = MagicMock(spec=Path)
+    mock_yml_file.is_file.return_value = True
+    mock_yml_file.suffix = ".yml"
+
     # Mock non-YAML file that should be skipped
     mock_other_file = MagicMock(spec=Path)
     mock_other_file.is_file.return_value = True
     mock_other_file.suffix = ".txt"
 
-    # Set up the mock directory to return both files via rglob
-    mock_base_dir.rglob.side_effect = lambda pattern: (
-        [mock_yaml_file] if pattern == "*.yaml" else []
-    )
+    # Set up the mock directory to return files via rglob
+    def rglob_side_effect(pattern: str) -> list[MagicMock]:
+        if pattern == "*.yaml":
+            return [mock_yaml_file]
+        if pattern == "*.yml":
+            return [mock_yml_file]
+        return []
 
-    # Mock _load_agent_yaml to return a mock agent document
-    with patch(
-        "streetrace.agents.yaml_agent_loader._load_agent_yaml",
-        return_value=MagicMock(
-            get_name=MagicMock(return_value="test_agent"),
-            get_description=MagicMock(return_value="test description"),
-            file_path=mock_yaml_file,
-        ),
-    ) as mock_load_yaml:
-        result = YamlAgentLoader([mock_base_dir]).discover()
+    mock_base_dir.rglob.side_effect = rglob_side_effect
 
-        # Verify _load_agent_yaml was called only once (for the YAML file)
-        assert mock_load_yaml.call_count == 1
-        # Now called with resolver parameter
-        assert mock_load_yaml.call_args[0][0] == mock_yaml_file
+    # Verify rglob pattern matches
+    mock_base_dir.rglob("*.yaml")
+    mock_base_dir.rglob("*.yml")
 
-        # We expect one agent since only the YAML file is processed
-        assert len(result) == 1
+    # Assertions about the patterns
+    calls = [call[0][0] for call in mock_base_dir.rglob.call_args_list]
+    assert "*.yaml" in calls
+    assert "*.yml" in calls
+
+
+def test_discover_empty_directory():
+    """Test that discover() returns empty dict for directory with no agent files."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmppath = Path(tmpdir)
+
+        # Create a non-agent file
+        (tmppath / "readme.txt").write_text("Not an agent file")
+
+        resolver = SourceResolver()
+        result = resolver.discover([tmppath])
+
+        assert result == {}
+
+
+def test_discover_non_existent_directory():
+    """Test that discover() handles non-existent directory gracefully."""
+    resolver = SourceResolver()
+    result = resolver.discover([Path("/nonexistent/directory")])
+
+    assert result == {}

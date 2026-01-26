@@ -1,18 +1,19 @@
 """Tests for DSL agent loader integration with WorkloadManager.
 
-Test loading .sr files as agents through the WorkloadManager's agent loading
-mechanism.
+Test loading .sr files as agents through the WorkloadManager's workload loading
+mechanism using the new DefinitionLoader system.
 """
 
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
+from google.adk.sessions.base_session_service import BaseSessionService
 
 from streetrace.llm.model_factory import ModelFactory
 from streetrace.system_context import SystemContext
 from streetrace.tools.tool_provider import ToolProvider
 from streetrace.workloads import WorkloadManager
+from streetrace.workloads.dsl_loader import DslDefinitionLoader
 
 # Sample DSL sources for testing
 VALID_DSL_SOURCE = """\
@@ -41,8 +42,8 @@ prompt greeting using model "undefined_model": \"\"\"Hello!\"\"\"
 class TestDslAgentLoaderIntegration:
     """Test DSL agent loading via WorkloadManager."""
 
-    def test_workload_manager_has_dsl_format_loader(self) -> None:
-        """WorkloadManager includes DSL format in format loaders."""
+    def test_workload_manager_has_dsl_definition_loader(self) -> None:
+        """WorkloadManager includes DSL format in definition loaders."""
         model_factory = MagicMock(spec=ModelFactory)
         tool_provider = MagicMock(spec=ToolProvider)
         system_context = MagicMock(spec=SystemContext)
@@ -54,7 +55,12 @@ class TestDslAgentLoaderIntegration:
             work_dir=Path.cwd(),
         )
 
-        assert "dsl" in manager.format_loaders
+        # Check the definition loaders (new API)
+        assert ".sr" in manager._definition_loaders  # noqa: SLF001
+        assert isinstance(
+            manager._definition_loaders[".sr"],  # noqa: SLF001
+            DslDefinitionLoader,
+        )
 
     def test_load_sr_file_directly(self, tmp_path: Path) -> None:
         """Load a .sr file directly via path."""
@@ -73,13 +79,14 @@ class TestDslAgentLoaderIntegration:
             work_dir=tmp_path,
         )
 
-        # Load agent definition (not create_agent which requires async)
-        agent_def = manager._load_definition(str(dsl_file))  # noqa: SLF001
+        # Load definition using new API
+        definition = manager._load_from_path(dsl_file)  # noqa: SLF001
 
-        assert agent_def is not None
+        assert definition is not None
+        assert definition.metadata.format == "dsl"
 
     def test_format_hints_include_sr_extension(self) -> None:
-        """Ensure .sr extension is in format hints."""
+        """Ensure .sr extension is in definition loaders."""
         model_factory = MagicMock(spec=ModelFactory)
         tool_provider = MagicMock(spec=ToolProvider)
         system_context = MagicMock(spec=SystemContext)
@@ -91,12 +98,10 @@ class TestDslAgentLoaderIntegration:
             work_dir=Path.cwd(),
         )
 
-        # The _load_from_path method uses format_hints internally
-        # Check that .sr files are recognized
-        # Test that the manager doesn't raise "Not a YAML file" for .sr files
-        # by checking that DSL loader can handle the path
-        dsl_loader = manager.format_loaders.get("dsl")
-        assert dsl_loader is not None
+        # Check that .sr files are recognized by definition loaders
+        loader = manager._get_definition_loader(Path("test.sr"))  # noqa: SLF001
+        assert loader is not None
+        assert isinstance(loader, DslDefinitionLoader)
 
     def test_discover_sr_files_in_directory(self, tmp_path: Path) -> None:
         """Discover .sr files in agent directories."""
@@ -115,19 +120,24 @@ class TestDslAgentLoaderIntegration:
             system_context=system_context,
             work_dir=tmp_path,
         )
+        manager.search_locations = [("cwd", [tmp_path])]
 
-        # Discover agents
-        discovered = manager.discover()
+        # Discover definitions using new API
+        discovered = manager.discover_definitions()
 
         # Check that our DSL agent was discovered
-        agent_names = [agent.name.lower() for agent in discovered]
+        agent_names = [d.name.lower() for d in discovered]
         assert "my_agent" in agent_names
 
-    def test_invalid_dsl_raises_error(self, tmp_path: Path) -> None:
-        """Invalid DSL file raises appropriate error."""
+    def test_invalid_dsl_logged_on_discover(self, tmp_path: Path) -> None:
+        """Invalid DSL file is logged but discovery continues."""
         # Create invalid DSL file
         dsl_file = tmp_path / "invalid_agent.sr"
         dsl_file.write_text(INVALID_DSL_SOURCE)
+
+        # Also create a valid file
+        valid_file = tmp_path / "valid_agent.sr"
+        valid_file.write_text(VALID_DSL_SOURCE)
 
         model_factory = MagicMock(spec=ModelFactory)
         tool_provider = MagicMock(spec=ToolProvider)
@@ -139,52 +149,115 @@ class TestDslAgentLoaderIntegration:
             system_context=system_context,
             work_dir=tmp_path,
         )
+        manager.search_locations = [("cwd", [tmp_path])]
 
-        # Attempting to load invalid DSL should fail
-        agent_def = manager._load_definition(str(dsl_file))  # noqa: SLF001
-        assert agent_def is None
-        # Check error message contains information about the failure
-        assert len(manager._last_load_errors) > 0  # noqa: SLF001
+        # Discovery should succeed (valid file) but skip invalid
+        discovered = manager.discover_definitions()
+
+        # Should find valid file only
+        names = [d.name.lower() for d in discovered]
+        assert "valid_agent" in names
+        # Invalid file should be skipped silently (logged)
 
 
-class TestDslAgentLoader:
-    """Test the DSL agent loader directly."""
+class TestDslDefinitionLoaderDirect:
+    """Test the DSL definition loader directly."""
 
-    def test_discover_in_paths(self, tmp_path: Path) -> None:
-        """Discover .sr files in given paths."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
-        # Create test files
-        (tmp_path / "agent1.sr").write_text(VALID_DSL_SOURCE)
-        (tmp_path / "agent2.sr").write_text(VALID_DSL_SOURCE)
-        (tmp_path / "not_agent.txt").write_text("not a DSL file")
-
-        loader = DslAgentLoader()
-        discovered = loader.discover_in_paths([tmp_path])
-
-        # Should find both .sr files
-        assert len(discovered) == 2
-        names = {info.name for info in discovered}
-        assert "agent1" in names
-        assert "agent2" in names
-
-    def test_load_from_path(self, tmp_path: Path) -> None:
-        """Load agent from file path."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
+    def test_load_from_resolution(self, tmp_path: Path) -> None:
+        """Load definition from SourceResolution."""
+        from streetrace.agents.resolver import SourceResolution, SourceType
 
         dsl_file = tmp_path / "my_agent.sr"
         dsl_file.write_text(VALID_DSL_SOURCE)
 
-        loader = DslAgentLoader()
-        agent = loader.load_from_path(dsl_file)
+        resolution = SourceResolution(
+            content=VALID_DSL_SOURCE,
+            source=str(dsl_file),
+            source_type=SourceType.FILE_PATH,
+            file_path=dsl_file,
+            format="dsl",
+        )
 
-        assert agent is not None
+        loader = DslDefinitionLoader()
+        definition = loader.load(resolution)
 
-    def test_load_from_url_not_supported(self) -> None:
-        """Load from URL should raise not supported error."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
+        assert definition is not None
+        assert definition.name == "my_agent"
+        assert definition.metadata.format == "dsl"
 
-        loader = DslAgentLoader()
+    def test_load_uses_resolution_content(self, tmp_path: Path) -> None:
+        """Load uses content from SourceResolution, not file."""
+        from streetrace.agents.resolver import SourceResolution, SourceType
 
-        with pytest.raises(ValueError, match="not supported"):
-            loader.load_from_url("https://example.com/agent.sr")
+        # File has invalid content
+        dsl_file = tmp_path / "my_agent.sr"
+        dsl_file.write_text("invalid content")
+
+        # But resolution has valid content
+        resolution = SourceResolution(
+            content=VALID_DSL_SOURCE,
+            source=str(dsl_file),
+            source_type=SourceType.FILE_PATH,
+            file_path=dsl_file,
+            format="dsl",
+        )
+
+        loader = DslDefinitionLoader()
+        definition = loader.load(resolution)
+
+        # Should succeed because resolution has valid content
+        assert definition is not None
+        assert definition.name == "my_agent"
+
+
+class TestDslWorkloadCreation:
+    """Test DSL workload creation through WorkloadManager."""
+
+    async def test_create_workload_from_dsl_file(self, tmp_path: Path) -> None:
+        """Create workload from .sr file."""
+        dsl_file = tmp_path / "test_workload.sr"
+        dsl_file.write_text(VALID_DSL_SOURCE)
+
+        model_factory = MagicMock(spec=ModelFactory)
+        model_factory.get_current_model.return_value = MagicMock()
+        tool_provider = MagicMock(spec=ToolProvider)
+        system_context = MagicMock(spec=SystemContext)
+        session_service = MagicMock(spec=BaseSessionService)
+
+        manager = WorkloadManager(
+            model_factory=model_factory,
+            tool_provider=tool_provider,
+            system_context=system_context,
+            work_dir=tmp_path,
+            session_service=session_service,
+        )
+
+        async with manager.create_workload(str(dsl_file)) as workload:
+            assert workload is not None
+            # DSL workloads should have specific attributes
+            assert hasattr(workload, "run_async")
+            assert hasattr(workload, "close")
+
+    async def test_create_workload_from_dsl_by_name(self, tmp_path: Path) -> None:
+        """Create workload by name discovery."""
+        dsl_file = tmp_path / "named_agent.sr"
+        dsl_file.write_text(VALID_DSL_SOURCE)
+
+        model_factory = MagicMock(spec=ModelFactory)
+        model_factory.get_current_model.return_value = MagicMock()
+        tool_provider = MagicMock(spec=ToolProvider)
+        system_context = MagicMock(spec=SystemContext)
+        session_service = MagicMock(spec=BaseSessionService)
+
+        manager = WorkloadManager(
+            model_factory=model_factory,
+            tool_provider=tool_provider,
+            system_context=system_context,
+            work_dir=tmp_path,
+            session_service=session_service,
+        )
+        manager.search_locations = [("cwd", [tmp_path])]
+
+        # Should discover and load by name
+        async with manager.create_workload("named_agent") as workload:
+            assert workload is not None

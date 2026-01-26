@@ -1,13 +1,28 @@
 """Tests for DSL agent loader instruction resolution.
 
 Test that instructions defined in DSL files are properly resolved and loaded
-into ADK agents.
+into ADK agents via DslDefinitionLoader and DslAgentFactory.
 """
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from streetrace.agents.resolver import SourceResolution, SourceType
+from streetrace.workloads.dsl_loader import DslDefinitionLoader
+
+
+def make_dsl_resolution_from_path(file_path: Path) -> SourceResolution:
+    """Create a SourceResolution by reading content from file."""
+    content = file_path.read_text()
+    return SourceResolution(
+        content=content,
+        source=str(file_path),
+        source_type=SourceType.FILE_PATH,
+        file_path=file_path,
+        format="dsl",
+    )
 
 # DSL sources for testing instruction loading
 DSL_WITH_NAMED_INSTRUCTION = """\
@@ -110,16 +125,15 @@ class TestInstructionResolutionFromDsl:
         self, tmp_path: Path,
     ) -> None:
         """Instruction is loaded from the agent's instruction field."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_NAMED_INSTRUCTION)
 
-        loader = DslAgentLoader()
-        agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Check that the agent definition includes instruction reference
-        workflow_class = agent._workflow_class  # noqa: SLF001
+        workflow_class = agent_factory.workflow_class
         agents = workflow_class._agents  # noqa: SLF001
         default_agent = agents.get("default")
 
@@ -129,18 +143,17 @@ class TestInstructionResolutionFromDsl:
 
     def test_instruction_not_guessed_by_keyword(self, tmp_path: Path) -> None:
         """Instruction is NOT guessed by keyword matching in prompt name."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         # This DSL has multiple prompts - only the one specified in
         # agent.instruction should be used
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_MULTIPLE_PROMPTS)
 
-        loader = DslAgentLoader()
-        agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         # Check that the agent uses exactly the specified instruction
-        workflow_class = agent._workflow_class  # noqa: SLF001
+        workflow_class = agent_factory.workflow_class
         agents = workflow_class._agents  # noqa: SLF001
         default_agent = agents.get("default")
 
@@ -156,18 +169,17 @@ class TestInstructionResolutionFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """Instruction is resolved from prompts dict during create_agent."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_NAMED_INSTRUCTION)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,
@@ -189,18 +201,17 @@ class TestInstructionResolutionFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """Multiline instructions are resolved correctly."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_MULTILINE_INSTRUCTION)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,
@@ -225,18 +236,17 @@ class TestInstructionResolutionFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """Named agent uses its specified instruction."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_NAMED_AGENT)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,
@@ -258,18 +268,17 @@ class TestInstructionResolutionFromDsl:
         mock_system_context: MagicMock,
     ) -> None:
         """Uses exact instruction specified, not keyword match."""
-        from streetrace.agents.dsl_agent_loader import DslAgentLoader
-
         dsl_file = tmp_path / "test_agent.sr"
         dsl_file.write_text(DSL_WITH_MULTIPLE_PROMPTS)
 
-        loader = DslAgentLoader()
-        sr_agent = loader.load_from_path(dsl_file)
+        loader = DslDefinitionLoader()
+        definition = loader.load(make_dsl_resolution_from_path(dsl_file))
+        agent_factory = definition.agent_factory
 
         with patch("google.adk.agents.LlmAgent") as mock_llm_agent:
             mock_llm_agent.return_value = MagicMock()
 
-            await sr_agent.create_agent(
+            await agent_factory.create_root_agent(
                 model_factory=mock_model_factory,
                 tool_provider=mock_tool_provider,
                 system_context=mock_system_context,
