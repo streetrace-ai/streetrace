@@ -25,7 +25,7 @@ class AgentInfo(TypedDict):
 
     name: str
     description: str | None
-    definition_type: Literal["yaml", "python"]
+    definition_type: Literal["yaml", "python", "dsl"]
     definition_path: str
 
 
@@ -38,9 +38,8 @@ class AgentListResult(OpResult):
 def list_agents(work_dir: Path) -> AgentListResult:
     """List all available agents in the system.
 
-    Searches for agent directories in predefined locations and returns information
-    about each valid agent found. Only agents implementing the StreetRaceAgent
-    interface are discovered.
+    Search for agent directories in predefined locations and return information
+    about each valid agent found. Agents can be in YAML, Python, or DSL format.
 
     Args:
         work_dir: Current working directory
@@ -51,30 +50,30 @@ def list_agents(work_dir: Path) -> AgentListResult:
     """
     from typing import cast
 
-    from streetrace.agents.agent_manager import AgentManager
+    from streetrace.workloads import WorkloadManager
 
-    # Create a minimal AgentManager instance for discovery
+    # Create a minimal WorkloadManager instance for discovery
     # We don't need actual model_factory, tool_provider, or system_context for discovery
     # We cast None to the required types since discovery doesn't use them
-    agent_manager = AgentManager(
+    workload_manager = WorkloadManager(
         model_factory=cast("ModelFactory", None),
         tool_provider=cast("ToolProvider", None),
         system_context=cast("SystemContext", None),
         work_dir=work_dir,
     )
 
-    agents = agent_manager.discover()
+    definitions = workload_manager.discover_definitions()
     return AgentListResult(
         tool_name="list_agents",
         result=OpResultCode.SUCCESS,
         output=[
             AgentInfo(
-                name=agent.name,
-                description=agent.description,
-                definition_type=agent.kind,
-                definition_path=agent.path,
+                name=definition.name,
+                description=definition.metadata.description,
+                definition_type=definition.metadata.format,
+                definition_path=str(definition.metadata.source_path),
             )
-            for agent in agents
+            for definition in definitions
         ],
         error="",
     )

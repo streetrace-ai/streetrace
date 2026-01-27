@@ -1,9 +1,10 @@
-"""Runs agents and implements the core user<->agent interaction loop."""
+"""Runs workloads and implements the core user<->agent interaction loop."""
 
 from typing import TYPE_CHECKING, override
 
 from opentelemetry import trace
 
+from streetrace.dsl.runtime.events import FlowEvent, LlmResponseEvent
 from streetrace.input_handler import (
     HANDLED_CONT,
     HandlerResult,
@@ -16,43 +17,123 @@ from streetrace.ui.adk_event_renderer import Event
 from streetrace.ui.ui_bus import UiBus
 
 if TYPE_CHECKING:
-    from streetrace.agents.agent_manager import AgentManager
+    from google.adk.events import Event as AdkEvent
+
     from streetrace.session.session_manager import SessionManager
+    from streetrace.workloads import WorkloadManager
 
 logger = get_logger(__name__)
 
 
+def _format_exception_message(exc: BaseException) -> str:
+    """Format an exception for user-friendly display.
+
+    Provide meaningful context for common exception types that have
+    terse default string representations.
+
+    Args:
+        exc: The exception to format.
+
+    Returns:
+        A user-friendly error message.
+
+    """
+    if isinstance(exc, KeyError):
+        # KeyError str() is just the key name, which is cryptic
+        return f"undefined variable '{exc.args[0]}'"
+    if isinstance(exc, AttributeError):
+        return f"attribute error: {exc}"
+    if isinstance(exc, TypeError):
+        return f"type error: {exc}"
+    # Default: use the exception's string representation
+    return str(exc)
+
+
+DEFAULT_NO_RESPONSE_MSG = "Agent did not produce a final response."
+"""Default message when no final response is captured."""
+
+
 class Supervisor(InputHandler):
-    """Workflow supervisor manages and executes available workflows."""
+    """Workflow supervisor manages and executes available workloads."""
 
     def __init__(
         self,
-        agent_manager: "AgentManager",
+        workload_manager: "WorkloadManager",
         session_manager: "SessionManager",
         ui_bus: UiBus,
     ) -> None:
         """Initialize a new instance of workflow supervisor.
 
         Args:
-            agent_manager: Manager for discovering and creating agents
-            session_manager: Conversaion sessions manager
+            workload_manager: Manager for discovering and creating workloads
+            session_manager: Conversation sessions manager
             ui_bus: UI event bus for displaying messages to the user
 
         """
-        self.agent_manager = agent_manager
+        self.workload_manager = workload_manager
         self.session_manager = session_manager
         self.ui_bus = ui_bus
         self.long_running = True
 
+    def _capture_flow_event_response(
+        self,
+        event: FlowEvent,
+        current_response: str | None,
+    ) -> str | None:
+        """Capture final response from FlowEvent if applicable.
+
+        Args:
+            event: The FlowEvent to check.
+            current_response: Current captured response.
+
+        Returns:
+            Updated response text if this event provides a final response.
+
+        """
+        if (
+            isinstance(event, LlmResponseEvent)
+            and event.is_final
+            and current_response == DEFAULT_NO_RESPONSE_MSG
+        ):
+            return event.content
+        return current_response
+
+    def _capture_adk_event_response(
+        self,
+        event: "AdkEvent",
+        current_response: str | None,
+    ) -> str | None:
+        """Capture final response from ADK Event if applicable.
+
+        Args:
+            event: The ADK Event to check.
+            current_response: Current captured response.
+
+        Returns:
+            Updated response text if this event provides a final response.
+
+        """
+        if not event.is_final_response():
+            return current_response
+        if current_response != DEFAULT_NO_RESPONSE_MSG:
+            return current_response
+
+        if event.content and event.content.parts:
+            return event.content.parts[0].text
+        if event.actions and event.actions.escalate:
+            error_msg = event.error_message or "No specific message."
+            return f"Agent escalated: {error_msg}"
+        return current_response
+
     @override
     async def handle(self, ctx: InputContext) -> HandlerResult:
-        """Run the payload through the workflow.
+        """Run the payload through the workload.
 
-        This method orchestrates the full interaction cycle between the user and agent:
+        Orchestrate the full user-workload interaction cycle:
         1. Prepares the user's message with any attached file contents
         2. Creates a session if needed or retrieves an existing one
-        3. Creates an agent with appropriate tools
-        4. Runs the agent with the message and captures all events
+        3. Creates a workload via WorkloadManager
+        4. Runs the workload with the message and captures all events
         5. Extracts the final response and adds it to global history
 
         Args:
@@ -71,64 +152,40 @@ class Supervisor(InputHandler):
         parts = [genai_types.Part.from_text(text=item) for item in ctx]
 
         content = genai_types.Content(role="user", parts=parts) if parts else None
-        final_response_text: str | None = "Agent did not produce a final response."
+        final_response_text: str | None = DEFAULT_NO_RESPONSE_MSG
 
         session = await self.session_manager.get_or_create_session()
         session = await self.session_manager.validate_session(session)
-        # Use agent specified in args, or default if none specified
-        agent_name = ctx.agent_name or "default"
+        # Use workload specified in args, or default if none specified
+        workload_name = ctx.agent_name or "default"
         try:
-            # Create parent telemetry span for the entire agent run
+            # Create parent telemetry span for the entire workload run
             # Get tracer lazily to ensure we use the configured tracer provider
             tracer = trace.get_tracer(__name__)
             with tracer.start_as_current_span("streetrace_agent_run"):
-                async with self.agent_manager.create_agent(agent_name) as root_agent:
-                    # Type cast needed because JSONSessionService uses
-                    # duck typing at runtime but inherits from
-                    # BaseSessionService only during TYPE_CHECKING
-                    from google.adk import Runner
-
-                    runner = Runner(
-                        app_name=session.app_name,
-                        session_service=self.session_manager.session_service,
-                        agent=root_agent,
-                    )
-                    # Key Concept: run_async executes the agent logic and
+                async with self.workload_manager.create_workload(
+                    workload_name,
+                ) as workload:
+                    # Key Concept: run_async executes the workload logic and
                     # yields Events while it goes through ReAct loop.
                     # We iterate through events to reach the final answer.
-                    async for event in runner.run_async(
-                        user_id=session.user_id,
-                        session_id=session.id,
-                        new_message=content,
-                    ):
-                        self.ui_bus.dispatch_ui_update(Event(event=event))
-                        await self.session_manager.manage_current_session()
-
-                        # TODO(krmrn42): Handle wrong tool calls. How to
-                        # detect the root cause is an attempt to store a
-                        # large file? E.g.:
-                        # Tool signature doesn't match
-                        #   -> Parameters missing
-                        #       -> tool name is "write_file"
-                        #           -> missing parameter name is "content"
-
-                        # Check if this is the final response from the agent
-                        # Only capture first final response if multiple
-                        if (
-                            event.is_final_response()
-                            and final_response_text
-                            == "Agent did not produce a final response."
-                        ):
-                            if event.content and event.content.parts:
-                                # Assuming text response in first part
-                                final_response_text = event.content.parts[0].text
-                            elif event.actions and event.actions.escalate:
-                                # Handle potential errors/escalations
-                                error_msg = (
-                                    event.error_message or "No specific message."
-                                )
-                                final_response_text = f"Agent escalated: {error_msg}"
-            # Add the agent's final message to the history
+                    async for event in workload.run_async(session, content):
+                        if isinstance(event, FlowEvent):
+                            # Custom flow event - dispatch directly
+                            self.ui_bus.dispatch_ui_update(event)
+                            final_response_text = self._capture_flow_event_response(
+                                event,
+                                final_response_text,
+                            )
+                        else:
+                            # ADK Event - wrap and dispatch
+                            self.ui_bus.dispatch_ui_update(Event(event=event))
+                            await self.session_manager.manage_current_session()
+                            final_response_text = self._capture_adk_event_response(
+                                event,
+                                final_response_text,
+                            )
+            # Add the workload's final message to the history
             if final_response_text:
                 await self.session_manager.post_process(
                     user_input=ctx.user_input,
@@ -137,20 +194,23 @@ class Supervisor(InputHandler):
                 ctx.final_response = final_response_text
         except* ToolsetLifecycleError as lifecycle_err_group:
             logger.exception(
-                "Failed to initialize or cleanup tools for agent '%s'",
-                agent_name,
+                "Failed to initialize or cleanup tools for workload '%s'",
+                workload_name,
             )
             err = next(
                 err
                 for err in lifecycle_err_group.exceptions
                 if isinstance(err, ToolsetLifecycleError)
             )
-            self.ui_bus.dispatch_ui_update(ui_events.Error(f"'{agent_name}': {err}"))
+            self.ui_bus.dispatch_ui_update(
+                ui_events.Error(f"'{workload_name}': {err}"),
+            )
             raise
         except* BaseException as err_group:
-            logger.exception("Error running agent '%s'", agent_name)
+            logger.exception("Error running workload '%s'", workload_name)
+            error_msg = _format_exception_message(err_group.exceptions[0])
             self.ui_bus.dispatch_ui_update(
-                ui_events.Error(f"'{agent_name}': {err_group.exceptions[0]}"),
+                ui_events.Error(f"'{workload_name}': {error_msg}"),
             )
             raise
 

@@ -1,0 +1,7 @@
+# Invalid DSL - Missing colon after prompt name
+
+model main = anthropic/claude-sonnet-4-5
+
+# This line intentionally has a syntax error - missing colon
+prompt greeting
+    Hello world

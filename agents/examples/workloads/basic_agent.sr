@@ -1,0 +1,9 @@
+# Basic Agent Test
+# Tests basic DSL agent execution via Workload Protocol
+
+model main = anthropic/claude-sonnet-4-5
+
+prompt greeting: """You are a helpful assistant. Respond concisely in one sentence."""
+
+agent:
+    instruction greeting

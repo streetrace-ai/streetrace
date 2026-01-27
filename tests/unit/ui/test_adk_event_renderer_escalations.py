@@ -24,8 +24,8 @@ class TestEscalationRendering:
         """Test rendering an escalation event with error message."""
         render_event(EventWrapper(escalation_event), mock_console)
 
-        # Should have two print calls: one for escalation, one for content
-        assert mock_console.print.call_count == 2
+        # Should have 3 print calls: escalation, author line, content
+        assert mock_console.print.call_count == 3
 
         # First call should be for escalation
         escalation_call = mock_console.print.call_args_list[0]
@@ -43,8 +43,8 @@ class TestEscalationRendering:
         """Test rendering an escalation event without error message."""
         render_event(EventWrapper(escalation_event_no_message), mock_console)
 
-        # Should have two print calls: one for escalation, one for content
-        assert mock_console.print.call_count == 2
+        # Should have 3 print calls: escalation, author line, content
+        assert mock_console.print.call_count == 3
 
         # First call should be for escalation with default message
         escalation_call = mock_console.print.call_args_list[0]
@@ -75,12 +75,12 @@ class TestEscalationRendering:
 
         render_event(EventWrapper(non_final_escalation_event), mock_console)
 
-        # Should only have one print call for content, no escalation
-        mock_console.print.assert_called_once()
+        # Should have 2 print calls for content (author + text), no escalation
+        assert mock_console.print.call_count == 2
 
-        call_args = mock_console.print.call_args
-        # Should not contain escalation message
-        assert "Agent escalated" not in str(call_args)
+        # None of the calls should contain escalation message
+        for call in mock_console.print.call_args_list:
+            assert "Agent escalated" not in str(call)
 
     def test_render_escalation_requires_escalate_flag(
         self,
@@ -102,12 +102,12 @@ class TestEscalationRendering:
 
         render_event(EventWrapper(final_non_escalation_event), mock_console)
 
-        # Should only have one print call for content, no escalation
-        mock_console.print.assert_called_once()
+        # Should have 2 print calls for content (author + text), no escalation
+        assert mock_console.print.call_count == 2
 
-        call_args = mock_console.print.call_args
-        # Should not contain escalation message
-        assert "Agent escalated" not in str(call_args)
+        # None of the calls should contain escalation message
+        for call in mock_console.print.call_args_list:
+            assert "Agent escalated" not in str(call)
 
     def test_render_escalation_requires_actions(self, mock_console, sample_author):
         """Test that escalation doesn't render when actions has escalate=None."""
@@ -124,12 +124,12 @@ class TestEscalationRendering:
 
         render_event(EventWrapper(final_no_actions_event), mock_console)
 
-        # Should only have one print call for content, no escalation
-        mock_console.print.assert_called_once()
+        # Should have 2 print calls for content (author + text), no escalation
+        assert mock_console.print.call_count == 2
 
-        call_args = mock_console.print.call_args
-        # Should not contain escalation message
-        assert "Agent escalated" not in str(call_args)
+        # None of the calls should contain escalation message
+        for call in mock_console.print.call_args_list:
+            assert "Agent escalated" not in str(call)
 
     def test_render_escalation_with_empty_error_message(
         self,
@@ -246,11 +246,11 @@ class TestEscalationRendering:
         """Test that escalation events still render their content."""
         render_event(EventWrapper(escalation_event), mock_console)
 
-        # Should have two calls: escalation and content
-        assert mock_console.print.call_count == 2
+        # Should have 3 calls: escalation, author line, content
+        assert mock_console.print.call_count == 3
 
-        # Second call should be for content
-        content_call = mock_console.print.call_args_list[1]
+        # Last call should be for content markdown
+        content_call = mock_console.print.call_args_list[2]
         assert content_call[1]["style"] == Styles.RICH_MODEL  # Final response style
 
     def test_render_escalation_only_without_content(

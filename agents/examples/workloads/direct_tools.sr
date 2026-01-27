@@ -1,0 +1,13 @@
+# Direct Tools Test
+# Tests that DSL agent has tools available when run directly (not via flow)
+
+model main = anthropic/claude-sonnet-4-5
+
+tool fs = builtin streetrace.fs
+
+agent:
+    tools fs
+    instruction tool_prompt
+
+prompt tool_prompt: """You have filesystem access via the fs tools. Use list_directory to list files.
+When asked about files, use your tools. Be concise - just show a few items."""

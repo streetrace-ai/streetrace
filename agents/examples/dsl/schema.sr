@@ -1,0 +1,59 @@
+# Schema Example
+# Demonstrates structured outputs with schemas
+
+model main = anthropic/claude-sonnet-4-5
+
+tool fs = builtin streetrace.fs
+tool cli = builtin streetrace.cli
+tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+tool context7 = mcp "https://mcp.context7.com/mcp"
+
+schema CodeReviewResult:
+    approved: bool
+    severity: string
+    issues: list[string]
+    suggestions: list[string]
+    confidence: float
+
+schema TaskAnalysis:
+    priority: string
+    estimated_hours: float
+    dependencies: list[string]
+    risks: list[string]
+    recommended_approach: string
+
+schema BugReport:
+    title: string
+    description: string
+    steps_to_reproduce: list[string]
+    expected_behavior: string
+    actual_behavior: string
+    severity: string
+    affected_files: list[string]
+
+prompt main_prompt: """You are an project manager. When you receive tasks to review code changes, you need to find relevant docs and ask the analyst agent to analyze the task, and then use code reviewer agent to review the code."""
+
+prompt review_code expecting CodeReviewResult: """You are an expert code reviewer. Analyze the provided code for bugs, security issues, and code quality. Evaluate logic errors, security vulnerabilities, performance issues, and code style. Provide your assessment in the structured format."""
+
+prompt analyze_task expecting TaskAnalysis: """Analyze the given task and provide a structured assessment. Consider priority level (high, medium, low), estimated time to complete, dependencies on other tasks or systems, potential risks and challenges, and recommended implementation approach."""
+
+prompt report_bug expecting BugReport: """Document the bug based on the provided information. Include all relevant details for reproducing and fixing the bug. Be specific about steps to reproduce and expected vs actual behavior."""
+
+agent code_reviewer:
+    tools fs, cli, context7
+    instruction review_code
+    description "Reviews code and provides structured feedback"
+
+agent task_analyst:
+    tools fs, cli
+    instruction analyze_task
+    description "Analyzes tasks and provides structured estimates"
+
+agent bug_reporter:
+    tools fs, cli, github
+    instruction report_bug
+    description "Creates structured bug reports"
+
+agent:
+    use code_reviewer, task_analyst, bug_reporter
+    instruction main_prompt

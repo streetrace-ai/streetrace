@@ -9,7 +9,6 @@ components and managing the application lifecycle.
 
 import asyncio
 
-from streetrace.agents.agent_manager import AgentManager
 from streetrace.app_state import AppState
 from streetrace.args import Args
 from streetrace.bash_handler import BashHandler
@@ -39,6 +38,7 @@ from streetrace.ui.completer import CommandCompleter, PathCompleter, PromptCompl
 from streetrace.ui.console_ui import ConsoleUI
 from streetrace.ui.ui_bus import UiBus
 from streetrace.workflow.supervisor import Supervisor
+from streetrace.workloads import WorkloadManager
 
 logger = get_logger(__name__)
 
@@ -242,18 +242,19 @@ def create_app(args: Args) -> Application:
     # Create model factory
     model_factory = ModelFactory(args.model, ui_bus, args)
 
-    # Create agent manager
-    agent_manager = AgentManager(
+    # Create workload manager
+    workload_manager = WorkloadManager(
         model_factory,
         tool_provider,
         system_context,
         args.working_dir,
+        session_manager=session_manager,
         http_auth=args.effective_agent_uri_auth,
     )
 
-    # Initialize Workflow Supervisor, passing the args
+    # Initialize Workflow Supervisor, passing the workload manager
     workflow_supervisor = Supervisor(
-        agent_manager=agent_manager,
+        workload_manager=workload_manager,
         session_manager=session_manager,
         ui_bus=ui_bus,
     )
@@ -295,7 +296,7 @@ def create_app(args: Args) -> Application:
     ]
 
     if args.list_agents:
-        list_available_agents(agent_manager, ui_bus)
+        list_available_agents(workload_manager, ui_bus)
         raise SystemExit
 
     # Initialize the Application

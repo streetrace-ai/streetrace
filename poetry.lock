@@ -2570,6 +2570,24 @@ files = [
 referencing = ">=0.31.0"
 
 [[package]]
+name = "lark"
+version = "1.3.1"
+description = "a modern parsing library"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "lark-1.3.1-py3-none-any.whl", hash = "sha256:c629b661023a014c37da873b4ff58a817398d12635d3bbb2c5a03be7fe5d1e12"},
+    {file = "lark-1.3.1.tar.gz", hash = "sha256:b426a7a6d6d53189d318f2b6236ab5d6429eaf09259f1ca33eb716eed10d2905"},
+]
+
+[package.extras]
+atomic-cache = ["atomicwrites"]
+interegular = ["interegular (>=0.3.1,<0.4.0)"]
+nearley = ["js2py"]
+regex = ["regex"]
+
+[[package]]
 name = "litellm"
 version = "1.80.11"
 description = "Library to easily interface with LLM API providers"
@@ -5656,4 +5674,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "7075d16e92dfe0244c0cfedb43b0fef6505171d769c1372c7d5cea8ea53aaec1"
+content-hash = "21294f7a5eed7fa5ec9f20035fd35a1d32781aec200be6cbe688797ebb477d8a"

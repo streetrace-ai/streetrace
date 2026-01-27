@@ -219,7 +219,7 @@ and production.
   # Good
   with (
       patch.object(obj, "method1"),
-      patch.object(obj, "method2"), 
+      patch.object(obj, "method2"),
       pytest.raises(ValueError),
   ):
       # test code
@@ -237,7 +237,7 @@ and production.
   def test_something(self, used_fixture, unused_fixture):
       assert used_fixture.value == "expected"
 
-  # Good  
+  # Good
   def test_something(self, used_fixture):
       assert used_fixture.value == "expected"
   ```
@@ -306,3 +306,4 @@ Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
+In design docs and other technical docs, never add full implementation of code. When a code example is necessary, only provide a snippet reflecting the main point.

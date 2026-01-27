@@ -1,0 +1,10 @@
+# Specific Model Example
+# Demonstrates using a specific model for a prompt
+
+model main = anthropic/claude-haiku
+model sonnet = anthropic/claude-sonnet-4-5
+
+prompt greeting using model "sonnet": """You are a helpful assistant. Greet the user warmly and offer to help with their questions."""
+
+agent:
+    instruction greeting

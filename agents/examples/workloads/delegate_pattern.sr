@@ -1,0 +1,20 @@
+# Delegate Pattern Test
+# Tests the delegate keyword for sub-agent delegation
+
+model main = anthropic/claude-sonnet-4-5
+
+agent coordinator:
+    delegate specialist
+    instruction coordinator_prompt
+
+agent specialist:
+    instruction specialist_prompt
+
+prompt coordinator_prompt: """You are a coordinator. For technical questions, delegate to the specialist.
+If asked about Python async, immediately delegate to the specialist."""
+
+prompt specialist_prompt: """You are a Python async specialist. Provide expert answers about async/await.
+Be very concise - one sentence only."""
+
+flow main:
+    run agent coordinator $input_prompt

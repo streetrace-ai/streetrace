@@ -1,0 +1,48 @@
+# Coordinator/Dispatcher Pattern Example
+# Demonstrates the 'delegate' keyword for sub-agent delegation
+#
+# This pattern uses ADK's sub_agents feature where a coordinator
+# can delegate entire tasks to specialized sub-agents.
+
+streetrace v1
+
+model main = anthropic/claude-sonnet
+model fast = anthropic/haiku
+
+tool fs = builtin streetrace.fs
+tool web = builtin streetrace.web
+
+# Specialized agent for code-related tasks
+prompt code_expert_prompt: """You are a code analysis expert.
+Analyze code for quality issues, security vulnerabilities,
+and provide actionable recommendations."""
+
+agent code_expert:
+    tools fs
+    instruction code_expert_prompt
+    description "Expert at analyzing and explaining code"
+
+# Specialized agent for research tasks
+prompt research_expert_prompt: """You are a research expert.
+Search the web for relevant information and synthesize
+findings into clear, actionable insights."""
+
+agent research_expert:
+    tools web
+    instruction research_expert_prompt
+    description "Expert at web research and information synthesis"
+
+# Coordinator agent that delegates to specialists
+prompt coordinator_prompt: """You are a project coordinator.
+Understand the user's request and delegate to the appropriate
+specialist:
+- For code analysis tasks, delegate to code_expert
+- For research tasks, delegate to research_expert
+
+Synthesize results from specialists into a coherent response."""
+
+agent:
+    tools fs
+    instruction coordinator_prompt
+    delegate code_expert, research_expert
+    description "Coordinates tasks across specialists"

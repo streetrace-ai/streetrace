@@ -1,0 +1,14 @@
+# Entry Point Test - Default Agent
+# Tests that unnamed agent is selected when no main flow exists
+
+model main = anthropic/claude-sonnet-4-5
+
+agent:
+    instruction default_prompt
+
+agent named_agent:
+    instruction named_prompt
+
+prompt default_prompt: """You are the default agent. Say exactly: DEFAULT_AGENT_RESPONDING"""
+
+prompt named_prompt: """You are a named agent. Say exactly: NAMED_AGENT_RESPONDING"""

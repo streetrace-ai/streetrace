@@ -1,18 +1,17 @@
-"""YAML agent loader with validation and reference resolution."""
+"""YAML agent validation and reference resolution helpers.
+
+This module provides helper functions for parsing YAML agent files and
+resolving $ref references. These functions are used by YamlDefinitionLoader.
+"""
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from streetrace.agents.street_race_agent import StreetRaceAgent
+from typing import Any
 
 import yaml
 from pydantic import ValidationError
 
 from streetrace.agents.base_agent_loader import (
     AgentCycleError,
-    AgentInfo,
-    AgentLoader,
     AgentValidationError,
 )
 from streetrace.agents.resolver import SourceResolver
@@ -24,7 +23,6 @@ from streetrace.agents.yaml_models import (
     YamlAgentSpec,
 )
 from streetrace.log import get_logger
-from streetrace.utils.file_discovery import find_files
 
 logger = get_logger(__name__)
 
@@ -298,164 +296,3 @@ def _load_agent_yaml(
     resolved_spec = _resolve_agent_refs(spec, file_path, visited, depth, resolver)
 
     return YamlAgentDocument(spec=resolved_spec, file_path=file_path)
-
-
-class YamlAgentLoader(AgentLoader):
-    """YAML agent loader with location-first support."""
-
-    def __init__(
-        self,
-        base_paths: list[Path | str] | list[Path] | list[str] | None = None,
-        http_auth: str | None = None,
-    ) -> None:
-        """Initialize the YAML agent loader.
-
-        Args:
-            base_paths: List of base paths to search for agents (for legacy discover())
-            http_auth: Authorization header value for HTTP agent URIs
-
-        """
-        self.base_paths = (
-            [p if isinstance(p, Path) else Path(p) for p in base_paths]
-            if base_paths
-            else []
-        )
-        self.http_auth = http_auth
-        self._discovered_agents: list[AgentInfo] | None = None
-
-    def discover_in_paths(self, paths: list[Path]) -> list[AgentInfo]:
-        """Discover YAML agents in specific paths only.
-
-        Args:
-            paths: Specific paths to search in
-
-        Returns:
-            List of discovered YAML agents in these paths
-
-        """
-        agents: list[AgentInfo] = []
-
-        # Find YAML files in these paths only
-        yaml_files = find_files(paths, "*.yaml")
-        yml_files = find_files(paths, "*.yml")
-        agent_files = yaml_files + yml_files
-
-        # Create resolver for discovery
-        resolver = SourceResolver(discovered_sources={}, http_auth=self.http_auth)
-
-        for agent_file in agent_files:
-            try:
-                agent_doc = _load_agent_yaml(agent_file, resolver=resolver)
-                agent_info = AgentInfo(
-                    name=agent_doc.get_name(),
-                    description=agent_doc.get_description(),
-                    file_path=agent_doc.file_path,
-                    yaml_document=agent_doc,
-                )
-                agents.append(agent_info)
-            except AgentValidationError as e:
-                logger.debug("Skipping invalid YAML agent %s: %s", agent_file, e)
-
-        return agents
-
-    def load_from_path(self, path: Path) -> "StreetRaceAgent":
-        """Load YAML agent from file path.
-
-        Args:
-            path: Path to YAML file
-
-        Returns:
-            Loaded YAML agent
-
-        Raises:
-            ValueError: If not a YAML file or cannot load
-
-        """
-        from streetrace.agents.yaml_agent import YamlAgent
-
-        if path.suffix not in [".yaml", ".yml"]:
-            msg = f"Not a YAML file: {path}"
-            raise ValueError(msg)
-
-        try:
-            resolver = SourceResolver(discovered_sources={}, http_auth=self.http_auth)
-            doc = _load_agent_yaml(path, resolver=resolver)
-            return YamlAgent(doc)
-        except AgentValidationError as e:
-            msg = f"Failed to load YAML agent from {path}: {e}"
-            raise ValueError(msg) from e
-
-    def load_from_url(self, url: str) -> "StreetRaceAgent":
-        """Load YAML agent from HTTP URL.
-
-        Args:
-            url: HTTP(S) URL
-
-        Returns:
-            Loaded YAML agent
-
-        Raises:
-            ValueError: If cannot load from URL
-
-        """
-        from streetrace.agents.yaml_agent import YamlAgent
-
-        try:
-            resolver = SourceResolver(discovered_sources={}, http_auth=self.http_auth)
-            resolution = resolver.resolve(
-                url,
-                accept_types=["application/x-yaml", "application/yaml", "text/yaml"],
-            )
-
-            # Parse YAML from HTTP response
-            data = _parse_yaml_string(resolution.content, url)
-            spec = YamlAgentSpec.model_validate(data)
-
-            # Resolve references (may fetch more HTTP resources)
-            resolved_spec = _resolve_agent_refs(
-                spec,
-                Path.cwd(),  # No file context for HTTP
-                set(),
-                0,
-                resolver,
-            )
-
-            doc = YamlAgentDocument(spec=resolved_spec, file_path=None)
-            return YamlAgent(doc)
-        except (ValueError, ValidationError, AgentValidationError) as e:
-            msg = f"Failed to load YAML agent from {url}: {e}"
-            raise ValueError(msg) from e
-
-    def load_agent(self, agent_info: AgentInfo) -> "StreetRaceAgent":
-        """Load agent from AgentInfo.
-
-        Args:
-            agent_info: Previously discovered agent info
-
-        Returns:
-            Loaded agent
-
-        Raises:
-            ValueError: If AgentInfo is not a YAML agent
-
-        """
-        from streetrace.agents.yaml_agent import YamlAgent
-
-        if not agent_info.yaml_document:
-            msg = f"AgentInfo {agent_info.name} is not a YAML agent"
-            raise ValueError(msg)
-
-        return YamlAgent(agent_info.yaml_document)
-
-    def discover(self) -> list[AgentInfo]:
-        """Discover YAML agents in configured base paths (legacy method).
-
-        Returns:
-            List of discovered YAML agents
-
-        """
-        if self._discovered_agents is not None:
-            return self._discovered_agents
-
-        self._discovered_agents = self.discover_in_paths(self.base_paths)
-        return self._discovered_agents

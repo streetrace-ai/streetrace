@@ -1,0 +1,17 @@
+# Use Pattern Test
+# Tests the use keyword for agent-as-tool pattern
+
+model main = anthropic/claude-sonnet-4-5
+
+agent lead:
+    use helper
+    instruction lead_prompt
+
+agent helper:
+    instruction helper_prompt
+
+prompt lead_prompt: """You are a lead agent. You can use the helper agent as a tool to get answers.
+When asked a math question, call the helper tool to get the answer.
+Be concise."""
+
+prompt helper_prompt: """You are a math helper. Answer math questions with just the number, nothing else."""

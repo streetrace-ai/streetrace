@@ -1,0 +1,51 @@
+# Iterative Refinement Pattern Example
+# Demonstrates the 'loop' block for iterative workflows
+#
+# This pattern enables workflows that iterate until a condition
+# is met or a maximum iteration count is reached.
+
+streetrace v1
+
+model main = anthropic/claude-sonnet
+model fast = anthropic/haiku
+
+schema CodeQuality:
+    score: int
+    issues: list[string]
+    passed: bool
+
+schema RefineResult:
+    improved_code: string
+    changes_made: list[string]
+
+tool fs = builtin streetrace.fs
+
+prompt quality_check expecting CodeQuality: """Analyze the code quality.
+Return a score from 0-100, list any issues found, and set passed=true
+if score is 80 or above."""
+
+prompt refine_code expecting RefineResult: """Improve the code based on
+the issues found. Apply fixes for each issue and return the improved code
+along with a list of changes made."""
+
+prompt main_instruction: """You are a code quality improvement assistant.
+Help users improve their code through iterative refinement."""
+
+# Flow that refines code with bounded iteration
+flow refine_with_limit $code:
+    $current_code = $code
+
+    # Loop with max 5 iterations to prevent infinite loops
+    loop max 5 do
+        $quality = call llm quality_check $current_code
+        $result = call llm refine_code $current_code
+        $current_code = $result.improved_code
+        log "Refinement iteration completed"
+    end
+
+    return { success: true, code: $current_code }
+
+agent:
+    tools fs
+    instruction main_instruction
+    description "Iteratively improves code quality"

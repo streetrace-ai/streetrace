@@ -8,7 +8,6 @@ from google.adk.sessions import Session
 from prompt_toolkit import PromptSession
 from rich.console import Console
 
-from streetrace.agents.agent_manager import AgentManager
 from streetrace.app import Application
 from streetrace.app_state import AppState
 from streetrace.args import Args
@@ -35,6 +34,7 @@ from streetrace.ui.completer import CommandCompleter, PathCompleter, PromptCompl
 from streetrace.ui.console_ui import ConsoleUI
 from streetrace.ui.ui_bus import UiBus
 from streetrace.workflow.supervisor import Supervisor
+from streetrace.workloads import WorkloadManager
 
 FAKE_MODEL_NAME = "fake-model"
 
@@ -337,43 +337,32 @@ def shallow_model_factory(
 
 
 @pytest.fixture
-def mock_agent_manager(
+def mock_workload_manager(
     mock_model_factory,
     mock_tool_provider,
+    mock_json_session_service,
     work_dir,
-) -> AgentManager:
-    agent_manager = Mock(spec=AgentManager)
-    agent_manager.model_factory = mock_model_factory
-    agent_manager.tool_provider = mock_tool_provider
-    agent_manager.work_dir = work_dir
-    return agent_manager
-
-
-@pytest.fixture
-def shallow_agent_manager(
-    mock_model_factory,
-    mock_tool_provider,
-    mock_system_context,
-    work_dir,
-) -> AgentManager:
-    return AgentManager(
-        model_factory=mock_model_factory,
-        tool_provider=mock_tool_provider,
-        system_context=mock_system_context,
-        work_dir=work_dir,
-    )
+) -> WorkloadManager:
+    """Create a mock WorkloadManager for testing."""
+    workload_manager = Mock(spec=WorkloadManager)
+    workload_manager.model_factory = mock_model_factory
+    workload_manager.tool_provider = mock_tool_provider
+    workload_manager.work_dir = work_dir
+    workload_manager.session_service = mock_json_session_service
+    workload_manager.discover.return_value = []
+    return workload_manager
 
 
 @pytest.fixture
 def mock_supervisor(
     mock_ui_bus,
     mock_session_manager,
-    mock_agent_manager,
+    mock_workload_manager,
 ) -> Supervisor:
     supervisor = Mock(spec=Supervisor)
     supervisor.ui_bus = mock_ui_bus
     supervisor.session_manager = mock_session_manager
-    supervisor.agent_manager = mock_agent_manager
+    supervisor.workload_manager = mock_workload_manager
     return supervisor
 
 
@@ -381,12 +370,12 @@ def mock_supervisor(
 def shallow_supervisor(
     mock_ui_bus,
     mock_session_manager,
-    mock_agent_manager,
+    mock_workload_manager,
 ) -> Supervisor:
     return Supervisor(
         ui_bus=mock_ui_bus,
         session_manager=mock_session_manager,
-        agent_manager=mock_agent_manager,
+        workload_manager=mock_workload_manager,
     )
 
 
