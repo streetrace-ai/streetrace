@@ -203,6 +203,28 @@ class DslAgentWorkflow:
         ):
             yield event
 
+    def _extract_message_text(self, message: "Content | None") -> str:
+        """Extract text content from a message.
+
+        Args:
+            message: User message content, or None.
+
+        Returns:
+            The text content of the message, or empty string if None.
+
+        """
+        if message is None:
+            return ""
+        if message.parts:
+            # Concatenate text from all parts
+            texts = [
+                part.text
+                for part in message.parts
+                if hasattr(part, "text") and part.text
+            ]
+            return " ".join(texts)
+        return ""
+
     async def _execute_flow(
         self,
         flow_name: str,
@@ -214,18 +236,20 @@ class DslAgentWorkflow:
         Args:
             flow_name: Name of the flow to execute.
             session: ADK session (reserved for future event forwarding).
-            message: User message (reserved for future event forwarding).
+            message: User message to process.
 
         """
         # Reserved for future event forwarding (Option 2/3 in design doc)
-        _ = session, message
+        _ = session
 
         flow_method = getattr(self, f"flow_{flow_name}", None)
         if flow_method is None:
             msg = f"Flow '{flow_name}' not found"
             raise ValueError(msg)
 
-        ctx = self.create_context()
+        # Extract user input and create context with built-in variables
+        input_text = self._extract_message_text(message)
+        ctx = self.create_context(input_prompt=input_text)
         await flow_method(ctx)
 
     async def run_async(
@@ -348,8 +372,15 @@ class DslAgentWorkflow:
                 await self._agent_factory.close(agent)
         self._created_agents.clear()
 
-    def create_context(self) -> WorkflowContext:
+    def create_context(
+        self,
+        *,
+        input_prompt: str = "",
+    ) -> WorkflowContext:
         """Create a new workflow context.
+
+        Args:
+            input_prompt: The user's input prompt (built-in variable).
 
         Returns:
             A fresh WorkflowContext connected to this workflow.
@@ -359,6 +390,10 @@ class DslAgentWorkflow:
         ctx.set_models(self._models)
         ctx.set_prompts(self._prompts)
         ctx.set_agents(self._agents)
+
+        # Set built-in variables
+        ctx.vars["input_prompt"] = input_prompt
+
         self._context = ctx
         return ctx
 

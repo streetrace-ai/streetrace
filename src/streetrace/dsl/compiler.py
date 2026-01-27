@@ -24,6 +24,26 @@ from streetrace.log import get_logger
 
 logger = get_logger(__name__)
 
+
+def normalize_source(source: str) -> str:
+    """Normalize DSL source for parsing.
+
+    Ensure source ends with a newline character. The grammar requires _NL
+    tokens after statements, and files without trailing newlines cause
+    unexpected EOF errors.
+
+    Args:
+        source: The DSL source code.
+
+    Returns:
+        Normalized source with trailing newline.
+
+    """
+    if source and not source.endswith("\n"):
+        return source + "\n"
+    return source
+
+
 # Global cache and registry instances
 _bytecode_cache: BytecodeCache | None = None
 _source_map_registry: SourceMapRegistry | None = None
@@ -83,6 +103,9 @@ def compile_dsl(
 
     """
     logger.debug("Compiling DSL file: %s", filename)
+
+    # Normalize source (ensure trailing newline for grammar)
+    source = normalize_source(source)
 
     # Check cache first
     if use_cache:
@@ -168,6 +191,9 @@ def validate_dsl(
     """
     logger.debug("Validating DSL file: %s", filename)
     diagnostics: list[Diagnostic] = []
+
+    # Normalize source (ensure trailing newline for grammar)
+    source = normalize_source(source)
 
     # Parse the source
     try:
@@ -266,6 +292,9 @@ def get_file_stats(source: str, filename: str) -> dict[str, int]:  # noqa: ARG00
         Dictionary with counts of models, agents, flows, handlers.
 
     """
+    # Normalize source (ensure trailing newline for grammar)
+    source = normalize_source(source)
+
     try:
         parser = ParserFactory.create()
         tree = parser.parse(source)
@@ -418,3 +447,26 @@ class DslSemanticError(DslError):
         """
         super().__init__(message, filename=filename)
         self.errors = errors or []
+
+    def __str__(self) -> str:
+        """Format error with detailed semantic error information.
+
+        Returns:
+            User-friendly error message including all semantic errors.
+
+        """
+        if not self.errors:
+            return super().__str__()
+
+        # Format each semantic error
+        error_lines = []
+        for err in self.errors:
+            location = ""
+            if err.position:
+                location = f" at line {err.position.line}"
+            error_lines.append(f"  - {err.message}{location}")
+            if err.suggestion:
+                error_lines.append(f"    hint: {err.suggestion}")
+
+        details = "\n".join(error_lines)
+        return f"semantic analysis failed:\n{details}"

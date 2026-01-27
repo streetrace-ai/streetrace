@@ -22,6 +22,30 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _format_exception_message(exc: BaseException) -> str:
+    """Format an exception for user-friendly display.
+
+    Provide meaningful context for common exception types that have
+    terse default string representations.
+
+    Args:
+        exc: The exception to format.
+
+    Returns:
+        A user-friendly error message.
+
+    """
+    if isinstance(exc, KeyError):
+        # KeyError str() is just the key name, which is cryptic
+        return f"undefined variable '{exc.args[0]}'"
+    if isinstance(exc, AttributeError):
+        return f"attribute error: {exc}"
+    if isinstance(exc, TypeError):
+        return f"type error: {exc}"
+    # Default: use the exception's string representation
+    return str(exc)
+
+
 class Supervisor(InputHandler):
     """Workflow supervisor manages and executes available workloads."""
 
@@ -139,8 +163,9 @@ class Supervisor(InputHandler):
             raise
         except* BaseException as err_group:
             logger.exception("Error running workload '%s'", workload_name)
+            error_msg = _format_exception_message(err_group.exceptions[0])
             self.ui_bus.dispatch_ui_update(
-                ui_events.Error(f"'{workload_name}': {err_group.exceptions[0]}"),
+                ui_events.Error(f"'{workload_name}': {error_msg}"),
             )
             raise
 

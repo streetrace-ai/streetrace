@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from streetrace.dsl.codegen.generator import CodeGenerator
-from streetrace.dsl.compiler import get_file_stats, validate_dsl
+from streetrace.dsl.compiler import get_file_stats, normalize_source, validate_dsl
 from streetrace.dsl.errors.diagnostics import Diagnostic, Severity
 from streetrace.dsl.errors.reporter import DiagnosticReporter, format_success_message
 from streetrace.dsl.grammar.parser import ParserFactory
@@ -254,6 +254,9 @@ def dump_python(
     except OSError as e:
         print(f"error: cannot read file: {e}", file=sys.stderr)  # noqa: T201
         return EXIT_FILE_ERROR
+
+    # Normalize source (ensure trailing newline for grammar)
+    source = normalize_source(source)
 
     # Parse and transform
     try:

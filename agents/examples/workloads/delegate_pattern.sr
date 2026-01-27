@@ -17,4 +17,4 @@ prompt specialist_prompt: """You are a Python async specialist. Provide expert a
 Be very concise - one sentence only."""
 
 flow main:
-    run agent coordinator
+    run agent coordinator $input_prompt
