@@ -248,7 +248,7 @@ def create_app(args: Args) -> Application:
         tool_provider,
         system_context,
         args.working_dir,
-        session_service=session_manager.session_service,
+        session_manager=session_manager,
         http_auth=args.effective_agent_uri_auth,
     )
 

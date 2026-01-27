@@ -64,6 +64,8 @@ from opentelemetry import trace
 if TYPE_CHECKING:
     from google.adk.sessions.base_session_service import BaseSessionService
 
+    from streetrace.session.session_manager import SessionManager
+
 # Import DSL compiler exceptions for error handling
 from streetrace.agents.base_agent_loader import AgentValidationError
 from streetrace.agents.resolver import SourceResolver
@@ -176,7 +178,7 @@ class WorkloadManager:
         tool_provider: ToolProvider,
         system_context: SystemContext,
         work_dir: Path,
-        session_service: "BaseSessionService | None" = None,
+        session_manager: "SessionManager | None" = None,
         http_auth: str | None = None,
     ) -> None:
         """Initialize the WorkloadManager.
@@ -186,7 +188,7 @@ class WorkloadManager:
             tool_provider: Provider of tools for the agents
             system_context: System context containing project-level instructions
             work_dir: Current working directory
-            session_service: ADK session service for workload execution
+            session_manager: Session manager for lazy access to session service
             http_auth: Authorization header value for HTTP agent URIs
 
         """
@@ -194,7 +196,7 @@ class WorkloadManager:
         self.tool_provider = tool_provider
         self.system_context = system_context
         self.work_dir = work_dir
-        self.session_service = session_service
+        self._session_manager = session_manager
         self.http_auth = http_auth
 
         # Compute search locations
@@ -214,6 +216,21 @@ class WorkloadManager:
 
         # Track errors from last load attempt for better error messages
         self._last_load_errors: list[str] = []
+
+    @property
+    def session_service(self) -> "BaseSessionService | None":
+        """Get the session service lazily from session manager.
+
+        This property defers the heavy ADK import until the session service
+        is actually needed (when creating workloads).
+
+        Returns:
+            The session service, or None if session_manager was not provided.
+
+        """
+        if self._session_manager is None:
+            return None
+        return self._session_manager.session_service
 
     def _compute_search_locations(self) -> list[tuple[str, list[Path]]]:  # noqa: C901
         """Compute search locations in priority order.

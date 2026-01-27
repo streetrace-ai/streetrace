@@ -112,6 +112,14 @@ def mock_session_service() -> BaseSessionService:
 
 
 @pytest.fixture
+def mock_session_manager(mock_session_service: BaseSessionService) -> MagicMock:
+    """Create a mock SessionManager."""
+    mock_sm = MagicMock()
+    mock_sm.session_service = mock_session_service
+    return mock_sm
+
+
+@pytest.fixture
 def work_dir() -> Path:
     """Create a temporary work directory."""
     return Path(tempfile.mkdtemp(prefix="streetrace_test_manager_unified_"))
@@ -122,7 +130,7 @@ def workload_manager(
     mock_model_factory: ModelFactory,
     mock_tool_provider: ToolProvider,
     mock_system_context: SystemContext,
-    mock_session_service: BaseSessionService,
+    mock_session_manager: MagicMock,
     work_dir: Path,
 ) -> WorkloadManager:
     """Create a WorkloadManager instance for testing."""
@@ -131,7 +139,7 @@ def workload_manager(
         tool_provider=mock_tool_provider,
         system_context=mock_system_context,
         work_dir=work_dir,
-        session_service=mock_session_service,
+        session_manager=mock_session_manager,
     )
 
 
@@ -510,7 +518,7 @@ class TestWorkloadManagerCreateWorkload:
             tool_provider=mock_tool_provider,
             system_context=mock_system_context,
             work_dir=work_dir,
-            session_service=None,  # No session service
+            session_manager=None,  # No session manager
         )
 
         dsl_file = work_dir / "session_test.sr"

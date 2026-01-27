@@ -98,6 +98,14 @@ def mock_session_service() -> BaseSessionService:
 
 
 @pytest.fixture
+def mock_session_manager(mock_session_service: BaseSessionService) -> MagicMock:
+    """Create a mock SessionManager."""
+    mock_sm = MagicMock()
+    mock_sm.session_service = mock_session_service
+    return mock_sm
+
+
+@pytest.fixture
 def integration_work_dir() -> Path:
     """Create a temporary work directory for integration tests."""
     return Path(tempfile.mkdtemp(prefix="streetrace_integration_"))
@@ -108,7 +116,7 @@ def workload_manager(
     mock_model_factory: ModelFactory,
     mock_tool_provider: ToolProvider,
     mock_system_context: SystemContext,
-    mock_session_service: BaseSessionService,
+    mock_session_manager: MagicMock,
     integration_work_dir: Path,
 ) -> WorkloadManager:
     """Create a WorkloadManager for integration testing."""
@@ -117,7 +125,7 @@ def workload_manager(
         tool_provider=mock_tool_provider,
         system_context=mock_system_context,
         work_dir=integration_work_dir,
-        session_service=mock_session_service,
+        session_manager=mock_session_manager,
     )
 
 

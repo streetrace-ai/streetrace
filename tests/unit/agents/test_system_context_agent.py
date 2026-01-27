@@ -87,7 +87,8 @@ async def test_create_workload_passes_system_context(
     # Reset the class variable to ensure clean state
     SystemContextCapturingAgent.received_system_context = None
 
-    mock_session_service = MagicMock(spec=BaseSessionService)
+    mock_session_manager = MagicMock()
+    mock_session_manager.session_service = MagicMock(spec=BaseSessionService)
 
     # Arrange - Create WorkloadManager
     workload_manager = WorkloadManager(
@@ -95,7 +96,7 @@ async def test_create_workload_passes_system_context(
         tool_provider=mock_tool_provider,
         system_context=mock_system_context,
         work_dir=work_dir,
-        session_service=mock_session_service,
+        session_manager=mock_session_manager,
     )
 
     agent_instance = SystemContextCapturingAgent()

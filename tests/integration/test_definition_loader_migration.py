@@ -70,6 +70,14 @@ def mock_session_service() -> BaseSessionService:
 
 
 @pytest.fixture
+def mock_session_manager(mock_session_service: BaseSessionService) -> MagicMock:
+    """Create a mock SessionManager."""
+    mock_sm = MagicMock()
+    mock_sm.session_service = mock_session_service
+    return mock_sm
+
+
+@pytest.fixture
 def project_root() -> Path:
     """Get the project root directory."""
     return Path(__file__).parent.parent.parent
@@ -98,7 +106,7 @@ def workload_manager(
     mock_model_factory: ModelFactory,
     mock_tool_provider: ToolProvider,
     mock_system_context: SystemContext,
-    mock_session_service: BaseSessionService,
+    mock_session_manager: MagicMock,
     integration_work_dir: Path,
 ) -> WorkloadManager:
     """Create a WorkloadManager for integration testing."""
@@ -107,7 +115,7 @@ def workload_manager(
         tool_provider=mock_tool_provider,
         system_context=mock_system_context,
         work_dir=integration_work_dir,
-        session_service=mock_session_service,
+        session_manager=mock_session_manager,
     )
 
 

@@ -222,14 +222,15 @@ class TestDslWorkloadCreation:
         model_factory.get_current_model.return_value = MagicMock()
         tool_provider = MagicMock(spec=ToolProvider)
         system_context = MagicMock(spec=SystemContext)
-        session_service = MagicMock(spec=BaseSessionService)
+        session_manager = MagicMock()
+        session_manager.session_service = MagicMock(spec=BaseSessionService)
 
         manager = WorkloadManager(
             model_factory=model_factory,
             tool_provider=tool_provider,
             system_context=system_context,
             work_dir=tmp_path,
-            session_service=session_service,
+            session_manager=session_manager,
         )
 
         async with manager.create_workload(str(dsl_file)) as workload:
@@ -247,14 +248,15 @@ class TestDslWorkloadCreation:
         model_factory.get_current_model.return_value = MagicMock()
         tool_provider = MagicMock(spec=ToolProvider)
         system_context = MagicMock(spec=SystemContext)
-        session_service = MagicMock(spec=BaseSessionService)
+        session_manager = MagicMock()
+        session_manager.session_service = MagicMock(spec=BaseSessionService)
 
         manager = WorkloadManager(
             model_factory=model_factory,
             tool_provider=tool_provider,
             system_context=system_context,
             work_dir=tmp_path,
-            session_service=session_service,
+            session_manager=session_manager,
         )
         manager.search_locations = [("cwd", [tmp_path])]
 
