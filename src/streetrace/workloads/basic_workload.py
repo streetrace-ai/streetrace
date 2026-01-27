@@ -7,8 +7,6 @@ agent definitions for execution through the Workload protocol.
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
-from google.adk import Runner
-
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
@@ -82,6 +80,8 @@ class BasicAgentWorkload:
             ADK events from execution
 
         """
+        from google.adk import Runner
+
         # Create the agent if not already created
         if self._agent is None:
             logger.debug("Creating agent from definition")

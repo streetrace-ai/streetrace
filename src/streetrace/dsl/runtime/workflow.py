@@ -8,10 +8,6 @@ from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
-from google.adk import Runner
-from google.adk.sessions import InMemorySessionService
-from google.genai import types as genai_types
-
 from streetrace.dsl.runtime.context import WorkflowContext
 from streetrace.log import get_logger
 
@@ -226,6 +222,8 @@ class DslAgentWorkflow:
             ADK events from execution.
 
         """
+        from google.adk import Runner
+
         agent = await self._create_agent(agent_name)
 
         # Use the provided session service
@@ -351,6 +349,10 @@ class DslAgentWorkflow:
             ValueError: If agent_factory not set.
 
         """
+        from google.adk import Runner
+        from google.adk.sessions import InMemorySessionService
+        from google.genai import types as genai_types
+
         agent = await self._create_agent(agent_name)
 
         # Build prompt from args

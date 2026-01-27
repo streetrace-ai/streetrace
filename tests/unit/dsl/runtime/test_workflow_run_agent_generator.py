@@ -143,11 +143,11 @@ class TestDslAgentWorkflowRunAgentGenerator:
 
         with (
             patch(
-                "streetrace.dsl.runtime.workflow.Runner",
+                "google.adk.Runner",
                 return_value=mock_runner,
             ),
             patch(
-                "streetrace.dsl.runtime.workflow.InMemorySessionService",
+                "google.adk.sessions.InMemorySessionService",
                 return_value=mock_nested_session,
             ),
         ):
@@ -196,11 +196,11 @@ class TestDslAgentWorkflowRunAgentGenerator:
 
         with (
             patch(
-                "streetrace.dsl.runtime.workflow.Runner",
+                "google.adk.Runner",
                 return_value=mock_runner,
             ),
             patch(
-                "streetrace.dsl.runtime.workflow.InMemorySessionService",
+                "google.adk.sessions.InMemorySessionService",
                 return_value=mock_nested_session,
             ),
         ):
@@ -252,11 +252,11 @@ class TestDslAgentWorkflowRunAgentGenerator:
 
         with (
             patch(
-                "streetrace.dsl.runtime.workflow.Runner",
+                "google.adk.Runner",
                 return_value=mock_runner,
             ),
             patch(
-                "streetrace.dsl.runtime.workflow.InMemorySessionService",
+                "google.adk.sessions.InMemorySessionService",
                 return_value=mock_nested_session,
             ),
         ):
@@ -304,11 +304,11 @@ class TestDslAgentWorkflowRunAgentGenerator:
 
         with (
             patch(
-                "streetrace.dsl.runtime.workflow.Runner",
+                "google.adk.Runner",
                 return_value=mock_runner,
             ),
             patch(
-                "streetrace.dsl.runtime.workflow.InMemorySessionService",
+                "google.adk.sessions.InMemorySessionService",
                 return_value=mock_nested_session,
             ),
         ):
@@ -376,11 +376,11 @@ class TestDslAgentWorkflowRunAgentGenerator:
 
         with (
             patch(
-                "streetrace.dsl.runtime.workflow.Runner",
+                "google.adk.Runner",
                 side_effect=capture_runner,
             ),
             patch(
-                "streetrace.dsl.runtime.workflow.InMemorySessionService",
+                "google.adk.sessions.InMemorySessionService",
                 return_value=mock_nested_session,
             ),
         ):
@@ -434,11 +434,11 @@ class TestWorkflowContextRunAgentGenerator:
 
         with (
             patch(
-                "streetrace.dsl.runtime.workflow.Runner",
+                "google.adk.Runner",
                 return_value=mock_runner,
             ),
             patch(
-                "streetrace.dsl.runtime.workflow.InMemorySessionService",
+                "google.adk.sessions.InMemorySessionService",
                 return_value=mock_nested_session,
             ),
         ):
@@ -484,11 +484,11 @@ class TestWorkflowContextRunAgentGenerator:
 
         with (
             patch(
-                "streetrace.dsl.runtime.workflow.Runner",
+                "google.adk.Runner",
                 return_value=mock_runner,
             ),
             patch(
-                "streetrace.dsl.runtime.workflow.InMemorySessionService",
+                "google.adk.sessions.InMemorySessionService",
                 return_value=mock_nested_session,
             ),
         ):
@@ -615,11 +615,11 @@ class TestMultipleAgentInterleaving:
 
         with (
             patch(
-                "streetrace.dsl.runtime.workflow.Runner",
+                "google.adk.Runner",
                 side_effect=make_runner,
             ),
             patch(
-                "streetrace.dsl.runtime.workflow.InMemorySessionService",
+                "google.adk.sessions.InMemorySessionService",
                 return_value=mock_nested_session,
             ),
         ):
@@ -681,11 +681,11 @@ class TestRunAgentWithoutContext:
 
         with (
             patch(
-                "streetrace.dsl.runtime.workflow.Runner",
+                "google.adk.Runner",
                 return_value=mock_runner,
             ),
             patch(
-                "streetrace.dsl.runtime.workflow.InMemorySessionService",
+                "google.adk.sessions.InMemorySessionService",
                 return_value=mock_nested_session,
             ),
         ):

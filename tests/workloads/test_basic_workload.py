@@ -202,7 +202,7 @@ class TestBasicAgentWorkloadRunAsync:
         mock_runner_instance = MagicMock()
         mock_runner_instance.run_async = lambda **_kw: _mock_run_async_gen([mock_event])
 
-        with patch("streetrace.workloads.basic_workload.Runner") as mock_runner_class:
+        with patch("google.adk.Runner") as mock_runner_class:
             mock_runner_class.return_value = mock_runner_instance
 
             events = [
@@ -230,7 +230,7 @@ class TestBasicAgentWorkloadRunAsync:
             [mock_event_1, mock_event_2, mock_event_3],
         )
 
-        with patch("streetrace.workloads.basic_workload.Runner") as mock_runner_class:
+        with patch("google.adk.Runner") as mock_runner_class:
             mock_runner_class.return_value = mock_runner_instance
 
             events = [
@@ -256,7 +256,7 @@ class TestBasicAgentWorkloadRunAsync:
             [MagicMock(spec=Event)],
         )
 
-        with patch("streetrace.workloads.basic_workload.Runner") as mock_runner_class:
+        with patch("google.adk.Runner") as mock_runner_class:
             mock_runner_class.return_value = mock_runner_instance
 
             _ = [
@@ -284,7 +284,7 @@ class TestBasicAgentWorkloadRunAsync:
 
         mock_runner_instance.run_async = capturing_run_async
 
-        with patch("streetrace.workloads.basic_workload.Runner") as mock_runner_class:
+        with patch("google.adk.Runner") as mock_runner_class:
             mock_runner_class.return_value = mock_runner_instance
 
             _ = [
@@ -309,7 +309,7 @@ class TestBasicAgentWorkloadRunAsync:
             [MagicMock(spec=Event)],
         )
 
-        with patch("streetrace.workloads.basic_workload.Runner") as mock_runner_class:
+        with patch("google.adk.Runner") as mock_runner_class:
             mock_runner_class.return_value = mock_runner_instance
 
             _ = [
@@ -343,7 +343,7 @@ class TestBasicAgentWorkloadRunAsync:
 
         mock_runner_instance.run_async = capturing_run_async
 
-        with patch("streetrace.workloads.basic_workload.Runner") as mock_runner_class:
+        with patch("google.adk.Runner") as mock_runner_class:
             mock_runner_class.return_value = mock_runner_instance
 
             _ = [event async for event in basic_workload.run_async(mock_session, None)]
@@ -367,7 +367,7 @@ class TestBasicAgentWorkloadClose:
             [MagicMock(spec=Event)],
         )
 
-        with patch("streetrace.workloads.basic_workload.Runner") as mock_runner_class:
+        with patch("google.adk.Runner") as mock_runner_class:
             mock_runner_class.return_value = mock_runner_instance
 
             _ = [
@@ -407,7 +407,7 @@ class TestBasicAgentWorkloadClose:
             [MagicMock(spec=Event)],
         )
 
-        with patch("streetrace.workloads.basic_workload.Runner") as mock_runner_class:
+        with patch("google.adk.Runner") as mock_runner_class:
             mock_runner_class.return_value = mock_runner_instance
 
             _ = [
@@ -443,7 +443,7 @@ class TestBasicAgentWorkloadAgentProperty:
             [MagicMock(spec=Event)],
         )
 
-        with patch("streetrace.workloads.basic_workload.Runner") as mock_runner_class:
+        with patch("google.adk.Runner") as mock_runner_class:
             mock_runner_class.return_value = mock_runner_instance
 
             _ = [

@@ -542,11 +542,11 @@ class TestDslAgentWorkflowRunAgent:
 
         with (
             patch(
-                "streetrace.dsl.runtime.workflow.Runner",
+                "google.adk.Runner",
                 return_value=mock_runner_instance,
             ),
             patch(
-                "streetrace.dsl.runtime.workflow.InMemorySessionService",
+                "google.adk.sessions.InMemorySessionService",
                 return_value=mock_session_service_instance,
             ),
         ):
