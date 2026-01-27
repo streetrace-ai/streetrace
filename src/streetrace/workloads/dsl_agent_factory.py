@@ -127,30 +127,70 @@ class DslAgentFactory:
             logger.warning("No instruction specified in agent definition")
             return default_instruction
 
-        # Look up in prompts dict
+        # Look up prompt value
+        prompt_value = self._get_prompt_value(instruction_name)
+        if prompt_value is None:
+            return default_instruction
+
+        # Evaluate the prompt to get the instruction string
+        return self._evaluate_prompt(instruction_name, prompt_value)
+
+    def _get_prompt_value(self, instruction_name: str) -> object | None:
+        """Get prompt value from workflow prompts dict.
+
+        Args:
+            instruction_name: Name of the prompt to look up.
+
+        Returns:
+            Prompt value or None if not found.
+
+        """
         if not hasattr(self._workflow_class, "_prompts"):
             logger.warning("No prompts defined in workflow")
-            return default_instruction
+            return None
 
         prompts = self._workflow_class._prompts  # noqa: SLF001
         if instruction_name not in prompts:
             logger.warning("Instruction '%s' not found in prompts", instruction_name)
-            return default_instruction
+            return None
 
-        prompt_value = prompts[instruction_name]
+        return prompts[instruction_name]
 
-        # Evaluate prompt lambda with minimal context for prompt resolution
+    def _evaluate_prompt(self, instruction_name: str, prompt_value: object) -> str:
+        """Evaluate a prompt value to get the instruction string.
+
+        Args:
+            instruction_name: Name of the prompt for error logging.
+            prompt_value: The prompt value (PromptSpec, callable, or string).
+
+        Returns:
+            The evaluated instruction string.
+
+        """
+        from streetrace.dsl.runtime.prompt_context import PromptResolutionContext
+        from streetrace.dsl.runtime.workflow import PromptSpec
+
+        ctx = PromptResolutionContext()
+
+        # Handle PromptSpec objects (new format with escalation support)
+        if isinstance(prompt_value, PromptSpec):
+            try:
+                return str(prompt_value.body(ctx))
+            except (TypeError, KeyError) as e:
+                logger.warning(
+                    "Failed to evaluate prompt '%s': %s", instruction_name, e,
+                )
+                return ""
+
+        # Handle callable (backward compatibility with old-style lambda prompts)
         if callable(prompt_value):
-            from streetrace.dsl.runtime.prompt_context import PromptResolutionContext
-
-            ctx = PromptResolutionContext()
             try:
                 return str(prompt_value(ctx))
             except (TypeError, KeyError) as e:
                 logger.warning(
                     "Failed to evaluate prompt '%s': %s", instruction_name, e,
                 )
-                return default_instruction
+                return ""
 
         return str(prompt_value)
 

@@ -13,7 +13,10 @@ from streetrace.dsl.ast import (
     DslFile,
     EventHandler,
     FlowDef,
+    ForLoop,
+    IfBlock,
     Literal,
+    LoopBlock,
     MaskAction,
     ModelDef,
     PromptDef,
@@ -21,6 +24,7 @@ from streetrace.dsl.ast import (
     RunStmt,
     SchemaDef,
     SchemaField,
+    SourcePosition,
     ToolDef,
     TypeExpr,
     VarRef,
@@ -668,8 +672,6 @@ class TestSemanticAnalyzerErrorCollection:
 
     def test_error_has_location_info(self) -> None:
         """Errors include source location when available."""
-        from streetrace.dsl.ast.nodes import SourcePosition
-
         ast = DslFile(
             version=VersionDecl(version="1.0"),
             statements=[
@@ -687,3 +689,309 @@ class TestSemanticAnalyzerErrorCollection:
         # Error should have position info
         assert result.errors[0].position is not None
         assert result.errors[0].position.line == 5
+
+
+# =============================================================================
+# Semantic Analyzer Tests - Escalation Handler Validation
+# =============================================================================
+
+
+class TestSemanticAnalyzerEscalationHandler:
+    """Test semantic analysis of escalation handler context validation."""
+
+    def test_on_escalate_continue_outside_loop_produces_error(self) -> None:
+        """Test on escalate continue outside loop context produces error."""
+        from streetrace.dsl.ast.nodes import EscalationHandler
+
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                ToolDef(name="fs", tool_type="builtin", builtin_ref="filesystem"),
+                PromptDef(name="my_instruction", body="Help the user"),
+                AgentDef(
+                    name="my_agent",
+                    tools=["fs"],
+                    instruction="my_instruction",
+                ),
+                FlowDef(
+                    name="my_flow",
+                    params=["input"],
+                    body=[
+                        # on escalate continue outside a loop - should error
+                        RunStmt(
+                            target="result",
+                            agent="my_agent",
+                            args=[VarRef(name="input")],
+                            escalation_handler=EscalationHandler(
+                                action="continue",
+                                meta=SourcePosition(line=10, column=5),
+                            ),
+                        ),
+                        ReturnStmt(value=VarRef(name="result")),
+                    ],
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+        assert not result.is_valid
+        assert any(
+            "on escalate continue" in e.message.lower()
+            and "loop" in e.message.lower()
+            for e in result.errors
+        )
+
+    def test_on_escalate_continue_inside_for_loop_is_valid(self) -> None:
+        """Test on escalate continue inside for loop is valid."""
+        from streetrace.dsl.ast.nodes import EscalationHandler
+
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                ToolDef(name="fs", tool_type="builtin", builtin_ref="filesystem"),
+                PromptDef(name="my_instruction", body="Help the user"),
+                AgentDef(
+                    name="my_agent",
+                    tools=["fs"],
+                    instruction="my_instruction",
+                ),
+                FlowDef(
+                    name="my_flow",
+                    params=["items"],
+                    body=[
+                        ForLoop(
+                            variable="$item",
+                            iterable=VarRef(name="items"),
+                            body=[
+                                # on escalate continue inside for loop - valid
+                                RunStmt(
+                                    target="result",
+                                    agent="my_agent",
+                                    args=[VarRef(name="item")],
+                                    escalation_handler=EscalationHandler(
+                                        action="continue",
+                                    ),
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+        assert result.is_valid
+
+    def test_on_escalate_continue_inside_loop_block_is_valid(self) -> None:
+        """Test on escalate continue inside loop block is valid."""
+        from streetrace.dsl.ast.nodes import EscalationHandler
+
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                ToolDef(name="fs", tool_type="builtin", builtin_ref="filesystem"),
+                PromptDef(name="my_instruction", body="Help the user"),
+                AgentDef(
+                    name="my_agent",
+                    tools=["fs"],
+                    instruction="my_instruction",
+                ),
+                FlowDef(
+                    name="my_flow",
+                    params=["input"],
+                    body=[
+                        LoopBlock(
+                            max_iterations=3,
+                            body=[
+                                # on escalate continue inside loop block - valid
+                                RunStmt(
+                                    target="result",
+                                    agent="my_agent",
+                                    args=[VarRef(name="input")],
+                                    escalation_handler=EscalationHandler(
+                                        action="continue",
+                                    ),
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+        assert result.is_valid
+
+    def test_on_escalate_return_outside_loop_is_valid(self) -> None:
+        """Test on escalate return is valid outside loop context."""
+        from streetrace.dsl.ast.nodes import EscalationHandler
+
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                ToolDef(name="fs", tool_type="builtin", builtin_ref="filesystem"),
+                PromptDef(name="my_instruction", body="Help the user"),
+                AgentDef(
+                    name="my_agent",
+                    tools=["fs"],
+                    instruction="my_instruction",
+                ),
+                FlowDef(
+                    name="my_flow",
+                    params=["input"],
+                    body=[
+                        # on escalate return outside loop - valid
+                        RunStmt(
+                            target="result",
+                            agent="my_agent",
+                            args=[VarRef(name="input")],
+                            escalation_handler=EscalationHandler(
+                                action="return",
+                                value=Literal(value="fallback", literal_type="string"),
+                            ),
+                        ),
+                        ReturnStmt(value=VarRef(name="result")),
+                    ],
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+        assert result.is_valid
+
+    def test_on_escalate_abort_outside_loop_is_valid(self) -> None:
+        """Test on escalate abort is valid outside loop context."""
+        from streetrace.dsl.ast.nodes import EscalationHandler
+
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                ToolDef(name="fs", tool_type="builtin", builtin_ref="filesystem"),
+                PromptDef(name="my_instruction", body="Help the user"),
+                AgentDef(
+                    name="my_agent",
+                    tools=["fs"],
+                    instruction="my_instruction",
+                ),
+                FlowDef(
+                    name="my_flow",
+                    params=["input"],
+                    body=[
+                        # on escalate abort outside loop - valid
+                        RunStmt(
+                            target="result",
+                            agent="my_agent",
+                            args=[VarRef(name="input")],
+                            escalation_handler=EscalationHandler(
+                                action="abort",
+                            ),
+                        ),
+                        ReturnStmt(value=VarRef(name="result")),
+                    ],
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+        assert result.is_valid
+
+    def test_on_escalate_continue_nested_in_if_inside_loop_is_valid(self) -> None:
+        """Test on escalate continue in if block inside loop is valid."""
+        from streetrace.dsl.ast.nodes import EscalationHandler
+
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                ToolDef(name="fs", tool_type="builtin", builtin_ref="filesystem"),
+                PromptDef(name="my_instruction", body="Help the user"),
+                AgentDef(
+                    name="my_agent",
+                    tools=["fs"],
+                    instruction="my_instruction",
+                ),
+                FlowDef(
+                    name="my_flow",
+                    params=["items"],
+                    body=[
+                        ForLoop(
+                            variable="$item",
+                            iterable=VarRef(name="items"),
+                            body=[
+                                IfBlock(
+                                    condition=BinaryOp(
+                                        op=">",
+                                        left=VarRef(name="item"),
+                                        right=Literal(value=0, literal_type="int"),
+                                    ),
+                                    body=[
+                                        # Nested in if inside loop - should be valid
+                                        RunStmt(
+                                            target="result",
+                                            agent="my_agent",
+                                            args=[VarRef(name="item")],
+                                            escalation_handler=EscalationHandler(
+                                                action="continue",
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+        assert result.is_valid
+
+    def test_on_escalate_continue_in_if_outside_loop_produces_error(self) -> None:
+        """Test on escalate continue in if block outside loop produces error."""
+        from streetrace.dsl.ast.nodes import EscalationHandler
+
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                ToolDef(name="fs", tool_type="builtin", builtin_ref="filesystem"),
+                PromptDef(name="my_instruction", body="Help the user"),
+                AgentDef(
+                    name="my_agent",
+                    tools=["fs"],
+                    instruction="my_instruction",
+                ),
+                FlowDef(
+                    name="my_flow",
+                    params=["input"],
+                    body=[
+                        IfBlock(
+                            condition=BinaryOp(
+                                op=">",
+                                left=VarRef(name="input"),
+                                right=Literal(value=0, literal_type="int"),
+                            ),
+                            body=[
+                                # In if but NOT in loop - should error
+                                RunStmt(
+                                    target="result",
+                                    agent="my_agent",
+                                    args=[VarRef(name="input")],
+                                    escalation_handler=EscalationHandler(
+                                        action="continue",
+                                        meta=SourcePosition(line=15, column=10),
+                                    ),
+                                ),
+                            ],
+                        ),
+                        ReturnStmt(value=Literal(value="done", literal_type="string")),
+                    ],
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+        assert not result.is_valid
+        assert any(
+            "on escalate continue" in e.message.lower()
+            and "loop" in e.message.lower()
+            for e in result.errors
+        )

@@ -33,8 +33,8 @@ class TestTextContentRendering:
 
         render_event(EventWrapper(event), mock_console)
 
-        # Text content and function call should be rendered
-        assert mock_console.print.call_count == 2
+        # Text content (author + markdown) and function call should be rendered
+        assert mock_console.print.call_count == 3
 
     def test_render_final_response_text_event(
         self,
@@ -44,8 +44,8 @@ class TestTextContentRendering:
         """Test rendering a final response event uses different styling."""
         render_event(EventWrapper(final_response_event), mock_console)
 
-        # Text content should be rendered
-        mock_console.print.assert_called_once()
+        # Text content should be rendered: author line + markdown content
+        assert mock_console.print.call_count == 2
 
     def test_render_markdown_content(self, mock_console, sample_author, markdown_part):
         """Test rendering of markdown content with formatting."""
@@ -76,8 +76,8 @@ class TestTextContentRendering:
 
         render_event(EventWrapper(event), mock_console)
 
-        # Should have 3 print calls, one for each text part
-        assert mock_console.print.call_count == 3
+        # Should have 6 print calls: author + content for each of 3 text parts
+        assert mock_console.print.call_count == 6
 
     def test_render_event_with_empty_text_part(self, mock_console, sample_author):
         """Test rendering event where text part has empty content."""
@@ -95,8 +95,8 @@ class TestTextContentRendering:
 
         render_event(EventWrapper(event), mock_console)
 
-        # Should only print the non-empty text part
-        mock_console.print.assert_called_once()
+        # Should print author + content for the non-empty text part only
+        assert mock_console.print.call_count == 2
 
     def test_render_event_with_none_text_part(self, mock_console, sample_author):
         """Test rendering event where text part has None content."""
@@ -114,8 +114,8 @@ class TestTextContentRendering:
 
         render_event(EventWrapper(event), mock_console)
 
-        # Should only print the non-None text part
-        mock_console.print.assert_called_once()
+        # Should print author + content for the non-None text part only
+        assert mock_console.print.call_count == 2
 
     def test_render_event_no_content(self, empty_event, mock_console):
         """Test rendering event with no content."""
@@ -156,6 +156,24 @@ class TestTextContentRendering:
 
         render_event(EventWrapper(basic_event), mock_console)
 
+    def test_render_displays_author_before_text(self, mock_console, sample_author):
+        """Test that author is displayed before text content."""
+        text_part = Part(text="Sample message")
+        content = Content(parts=[text_part], role="assistant")
+        event = Event(
+            author=sample_author,
+            content=content,
+            turn_complete=False,
+            partial=False,
+        )
+
+        render_event(EventWrapper(event), mock_console)
+
+        # First call should be the author line
+        first_call = mock_console.print.call_args_list[0]
+        assert sample_author in first_call[0][0]
+        assert "[bold]" in first_call[0][0]
+
     def test_render_text_with_whitespace_handling(self, mock_console, sample_author):
         """Test rendering of text with various whitespace patterns."""
         text_with_whitespace = "  Text with leading spaces\n\nText with empty lines\n  "
@@ -170,8 +188,8 @@ class TestTextContentRendering:
 
         render_event(EventWrapper(event), mock_console)
 
-        # Should still render the text as-is through Markdown
-        mock_console.print.assert_called_once()
+        # Should render author + markdown content
+        assert mock_console.print.call_count == 2
 
     def test_render_non_final_response_style(self, mock_console, sample_author):
         """Test that non-final responses use RICH_INFO style."""
@@ -188,8 +206,8 @@ class TestTextContentRendering:
 
         render_event(EventWrapper(event), mock_console)
 
-        # Should have calls for both text and function call
-        assert mock_console.print.call_count == 2
+        # Should have calls for text (author + content) and function call
+        assert mock_console.print.call_count == 3
 
     def test_render_final_response_style(self, mock_console, sample_author):
         """Test that final responses use RICH_MODEL style."""
@@ -205,4 +223,5 @@ class TestTextContentRendering:
 
         render_event(EventWrapper(event), mock_console)
 
-        mock_console.print.assert_called_once()
+        # Should render author + markdown content
+        assert mock_console.print.call_count == 2

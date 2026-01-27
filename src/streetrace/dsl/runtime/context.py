@@ -8,7 +8,12 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from streetrace.dsl.runtime.events import FlowEvent, LlmCallEvent, LlmResponseEvent
+from streetrace.dsl.runtime.events import (
+    EscalationEvent,
+    FlowEvent,
+    LlmCallEvent,
+    LlmResponseEvent,
+)
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
@@ -16,7 +21,7 @@ if TYPE_CHECKING:
 
     from google.adk.events import Event
 
-    from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+    from streetrace.dsl.runtime.workflow import DslAgentWorkflow, EscalationSpec
     from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
@@ -179,6 +184,9 @@ class WorkflowContext:
         self._last_call_result: object = None
         """Result from last run_agent or call_llm operation."""
 
+        self._last_escalated: bool = False
+        """Whether the last run_agent_with_escalation triggered escalation."""
+
         logger.debug("Created WorkflowContext")
 
     def set_models(self, models: dict[str, str]) -> None:
@@ -257,6 +265,158 @@ class WorkflowContext:
         """
         async for event in self._workflow.run_agent(agent_name, *args):
             yield event
+
+    async def run_agent_with_escalation(
+        self,
+        agent_name: str,
+        *args: object,
+    ) -> AsyncGenerator[Event | EscalationEvent, None]:
+        """Run agent and check for escalation.
+
+        Similar to run_agent() but tracks escalation state based on
+        the agent's prompt escalation condition. When escalation triggers,
+        yields an EscalationEvent after all agent events to signal to
+        parent agents via the event system.
+
+        Additionally, sets ADK Event.actions.escalate = True on a final
+        event to integrate with ADK's native escalation mechanism.
+
+        Args:
+            agent_name: Name of the agent to run.
+            *args: Arguments to pass to the agent.
+
+        Yields:
+            ADK events from agent execution, followed by EscalationEvent
+            and an ADK Event with actions.escalate=True if triggered.
+
+        """
+        from google.adk.events import Event as AdkEvent
+        from google.adk.events.event_actions import EventActions
+
+        # Reset escalation state
+        self._last_escalated = False
+        last_adk_event: AdkEvent | None = None
+
+        # Delegate to workflow's run_agent (yielding events)
+        async for event in self._workflow.run_agent(agent_name, *args):
+            if isinstance(event, AdkEvent):
+                last_adk_event = event
+            yield event
+
+        # Check escalation after agent completes
+        cond = self._get_escalation_condition(agent_name)
+        self._last_escalated = self._check_escalation(
+            agent_name,
+            self._last_call_result,
+        )
+
+        # If escalation triggered, yield events to signal escalation
+        if self._last_escalated and cond is not None:
+            # Yield our DSL-specific EscalationEvent with full context
+            yield EscalationEvent(
+                agent_name=agent_name,
+                result=str(self._last_call_result),
+                condition_op=cond.op,
+                condition_value=cond.value,
+            )
+
+            # Also yield ADK Event with actions.escalate=True for ADK integration
+            author = last_adk_event.author if last_adk_event else agent_name
+            yield AdkEvent(
+                author=author,
+                actions=EventActions(escalate=True),
+            )
+
+    def _check_escalation(self, agent_name: str, result: object) -> bool:
+        """Check if result triggers escalation condition.
+
+        Args:
+            agent_name: Name of the agent that produced the result.
+            result: The result to check against escalation condition.
+
+        Returns:
+            True if escalation is triggered, False otherwise.
+
+        """
+        # Get escalation condition from agent's prompt
+        cond = self._get_escalation_condition(agent_name)
+        if cond is None:
+            return False
+
+        # Evaluate the condition against the result
+        return self._evaluate_escalation_condition(cond, result)
+
+    def _get_escalation_condition(
+        self,
+        agent_name: str,
+    ) -> EscalationSpec | None:
+        """Get escalation condition for an agent's prompt.
+
+        Args:
+            agent_name: Name of the agent.
+
+        Returns:
+            EscalationSpec if found, None otherwise.
+
+        """
+        from streetrace.dsl.runtime.workflow import EscalationSpec, PromptSpec
+
+        agent_def = self._agents.get(agent_name)
+        if not agent_def:
+            return None
+
+        prompt_name = agent_def.get("instruction")
+        if not prompt_name or not isinstance(prompt_name, str):
+            return None
+
+        prompt_spec = self._prompts.get(prompt_name)
+        if not prompt_spec or not isinstance(prompt_spec, PromptSpec):
+            return None
+
+        escalation = prompt_spec.escalation
+        if not isinstance(escalation, EscalationSpec):
+            return None
+        return escalation
+
+    def _evaluate_escalation_condition(
+        self,
+        cond: EscalationSpec,
+        result: object,
+    ) -> bool:
+        """Evaluate an escalation condition against a result.
+
+        Args:
+            cond: EscalationSpec condition to evaluate.
+            result: The result to check.
+
+        Returns:
+            True if condition is met, False otherwise.
+
+        """
+        from streetrace.dsl.runtime.utils import normalized_equals
+
+        result_str = str(result)
+        op_handlers: dict[str, Callable[[str, str], bool]] = {
+            "~": lambda r, v: normalized_equals(r, v),
+            "==": lambda r, v: r == v,
+            "!=": lambda r, v: r != v,
+            "contains": lambda r, v: v in r,
+        }
+
+        handler = op_handlers.get(cond.op)
+        if handler:
+            return handler(result_str, cond.value)
+        return False
+
+    def get_last_result_with_escalation(self) -> tuple[object, bool]:
+        """Get the last result and escalation flag.
+
+        Returns:
+            Tuple of (result, escalated) where result is the last call result
+            and escalated is whether escalation was triggered.
+
+        """
+        return self._last_call_result, self._last_escalated
 
     async def run_flow(
         self,

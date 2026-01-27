@@ -39,13 +39,18 @@ from google.adk.events import Event
 
 from streetrace.dsl.runtime.context import WorkflowContext
 from streetrace.dsl.runtime.events import FlowEvent
-from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+from streetrace.dsl.runtime.workflow import (
+    DslAgentWorkflow,
+    EscalationSpec,
+    PromptSpec,
+)
 from streetrace.dsl.runtime.errors import (
     AbortError,
     BlockedInputError,
     RetryInputError,
     RetryStepError,
 )
+from streetrace.dsl.runtime.utils import normalized_equals
 
 """
 
@@ -222,7 +227,7 @@ class WorkflowVisitor:
     def _emit_prompts(self) -> None:
         """Emit the _prompts class attribute."""
         if not self._prompts:
-            self._emitter.emit("_prompts: dict[str, str] = {}")
+            self._emitter.emit("_prompts: dict[str, PromptSpec] = {}")
             self._emitter.emit_blank()
             self._emitter.emit("_prompt_models: dict[str, str] = {}")
             self._emitter.emit_blank()
@@ -233,12 +238,30 @@ class WorkflowVisitor:
 
         for prompt in self._prompts:
             source_line = prompt.meta.line if prompt.meta else None
-            # Generate prompt as lambda for variable interpolation
+            # Generate prompt body for variable interpolation
             body = self._process_prompt_body(prompt.body)
-            self._emitter.emit(
-                f"'{prompt.name}': lambda ctx: {body},",
-                source_line=source_line,
-            )
+
+            # Build PromptSpec with optional escalation
+            if prompt.escalation_condition:
+                cond = prompt.escalation_condition
+                # Emit PromptSpec with EscalationSpec
+                self._emitter.emit(
+                    f"'{prompt.name}': PromptSpec(",
+                    source_line=source_line,
+                )
+                self._emitter.indent()
+                self._emitter.emit(f"body=lambda ctx: {body},")
+                self._emitter.emit(
+                    f"escalation=EscalationSpec(op='{cond.op}', value='{cond.value}'),",
+                )
+                self._emitter.dedent()
+                self._emitter.emit("),")
+            else:
+                # Emit PromptSpec without escalation
+                self._emitter.emit(
+                    f"'{prompt.name}': PromptSpec(body=lambda ctx: {body}),",
+                    source_line=source_line,
+                )
 
         self._emitter.dedent()
         self._emitter.emit("}")

@@ -335,6 +335,7 @@ end
 | `$var = <expr>` | Variable assignment |
 | `run agent <name> <args>` | Run named agent |
 | `$var = run agent <name>` | Run agent, capture result |
+| `run agent <name>, on escalate <action>` | Run with escalation handler |
 | `call llm <prompt> <args>` | Call LLM with prompt |
 | `$var = call llm <prompt>` | Call LLM, capture result |
 | `return <value>` | Return from flow |
@@ -342,6 +343,31 @@ end
 | `log <message>` | Log message |
 | `notify <message>` | Send notification |
 | `escalate to human <message>` | Escalate to human |
+
+### Escalation Handlers
+
+When an agent's prompt has an escalation condition, handle it with `on escalate`:
+
+```streetrace
+# Return a value on escalation
+$current = run agent peer1 $current, on escalate return $current
+
+# Continue loop on escalation
+for $item in $items do
+    run agent processor $item, on escalate continue
+end
+
+# Abort on escalation
+run agent validator $input, on escalate abort
+```
+
+| Action | Description |
+|--------|-------------|
+| `return <expr>` | Return from flow with value |
+| `continue` | Skip to next loop iteration |
+| `abort` | Raise error and stop execution |
+
+See [Prompt Escalation](escalation.md) for complete documentation.
 
 ### Failure Handling
 
@@ -459,6 +485,35 @@ prompt review_code:
 
 Variables use `${name}` syntax within prompt bodies.
 
+### Escalation Conditions
+
+Prompts can define conditions that trigger escalation when their output matches:
+
+```streetrace
+prompt enhancer:
+    Improve this prompt: ${current}
+
+    If you cannot improve it further, respond with just "DONE".
+    escalate if ~ "DONE"
+```
+
+Available escalation operators:
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `~ STRING` | Normalized equality | `escalate if ~ "DONE"` |
+| `== STRING` | Exact match | `escalate if == "ERROR"` |
+| `!= STRING` | Not equal | `escalate if != "OK"` |
+| `contains STRING` | Contains substring | `escalate if contains "ERROR"` |
+
+Escalation is handled at the run statement with `on escalate`:
+
+```streetrace
+$current = run agent enhancer $current, on escalate return $current
+```
+
+See [Prompt Escalation](escalation.md) for detailed usage.
+
 ## Variables
 
 Variables use the `$` prefix.
@@ -516,13 +571,31 @@ null
 **Comparison**:
 
 ```streetrace
-$a == $b
-$a != $b
-$a > $b
-$a < $b
-$a >= $b
-$a <= $b
+$a == $b      # Exact equality
+$a != $b      # Not equal
+$a > $b       # Greater than
+$a < $b       # Less than
+$a >= $b      # Greater or equal
+$a <= $b      # Less or equal
+$a ~ $b       # Normalized equality (case/format insensitive)
 ```
+
+**Normalized Equality (`~`)**:
+
+The `~` operator compares values after normalizing them:
+- Removes markdown formatting (`**`, `*`, `_`, `` ` ``, `#`)
+- Removes punctuation (`.`, `!`, `?`, `,`, `;`, `:`)
+- Converts to lowercase
+- Collapses whitespace
+
+This is useful for comparing LLM outputs that may include formatting:
+
+```streetrace
+if $response ~ "YES":     # Matches "yes", "Yes!", "**YES**", etc.
+    log "User confirmed"
+```
+
+See [Prompt Escalation](escalation.md) for detailed usage.
 
 **Logical**:
 
@@ -663,5 +736,6 @@ prompt summarize_prompt:
 
 - [Getting Started](getting-started.md) - Introduction to Streetrace DSL
 - [Multi-Agent Patterns](multi-agent-patterns.md) - Coordinator, hierarchical, and iterative patterns
+- [Prompt Escalation](escalation.md) - Normalized comparison and escalation handling
 - [CLI Reference](cli-reference.md) - Command-line tools
 - [Troubleshooting](troubleshooting.md) - Error resolution

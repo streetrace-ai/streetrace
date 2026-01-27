@@ -415,6 +415,18 @@ _.get_system_prompt  # unused method (street_race_agent.py) - prompt interface
 # DslAgentFactory - public API
 _.create_root_agent  # unused method (dsl_agent_factory.py) - factory method for creating agents
 
+# Escalation support - methods used by generated code or Lark transformer
+_.escalation_clause  # unused method - called by Lark transformer
+_.normalized_escalation  # unused method - called by Lark transformer
+_.exact_escalation  # unused method - called by Lark transformer
+_.not_equal_escalation  # unused method - called by Lark transformer
+_.contains_escalation  # unused method - called by Lark transformer
+_.escalation_return  # unused method - called by Lark transformer
+_.escalation_continue  # unused method - called by Lark transformer
+_.escalation_abort  # unused method - called by Lark transformer
+_.run_agent_with_escalation  # unused method (context.py) - public API for running agents with escalation
+_.get_last_result_with_escalation  # unused method (context.py) - public API for getting result with escalation flag
+
 # YAML agent loader helper functions - used by tests and YamlDefinitionLoader
 _load_agent_yaml  # unused function (yaml_agent_loader.py) - used by tests and internal loading
 

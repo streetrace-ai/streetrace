@@ -287,7 +287,7 @@ tool_name: NAME
 // PROMPTS
 // ----------------------------------------------------------------------------
 
-prompt_def: "prompt" NAME prompt_modifiers? ":" prompt_body
+prompt_def: "prompt" NAME prompt_modifiers? ":" prompt_body escalation_clause?
 
 prompt_modifiers: prompt_modifier+
 
@@ -298,6 +298,16 @@ prompt_modifier: "using" "model" interpolated_string  -> prompt_using_model
 // Prompt body uses triple-quoted string for multi-line text
 // This approach works better with Lark's lexer-first architecture
 prompt_body: TRIPLE_QUOTED_STRING
+
+// Prompt escalation clause - defines when output triggers escalation
+// Syntax: escalate if <condition>
+// Conditions: ~ STRING (normalized), == STRING, != STRING, contains STRING
+escalation_clause: _NL _INDENT "escalate" "if" escalation_condition _NL _DEDENT
+
+escalation_condition: "~" STRING                     -> normalized_escalation
+                    | "==" STRING                    -> exact_escalation
+                    | "!=" STRING                    -> not_equal_escalation
+                    | "contains" STRING              -> contains_escalation
 
 // Triple-quoted string captures multi-line prompt content
 // Supports both triple-single and triple-double quotes
@@ -341,10 +351,19 @@ assignment: variable "=" expression
 
 // Agent names and flow names can be keywords (identifier allows this)
 // Flows are called with "run flow_name [args]" syntax
-run_stmt: variable "=" "run" "agent" identifier expression*
-        | "run" "agent" identifier expression*
-        | variable "=" "run" identifier expression*  -> run_flow_assign
-        | "run" identifier expression*  -> run_flow
+// Optional escalation_handler: ", on escalate <action>"
+run_stmt: variable "=" "run" "agent" identifier expression* escalation_handler?
+        | "run" "agent" identifier expression* escalation_handler?
+        | variable "=" "run" identifier expression* escalation_handler?  -> run_flow_assign
+        | "run" identifier expression* escalation_handler?  -> run_flow
+
+// Escalation handler for run statements
+// Syntax: , on escalate <action>
+escalation_handler: "," "on" "escalate" escalation_action
+
+escalation_action: "return" expression               -> escalation_return
+                 | "continue"                        -> escalation_continue
+                 | "abort"                           -> escalation_abort
 
 call_stmt: variable "=" "call" "llm" identifier expression* call_modifiers?
          | "call" "llm" identifier expression* call_modifiers?
@@ -395,7 +414,7 @@ statement_body: run_stmt
 
 ?comparison: additive (comparison_op additive)?
 
-comparison_op: ">" | "<" | ">=" | "<=" | "==" | "!=" | "contains"
+comparison_op: ">" | "<" | ">=" | "<=" | "==" | "!=" | "contains" | "~"
 
 ?additive: multiplicative (("+"|"-") multiplicative)*
 

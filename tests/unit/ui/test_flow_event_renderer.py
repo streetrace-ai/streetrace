@@ -1,6 +1,6 @@
 """Unit tests for FlowEvent renderers.
 
-Test the rendering of LlmCallEvent and LlmResponseEvent to the console.
+Test rendering of LlmCallEvent, LlmResponseEvent, and EscalationEvent.
 """
 
 from unittest.mock import Mock
@@ -9,9 +9,17 @@ import pytest
 from rich.console import Console
 from rich.markdown import Markdown
 
-from streetrace.dsl.runtime.events import LlmCallEvent, LlmResponseEvent
+from streetrace.dsl.runtime.events import (
+    EscalationEvent,
+    LlmCallEvent,
+    LlmResponseEvent,
+)
 from streetrace.ui.colors import Styles
-from streetrace.ui.flow_event_renderer import render_llm_call, render_llm_response
+from streetrace.ui.flow_event_renderer import (
+    render_escalation_event,
+    render_llm_call,
+    render_llm_response,
+)
 from streetrace.ui.render_protocol import (
     RendererFn,
     _display_renderers_registry,
@@ -48,9 +56,9 @@ class TestLlmCallEventRenderer:
         call_args = mock_console.print.call_args
         printed_text = call_args[0][0]
 
-        assert "[LLM Call]" in printed_text
+        # Output format is "{prompt_name}: {prompt_text}"
         assert "analyze" in printed_text
-        assert "gpt-4" in printed_text
+        assert "Analyze this input" in printed_text
 
     def test_render_llm_call_uses_info_style(
         self,
@@ -104,14 +112,19 @@ class TestLlmResponseEventRenderer:
         llm_response_event: LlmResponseEvent,
         mock_console: Console,
     ):
-        """Test that render_llm_response prints content as Markdown."""
+        """Test that render_llm_response prints prompt_name and content as Markdown."""
         render_llm_response(llm_response_event, mock_console)
 
-        mock_console.print.assert_called_once()
-        call_args = mock_console.print.call_args
-        printed_obj = call_args[0][0]
+        # Should print prompt_name line + markdown content
+        assert mock_console.print.call_count == 2
 
-        # Should be a Markdown object
+        # First call is prompt_name
+        first_call = mock_console.print.call_args_list[0]
+        assert "analyze" in first_call[0][0]
+
+        # Second call is Markdown content
+        second_call = mock_console.print.call_args_list[1]
+        printed_obj = second_call[0][0]
         assert isinstance(printed_obj, Markdown)
 
     def test_render_llm_response_uses_model_style(
@@ -122,8 +135,9 @@ class TestLlmResponseEventRenderer:
         """Test that render_llm_response uses RICH_MODEL style."""
         render_llm_response(llm_response_event, mock_console)
 
-        call_kwargs = mock_console.print.call_args[1]
-        assert call_kwargs["style"] == Styles.RICH_MODEL
+        # Both calls should use RICH_MODEL style
+        for call in mock_console.print.call_args_list:
+            assert call[1]["style"] == Styles.RICH_MODEL
 
     def test_render_llm_response_is_registered(self):
         """Test that render_llm_response is registered in the renderer registry."""
@@ -142,7 +156,8 @@ class TestLlmResponseEventRenderer:
         """Test rendering LlmResponseEvent through the registry."""
         render_using_registered_renderer(llm_response_event, mock_console)
 
-        mock_console.print.assert_called_once()
+        # Should print prompt_name + content
+        assert mock_console.print.call_count == 2
 
     def test_render_llm_response_with_markdown_content(
         self,
@@ -156,8 +171,10 @@ class TestLlmResponseEventRenderer:
 
         render_llm_response(event, mock_console)
 
-        call_args = mock_console.print.call_args
-        markdown_obj = call_args[0][0]
+        # First call is prompt_name, second is Markdown content
+        assert mock_console.print.call_count == 2
+        markdown_call = mock_console.print.call_args_list[1]
+        markdown_obj = markdown_call[0][0]
         assert isinstance(markdown_obj, Markdown)
         # The Markdown object should contain the content
         assert markdown_obj.markup == "Here is **bold** and `code`."
@@ -174,7 +191,8 @@ class TestLlmResponseEventRenderer:
 
         render_llm_response(event, mock_console)
 
-        mock_console.print.assert_called_once()
+        # Should print prompt_name + empty markdown
+        assert mock_console.print.call_count == 2
 
 
 class TestRendererIntegration:
@@ -222,3 +240,91 @@ class TestRendererIntegration:
 
         # Base class should not be registered - only concrete subclasses
         assert FlowEvent not in _display_renderers_registry
+
+
+class TestEscalationEventRenderer:
+    """Test the render_escalation_event renderer function."""
+
+    @pytest.fixture
+    def escalation_event(self) -> EscalationEvent:
+        """Create a sample EscalationEvent for testing."""
+        return EscalationEvent(
+            agent_name="peer1",
+            result="**Drifting.**",
+            condition_op="~",
+            condition_value="DRIFTING",
+        )
+
+    @pytest.fixture
+    def mock_console(self) -> Console:
+        """Create a mock Rich Console."""
+        return Mock(spec=Console)
+
+    def test_render_escalation_event_prints_info(
+        self,
+        escalation_event: EscalationEvent,
+        mock_console: Console,
+    ):
+        """Test that render_escalation_event prints escalation info."""
+        render_escalation_event(escalation_event, mock_console)
+
+        mock_console.print.assert_called_once()
+        call_args = mock_console.print.call_args
+        printed_text = call_args[0][0]
+
+        # Should include agent name, operator, and value
+        assert "peer1" in printed_text
+        assert "~" in printed_text
+        assert "DRIFTING" in printed_text
+
+    def test_render_escalation_event_uses_warning_style(
+        self,
+        escalation_event: EscalationEvent,
+        mock_console: Console,
+    ):
+        """Test that render_escalation_event uses RICH_WARNING style."""
+        render_escalation_event(escalation_event, mock_console)
+
+        call_kwargs = mock_console.print.call_args[1]
+        assert call_kwargs["style"] == Styles.RICH_WARNING
+
+    def test_render_escalation_event_is_registered(self):
+        """Test that render_escalation_event is registered in the renderer registry."""
+        assert EscalationEvent in _display_renderers_registry
+        assert _display_renderers_registry[EscalationEvent] == render_escalation_event
+
+    def test_render_escalation_event_conforms_to_protocol(self):
+        """Test that render_escalation_event conforms to RendererFn protocol."""
+        assert isinstance(render_escalation_event, RendererFn)
+
+    def test_render_escalation_event_via_registry(
+        self,
+        escalation_event: EscalationEvent,
+        mock_console: Console,
+    ):
+        """Test rendering EscalationEvent through the registry."""
+        render_using_registered_renderer(escalation_event, mock_console)
+
+        mock_console.print.assert_called_once()
+
+    def test_render_escalation_event_with_all_operators(
+        self,
+        mock_console: Console,
+    ):
+        """Test rendering escalation events with different operators."""
+        operators = ["~", "==", "!=", "contains"]
+
+        for op in operators:
+            mock_console.reset_mock()
+            event = EscalationEvent(
+                agent_name="test_agent",
+                result="test result",
+                condition_op=op,
+                condition_value="TEST",
+            )
+
+            render_escalation_event(event, mock_console)
+
+            call_args = mock_console.print.call_args
+            printed_text = call_args[0][0]
+            assert op in printed_text

@@ -52,6 +52,7 @@ class EventRenderer:
                         part.text,
                         obj.event.is_final_response(),
                         console,
+                        author=obj.event.author,
                     )
 
                 if part.function_call:
@@ -166,6 +167,8 @@ def _display_assistant_text(
     text: str,
     is_final_response: bool,  # noqa: FBT001
     console: "Console",
+    *,
+    author: str | None = None,
 ) -> None:
     from rich.markdown import Markdown
 
@@ -178,6 +181,9 @@ def _display_assistant_text(
         ("Final " if is_final_response else ""),
         text,
     )
+
+    if author:
+        console.print(f"[bold]{author}:[/bold]", style=style)
 
     console.print(
         Markdown(text, inline_code_theme=Styles.RICH_MD_CODE),

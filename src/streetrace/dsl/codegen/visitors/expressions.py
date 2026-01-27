@@ -152,6 +152,10 @@ class ExpressionVisitor:
         if op == "contains":
             return f"({right} in {left})"
 
+        # Handle normalized equals operator
+        if op == "~":
+            return f"normalized_equals({left}, {right})"
+
         # Map operator if needed
         python_op = OPERATOR_MAP.get(op, op)
 

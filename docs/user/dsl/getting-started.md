@@ -286,6 +286,7 @@ async with manager.create_workload("my_agent") as workload:
 
 - [Syntax Reference](syntax-reference.md) - Complete syntax documentation
 - [Multi-Agent Patterns](multi-agent-patterns.md) - Build coordinator, hierarchical, and iterative workflows
+- [Prompt Escalation](escalation.md) - Handle LLM output formatting and build iterative refinement loops
 - [CLI Reference](cli-reference.md) - Command-line options
 - [Troubleshooting](troubleshooting.md) - Common errors and solutions
 
@@ -337,5 +338,6 @@ prompt review_prompt expecting ReviewResult:
 
 - [Syntax Reference](syntax-reference.md) - Complete language reference
 - [Multi-Agent Patterns](multi-agent-patterns.md) - Coordinator, hierarchical, and iterative patterns
+- [Prompt Escalation](escalation.md) - Normalized comparison and escalation handling
 - [CLI Reference](cli-reference.md) - Command-line tools
 - [Troubleshooting](troubleshooting.md) - Error resolution

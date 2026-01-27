@@ -11,6 +11,7 @@ from streetrace.dsl.runtime.errors import (
     RetryInputError,
     RetryStepError,
 )
+from streetrace.dsl.runtime.utils import normalize_for_comparison, normalized_equals
 from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
 __all__ = [
@@ -21,4 +22,6 @@ __all__ = [
     "RetryInputError",
     "RetryStepError",
     "WorkflowContext",
+    "normalize_for_comparison",
+    "normalized_equals",
 ]

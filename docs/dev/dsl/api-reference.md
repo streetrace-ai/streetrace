@@ -389,7 +389,173 @@ Log the escalation, call any registered callback, and dispatch a UI event if con
 **Parameters**:
 - `message`: Optional message for the human.
 
-**Location**: `src/streetrace/dsl/runtime/context.py:666`
+**Location**: `src/streetrace/dsl/runtime/context.py:610`
+
+#### run_agent_with_escalation
+
+```python
+async def run_agent_with_escalation(
+    self,
+    agent_name: str,
+    *args: object,
+) -> AsyncGenerator[Event, None]
+```
+
+Run an agent and check for escalation.
+
+Similar to `run_agent()` but tracks escalation state based on the agent's prompt escalation
+condition. After the agent completes, evaluates whether the result matches the prompt's
+`escalate if` condition.
+
+**Parameters**:
+- `agent_name`: Name of the agent to run.
+- `*args`: Arguments to pass (joined as prompt text).
+
+**Yields**:
+ADK `Event` objects from agent execution.
+
+**Side Effects**:
+- Stores result in `_last_call_result`
+- Sets `_last_escalated` flag based on escalation condition evaluation
+
+**Example**:
+
+```python
+async for event in ctx.run_agent_with_escalation("checker", input_text):
+    yield event
+result, escalated = ctx.get_last_result_with_escalation()
+if escalated:
+    return result
+```
+
+**Location**: `src/streetrace/dsl/runtime/context.py:264`
+
+#### get_last_result_with_escalation
+
+```python
+def get_last_result_with_escalation(self) -> tuple[object, bool]
+```
+
+Get the last result and escalation flag.
+
+Used after `run_agent_with_escalation()` to retrieve both the agent's output and whether
+escalation was triggered.
+
+**Returns**:
+Tuple of (result, escalated) where result is the last call result and escalated is whether
+escalation was triggered.
+
+**Location**: `src/streetrace/dsl/runtime/context.py:376`
+
+### EscalationSpec
+
+```python
+@dataclass
+class EscalationSpec:
+    op: str
+    value: str
+```
+
+Escalation specification for prompt outputs.
+
+Define the condition under which a prompt's output triggers escalation. Used with `PromptSpec`
+to specify when an agent should escalate.
+
+**Attributes**:
+- `op`: Comparison operator (`'~'`, `'=='`, `'!='`, `'contains'`).
+- `value`: Value to compare against.
+
+**Location**: `src/streetrace/dsl/runtime/workflow.py:35`
+
+### PromptSpec
+
+```python
+@dataclass
+class PromptSpec:
+    body: Callable[[object], str]
+    model: str | None = None
+    escalation: EscalationSpec | None = None
+```
+
+Prompt specification with optional escalation.
+
+Wrap a prompt body lambda with optional model and escalation configuration. This allows prompts
+to define when their output should trigger escalation.
+
+**Attributes**:
+- `body`: Lambda that takes context and returns the prompt text.
+- `model`: Optional model name for this prompt.
+- `escalation`: Optional escalation condition.
+
+**Example**:
+
+```python
+_prompts = {
+    'checker': PromptSpec(
+        body=lambda ctx: f"Check: {ctx.vars['input']}",
+        escalation=EscalationSpec(op='~', value='STOP'),
+    ),
+}
+```
+
+**Location**: `src/streetrace/dsl/runtime/workflow.py:50`
+
+### Utility Functions
+
+**Module**: `streetrace.dsl.runtime.utils`
+
+#### normalized_equals
+
+```python
+def normalized_equals(left: object, right: object) -> bool
+```
+
+Perform normalized equality comparison.
+
+Compare two values after normalizing them using `normalize_for_comparison()`. Non-string
+values are converted to strings before normalization.
+
+**Parameters**:
+- `left`: The left operand to compare.
+- `right`: The right operand to compare.
+
+**Returns**:
+True if the normalized values are equal, False otherwise.
+
+**Normalization Rules**:
+1. Remove markdown modifiers (`**`, `*`, `_`, `` ` ``, `#`)
+2. Remove punctuation (`.`, `!`, `?`, `,`, `;`, `:`)
+3. Convert to lowercase
+4. Collapse whitespace to single space
+5. Strip leading/trailing whitespace
+
+**Example**:
+
+```python
+from streetrace.dsl.runtime.utils import normalized_equals
+
+normalized_equals("**Yes!**", "yes")  # True
+normalized_equals("DRIFTING", "drifting")  # True
+normalized_equals("  Hello   World  ", "hello world")  # True
+```
+
+**Location**: `src/streetrace/dsl/runtime/utils.py:50`
+
+#### normalize_for_comparison
+
+```python
+def normalize_for_comparison(text: str) -> str
+```
+
+Normalize text for comparison by removing formatting noise.
+
+**Parameters**:
+- `text`: The text to normalize.
+
+**Returns**:
+Normalized text suitable for comparison.
+
+**Location**: `src/streetrace/dsl/runtime/utils.py:19`
 
 ### GuardrailProvider
 
@@ -1006,6 +1172,7 @@ Registry for source mappings across multiple compiled files.
 ## See Also
 
 - [Architecture Overview](architecture.md) - Compiler pipeline overview
+- [Escalation Feature](escalation.md) - Escalation architecture and implementation
 - [Flow Event Yielding](flow-events/overview.md) - Event streaming architecture
 - [Flow Events API](flow-events/api-reference.md) - Event classes and methods
 - [Extension Guide](extending.md) - Adding new features

@@ -96,6 +96,7 @@ class SemanticAnalyzer:
         self._symbols = SymbolTable()
         self._global_scope: Scope | None = None
         self._current_scope: Scope | None = None
+        self._loop_depth: int = 0
 
     def analyze(self, ast: DslFile) -> AnalysisResult:
         """Analyze a DSL file AST for semantic correctness.
@@ -111,6 +112,7 @@ class SemanticAnalyzer:
         self._symbols = SymbolTable()
         self._global_scope = Scope(scope_type=ScopeType.GLOBAL)
         self._current_scope = self._global_scope
+        self._loop_depth = 0
 
         # Define built-in variables in global scope
         self._define_builtins()
@@ -596,6 +598,28 @@ class SemanticAnalyzer:
             # Strip $ prefix for consistency with VarRef which uses name without $
             var_name = stmt.target.lstrip("$")
             scope.define(name=var_name, kind=SymbolKind.VARIABLE)
+        # Validate escalation handler context
+        self._validate_escalation_handler(stmt)
+
+    def _validate_escalation_handler(self, stmt: RunStmt) -> None:
+        """Validate escalation handler context for run statements.
+
+        Check that 'on escalate continue' is only used inside a loop context.
+
+        Args:
+            stmt: RunStmt node with potential escalation handler.
+
+        """
+        if stmt.escalation_handler is None:
+            return
+
+        handler = stmt.escalation_handler
+        if handler.action == "continue" and self._loop_depth == 0:
+            # Get position from handler if available, otherwise from statement
+            position = handler.meta if handler.meta else stmt.meta
+            self._add_error(
+                SemanticError.continue_outside_loop(position=position),
+            )
 
     def _validate_call_stmt(self, stmt: CallStmt, scope: Scope) -> None:
         """Validate a call LLM statement."""
@@ -667,7 +691,11 @@ class SemanticAnalyzer:
         var_name = stmt.variable.lstrip("$")
         block_scope.define(name=var_name, kind=SymbolKind.VARIABLE)
         self._validate_expression(stmt.iterable, scope)
-        self._validate_statements(stmt.body, block_scope)
+        self._loop_depth += 1
+        try:
+            self._validate_statements(stmt.body, block_scope)
+        finally:
+            self._loop_depth -= 1
 
     def _validate_if_block(self, stmt: IfBlock, scope: Scope) -> None:
         """Validate an if block statement."""
@@ -696,7 +724,11 @@ class SemanticAnalyzer:
 
         """
         block_scope = Scope(scope_type=ScopeType.BLOCK, parent=scope)
-        self._validate_statements(stmt.body, block_scope)
+        self._loop_depth += 1
+        try:
+            self._validate_statements(stmt.body, block_scope)
+        finally:
+            self._loop_depth -= 1
 
     def _detect_circular_agent_refs(self) -> None:
         """Detect circular references in agent delegate/use relationships.

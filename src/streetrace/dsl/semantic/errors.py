@@ -26,6 +26,7 @@ class ErrorCode(Enum):
     E0009 = "scope error: {message}"
     E0010 = "missing required property '{property}' in {kind} '{name}'"
     E0011 = "circular agent reference detected: {cycle}"
+    E0012 = "'on escalate continue' can only be used inside a loop"
     W0002 = "agent '{name}' has both delegate and use - this is unusual"
 
 
@@ -209,6 +210,27 @@ class SemanticError:
             message=msg,
             position=position,
             is_warning=True,
+        )
+
+    @classmethod
+    def continue_outside_loop(
+        cls,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for 'on escalate continue' used outside loop context.
+
+        Args:
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = "'on escalate continue' can only be used inside a loop"
+        return cls(
+            code=ErrorCode.E0012,
+            message=msg,
+            position=position,
         )
 
     def format(self) -> str:

@@ -55,3 +55,26 @@ class LlmResponseEvent(FlowEvent):
     """Whether this is the final response (always True for LLM calls)."""
 
     type: str = field(default="llm_response", init=False)
+
+
+@dataclass
+class EscalationEvent(FlowEvent):
+    """Event emitted when escalation is triggered.
+
+    Provide escalation signal to parent agents in a hierarchy through the
+    event system, following ADK's escalation pattern.
+    """
+
+    agent_name: str
+    """Name of the agent that triggered escalation."""
+
+    result: str
+    """The result that triggered escalation."""
+
+    condition_op: str
+    """The escalation operator that matched ('~', '==', '!=', 'contains')."""
+
+    condition_value: str
+    """The escalation condition value that was matched against."""
+
+    type: str = field(default="escalation", init=False)

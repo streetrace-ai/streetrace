@@ -634,6 +634,26 @@ end
         tree = parser.parse(source)
         assert tree.data == "start"
 
+    def test_parses_normalized_equals_expression(self, parser):
+        """Test parsing ~ (normalized equals) operator."""
+        source = """
+flow test:
+    if $response ~ "YES":
+        log "Confirmed"
+"""
+        tree = parser.parse(source)
+        assert tree.data == "start"
+
+    def test_parses_normalized_equals_in_assignment(self, parser):
+        """Test parsing ~ operator in assignment."""
+        source = """
+flow test:
+    $is_approved = $answer ~ "APPROVED"
+    return $is_approved
+"""
+        tree = parser.parse(source)
+        assert tree.data == "start"
+
     def test_parses_list_literal(self, parser):
         source = """
 flow test:

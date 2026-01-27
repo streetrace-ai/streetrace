@@ -13,6 +13,7 @@ from streetrace.dsl.ast.nodes import (
     CallStmt,
     ContinueStmt,
     EscalateStmt,
+    EscalationHandler,
     FailureBlock,
     FlowDef,
     ForLoop,
@@ -232,21 +233,73 @@ class FlowVisitor:
         source_line = node.meta.line if node.meta else None
         args_str = ", ".join(self._expr_visitor.visit(arg) for arg in node.args)
 
-        if args_str:
-            call = f"ctx.run_agent('{node.agent}', {args_str})"
+        if node.escalation_handler:
+            # Use run_agent_with_escalation which tracks escalation state
+            if args_str:
+                call = f"ctx.run_agent_with_escalation('{node.agent}', {args_str})"
+            else:
+                call = f"ctx.run_agent_with_escalation('{node.agent}')"
+
+            # Generate async for loop to yield events and capture result
+            self._emitter.emit(
+                f"async for _event in {call}:",
+                source_line=source_line,
+            )
+            self._emitter.indent()
+            self._emitter.emit("yield _event")
+            self._emitter.dedent()
+
+            # Get result and escalation flag
+            self._emitter.emit(
+                "_result, _escalated = ctx.get_last_result_with_escalation()",
+            )
+
+            # Assign result to target if specified
+            if node.target:
+                target_name = node.target.lstrip("$")
+                self._emitter.emit(f"ctx.vars['{target_name}'] = _result")
+
+            # Handle escalation
+            self._emitter.emit("if _escalated:")
+            self._emitter.indent()
+            self._emit_escalation_action(node.escalation_handler)
+            self._emitter.dedent()
         else:
-            call = f"ctx.run_agent('{node.agent}')"
+            # Original logic for non-escalation runs
+            if args_str:
+                call = f"ctx.run_agent('{node.agent}', {args_str})"
+            else:
+                call = f"ctx.run_agent('{node.agent}')"
 
-        # Generate async for loop to yield events
-        self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
-        self._emitter.indent()
-        self._emitter.emit("yield _event")
-        self._emitter.dedent()
+            # Generate async for loop to yield events
+            self._emitter.emit(
+                f"async for _event in {call}:",
+                source_line=source_line,
+            )
+            self._emitter.indent()
+            self._emitter.emit("yield _event")
+            self._emitter.dedent()
 
-        # Assign result from context if target specified
-        if node.target:
-            target_name = node.target.lstrip("$")
-            self._emitter.emit(f"ctx.vars['{target_name}'] = ctx.get_last_result()")
+            # Assign result from context if target specified
+            if node.target:
+                target_name = node.target.lstrip("$")
+                self._emitter.emit(f"ctx.vars['{target_name}'] = ctx.get_last_result()")
+
+    def _emit_escalation_action(self, handler: EscalationHandler) -> None:
+        """Emit code for escalation action.
+
+        Args:
+            handler: Escalation handler node.
+
+        """
+        if handler.action == "return":
+            value = self._expr_visitor.visit(handler.value)
+            self._emitter.emit(f"ctx.vars['_return_value'] = {value}")
+            self._emitter.emit("return")
+        elif handler.action == "continue":
+            self._emitter.emit("continue")
+        elif handler.action == "abort":
+            self._emitter.emit("raise AbortError('Escalation triggered abort')")
 
     def _visit_call_stmt(self, node: CallStmt) -> None:
         """Generate code for call LLM statement.

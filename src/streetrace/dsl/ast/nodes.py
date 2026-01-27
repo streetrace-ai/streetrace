@@ -137,6 +137,7 @@ class RunStmt:
     - $result = run agent fetch_data $input  (agent call)
     - $goal = run get_agent_goal  (flow call, is_flow=True)
     - run my_workflow  (flow call without assignment)
+    - $x = run agent peer $y, on escalate return $y  (with escalation handler)
 
     """
 
@@ -145,6 +146,7 @@ class RunStmt:
     args: list[AstNode]
     meta: SourcePosition | None = None
     is_flow: bool = False  # True for flow calls, False for agent calls
+    escalation_handler: "EscalationHandler | None" = None  # on escalate clause
 
 
 @dataclass
@@ -434,6 +436,32 @@ class AgentDef:
 
 
 @dataclass
+class EscalationCondition:
+    """Escalation condition for prompt outputs.
+
+    Define when a prompt's output should trigger escalation based on
+    matching criteria. Used with the escalate if clause on prompts.
+    """
+
+    op: str  # "~", "==", "!=", "contains", or "expr"
+    value: str | AstNode  # String literal or expression
+    meta: SourcePosition | None = None
+
+
+@dataclass
+class EscalationHandler:
+    """Handler for agent escalation.
+
+    Define what action to take when an agent escalates. Used with
+    the on escalate clause on run statements.
+    """
+
+    action: str  # "return", "continue", "abort"
+    value: AstNode | None = None  # For return action
+    meta: SourcePosition | None = None
+
+
+@dataclass
 class PromptDef:
     """Prompt definition node."""
 
@@ -442,6 +470,7 @@ class PromptDef:
     model: str | None = None  # using model modifier
     expecting: str | None = None  # expecting modifier (schema name)
     inherit: str | None = None  # inherit modifier (variable)
+    escalation_condition: EscalationCondition | None = None  # escalate if clause
     meta: SourcePosition | None = None
 
 

@@ -19,6 +19,8 @@ from streetrace.dsl.ast.nodes import (
     CallStmt,
     DslFile,
     EscalateStmt,
+    EscalationCondition,
+    EscalationHandler,
     EventHandler,
     FailureBlock,
     FlowDef,
@@ -1399,7 +1401,7 @@ class AstTransformer(Transformer):
     def prompt_def(self, meta: object, items: TransformerItems) -> PromptDef:
         """Transform prompt_def rule."""
         filtered = _filter_children(items)
-        name, body, modifiers = self._extract_prompt_components(filtered)
+        name, body, modifiers, escalation = self._extract_prompt_components(filtered)
 
         return PromptDef(
             name=name or "",
@@ -1407,17 +1409,19 @@ class AstTransformer(Transformer):
             model=modifiers.get("model"),
             expecting=modifiers.get("expecting"),
             inherit=modifiers.get("inherit"),
+            escalation_condition=escalation,
             meta=_meta_to_position(meta),
         )
 
     def _extract_prompt_components(
         self,
         filtered: list,
-    ) -> tuple[str | None, str | None, dict]:
-        """Extract name, body, and modifiers from prompt_def children."""
+    ) -> tuple[str | None, str | None, dict, EscalationCondition | None]:
+        """Extract name, body, modifiers, and escalation from prompt_def children."""
         name = None
         body = None
         modifiers: dict = {}
+        escalation: EscalationCondition | None = None
 
         for item in filtered:
             if isinstance(item, str):
@@ -1427,8 +1431,10 @@ class AstTransformer(Transformer):
                     name = _get_token_value(item)
             elif isinstance(item, dict):
                 modifiers.update(item)
+            elif isinstance(item, EscalationCondition):
+                escalation = item
 
-        return name, body, modifiers
+        return name, body, modifiers, escalation
 
     def _categorize_prompt_string(
         self,
@@ -1502,6 +1508,124 @@ class AstTransformer(Transformer):
             if isinstance(item, Token):
                 return _get_token_value(item)
         return ""
+
+    # =========================================================================
+    # Escalation
+    # =========================================================================
+
+    def escalation_clause(self, items: TransformerItems) -> EscalationCondition:
+        """Transform escalation_clause rule.
+
+        Returns the EscalationCondition from the escalation_condition child.
+        """
+        filtered = _filter_children(items)
+        for item in filtered:
+            if isinstance(item, EscalationCondition):
+                return item
+        msg = "escalation_clause must contain an EscalationCondition"
+        raise ValueError(msg)
+
+    def normalized_escalation(self, items: TransformerItems) -> EscalationCondition:
+        """Transform normalized_escalation rule (~ operator).
+
+        Items: [~, STRING] - the operator and the string value.
+        """
+        filtered = _filter_children(items)
+        # Find the string value (skip the operator token)
+        value = ""
+        for item in filtered:
+            if isinstance(item, str) and item not in {"~", "==", "!=", "contains"}:
+                value = item
+                break
+            if isinstance(item, Token):
+                token_val = _get_token_value(item)
+                if token_val not in {"~", "==", "!=", "contains"}:
+                    value = token_val
+                    break
+        return EscalationCondition(op="~", value=value)
+
+    def exact_escalation(self, items: TransformerItems) -> EscalationCondition:
+        """Transform exact_escalation rule (== operator).
+
+        Items: [==, STRING] - the operator and the string value.
+        """
+        filtered = _filter_children(items)
+        # Find the string value (skip the operator token)
+        value = ""
+        for item in filtered:
+            if isinstance(item, str) and item not in {"~", "==", "!=", "contains"}:
+                value = item
+                break
+            if isinstance(item, Token):
+                token_val = _get_token_value(item)
+                if token_val not in {"~", "==", "!=", "contains"}:
+                    value = token_val
+                    break
+        return EscalationCondition(op="==", value=value)
+
+    def not_equal_escalation(self, items: TransformerItems) -> EscalationCondition:
+        """Transform not_equal_escalation rule (!= operator).
+
+        Items: [!=, STRING] - the operator and the string value.
+        """
+        filtered = _filter_children(items)
+        # Find the string value (skip the operator token)
+        value = ""
+        for item in filtered:
+            if isinstance(item, str) and item not in {"~", "==", "!=", "contains"}:
+                value = item
+                break
+            if isinstance(item, Token):
+                token_val = _get_token_value(item)
+                if token_val not in {"~", "==", "!=", "contains"}:
+                    value = token_val
+                    break
+        return EscalationCondition(op="!=", value=value)
+
+    def contains_escalation(self, items: TransformerItems) -> EscalationCondition:
+        """Transform contains_escalation rule.
+
+        Items: [contains, STRING] - the keyword and the string value.
+        """
+        filtered = _filter_children(items)
+        # Find the string value (skip the keyword token)
+        value = ""
+        for item in filtered:
+            if isinstance(item, str) and item not in {"~", "==", "!=", "contains"}:
+                value = item
+                break
+            if isinstance(item, Token):
+                token_val = _get_token_value(item)
+                if token_val not in {"~", "==", "!=", "contains"}:
+                    value = token_val
+                    break
+        return EscalationCondition(op="contains", value=value)
+
+    def escalation_handler(self, items: TransformerItems) -> EscalationHandler:
+        """Transform escalation_handler rule.
+
+        Returns the EscalationHandler from the escalation_action child.
+        """
+        filtered = _filter_children(items)
+        for item in filtered:
+            if isinstance(item, EscalationHandler):
+                return item
+        msg = "escalation_handler must contain an EscalationHandler"
+        raise ValueError(msg)
+
+    def escalation_return(self, items: TransformerItems) -> EscalationHandler:
+        """Transform escalation_return rule."""
+        filtered = _filter_children(items)
+        value = filtered[0] if filtered else None
+        return EscalationHandler(action="return", value=value)
+
+    def escalation_continue(self, _items: TransformerItems) -> EscalationHandler:
+        """Transform escalation_continue rule."""
+        return EscalationHandler(action="continue")
+
+    def escalation_abort(self, _items: TransformerItems) -> EscalationHandler:
+        """Transform escalation_abort rule."""
+        return EscalationHandler(action="abort")
 
     # =========================================================================
     # Control Flow
@@ -1686,19 +1810,22 @@ class AstTransformer(Transformer):
         """Transform run_stmt rule.
 
         Handle run statement forms:
-        - variable "=" "run" "agent" identifier expression*
-        - "run" "agent" identifier expression*
+        - variable "=" "run" "agent" identifier expression* escalation_handler?
+        - "run" "agent" identifier expression* escalation_handler?
         - "run" identifier
         """
         target = None
         agent = None
         args: list[AstNode] = []
+        escalation: EscalationHandler | None = None
 
         # Keywords to skip (Lark tokens that should not be treated as identifiers)
         skip_tokens = {"=", "run", "agent"}
 
         for i, item in enumerate(items):
-            if isinstance(item, VarRef) and target is None and i == 0:
+            if isinstance(item, EscalationHandler):
+                escalation = item
+            elif isinstance(item, VarRef) and target is None and i == 0:
                 target = f"${item.name}"
             elif isinstance(item, NameRef):
                 if agent is None:
@@ -1732,6 +1859,7 @@ class AstTransformer(Transformer):
             agent=agent or "",
             args=args,
             meta=_meta_to_position(meta),
+            escalation_handler=escalation,
         )
 
     @v_args(meta=True)
@@ -1740,17 +1868,20 @@ class AstTransformer(Transformer):
     ) -> RunStmt:
         """Transform run_flow_assign rule.
 
-        Handle: variable "=" "run" identifier expression*
+        Handle: variable "=" "run" identifier expression* escalation_handler?
         This is for calling user-defined flows with assignment.
         """
         target = None
         flow_name = None
         args: list[AstNode] = []
+        escalation: EscalationHandler | None = None
 
         skip_tokens = {"=", "run"}
 
         for i, item in enumerate(items):
-            if isinstance(item, VarRef) and target is None and i == 0:
+            if isinstance(item, EscalationHandler):
+                escalation = item
+            elif isinstance(item, VarRef) and target is None and i == 0:
                 target = f"${item.name}"
             elif isinstance(item, NameRef):
                 if flow_name is None:
@@ -1778,22 +1909,28 @@ class AstTransformer(Transformer):
             args=args,
             meta=_meta_to_position(meta),
             is_flow=True,
+            escalation_handler=escalation,
         )
 
     @v_args(meta=True)
-    def run_flow(self, meta: object, items: TransformerItems) -> RunStmt:
+    def run_flow(  # noqa: C901, PLR0912
+        self, meta: object, items: TransformerItems,
+    ) -> RunStmt:
         """Transform run_flow rule.
 
-        Handle: "run" identifier expression*
+        Handle: "run" identifier expression* escalation_handler?
         This is for calling user-defined flows without assignment.
         """
         flow_name = None
         args: list[AstNode] = []
+        escalation: EscalationHandler | None = None
 
         skip_tokens = {"run"}
 
         for item in items:
-            if isinstance(item, NameRef):
+            if isinstance(item, EscalationHandler):
+                escalation = item
+            elif isinstance(item, NameRef):
                 if flow_name is None:
                     flow_name = item.name
                 else:
@@ -1819,6 +1956,7 @@ class AstTransformer(Transformer):
             args=args,
             meta=_meta_to_position(meta),
             is_flow=True,
+            escalation_handler=escalation,
         )
 
     @v_args(meta=True)

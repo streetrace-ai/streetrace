@@ -4,7 +4,7 @@ Provide the base class that all generated workflows extend.
 This class implements the Workload protocol for unified execution.
 """
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
@@ -29,6 +29,39 @@ if TYPE_CHECKING:
     from streetrace.workloads.dsl_agent_factory import DslAgentFactory
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class EscalationSpec:
+    """Escalation specification for prompt outputs.
+
+    Define the condition under which a prompt's output triggers escalation.
+    Used with PromptSpec to specify when an agent should escalate.
+    """
+
+    op: str
+    """Comparison operator: '~', '==', '!=', 'contains'."""
+
+    value: str
+    """Value to compare against."""
+
+
+@dataclass
+class PromptSpec:
+    """Prompt specification with optional escalation.
+
+    Wrap a prompt body lambda with optional model and escalation configuration.
+    This allows prompts to define when their output should trigger escalation.
+    """
+
+    body: Callable[[object], str]
+    """Lambda that takes context and returns the prompt text."""
+
+    model: str | None = None
+    """Optional model name for this prompt."""
+
+    escalation: EscalationSpec | None = None
+    """Optional escalation condition."""
 
 
 @dataclass
