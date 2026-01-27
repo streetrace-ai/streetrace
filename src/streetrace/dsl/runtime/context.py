@@ -5,9 +5,11 @@ Provide the execution context for generated DSL workflows.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import TYPE_CHECKING
 
+from streetrace.dsl.runtime.errors import JSONParseError, SchemaValidationError
 from streetrace.dsl.runtime.events import (
     EscalationEvent,
     FlowEvent,
@@ -20,11 +22,22 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable
 
     from google.adk.events import Event
+    from pydantic import BaseModel
 
-    from streetrace.dsl.runtime.workflow import DslAgentWorkflow, EscalationSpec
+    from streetrace.dsl.runtime.workflow import (
+        DslAgentWorkflow,
+        EscalationSpec,
+        PromptSpec,
+    )
     from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
+
+MAX_SCHEMA_RETRIES = 3
+"""Maximum number of retry attempts for schema validation."""
+
+_CODE_BLOCK_FENCE = "```"
+"""Markdown code block fence delimiter."""
 
 # PII masking patterns
 _EMAIL_PATTERN = re.compile(
@@ -187,6 +200,9 @@ class WorkflowContext:
         self._last_escalated: bool = False
         """Whether the last run_agent_with_escalation triggered escalation."""
 
+        self._schemas: dict[str, type[BaseModel]] = {}
+        """Schema definitions as Pydantic models."""
+
         logger.debug("Created WorkflowContext")
 
     def set_models(self, models: dict[str, str]) -> None:
@@ -224,6 +240,15 @@ class WorkflowContext:
 
         """
         self._prompt_models = prompt_models
+
+    def set_schemas(self, schemas: dict[str, type[BaseModel]]) -> None:
+        """Set the available schemas.
+
+        Args:
+            schemas: Dictionary of schema name to Pydantic model class.
+
+        """
+        self._schemas = schemas
 
     def set_ui_bus(self, ui_bus: UiBus) -> None:
         """Set the UI bus for event dispatch.
@@ -468,6 +493,190 @@ class WorkflowContext:
         # Last resort: return empty string (will use provider default)
         return ""
 
+    def _parse_json_response(self, content: str) -> dict[str, object]:
+        """Parse JSON from LLM response, handling markdown code blocks.
+
+        Extract JSON content from LLM responses which may include markdown
+        formatting. Supports plain JSON and JSON wrapped in code blocks.
+
+        Uses line-by-line scanning instead of regex for reliability and
+        easier debugging.
+
+        Args:
+            content: Raw LLM response content.
+
+        Returns:
+            Parsed JSON as a dictionary.
+
+        Raises:
+            JSONParseError: If content cannot be parsed as JSON or contains
+                multiple ambiguous code blocks.
+
+        """
+        code_blocks = self._extract_code_blocks(content)
+
+        json_content = ""
+        if len(code_blocks) == 0:
+            # No code blocks - treat entire content as JSON
+            json_content = content.strip()
+        elif len(code_blocks) == 1:
+            # Single code block - extract contents
+            json_content = code_blocks[0].strip()
+        else:
+            # Multiple code blocks - ambiguous
+            raise JSONParseError(
+                raw_response=content,
+                parse_error=(
+                    "Response contains multiple code blocks. "
+                    "Please return a single JSON object."
+                ),
+            )
+
+        try:
+            result: dict[str, object] = json.loads(json_content)
+        except json.JSONDecodeError as e:
+            raise JSONParseError(
+                raw_response=content,
+                parse_error=str(e),
+            ) from e
+        return result
+
+    def _extract_code_blocks(self, content: str) -> list[str]:
+        """Extract code block contents from markdown text.
+
+        Scan line-by-line to find fenced code blocks (```...```)
+        and extract their contents. This approach is more reliable
+        and debuggable than regex patterns.
+
+        Args:
+            content: Text potentially containing markdown code blocks.
+
+        Returns:
+            List of code block contents (without the fence delimiters).
+
+        """
+        lines = content.split("\n")
+        blocks: list[str] = []
+        current_block: list[str] = []
+        in_block = False
+
+        for line in lines:
+            if line.startswith(_CODE_BLOCK_FENCE):
+                if in_block:
+                    # Closing a block
+                    blocks.append("\n".join(current_block))
+                    current_block = []
+                    in_block = False
+                else:
+                    # Opening a block (language specifier after ``` is ignored)
+                    in_block = True
+            elif in_block:
+                current_block.append(line)
+
+        return blocks
+
+    def _get_schema_model(
+        self,
+        prompt_spec: PromptSpec | None,
+    ) -> type[BaseModel] | None:
+        """Get the Pydantic model for a prompt's schema.
+
+        Look up the schema name from the prompt spec and resolve it
+        to the corresponding Pydantic model class.
+
+        Args:
+            prompt_spec: Prompt specification, may be None.
+
+        Returns:
+            Pydantic model class if schema exists, None otherwise.
+
+        """
+        if prompt_spec is None:
+            return None
+
+        schema_name = getattr(prompt_spec, "schema", None)
+        if not schema_name:
+            return None
+
+        return self._schemas.get(schema_name)
+
+    def _enrich_prompt_with_schema(
+        self,
+        prompt_text: str,
+        json_schema: dict[str, object],
+    ) -> str:
+        """Append JSON format instructions to a prompt.
+
+        Add instructions telling the LLM to respond with valid JSON
+        that matches the provided schema.
+
+        Args:
+            prompt_text: Original prompt text.
+            json_schema: JSON Schema dict from Pydantic model.
+
+        Returns:
+            Enriched prompt with JSON instructions.
+
+        """
+        schema_str = json.dumps(json_schema, indent=2)
+        return (
+            f"{prompt_text}\n\n"
+            f"IMPORTANT: You MUST respond with valid JSON that matches this schema:\n"
+            f"```json\n{schema_str}\n```\n\n"
+            f"Do NOT include any text outside the JSON object."
+        )
+
+    def _evaluate_prompt_text(
+        self,
+        prompt_name: str,
+        prompt_value: object,
+    ) -> str | None:
+        """Evaluate a prompt value to get the text.
+
+        Args:
+            prompt_name: Name of the prompt for error logging.
+            prompt_value: The prompt value (PromptSpec, callable, or string).
+
+        Returns:
+            The evaluated prompt text, or None on failure.
+
+        """
+        from streetrace.dsl.runtime.workflow import PromptSpec
+
+        if isinstance(prompt_value, PromptSpec):
+            try:
+                return str(prompt_value.body(self))
+            except (TypeError, KeyError) as e:
+                logger.warning("Failed to evaluate prompt '%s': %s", prompt_name, e)
+                return None
+        elif callable(prompt_value):
+            try:
+                return str(prompt_value(self))
+            except (TypeError, KeyError) as e:
+                logger.warning("Failed to evaluate prompt '%s': %s", prompt_name, e)
+                return None
+        return str(prompt_value)
+
+    def _extract_llm_content(self, response: object) -> str:
+        """Extract content string from LLM response.
+
+        Args:
+            response: The LLM response object from litellm.
+
+        Returns:
+            The content string, or empty string if not found.
+
+        """
+        choices = getattr(response, "choices", None)
+        if choices and len(choices) > 0:
+            first_choice = choices[0]
+            message = getattr(first_choice, "message", None)
+            if message:
+                content = getattr(message, "content", None)
+                if content is not None:
+                    return str(content)
+        return ""
+
     async def call_llm(
         self,
         prompt_name: str,
@@ -479,6 +688,9 @@ class WorkflowContext:
         Look up the prompt by name, evaluate it with the context,
         and call the LLM using LiteLLM. Yield events for progress tracking.
 
+        When the prompt has a schema expectation, the response is validated
+        against the schema with automatic retry on failure.
+
         Args:
             prompt_name: Name of the prompt to use.
             *args: Arguments for prompt interpolation (stored in context).
@@ -488,8 +700,11 @@ class WorkflowContext:
             LlmCallEvent when call initiates.
             LlmResponseEvent when call completes.
 
+        Raises:
+            SchemaValidationError: If schema validation fails after max retries.
+
         """
-        import litellm
+        from streetrace.dsl.runtime.workflow import PromptSpec
 
         model_info = f" using {model}" if model else ""
         logger.info(
@@ -499,70 +714,155 @@ class WorkflowContext:
             len(args),
         )
 
-        # Look up prompt
+        # Look up and evaluate prompt
         prompt_value = self._prompts.get(prompt_name)
         if not prompt_value:
             logger.warning("Prompt '%s' not found in workflow context", prompt_name)
             self._last_call_result = None
             return
 
-        # Evaluate prompt lambda with context
-        prompt_text = ""
-        if callable(prompt_value):
-            try:
-                prompt_text = str(prompt_value(self))
-            except (TypeError, KeyError) as e:
-                logger.warning("Failed to evaluate prompt '%s': %s", prompt_name, e)
-                self._last_call_result = None
-                return
-        else:
-            prompt_text = str(prompt_value)
+        prompt_text = self._evaluate_prompt_text(prompt_name, prompt_value)
+        if prompt_text is None:
+            self._last_call_result = None
+            return
 
-        # Resolve model
-        resolved_model = model
-        if not resolved_model:
-            resolved_model = self._resolve_agent_model(prompt_name)
+        # Get schema model if prompt has one
+        prompt_spec = prompt_value if isinstance(prompt_value, PromptSpec) else None
+        schema_model = self._get_schema_model(prompt_spec)
 
-        # Yield call event
+        # Enrich prompt with JSON instructions if schema expected
+        if schema_model:
+            json_schema = schema_model.model_json_schema()
+            prompt_text = self._enrich_prompt_with_schema(prompt_text, json_schema)
+
+        # Resolve model and yield call event
+        resolved_model = model or self._resolve_agent_model(prompt_name)
         yield LlmCallEvent(
             prompt_name=prompt_name,
             model=resolved_model,
             prompt_text=prompt_text,
         )
 
-        # Build messages for LLM call
-        messages = [{"role": "user", "content": prompt_text}]
+        # Execute LLM call with schema validation and retry
+        async for event in self._execute_llm_with_validation(
+            prompt_name=prompt_name,
+            resolved_model=resolved_model,
+            prompt_text=prompt_text,
+            schema_model=schema_model,
+        ):
+            yield event
 
-        try:
-            # Make LLM call via LiteLLM
-            response = await litellm.acompletion(
-                model=resolved_model,
-                messages=messages,
-            )
+    async def _execute_llm_with_validation(
+        self,
+        *,
+        prompt_name: str,
+        resolved_model: str,
+        prompt_text: str,
+        schema_model: type[BaseModel] | None,
+    ) -> AsyncGenerator[FlowEvent, None]:
+        """Execute LLM call with optional schema validation and retry.
 
-            # Extract response content
-            # Type ignore needed because litellm has complex return types
-            content: str | None = None
-            choices = getattr(response, "choices", None)
-            if choices and len(choices) > 0:
-                first_choice = choices[0]
-                message = getattr(first_choice, "message", None)
-                if message:
-                    content = getattr(message, "content", None)
+        Args:
+            prompt_name: Name of the prompt for events.
+            resolved_model: Model identifier to use.
+            prompt_text: The prompt text to send.
+            schema_model: Pydantic model for validation, or None.
 
-            # Store result for flow retrieval
-            self._last_call_result = content
+        Yields:
+            LlmResponseEvent on success.
 
-            # Yield response event
-            if content is not None:
+        Raises:
+            SchemaValidationError: If validation fails after max retries.
+
+        """
+        import litellm
+        from pydantic import ValidationError as PydanticValidationError
+
+        messages: list[dict[str, str]] = [{"role": "user", "content": prompt_text}]
+        last_content = ""
+        last_error = ""
+
+        for attempt in range(MAX_SCHEMA_RETRIES):
+            validation_succeeded = False
+            try:
+                response = await litellm.acompletion(
+                    model=resolved_model,
+                    messages=messages,
+                )
+                last_content = self._extract_llm_content(response)
+
+                # If no schema, return content directly
+                if not schema_model:
+                    self._last_call_result = last_content
+                    if last_content:
+                        yield LlmResponseEvent(
+                            prompt_name=prompt_name,
+                            content=last_content,
+                        )
+                    return
+
+                # Parse and validate response
+                parsed = self._parse_json_response(last_content)
+                validated = schema_model.model_validate(parsed)
+                self._last_call_result = validated.model_dump()
+                validation_succeeded = True
+
+            except (JSONParseError, PydanticValidationError) as e:
+                last_error = str(e)
+                logger.warning(
+                    "Schema validation attempt %d/%d failed for '%s': %s",
+                    attempt + 1,
+                    MAX_SCHEMA_RETRIES,
+                    prompt_name,
+                    last_error,
+                )
+                self._add_retry_feedback(messages, last_content, last_error, attempt)
+
+            except Exception:
+                logger.exception("LLM call failed for prompt '%s'", prompt_name)
+                self._last_call_result = None
+                return
+
+            if validation_succeeded:
                 yield LlmResponseEvent(
                     prompt_name=prompt_name,
-                    content=content,
+                    content=last_content,
                 )
+                return
 
-        except Exception:
-            logger.exception("LLM call failed for prompt '%s'", prompt_name)
-            self._last_call_result = None
+        # Exhausted retries - raise SchemaValidationError
+        # schema_model is guaranteed non-None here since we return early otherwise
+        schema_name = schema_model.__name__ if schema_model else "Unknown"
+        raise SchemaValidationError(
+            schema_name=schema_name,
+            errors=[last_error],
+            raw_response=last_content,
+        )
+
+    def _add_retry_feedback(
+        self,
+        messages: list[dict[str, str]],
+        last_content: str,
+        last_error: str,
+        attempt: int,
+    ) -> None:
+        """Add error feedback to messages for retry.
+
+        Args:
+            messages: Message list to append to.
+            last_content: The assistant's last response.
+            last_error: The error message.
+            attempt: Current attempt number (0-indexed).
+
+        """
+        if attempt < MAX_SCHEMA_RETRIES - 1:
+            messages.append({"role": "assistant", "content": last_content})
+            error_feedback = (
+                f"Error: {last_error}\n\n"
+                f"Please fix the JSON and try again. "
+                f"Ensure you return only valid JSON matching the schema."
+            )
+            messages.append({"role": "user", "content": error_feedback})
 
     def get_last_result(self) -> object:
         """Get the result from the last run_agent or call_llm operation.

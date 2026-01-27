@@ -161,6 +161,8 @@ C4Component
         Container_Boundary(runtime, "runtime/") {
             Component(workflow, "workflow.py", "Workflow", "Base workflow class")
             Component(context, "context.py", "Context", "Execution context")
+            Component(schema_factory, "schema_factory.py", "SchemaFactory", "DSL to Pydantic converter")
+            Component(runtime_errors, "errors.py", "Errors", "Runtime error classes")
         }
 
         Container_Boundary(errorsmod, "errors/") {
@@ -559,6 +561,7 @@ event yielding. True parallel execution with event streaming requires custom imp
 ## See Also
 
 - [Workload Architecture](../workloads/architecture.md) - Unified workload execution
+- [Schema Support](schema-support.md) - Structured outputs with Pydantic validation
 - [Flow Event Yielding](flow-events/overview.md) - Event streaming architecture and implementation
 - [Grammar Development Guide](grammar.md) - How to modify the DSL grammar
 - [Extension Guide](extending.md) - Adding new syntax and features

@@ -12,6 +12,7 @@ from streetrace.dsl.ast.nodes import (
     PromptDef,
     SchemaDef,
     ToolDef,
+    TypeExpr,
 )
 from streetrace.dsl.codegen.emitter import CodeEmitter
 from streetrace.dsl.codegen.visitors.flows import FlowVisitor
@@ -134,6 +135,11 @@ class WorkflowVisitor:
         """Emit the required imports."""
         for line in IMPORTS.rstrip().split("\n"):
             self._emitter.emit_raw(line)
+
+        # Add Pydantic imports if schemas are defined
+        if self._schemas:
+            self._emitter.emit_raw("from pydantic import BaseModel, create_model")
+
         self._emitter.emit_blank()
 
     def _emit_class_definition(self, source_file: str) -> None:
@@ -153,8 +159,9 @@ class WorkflowVisitor:
         self._emitter.emit(f'"""Generated workflow from {source_file}."""')
         self._emitter.emit_blank()
 
-        # Emit class attributes
+        # Emit class attributes (schemas before prompts so models are defined)
         self._emit_models()
+        self._emit_schemas()
         self._emit_prompts()
         self._emit_tools()
         self._emit_agents()
@@ -224,6 +231,70 @@ class WorkflowVisitor:
         self._emitter.emit("}")
         self._emitter.emit_blank()
 
+    def _emit_schemas(self) -> None:
+        """Emit schema definitions as Pydantic create_model() calls."""
+        if not self._schemas:
+            # Use generic dict type when no schemas to avoid importing BaseModel
+            self._emitter.emit("_schemas: dict[str, type] = {}")
+            self._emitter.emit_blank()
+            return
+
+        # Emit each schema as a create_model() call at module level
+        # These are emitted INSIDE the class but as class-level variables
+        for schema in self._schemas:
+            source_line = schema.meta.line if schema.meta else None
+            self._emitter.emit(
+                f"{schema.name} = create_model(",
+                source_line=source_line,
+            )
+            self._emitter.indent()
+            self._emitter.emit(f'"{schema.name}",')
+
+            for field in schema.fields:
+                type_str = self._type_expr_to_string(field.type_expr)
+                default = "None" if field.type_expr.is_optional else "..."
+                self._emitter.emit(f"{field.name}=({type_str}, {default}),")
+
+            self._emitter.dedent()
+            self._emitter.emit(")")
+            self._emitter.emit_blank()
+
+        # Emit _schemas class attribute mapping names to models
+        self._emitter.emit("_schemas: dict[str, type[BaseModel]] = {")
+        self._emitter.indent()
+
+        for schema in self._schemas:
+            self._emitter.emit(f'"{schema.name}": {schema.name},')
+
+        self._emitter.dedent()
+        self._emitter.emit("}")
+        self._emitter.emit_blank()
+
+    def _type_expr_to_string(self, type_expr: TypeExpr) -> str:
+        """Convert TypeExpr to Python type string for code generation.
+
+        Args:
+            type_expr: DSL type expression.
+
+        Returns:
+            Python type annotation as string (e.g., 'str', 'list[str]').
+
+        """
+        # Map DSL types to Python type strings
+        type_map = {
+            "string": "str",
+            "int": "int",
+            "float": "float",
+            "bool": "bool",
+        }
+        base = type_map.get(type_expr.base_type, "str")
+        result = f"list[{base}]" if type_expr.is_list else base
+
+        if type_expr.is_optional:
+            result = f"{result} | None"
+
+        return result
+
     def _emit_prompts(self) -> None:
         """Emit the _prompts class attribute."""
         if not self._prompts:
@@ -241,23 +312,32 @@ class WorkflowVisitor:
             # Generate prompt body for variable interpolation
             body = self._process_prompt_body(prompt.body)
 
-            # Build PromptSpec with optional escalation
-            if prompt.escalation_condition:
-                cond = prompt.escalation_condition
-                # Emit PromptSpec with EscalationSpec
+            # Build PromptSpec with optional schema and escalation
+            needs_multiline = (
+                prompt.expecting is not None
+                or prompt.escalation_condition is not None
+            )
+
+            if needs_multiline:
+                # Multi-line format when we have optional arguments
                 self._emitter.emit(
                     f"'{prompt.name}': PromptSpec(",
                     source_line=source_line,
                 )
                 self._emitter.indent()
                 self._emitter.emit(f"body=lambda ctx: {body},")
-                self._emitter.emit(
-                    f"escalation=EscalationSpec(op='{cond.op}', value='{cond.value}'),",
-                )
+                if prompt.expecting is not None:
+                    self._emitter.emit(f"schema='{prompt.expecting}',")
+                if prompt.escalation_condition is not None:
+                    self._emitter.emit(
+                        f"escalation=EscalationSpec("
+                        f"op='{prompt.escalation_condition.op}', "
+                        f"value='{prompt.escalation_condition.value}'),",
+                    )
                 self._emitter.dedent()
                 self._emitter.emit("),")
             else:
-                # Emit PromptSpec without escalation
+                # Simple single-line format
                 self._emitter.emit(
                     f"'{prompt.name}': PromptSpec(body=lambda ctx: {body}),",
                     source_line=source_line,

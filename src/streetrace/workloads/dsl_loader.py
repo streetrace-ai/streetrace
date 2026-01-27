@@ -65,10 +65,11 @@ class DslDefinitionLoader:
             logger.debug("Semantic error in %s", resolution.source)
             raise
 
-        # Execute bytecode to get workflow class
+        # Run bytecode to get workflow class
         # SECURITY NOTE: compiled_exec is used for validated DSL bytecode loading.
         # The bytecode is generated from a DSL file that has passed semantic analysis.
-        namespace: dict[str, object] = {}
+        # Include __name__ so Pydantic create_model() can determine module context.
+        namespace: dict[str, object] = {"__name__": f"dsl.{source_path.stem}"}
         compiled_exec(bytecode, namespace)
 
         # Find the workflow class in the namespace

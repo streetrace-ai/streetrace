@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from google.adk.sessions import Session
     from google.adk.sessions.base_session_service import BaseSessionService
     from google.genai.types import Content
+    from pydantic import BaseModel
 
     from streetrace.dsl.runtime.events import FlowEvent
     from streetrace.llm.model_factory import ModelFactory
@@ -48,10 +49,11 @@ class EscalationSpec:
 
 @dataclass
 class PromptSpec:
-    """Prompt specification with optional escalation.
+    """Prompt specification with optional schema and escalation.
 
-    Wrap a prompt body lambda with optional model and escalation configuration.
-    This allows prompts to define when their output should trigger escalation.
+    Wrap a prompt body lambda with optional model, schema, and escalation
+    configuration. This allows prompts to define expected output structure
+    and when their output should trigger escalation.
     """
 
     body: Callable[[object], str]
@@ -59,6 +61,9 @@ class PromptSpec:
 
     model: str | None = None
     """Optional model name for this prompt."""
+
+    schema: str | None = None
+    """Optional schema name for structured output validation."""
 
     escalation: EscalationSpec | None = None
     """Optional escalation condition."""
@@ -90,6 +95,9 @@ class DslAgentWorkflow:
 
     _models: ClassVar[dict[str, str]] = {}
     """Model definitions for this workflow."""
+
+    _schemas: ClassVar[dict[str, "type[BaseModel]"]] = {}
+    """Schema definitions for this workflow as Pydantic models."""
 
     _prompts: ClassVar[dict[str, object]] = {}
     """Prompt definitions for this workflow."""
@@ -440,6 +448,7 @@ class DslAgentWorkflow:
         ctx.set_models(self._models)
         ctx.set_prompts(self._prompts)
         ctx.set_agents(self._agents)
+        ctx.set_schemas(self._schemas)
 
         # Set built-in variables
         ctx.vars["input_prompt"] = input_prompt

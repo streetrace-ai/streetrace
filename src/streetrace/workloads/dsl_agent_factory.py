@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from google.adk.agents import BaseAgent
     from google.adk.models.base_llm import BaseLlm
     from google.adk.tools.agent_tool import AgentTool
+    from pydantic import BaseModel
 
     from streetrace.llm.model_factory import ModelFactory
     from streetrace.system_context import SystemContext
@@ -298,6 +299,48 @@ class DslAgentFactory:
         # Use tool provider to resolve the tool refs
         return tool_provider.get_tools(tool_refs)
 
+    def _resolve_output_schema(
+        self,
+        agent_def: dict[str, object],
+    ) -> "type[BaseModel] | None":
+        """Resolve output_schema from agent's instruction prompt.
+
+        Look up the instruction's PromptSpec and extract the schema name,
+        then look up the corresponding Pydantic model from _schemas.
+
+        Args:
+            agent_def: Agent definition dict.
+
+        Returns:
+            Pydantic model class if schema found, None otherwise.
+
+        """
+        from streetrace.dsl.runtime.workflow import PromptSpec
+
+        # Get instruction name from agent definition
+        instruction_name = agent_def.get("instruction")
+        if not instruction_name or not isinstance(instruction_name, str):
+            return None
+
+        # Look up prompt from workflow
+        if not hasattr(self._workflow_class, "_prompts"):
+            return None
+
+        prompts = self._workflow_class._prompts  # noqa: SLF001
+        prompt_spec = prompts.get(instruction_name)
+
+        # Must be a PromptSpec with schema attribute
+        if not isinstance(prompt_spec, PromptSpec):
+            return None
+
+        schema_name = prompt_spec.schema
+        if not schema_name:
+            return None
+
+        # Look up schema model
+        schemas = getattr(self._workflow_class, "_schemas", {})
+        return schemas.get(schema_name)
+
     async def create_agent(
         self,
         agent_name: str,
@@ -340,6 +383,7 @@ class DslAgentFactory:
         instruction = self._resolve_instruction(agent_def)
         model = self._resolve_model(model_factory, agent_def)
         tools = self._resolve_tools(tool_provider, agent_def)
+        output_schema = self._resolve_output_schema(agent_def)
 
         # Recursively resolve nested patterns
         sub_agents = await self._resolve_sub_agents(
@@ -362,6 +406,8 @@ class DslAgentFactory:
         }
         if sub_agents:
             agent_kwargs["sub_agents"] = sub_agents
+        if output_schema is not None:
+            agent_kwargs["output_schema"] = output_schema
 
         return LlmAgent(**agent_kwargs)
 
@@ -403,6 +449,9 @@ class DslAgentFactory:
         # Resolve tools from the agent's tools list
         tools = self._resolve_tools(tool_provider, agent_def)
 
+        # Resolve output_schema from instruction's schema
+        output_schema = self._resolve_output_schema(agent_def)
+
         # Resolve sub_agents for delegate pattern
         sub_agents = await self._resolve_sub_agents(
             agent_def, model_factory, tool_provider, system_context,
@@ -428,6 +477,8 @@ class DslAgentFactory:
         }
         if sub_agents:
             agent_kwargs["sub_agents"] = sub_agents
+        if output_schema is not None:
+            agent_kwargs["output_schema"] = output_schema
 
         return LlmAgent(**agent_kwargs)
 

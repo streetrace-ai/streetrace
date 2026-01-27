@@ -74,14 +74,14 @@ model main:
 
 ## Schemas
 
-Schemas define structured output types for prompts.
+Schemas define structured output types for prompts. When a prompt uses `expecting`,
+the LLM response is validated against the schema with automatic retry on failure.
 
 ```streetrace
 schema TaskResult:
     success: bool
     message: string
     items: list[string]
-    metadata: object
     count: int?
 ```
 
@@ -94,8 +94,27 @@ schema TaskResult:
 | `int` | Integer number | `42` |
 | `float` | Decimal number | `3.14` |
 | `list[T]` | List of type T | `list[string]` |
-| `object` | Generic object | `{}` |
 | `T?` | Optional type T | `int?` |
+
+### Using Schemas with Prompts
+
+Link a schema to a prompt with `expecting`:
+
+```streetrace
+schema CodeReviewResult:
+    approved: bool
+    issues: list[string]
+    confidence: float
+
+prompt review_code expecting CodeReviewResult: """
+Review the code and provide structured feedback.
+"""
+
+agent code_reviewer:
+    instruction review_code
+```
+
+See [Schema Support](schema-support.md) for detailed usage and examples.
 
 ## Tools
 
@@ -735,6 +754,7 @@ prompt summarize_prompt:
 ## See Also
 
 - [Getting Started](getting-started.md) - Introduction to Streetrace DSL
+- [Schema Support](schema-support.md) - Structured outputs with validation
 - [Multi-Agent Patterns](multi-agent-patterns.md) - Coordinator, hierarchical, and iterative patterns
 - [Prompt Escalation](escalation.md) - Normalized comparison and escalation handling
 - [CLI Reference](cli-reference.md) - Command-line tools
