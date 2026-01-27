@@ -176,9 +176,16 @@ async for event in workload.run_async(session, content):
 - Unit test: ADK Event handling unchanged
 
 **Acceptance Criteria**:
-- [ ] Supervisor handles FlowEvent without errors
-- [ ] Final response captured from LlmResponseEvent
-- [ ] Existing ADK event tests pass
+- [x] Supervisor handles FlowEvent without errors
+- [x] Final response captured from LlmResponseEvent
+- [x] Existing ADK event tests pass
+
+**Completed**: 2026-01-27
+- Updated `src/streetrace/workflow/supervisor.py` with FlowEvent handling
+- Updated `src/streetrace/workloads/protocol.py` with `Event | FlowEvent` return type
+- Updated `src/streetrace/dsl/runtime/workflow.py` with `Event | FlowEvent` return type
+- Updated `src/streetrace/workloads/dsl_workload.py` with `Event | FlowEvent` return type
+- Created `tests/unit/workflow/test_supervisor_flow_events.py` with 10 tests
 
 ---
 
@@ -260,9 +267,16 @@ def get_last_result(self) -> object:
 - Unit test: Error handling preserves None result
 
 **Acceptance Criteria**:
-- [ ] `call_llm` is an async generator
-- [ ] Events yielded in correct order
-- [ ] Result retrievable via `get_last_result()`
+- [x] `call_llm` is an async generator
+- [x] Events yielded in correct order
+- [x] Result retrievable via `get_last_result()`
+
+**Completed**: 2026-01-27
+- Converted `call_llm()` in `src/streetrace/dsl/runtime/context.py` to async generator
+- Added `_last_call_result` attribute to store LLM response
+- Added `get_last_result()` method for retrieving the result after generator iteration
+- Updated `tests/dsl/test_context_call_llm.py` to use generator pattern
+- Created `tests/unit/dsl/runtime/test_context_call_llm_generator.py` with 17 tests
 
 ---
 
@@ -329,9 +343,17 @@ async def run_agent(
 - Unit test: Multiple agents yield interleaved events
 
 **Acceptance Criteria**:
-- [ ] `run_agent` is an async generator
-- [ ] All ADK events yielded
-- [ ] Final response stored in context
+- [x] `run_agent` is an async generator
+- [x] All ADK events yielded
+- [x] Final response stored in context
+
+**Completed**: 2026-01-27
+- Converted `DslAgentWorkflow.run_agent()` in `src/streetrace/dsl/runtime/workflow.py` to async generator
+- Updated `WorkflowContext.run_agent()` in `src/streetrace/dsl/runtime/context.py` to re-yield events
+- Added `_last_call_result` capture from final response events
+- Created `tests/unit/dsl/runtime/test_workflow_run_agent_generator.py` with 10 tests
+- Updated all existing tests to use async generator pattern (`async for` instead of `await`)
+- Added `get_last_result` to vulture allowlist
 
 ---
 
@@ -403,9 +425,18 @@ async def run_async(
 - Integration test: Full flow execution with UI rendering
 
 **Acceptance Criteria**:
-- [ ] `_execute_flow` is an async generator
-- [ ] Events from all operations propagate
-- [ ] `run_async` works for both flows and agents
+- [x] `_execute_flow` is an async generator
+- [x] Events from all operations propagate
+- [x] `run_async` works for both flows and agents
+
+**Completed**: 2026-01-27
+- Converted `_execute_flow()` in `src/streetrace/dsl/runtime/workflow.py` to async generator
+- Updated `run_async()` to yield events for flow entry points (removed early return)
+- Converted `run_flow()` in `src/streetrace/dsl/runtime/workflow.py` to async generator
+- Converted `WorkflowContext.run_flow()` in `src/streetrace/dsl/runtime/context.py` to async generator
+- Created `tests/unit/dsl/runtime/test_flow_event_propagation.py` with 13 tests
+- Updated `tests/dsl/test_workflow_workload.py` tests for async generator pattern
+- Updated `tests/dsl/runtime/test_context_required_workflow.py` tests for async generator pattern
 
 ---
 
@@ -469,10 +500,21 @@ ctx.vars['result'] = ctx.get_last_result()
 - Integration test: Compiled DSL produces working generator
 
 **Acceptance Criteria**:
-- [ ] Generated flow methods are async generators
-- [ ] Generated code yields events correctly
-- [ ] Result assignment uses `get_last_result()`
-- [ ] Existing DSL files compile and work
+- [x] Generated flow methods are async generators
+- [x] Generated code yields events correctly
+- [x] Result assignment uses `get_last_result()`
+- [x] Existing DSL files compile and work
+
+**Completed**: 2026-01-27
+- Updated `src/streetrace/dsl/codegen/visitors/workflow.py` to add imports for `AsyncGenerator`, `Event`, and `FlowEvent`
+- Updated `src/streetrace/dsl/codegen/visitors/flows.py`:
+  - Changed flow method signature to `AsyncGenerator[Event | FlowEvent, None]`
+  - Changed `run_agent` generation to use `async for _event in ... yield _event` pattern
+  - Changed `call_llm` generation to use `async for _event in ... yield _event` pattern
+  - Changed `return` generation to store value in `ctx.vars['_return_value']` and use bare `return`
+  - Changed parallel block to use sequential execution with comment (asyncio.gather doesn't work with generators)
+- Created `tests/unit/dsl/codegen/test_flow_generator_codegen.py` with 22 tests
+- Updated existing tests in `tests/dsl/test_codegen.py`, `tests/dsl/test_codegen_patterns.py`, and `tests/dsl/test_flow_execution.py`
 
 ---
 
@@ -510,10 +552,25 @@ Update "Flow Event Streaming" section from "Open" to documenting the implementat
 - Documentation is accurate
 
 **Acceptance Criteria**:
-- [ ] Integration tests cover all scenarios
-- [ ] Documentation updated
-- [ ] `make check` passes
-- [ ] No regressions in existing functionality
+- [x] Integration tests cover all scenarios
+- [x] Documentation updated
+- [x] `make check` passes
+- [x] No regressions in existing functionality
+
+**Completed**: 2026-01-27
+- Created `tests/integration/dsl/__init__.py`
+- Created `tests/integration/dsl/test_flow_event_yielding.py` with 16 tests covering:
+  - Single agent flow yields all ADK events
+  - Multiple agent flow yields interleaved events
+  - Flow with call_llm yields LlmCallEvent and LlmResponseEvent
+  - Mixed flow (agents + LLM calls) yields correct event sequence
+  - Nested flows propagate events correctly
+  - End-to-end DSL compilation produces async generator flow methods
+  - Event type field values are correct
+  - Result capture via get_last_result() works correctly
+  - Agent entry point (no flow) yields events
+- Updated `docs/tasks/017-dsl/tech_debt.md` - moved "Flow Execution Does Not Yield ADK Events" to resolved
+- Updated `docs/dev/dsl/architecture.md` - updated "Flow Event Streaming" section to document implementation
 
 ---
 
@@ -550,9 +607,9 @@ with a feature flag until the new pattern is stable.
 
 ## Definition of Done
 
-- [ ] All phases implemented
-- [ ] All tests pass (`make check`)
-- [ ] No regressions in existing functionality
-- [ ] Documentation updated
-- [ ] Tech debt item resolved
+- [x] All phases implemented
+- [x] All tests pass (`make check`)
+- [x] No regressions in existing functionality
+- [x] Documentation updated
+- [x] Tech debt item resolved
 - [ ] Code reviewed

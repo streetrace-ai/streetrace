@@ -4,22 +4,32 @@ Test that generated flows properly execute with ADK integration
 and yield events from agent runs.
 """
 
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 if TYPE_CHECKING:
+    from google.adk.events import Event
+
     from streetrace.dsl.runtime.context import WorkflowContext
     from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+
+
+def create_mock_event(text: str) -> MagicMock:
+    """Create a mock ADK event with the given text result."""
+    event = MagicMock()
+    event.is_final_response.return_value = True
+    event.content = MagicMock()
+    event.content.parts = [MagicMock(text=text)]
+    return event
 
 
 @pytest.fixture
 def mock_workflow() -> "DslAgentWorkflow":
     """Create a mock DslAgentWorkflow for testing."""
-    workflow = MagicMock()
-    workflow.run_agent = AsyncMock(return_value="agent_result")
-    return workflow
+    return MagicMock()
 
 
 class TestFlowExecution:
@@ -71,14 +81,29 @@ class TestFlowExecution:
         mock_workflow: "DslAgentWorkflow",
     ) -> None:
         """A simple flow that runs a single agent delegates to workflow."""
-        mock_workflow.run_agent.return_value = "Analysis result"
+        captured_calls: list[tuple[str, tuple[object, ...]]] = []
 
-        # Run agent and check result
+        async def mock_run_agent(
+            agent_name: str,
+            *args: object,
+        ) -> AsyncGenerator["Event", None]:
+            captured_calls.append((agent_name, args))
+            # Set result in context for retrieval
+            workflow_context._last_call_result = "Analysis result"  # noqa: SLF001
+            yield create_mock_event("Analysis result")
+
+        mock_workflow.run_agent = mock_run_agent
+
+        # Run agent and check events
         workflow_context.vars["input_prompt"] = "test input"
-        result = await workflow_context.run_agent("analyzer", "test input")
+        events = [
+            event
+            async for event in workflow_context.run_agent("analyzer", "test input")
+        ]
 
-        mock_workflow.run_agent.assert_called_once_with("analyzer", "test input")
-        assert result == "Analysis result"
+        assert len(captured_calls) == 1
+        assert captured_calls[0] == ("analyzer", ("test input",))
+        assert len(events) == 1
 
     @pytest.mark.asyncio
     async def test_flow_variable_passing(
@@ -87,22 +112,37 @@ class TestFlowExecution:
         mock_workflow: "DslAgentWorkflow",
     ) -> None:
         """Flow variables can be passed between delegated agent runs."""
-        # Mock workflow to return different results on consecutive calls
-        mock_workflow.run_agent.side_effect = ["step1 result", "step2 result"]
+        call_count = 0
+
+        async def mock_run_agent(
+            agent_name: str,  # noqa: ARG001
+            *args: object,  # noqa: ARG001
+        ) -> AsyncGenerator["Event", None]:
+            nonlocal call_count
+            result = "step1 result" if call_count == 0 else "step2 result"
+            workflow_context._last_call_result = result  # noqa: SLF001
+            call_count += 1
+            yield create_mock_event(result)
+
+        mock_workflow.run_agent = mock_run_agent
 
         # Simulate flow: $analysis = run agent analyzer
         # $summary = run agent summarizer $analysis
         workflow_context.vars["input_prompt"] = "test input"
 
         # Step 1: Run analyzer
-        result1 = await workflow_context.run_agent("analyzer")
-        workflow_context.vars["analysis"] = result1
+        _ = [event async for event in workflow_context.run_agent("analyzer")]
+        workflow_context.vars["analysis"] = workflow_context.get_last_result()
 
         # Step 2: Run summarizer with analysis result
-        result2 = await workflow_context.run_agent(
-            "summarizer", workflow_context.vars["analysis"],
-        )
-        workflow_context.vars["summary"] = result2
+        _ = [
+            event
+            async for event in workflow_context.run_agent(
+                "summarizer",
+                workflow_context.vars["analysis"],
+            )
+        ]
+        workflow_context.vars["summary"] = workflow_context.get_last_result()
 
         assert workflow_context.vars["analysis"] == "step1 result"
         assert workflow_context.vars["summary"] == "step2 result"
@@ -139,16 +179,20 @@ class TestSequentialFlowExecution:
 
         async def mock_run_agent(
             agent_name: str,
-            *_args: object,
-        ) -> str:
+            *args: object,  # noqa: ARG001
+        ) -> AsyncGenerator["Event", None]:
             execution_order.append(agent_name)
-            return f"{agent_name} result"
+            workflow_context._last_call_result = f"{agent_name} result"  # noqa: SLF001
+            yield create_mock_event(f"{agent_name} result")
 
         mock_workflow.run_agent = mock_run_agent
 
         # Run sequential flow
-        result1 = await workflow_context.run_agent("step1_agent")
-        result2 = await workflow_context.run_agent("step2_agent")
+        _ = [event async for event in workflow_context.run_agent("step1_agent")]
+        result1 = workflow_context.get_last_result()
+
+        _ = [event async for event in workflow_context.run_agent("step2_agent")]
+        result2 = workflow_context.get_last_result()
 
         assert result1 == "step1_agent result"
         assert result2 == "step2_agent result"
@@ -182,21 +226,37 @@ class TestFlowWithDataTransformation:
         mock_workflow: "DslAgentWorkflow",
     ) -> None:
         """Flow should delegate data transformation to workflow."""
-        # Mock workflow to return different results for each agent
-        mock_workflow.run_agent.side_effect = [
-            '{"key": "value"}',
-            "Formatted: key=value",
-        ]
+        results = ['{"key": "value"}', "Formatted: key=value"]
+        call_count = 0
+
+        async def mock_run_agent(
+            agent_name: str,  # noqa: ARG001
+            *args: object,  # noqa: ARG001
+        ) -> AsyncGenerator["Event", None]:
+            nonlocal call_count
+            result = results[call_count]
+            workflow_context._last_call_result = result  # noqa: SLF001
+            call_count += 1
+            yield create_mock_event(result)
+
+        mock_workflow.run_agent = mock_run_agent
 
         # Step 1: Get raw analysis
-        raw_analysis = await workflow_context.run_agent("analyzer", "input data")
-        workflow_context.vars["analysis"] = raw_analysis
+        _ = [
+            event
+            async for event in workflow_context.run_agent("analyzer", "input data")
+        ]
+        workflow_context.vars["analysis"] = workflow_context.get_last_result()
 
         # Step 2: Format the analysis
-        formatted = await workflow_context.run_agent(
-            "formatter", workflow_context.vars["analysis"],
-        )
-        workflow_context.vars["result"] = formatted
+        _ = [
+            event
+            async for event in workflow_context.run_agent(
+                "formatter",
+                workflow_context.vars["analysis"],
+            )
+        ]
+        workflow_context.vars["result"] = workflow_context.get_last_result()
 
         assert workflow_context.vars["analysis"] == '{"key": "value"}'
         assert workflow_context.vars["result"] == "Formatted: key=value"
@@ -313,9 +373,8 @@ class TestCodeGenerationForFlows:
         bytecode = compile(python_code, str(flow_file), "exec")
         assert bytecode is not None
 
-        # Execute to create the workflow class
+        # Execute to create the workflow class (safe DSL-generated code)
         namespace: dict[str, object] = {}
-        # Note: This is safe - executing DSL-generated code in tests
         exec(bytecode, namespace)  # noqa: S102
 
         # Check that the workflow class was created
@@ -333,7 +392,11 @@ class TestCodeGenerationForFlows:
         assert workflow_class is not None
 
     def test_flow_return_generates_proper_code(self) -> None:
-        """Return statement should generate proper Python return."""
+        """Return statement should store value in context and use bare return.
+
+        In async generators, 'return value' is not allowed. The generated code
+        stores the return value in ctx.vars['_return_value'] and uses a bare return.
+        """
         from streetrace.dsl.ast.nodes import FlowDef, Literal, ReturnStmt
         from streetrace.dsl.codegen.emitter import CodeEmitter
         from streetrace.dsl.codegen.visitors.flows import FlowVisitor
@@ -353,4 +416,6 @@ class TestCodeGenerationForFlows:
         code = emitter.get_code()
 
         assert "async def flow_test_flow" in code
-        assert 'return "success"' in code
+        # Return stores value in context since flow is async generator
+        assert 'ctx.vars[\'_return_value\'] = "success"' in code
+        assert "return" in code

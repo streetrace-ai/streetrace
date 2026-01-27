@@ -30,11 +30,15 @@ Do not edit directly - modify the .sr source file instead.
 '''
 
 # Required imports for generated code
-IMPORTS = """from typing import Any
+IMPORTS = """from collections.abc import AsyncGenerator
+from typing import Any
 
 import asyncio
 
+from google.adk.events import Event
+
 from streetrace.dsl.runtime.context import WorkflowContext
+from streetrace.dsl.runtime.events import FlowEvent
 from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 from streetrace.dsl.runtime.errors import (
     AbortError,

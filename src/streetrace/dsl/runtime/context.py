@@ -8,10 +8,13 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
+from streetrace.dsl.runtime.events import FlowEvent, LlmCallEvent, LlmResponseEvent
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import AsyncGenerator, Callable
+
+    from google.adk.events import Event
 
     from streetrace.dsl.runtime.workflow import DslAgentWorkflow
     from streetrace.ui.ui_bus import UiBus
@@ -173,6 +176,9 @@ class WorkflowContext:
         self._escalation_callback: Callable[[str], None] | None = None
         """Optional callback for human escalation."""
 
+        self._last_call_result: object = None
+        """Result from last run_agent or call_llm operation."""
+
         logger.debug("Created WorkflowContext")
 
     def set_models(self, models: dict[str, str]) -> None:
@@ -232,8 +238,12 @@ class WorkflowContext:
         """
         self._escalation_callback = callback
 
-    async def run_agent(self, agent_name: str, *args: object) -> object:
-        """Run a named agent with arguments.
+    async def run_agent(
+        self,
+        agent_name: str,
+        *args: object,
+    ) -> AsyncGenerator[Event, None]:
+        """Run a named agent with arguments, yielding events.
 
         Always delegates to the parent workflow.
 
@@ -241,14 +251,19 @@ class WorkflowContext:
             agent_name: Name of the agent to run.
             *args: Arguments to pass to the agent (joined as prompt text).
 
-        Returns:
-            Result from the agent execution.
+        Yields:
+            ADK events from agent execution.
 
         """
-        return await self._workflow.run_agent(agent_name, *args)
+        async for event in self._workflow.run_agent(agent_name, *args):
+            yield event
 
-    async def run_flow(self, flow_name: str, *args: object) -> object:
-        """Run a named flow with arguments.
+    async def run_flow(
+        self,
+        flow_name: str,
+        *args: object,
+    ) -> AsyncGenerator[Event | FlowEvent, None]:
+        """Run a named flow with arguments, yielding events.
 
         Always delegates to the parent workflow.
 
@@ -256,11 +271,12 @@ class WorkflowContext:
             flow_name: Name of the flow to run.
             *args: Arguments to pass to the flow.
 
-        Returns:
-            Result from the flow execution.
+        Yields:
+            Events from flow execution.
 
         """
-        return await self._workflow.run_flow(flow_name, *args)
+        async for event in self._workflow.run_flow(flow_name, *args):
+            yield event
 
     def _resolve_agent_model(self, instruction_name: str | None) -> str:
         """Resolve the model for an agent based on its instruction.
@@ -297,19 +313,20 @@ class WorkflowContext:
         prompt_name: str,
         *args: object,
         model: str | None = None,
-    ) -> object:
-        """Call an LLM with a named prompt.
+    ) -> AsyncGenerator[FlowEvent, None]:
+        """Call an LLM with a named prompt, yielding events.
 
         Look up the prompt by name, evaluate it with the context,
-        and call the LLM using LiteLLM.
+        and call the LLM using LiteLLM. Yield events for progress tracking.
 
         Args:
             prompt_name: Name of the prompt to use.
             *args: Arguments for prompt interpolation (stored in context).
             model: Optional model override.
 
-        Returns:
-            LLM response content, or None if prompt not found or on error.
+        Yields:
+            LlmCallEvent when call initiates.
+            LlmResponseEvent when call completes.
 
         """
         import litellm
@@ -326,7 +343,8 @@ class WorkflowContext:
         prompt_value = self._prompts.get(prompt_name)
         if not prompt_value:
             logger.warning("Prompt '%s' not found in workflow context", prompt_name)
-            return None
+            self._last_call_result = None
+            return
 
         # Evaluate prompt lambda with context
         prompt_text = ""
@@ -335,7 +353,8 @@ class WorkflowContext:
                 prompt_text = str(prompt_value(self))
             except (TypeError, KeyError) as e:
                 logger.warning("Failed to evaluate prompt '%s': %s", prompt_name, e)
-                return None
+                self._last_call_result = None
+                return
         else:
             prompt_text = str(prompt_value)
 
@@ -343,6 +362,13 @@ class WorkflowContext:
         resolved_model = model
         if not resolved_model:
             resolved_model = self._resolve_agent_model(prompt_name)
+
+        # Yield call event
+        yield LlmCallEvent(
+            prompt_name=prompt_name,
+            model=resolved_model,
+            prompt_text=prompt_text,
+        )
 
         # Build messages for LLM call
         messages = [{"role": "user", "content": prompt_text}]
@@ -353,19 +379,40 @@ class WorkflowContext:
                 model=resolved_model,
                 messages=messages,
             )
+
+            # Extract response content
+            # Type ignore needed because litellm has complex return types
+            content: str | None = None
+            choices = getattr(response, "choices", None)
+            if choices and len(choices) > 0:
+                first_choice = choices[0]
+                message = getattr(first_choice, "message", None)
+                if message:
+                    content = getattr(message, "content", None)
+
+            # Store result for flow retrieval
+            self._last_call_result = content
+
+            # Yield response event
+            if content is not None:
+                yield LlmResponseEvent(
+                    prompt_name=prompt_name,
+                    content=content,
+                )
+
         except Exception:
             logger.exception("LLM call failed for prompt '%s'", prompt_name)
-            return None
+            self._last_call_result = None
 
-        # Extract response content
-        # Type ignore needed because litellm has complex return types
-        choices = getattr(response, "choices", None)
-        if choices and len(choices) > 0:
-            first_choice = choices[0]
-            message = getattr(first_choice, "message", None)
-            if message:
-                return getattr(message, "content", None)
-        return None
+    def get_last_result(self) -> object:
+        """Get the result from the last run_agent or call_llm operation.
+
+        Returns:
+            The result from the most recent operation, or None if no
+            operation has been executed or the last operation failed.
+
+        """
+        return self._last_call_result
 
     def process(
         self,

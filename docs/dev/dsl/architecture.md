@@ -533,18 +533,33 @@ See [Workload Architecture](../workloads/architecture.md) for implementation det
 
 ### Flow Event Streaming
 
-**Status**: Open
+**Status**: Implemented
 
-Flow execution returns only the final response from agent runs. Intermediate ADK events are
-consumed but not yielded to callers.
+Flow execution now yields all events to callers via async generator pattern:
 
-**Impact**: No support for progress monitoring or event-driven streaming in flows.
+- **ADK Events**: Events from `run agent` statements pass through unchanged
+- **FlowEvents**: Custom events from `call llm` statements (LlmCallEvent, LlmResponseEvent)
 
-**Tracking**: See `docs/tasks/017-dsl/tech_debt.md` for details.
+The implementation uses Python's async generator pattern:
+
+1. Flow methods are async generators with `AsyncGenerator[Event | FlowEvent, None]` return type
+2. `run_agent` and `call_llm` operations yield events as they occur
+3. Results are captured via `ctx.get_last_result()` after iteration
+4. The Supervisor handles both event types via isinstance checks
+
+**Key Files**:
+
+- `src/streetrace/dsl/runtime/events.py` - FlowEvent class hierarchy
+- `src/streetrace/dsl/codegen/visitors/flows.py` - Generator code generation
+- `src/streetrace/workflow/supervisor.py` - Event dispatch logic
+
+**Limitation**: Parallel blocks (`parallel:`) currently execute sequentially to preserve
+event yielding. True parallel execution with event streaming requires custom implementation.
 
 ## See Also
 
 - [Workload Architecture](../workloads/architecture.md) - Unified workload execution
+- [Flow Event Yielding](flow-events/overview.md) - Event streaming architecture and implementation
 - [Grammar Development Guide](grammar.md) - How to modify the DSL grammar
 - [Extension Guide](extending.md) - Adding new syntax and features
 - [Agentic Patterns](agentic-patterns.md) - Multi-agent pattern implementation

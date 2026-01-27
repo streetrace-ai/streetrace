@@ -4,21 +4,29 @@ Test that WorkflowContext requires a workflow reference and
 has no fallback code paths.
 """
 
+from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
 if TYPE_CHECKING:
+    from google.adk.events import Event
+
     from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+
+
+async def async_gen_flow_result() -> AsyncGenerator[str, None]:
+    """Create async generator that yields flow_result."""
+    yield "flow_result"
 
 
 @pytest.fixture
 def mock_workflow() -> "DslAgentWorkflow":
     """Create a mock DslAgentWorkflow."""
     workflow = MagicMock()
-    workflow.run_agent = AsyncMock(return_value="agent_result")
-    workflow.run_flow = AsyncMock(return_value="flow_result")
+    # run_flow is now an async generator
+    workflow.run_flow = MagicMock(return_value=async_gen_flow_result())
     return workflow
 
 
@@ -92,12 +100,25 @@ class TestRunAgentDelegation:
         """run_agent() delegates to workflow.run_agent()."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
+        # Create mock event
+        mock_event = MagicMock()
+
+        # Mock run_agent as async generator
+        async def mock_run_agent_gen(
+            agent_name: str,  # noqa: ARG001
+            *args: object,  # noqa: ARG001
+        ) -> AsyncGenerator["Event", None]:
+            yield mock_event
+
+        mock_workflow.run_agent = mock_run_agent_gen
+
         ctx = WorkflowContext(workflow=mock_workflow)
 
-        result = await ctx.run_agent("test_agent", "arg1", "arg2")
+        # run_agent is now an async generator - collect events
+        events = [event async for event in ctx.run_agent("test_agent", "arg1", "arg2")]
 
-        mock_workflow.run_agent.assert_called_once_with("test_agent", "arg1", "arg2")
-        assert result == "agent_result"
+        assert len(events) == 1
+        assert events[0] is mock_event
 
     @pytest.mark.asyncio
     async def test_run_agent_passes_all_args(
@@ -107,26 +128,54 @@ class TestRunAgentDelegation:
         """run_agent() passes all arguments to workflow."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
+        captured_args: list[tuple[str, tuple[object, ...]]] = []
+
+        # Mock run_agent as async generator that captures args
+        async def mock_run_agent_gen(
+            agent_name: str,
+            *args: object,
+        ) -> AsyncGenerator["Event", None]:
+            captured_args.append((agent_name, args))
+            yield MagicMock()
+
+        mock_workflow.run_agent = mock_run_agent_gen
+
         ctx = WorkflowContext(workflow=mock_workflow)
 
-        await ctx.run_agent("agent", "a", "b", "c")
+        # Consume the generator to trigger execution
+        _ = [event async for event in ctx.run_agent("agent", "a", "b", "c")]
 
-        mock_workflow.run_agent.assert_called_once_with("agent", "a", "b", "c")
+        assert len(captured_args) == 1
+        assert captured_args[0] == ("agent", ("a", "b", "c"))
 
     @pytest.mark.asyncio
     async def test_run_agent_returns_workflow_result(
         self,
         mock_workflow: "DslAgentWorkflow",
     ) -> None:
-        """run_agent() returns the result from workflow."""
+        """run_agent() yields events from workflow."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        mock_workflow.run_agent.return_value = "custom_result"
+        mock_event1 = MagicMock()
+        mock_event2 = MagicMock()
+
+        # Mock run_agent as async generator that yields multiple events
+        async def mock_run_agent_gen(
+            agent_name: str,  # noqa: ARG001
+            *args: object,  # noqa: ARG001
+        ) -> AsyncGenerator["Event", None]:
+            yield mock_event1
+            yield mock_event2
+
+        mock_workflow.run_agent = mock_run_agent_gen
+
         ctx = WorkflowContext(workflow=mock_workflow)
 
-        result = await ctx.run_agent("agent")
+        events = [event async for event in ctx.run_agent("agent")]
 
-        assert result == "custom_result"
+        assert len(events) == 2
+        assert events[0] is mock_event1
+        assert events[1] is mock_event2
 
 
 class TestRunFlowDelegation:
@@ -142,39 +191,49 @@ class TestRunFlowDelegation:
 
         ctx = WorkflowContext(workflow=mock_workflow)
 
-        result = await ctx.run_flow("test_flow", "arg1")
+        # run_flow is now an async generator - collect events
+        events = [event async for event in ctx.run_flow("test_flow", "arg1")]
 
         mock_workflow.run_flow.assert_called_once_with("test_flow", "arg1")
-        assert result == "flow_result"
+        assert events == ["flow_result"]
 
     @pytest.mark.asyncio
     async def test_run_flow_passes_all_args(
         self,
-        mock_workflow: "DslAgentWorkflow",
     ) -> None:
         """run_flow() passes all arguments to workflow."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        ctx = WorkflowContext(workflow=mock_workflow)
+        # Create fresh mock for this test
+        workflow = MagicMock()
+        workflow.run_flow = MagicMock(return_value=async_gen_flow_result())
 
-        await ctx.run_flow("flow", "x", "y", "z")
+        ctx = WorkflowContext(workflow=workflow)
 
-        mock_workflow.run_flow.assert_called_once_with("flow", "x", "y", "z")
+        # run_flow is now an async generator - consume it
+        _ = [event async for event in ctx.run_flow("flow", "x", "y", "z")]
+
+        workflow.run_flow.assert_called_once_with("flow", "x", "y", "z")
 
     @pytest.mark.asyncio
-    async def test_run_flow_returns_workflow_result(
+    async def test_run_flow_yields_events_from_workflow(
         self,
-        mock_workflow: "DslAgentWorkflow",
     ) -> None:
-        """run_flow() returns the result from workflow."""
+        """run_flow() yields events from workflow."""
         from streetrace.dsl.runtime.context import WorkflowContext
 
-        mock_workflow.run_flow.return_value = "custom_flow_result"
-        ctx = WorkflowContext(workflow=mock_workflow)
+        async def custom_flow_gen() -> AsyncGenerator[str, None]:
+            yield "event1"
+            yield "event2"
 
-        result = await ctx.run_flow("flow")
+        workflow = MagicMock()
+        workflow.run_flow = MagicMock(return_value=custom_flow_gen())
 
-        assert result == "custom_flow_result"
+        ctx = WorkflowContext(workflow=workflow)
+
+        events = [event async for event in ctx.run_flow("flow")]
+
+        assert events == ["event1", "event2"]
 
 
 class TestNoFallbackMethods:

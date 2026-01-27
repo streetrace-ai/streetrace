@@ -92,6 +92,9 @@ render_warn  # unused function (src/streetrace/ui/ui_events.py:35)
 render_info  # unused function (src/streetrace/ui/ui_events.py:44)
 render_markdown  # unused function (src/streetrace/ui/ui_events.py:53)
 render_user_input  # unused function (src/streetrace/ui/ui_events.py:67)
+render_llm_call  # unused function (flow_event_renderer.py) - called dynamically by renderer registry
+render_llm_response  # unused function (flow_event_renderer.py) - called dynamically by renderer registry
+is_final  # unused variable (events.py) - dataclass field default value
 _.__signature__  # unused attribute (src/streetrace/utils/hide_args.py:79)
 _.__doc__  # unused attribute (src/streetrace/utils/hide_args.py:81)
 NL_type  # unused variable (src/streetrace/dsl/grammar/indenter.py:23) - used by Lark Indenter base class
@@ -350,6 +353,7 @@ _.set_prompt_models  # unused method (context.py) - public API for setting promp
 _.set_ui_bus  # unused method (context.py) - public API for setting UI bus
 _.set_escalation_callback  # unused method (context.py) - public API for setting escalation callback
 _.process  # unused method (context.py) - public API for pipeline processing
+_.get_last_result  # unused method (context.py) - public API for getting last operation result
 _._context  # unused attribute (workflow.py) - internal context storage
 _.create_context  # unused method (workflow.py) - public API for context creation
 _.on_start  # unused method (workflow.py) - event handler override point

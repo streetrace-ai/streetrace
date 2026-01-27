@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from google.adk.sessions.base_session_service import BaseSessionService
     from google.genai.types import Content
 
+    from streetrace.dsl.runtime.events import FlowEvent
     from streetrace.llm.model_factory import ModelFactory
     from streetrace.system_context import SystemContext
     from streetrace.tools.tool_provider import ToolProvider
@@ -130,7 +131,8 @@ class DslAgentWorkflow:
 
         # Check for default agent
         if len(self._agents) == 1:
-            return EntryPoint(type="agent", name=(self._agents.items()[0][0].name))
+            agent_name = next(iter(self._agents.keys()))
+            return EntryPoint(type="agent", name=agent_name)
 
         # If main/default flow and default agent not found, we can't run
         # anything as it introduces ambiguity.
@@ -230,13 +232,16 @@ class DslAgentWorkflow:
         flow_name: str,
         session: "Session",
         message: "Content | None",
-    ) -> None:
-        """Execute a flow.
+    ) -> AsyncGenerator["Event | FlowEvent", None]:
+        """Execute a flow, yielding events.
 
         Args:
             flow_name: Name of the flow to execute.
             session: ADK session (reserved for future event forwarding).
             message: User message to process.
+
+        Yields:
+            Events from all operations within the flow.
 
         """
         # Reserved for future event forwarding (Option 2/3 in design doc)
@@ -250,13 +255,16 @@ class DslAgentWorkflow:
         # Extract user input and create context with built-in variables
         input_text = self._extract_message_text(message)
         ctx = self.create_context(input_prompt=input_text)
-        await flow_method(ctx)
+
+        # Flow method is now a generator - iterate and yield events
+        async for event in flow_method(ctx):
+            yield event
 
     async def run_async(
         self,
         session: "Session",
         message: "Content | None",
-    ) -> AsyncGenerator["Event", None]:
+    ) -> AsyncGenerator["Event | FlowEvent", None]:
         """Execute the workload based on DSL definition.
 
         Entry point selection:
@@ -269,21 +277,24 @@ class DslAgentWorkflow:
             message: User message to process.
 
         Yields:
-            ADK events from execution.
+            Events from execution (ADK events or FlowEvents).
 
         """
         entry_point = self._determine_entry_point()
 
         if entry_point.type == "flow":
-            # For now, flows don't yield events
-            await self._execute_flow(entry_point.name, session, message)
-            return
+            async for event in self._execute_flow(entry_point.name, session, message):
+                yield event
         else:
             async for event in self._execute_agent(entry_point.name, session, message):
                 yield event
 
-    async def run_agent(self, agent_name: str, *args: object) -> object:
-        """Run an agent from within a flow.
+    async def run_agent(
+        self,
+        agent_name: str,
+        *args: object,
+    ) -> AsyncGenerator["Event", None]:
+        """Run an agent from within a flow, yielding events.
 
         Called by generated flow code via ctx.run_agent().
         Uses _create_agent() which delegates to DslAgentFactory.
@@ -292,8 +303,8 @@ class DslAgentWorkflow:
             agent_name: Name of the agent to run.
             *args: Arguments to pass to the agent.
 
-        Returns:
-            Final response from the agent.
+        Yields:
+            ADK events from agent execution.
 
         Raises:
             ValueError: If agent_factory not set.
@@ -331,22 +342,27 @@ class DslAgentWorkflow:
             session_id="nested_session",
             new_message=content,
         ):
-            if event.is_final_response():
-                if event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
-                break
+            yield event  # Forward event to caller
+            if event.is_final_response() and event.content and event.content.parts:
+                final_response = event.content.parts[0].text
 
-        return final_response
+        # Store result for context retrieval
+        if self._context:
+            self._context._last_call_result = final_response  # noqa: SLF001
 
-    async def run_flow(self, flow_name: str, *args: object) -> object:
-        """Run a flow from within another flow.
+    async def run_flow(
+        self,
+        flow_name: str,
+        *args: object,
+    ) -> AsyncGenerator["Event | FlowEvent", None]:
+        """Run a flow from within another flow, yielding events.
 
         Args:
             flow_name: Name of the flow to run.
             *args: Arguments to pass to the flow.
 
-        Returns:
-            Result from the flow.
+        Yields:
+            Events from flow execution.
 
         Raises:
             ValueError: If flow not found.
@@ -359,7 +375,8 @@ class DslAgentWorkflow:
             raise ValueError(msg)
 
         ctx = self.create_context()
-        return await flow_method(ctx)
+        async for event in flow_method(ctx):
+            yield event
 
     async def close(self) -> None:
         """Clean up all created agents.

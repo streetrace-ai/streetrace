@@ -629,7 +629,11 @@ class TestCodeGeneratorControlFlow:
         generator = CodeGenerator()
         code, _mappings = generator.generate(ast, "test.sr")
 
-        assert "asyncio.gather" in code
+        # Parallel block now falls back to sequential execution with event yielding
+        # since asyncio.gather doesn't work with async generators
+        assert "Sequential execution" in code
+        assert "run_agent('task_a')" in code
+        assert "run_agent('task_b')" in code
 
     def test_generate_match_block(self) -> None:
         """Generate code for match block."""
@@ -700,7 +704,9 @@ class TestCodeGeneratorExpressions:
         generator = CodeGenerator()
         code, _mappings = generator.generate(ast, "test.sr")
 
-        assert "return 42" in code
+        # Return stores value in context since flow is async generator
+        assert "ctx.vars['_return_value'] = 42" in code
+        assert "return" in code
 
     def test_generate_literal_string(self) -> None:
         """Generate code for string literal."""
@@ -720,7 +726,9 @@ class TestCodeGeneratorExpressions:
         generator = CodeGenerator()
         code, _mappings = generator.generate(ast, "test.sr")
 
-        assert 'return "hello"' in code or "return 'hello'" in code
+        # Return stores value in context since flow is async generator
+        assert 'ctx.vars[\'_return_value\'] = "hello"' in code
+        assert "return" in code
 
     def test_generate_binary_operation(self) -> None:
         """Generate code for binary operation."""

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, override
 
 from opentelemetry import trace
 
+from streetrace.dsl.runtime.events import FlowEvent, LlmResponseEvent
 from streetrace.input_handler import (
     HANDLED_CONT,
     HandlerResult,
@@ -16,6 +17,8 @@ from streetrace.ui.adk_event_renderer import Event
 from streetrace.ui.ui_bus import UiBus
 
 if TYPE_CHECKING:
+    from google.adk.events import Event as AdkEvent
+
     from streetrace.session.session_manager import SessionManager
     from streetrace.workloads import WorkloadManager
 
@@ -46,6 +49,10 @@ def _format_exception_message(exc: BaseException) -> str:
     return str(exc)
 
 
+DEFAULT_NO_RESPONSE_MSG = "Agent did not produce a final response."
+"""Default message when no final response is captured."""
+
+
 class Supervisor(InputHandler):
     """Workflow supervisor manages and executes available workloads."""
 
@@ -67,6 +74,56 @@ class Supervisor(InputHandler):
         self.session_manager = session_manager
         self.ui_bus = ui_bus
         self.long_running = True
+
+    def _capture_flow_event_response(
+        self,
+        event: FlowEvent,
+        current_response: str | None,
+    ) -> str | None:
+        """Capture final response from FlowEvent if applicable.
+
+        Args:
+            event: The FlowEvent to check.
+            current_response: Current captured response.
+
+        Returns:
+            Updated response text if this event provides a final response.
+
+        """
+        if (
+            isinstance(event, LlmResponseEvent)
+            and event.is_final
+            and current_response == DEFAULT_NO_RESPONSE_MSG
+        ):
+            return event.content
+        return current_response
+
+    def _capture_adk_event_response(
+        self,
+        event: "AdkEvent",
+        current_response: str | None,
+    ) -> str | None:
+        """Capture final response from ADK Event if applicable.
+
+        Args:
+            event: The ADK Event to check.
+            current_response: Current captured response.
+
+        Returns:
+            Updated response text if this event provides a final response.
+
+        """
+        if not event.is_final_response():
+            return current_response
+        if current_response != DEFAULT_NO_RESPONSE_MSG:
+            return current_response
+
+        if event.content and event.content.parts:
+            return event.content.parts[0].text
+        if event.actions and event.actions.escalate:
+            error_msg = event.error_message or "No specific message."
+            return f"Agent escalated: {error_msg}"
+        return current_response
 
     @override
     async def handle(self, ctx: InputContext) -> HandlerResult:
@@ -95,7 +152,7 @@ class Supervisor(InputHandler):
         parts = [genai_types.Part.from_text(text=item) for item in ctx]
 
         content = genai_types.Content(role="user", parts=parts) if parts else None
-        final_response_text: str | None = "Agent did not produce a final response."
+        final_response_text: str | None = DEFAULT_NO_RESPONSE_MSG
 
         session = await self.session_manager.get_or_create_session()
         session = await self.session_manager.validate_session(session)
@@ -113,33 +170,21 @@ class Supervisor(InputHandler):
                     # yields Events while it goes through ReAct loop.
                     # We iterate through events to reach the final answer.
                     async for event in workload.run_async(session, content):
-                        self.ui_bus.dispatch_ui_update(Event(event=event))
-                        await self.session_manager.manage_current_session()
-
-                        # TODO(krmrn42): Handle wrong tool calls. How to
-                        # detect the root cause is an attempt to store a
-                        # large file? E.g.:
-                        # Tool signature doesn't match
-                        #   -> Parameters missing
-                        #       -> tool name is "write_file"
-                        #           -> missing parameter name is "content"
-
-                        # Check if this is the final response from the workload
-                        # Only capture first final response if multiple
-                        if (
-                            event.is_final_response()
-                            and final_response_text
-                            == "Agent did not produce a final response."
-                        ):
-                            if event.content and event.content.parts:
-                                # Assuming text response in first part
-                                final_response_text = event.content.parts[0].text
-                            elif event.actions and event.actions.escalate:
-                                # Handle potential errors/escalations
-                                error_msg = (
-                                    event.error_message or "No specific message."
-                                )
-                                final_response_text = f"Agent escalated: {error_msg}"
+                        if isinstance(event, FlowEvent):
+                            # Custom flow event - dispatch directly
+                            self.ui_bus.dispatch_ui_update(event)
+                            final_response_text = self._capture_flow_event_response(
+                                event,
+                                final_response_text,
+                            )
+                        else:
+                            # ADK Event - wrap and dispatch
+                            self.ui_bus.dispatch_ui_update(Event(event=event))
+                            await self.session_manager.manage_current_session()
+                            final_response_text = self._capture_adk_event_response(
+                                event,
+                                final_response_text,
+                            )
             # Add the workload's final message to the history
             if final_response_text:
                 await self.session_manager.post_process(

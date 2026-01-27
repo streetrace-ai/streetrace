@@ -426,7 +426,9 @@ class TestLoopBlockCodeGeneration:
 
         assert "while _loop_count < _max_iterations:" in code
         assert "if ctx.vars['done']:" in code
-        assert 'return "complete"' in code
+        # Return stores value in context since flow is async generator
+        assert 'ctx.vars[\'_return_value\'] = "complete"' in code
+        assert "return" in code
 
     def test_loop_with_continue_statement(self) -> None:
         """Loop with continue statement generates continue keyword."""

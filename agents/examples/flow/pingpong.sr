@@ -1,0 +1,56 @@
+# Code Reviewer Agent - DSL version of reviewer.yml
+
+model main = anthropic/claude-sonnet-4-5
+model reviewer = vertex_ai/gemini-3-pro-preview
+
+
+tool fs = builtin streetrace.fs
+tool fs_readonly = builtin streetrace.fs_readonly
+tool web = builtin streetrace.web
+tool cli = builtin streetrace.cli
+
+prompt pi_enhancer using model "main": '''Input: A numeric value that may represent PI.
+
+Task Logic:
+
+1. Check whether the input value is exactly PI.
+2. If the value is not PI, output:
+   DRIFTING
+3. If the value is PI, output PI with one additional digit of precision beyond the input.
+4. Output only the resulting value, with no labels, explanations, or extra text.
+
+Rules:
+
+* No additional formatting.
+* No validation messages.
+* No commentary.
+* No symbols or text other than the required output.
+* Precision increase applies only when the value is verified as PI.
+
+Example 1:
+User> 3
+Model> 3.1
+
+Example 2:
+User> 3.14
+Model> 3.141
+
+Example 3:
+User> 3.1416
+Model> 3.14159
+''' escalate if ~"DRIFTING"
+
+agent peer1:
+    instruction pi_enhancer
+
+agent peer2:
+    instruction pi_enhancer
+
+flow default:
+    $current = $input_prompt
+    loop max 3 do
+        $current = run agent peer1 $current, on escalate return $current
+        $current = run agent peer2 $current, on escalate return $current
+    end
+
+    return $current

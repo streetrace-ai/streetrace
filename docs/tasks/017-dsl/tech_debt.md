@@ -2,35 +2,6 @@
 
 ## Open Issues
 
-### Flow Execution Does Not Yield ADK Events
-
-**Status**: Open
-**Source**: Phase 3 Requirements
-**Location**: `src/streetrace/dsl/runtime/context.py`, `WorkflowContext.run_agent()`
-
-**Problem**: The current implementation collects the final response from agent execution but does not yield intermediate ADK events. The design doc specifies that flows should produce async generators yielding ADK events.
-
-**Current Behavior**: `run_agent()` returns only the final text response.
-
-**Desired Behavior**: Flow methods should yield ADK events as they occur:
-```python
-async for event in self.run_agent('main_agent', input_prompt):
-    if event.is_final_response():
-        ctx.vars['analysis'] = event.data
-    yield event
-```
-
-**Workaround**: The current await-based approach works for basic flows but doesn't support event streaming or progress monitoring.
-
-**Required Changes**:
-1. Change `run_agent()` return type to `AsyncGenerator[Event, None]`
-2. Update code generation in `flows.py` to handle async generators
-3. Update flow method signatures to support yielding events
-
-**Decision**: Let's keep this open for now. We need to figure out the use cases.
-
----
-
 ### SequentialAgent Not Used for Multi-Agent Flows
 
 **Status**: Open
@@ -101,3 +72,4 @@ The following documentation updates are deferred:
 | Tool Passing Inconsistency Between Loader and Runtime | 2026-01-21 | Implemented via Workload Protocol - DslAgentWorkflow uses composition with DslStreetRaceAgent |
 | Duplicate DslAgentLoader implementations | 2026-01-22 | Phase 6 - Deleted `dsl/loader.py`, added deprecation warnings to old types |
 | Tool Auth parameters not passed to transport | 2026-01-26 | Full chain implemented: grammar → AST → codegen → tool_factory with env var interpolation |
+| Flow Execution Does Not Yield ADK Events | 2026-01-27 | Implemented via async generator pattern - flow methods yield events from run_agent and call_llm |

@@ -83,10 +83,16 @@ class FlowVisitor:
         """
         source_line = node.meta.line if node.meta else None
 
-        # Emit method definition
+        # Emit method definition with async generator signature
         self._emitter.emit(
-            f"async def flow_{node.name}(self, ctx: WorkflowContext) -> Any:",
+            f"async def flow_{node.name}(",
             source_line=source_line,
+        )
+        self._emitter.emit(
+            "    self, ctx: WorkflowContext",
+        )
+        self._emitter.emit(
+            ") -> AsyncGenerator[Event | FlowEvent, None]:",
         )
         self._emitter.indent()
 
@@ -227,18 +233,20 @@ class FlowVisitor:
         args_str = ", ".join(self._expr_visitor.visit(arg) for arg in node.args)
 
         if args_str:
-            call = f"await ctx.run_agent('{node.agent}', {args_str})"
+            call = f"ctx.run_agent('{node.agent}', {args_str})"
         else:
-            call = f"await ctx.run_agent('{node.agent}')"
+            call = f"ctx.run_agent('{node.agent}')"
 
+        # Generate async for loop to yield events
+        self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
+        self._emitter.indent()
+        self._emitter.emit("yield _event")
+        self._emitter.dedent()
+
+        # Assign result from context if target specified
         if node.target:
             target_name = node.target.lstrip("$")
-            self._emitter.emit(
-                f"ctx.vars['{target_name}'] = {call}",
-                source_line=source_line,
-            )
-        else:
-            self._emitter.emit(call, source_line=source_line)
+            self._emitter.emit(f"ctx.vars['{target_name}'] = ctx.get_last_result()")
 
     def _visit_call_stmt(self, node: CallStmt) -> None:
         """Generate code for call LLM statement.
@@ -253,27 +261,32 @@ class FlowVisitor:
         if node.model:
             if args_str:
                 call = (
-                    f"await ctx.call_llm('{node.prompt}', {args_str}, "
+                    f"ctx.call_llm('{node.prompt}', {args_str}, "
                     f"model='{node.model}')"
                 )
             else:
-                call = f"await ctx.call_llm('{node.prompt}', model='{node.model}')"
+                call = f"ctx.call_llm('{node.prompt}', model='{node.model}')"
         elif args_str:
-            call = f"await ctx.call_llm('{node.prompt}', {args_str})"
+            call = f"ctx.call_llm('{node.prompt}', {args_str})"
         else:
-            call = f"await ctx.call_llm('{node.prompt}')"
+            call = f"ctx.call_llm('{node.prompt}')"
 
+        # Generate async for loop to yield events
+        self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
+        self._emitter.indent()
+        self._emitter.emit("yield _event")
+        self._emitter.dedent()
+
+        # Assign result from context if target specified
         if node.target:
             target_name = node.target.lstrip("$")
-            self._emitter.emit(
-                f"ctx.vars['{target_name}'] = {call}",
-                source_line=source_line,
-            )
-        else:
-            self._emitter.emit(call, source_line=source_line)
+            self._emitter.emit(f"ctx.vars['{target_name}'] = ctx.get_last_result()")
 
     def _visit_return_stmt(self, node: ReturnStmt) -> None:
         """Generate code for return statement.
+
+        In async generators, 'return value' is not allowed. Instead, store
+        the return value in context and use a bare return.
 
         Args:
             node: Return statement node.
@@ -281,7 +294,12 @@ class FlowVisitor:
         """
         source_line = node.meta.line if node.meta else None
         value = self._expr_visitor.visit(node.value)
-        self._emitter.emit(f"return {value}", source_line=source_line)
+        # Store return value in context for retrieval after generator completes
+        self._emitter.emit(
+            f"ctx.vars['_return_value'] = {value}",
+            source_line=source_line,
+        )
+        self._emitter.emit("return")
 
     def _visit_push_stmt(self, node: PushStmt) -> None:
         """Generate code for push statement.
@@ -327,6 +345,10 @@ class FlowVisitor:
     def _visit_parallel_block(self, node: ParallelBlock) -> None:
         """Generate code for parallel block.
 
+        Generate sequential execution with event yielding since asyncio.gather
+        does not work with async generators. True parallel execution with event
+        yielding requires custom implementation.
+
         Args:
             node: Parallel block node.
 
@@ -342,30 +364,13 @@ class FlowVisitor:
                 self.visit_statement(stmt)
             return
 
-        # Generate parallel execution
-        calls = []
-        targets = []
+        # Generate sequential execution with comment explaining the fallback
+        self._emitter.emit(
+            "# Sequential execution (parallel event yielding not yet supported)",
+            source_line=source_line,
+        )
         for stmt in run_stmts:
-            args_str = ", ".join(self._expr_visitor.visit(arg) for arg in stmt.args)
-            if args_str:
-                call = f"ctx.run_agent('{stmt.agent}', {args_str})"
-            else:
-                call = f"ctx.run_agent('{stmt.agent}')"
-            calls.append(call)
-            targets.append(stmt.target.lstrip("$") if stmt.target else None)
-
-        # Emit asyncio.gather
-        self._emitter.emit("_parallel_results = await asyncio.gather(", source_line)
-        self._emitter.indent()
-        for call in calls:
-            self._emitter.emit(f"{call},")
-        self._emitter.dedent()
-        self._emitter.emit(")")
-
-        # Assign results to targets
-        for i, target in enumerate(targets):
-            if target:
-                self._emitter.emit(f"ctx.vars['{target}'] = _parallel_results[{i}]")
+            self._visit_run_stmt(stmt)
 
     def _visit_match_block(self, node: MatchBlock) -> None:
         """Generate code for match block.

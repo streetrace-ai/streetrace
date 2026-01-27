@@ -550,10 +550,15 @@ class TestDslAgentWorkflowRunAgent:
                 return_value=mock_session_service_instance,
             ),
         ):
-            result = await workflow.run_agent("analyzer", "analyze this")
+            # run_agent is now an async generator - collect events
+            events = [
+                event async for event in workflow.run_agent("analyzer", "analyze this")
+            ]
 
         assert mock_agent_factory.create_agent.called
-        assert result == "result"
+        # Verify event was yielded
+        assert len(events) == 1
+        assert events[0] is mock_event
 
 
 class TestDslAgentWorkflowRunFlow:
@@ -567,16 +572,22 @@ class TestDslAgentWorkflowRunFlow:
         mock_system_context: "SystemContext",
         mock_session_service: "BaseSessionService",
     ) -> None:
-        """run_flow calls the corresponding flow method."""
+        """run_flow calls the corresponding flow method and yields events."""
+        from collections.abc import AsyncGenerator
+
+        from streetrace.dsl.runtime.context import WorkflowContext
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
         class TestWorkflow(DslAgentWorkflow):
             _agents = {}  # noqa: RUF012
             flow_called = False
 
-            async def flow_test(self, _ctx: object) -> str:
+            async def flow_test(
+                self,
+                _ctx: WorkflowContext,
+            ) -> AsyncGenerator[object, None]:
                 self.flow_called = True
-                return "flow_result"
+                yield "flow_result"
 
         workflow = TestWorkflow(
             model_factory=mock_model_factory,
@@ -584,10 +595,12 @@ class TestDslAgentWorkflowRunFlow:
             system_context=mock_system_context,
             session_service=mock_session_service,
         )
-        result = await workflow.run_flow("test")
+        # run_flow is now an async generator - collect events
+        events = [event async for event in workflow.run_flow("test")]
 
         assert workflow.flow_called
-        assert result == "flow_result"
+        assert len(events) == 1
+        assert events[0] == "flow_result"
 
     @pytest.mark.asyncio
     async def test_run_flow_raises_for_unknown_flow(
@@ -608,7 +621,8 @@ class TestDslAgentWorkflowRunFlow:
         )
 
         with pytest.raises(ValueError, match="not found"):
-            await workflow.run_flow("nonexistent")
+            async for _ in workflow.run_flow("nonexistent"):
+                pass
 
 
 class TestWorkflowContextDelegation:
@@ -683,14 +697,23 @@ class TestWorkflowContextDelegation:
             session_service=mock_session_service,
         )
 
-        # Mock run_agent on workflow
-        workflow.run_agent = AsyncMock(return_value="workflow_result")
+        # Mock run_agent as an async generator
+        mock_event = MagicMock()
+
+        async def mock_run_agent_gen(
+            agent_name: str,  # noqa: ARG001
+            *args: object,  # noqa: ARG001
+        ) -> AsyncGenerator["Event", None]:
+            yield mock_event
+
+        workflow.run_agent = mock_run_agent_gen  # type: ignore[method-assign]
 
         ctx = WorkflowContext(workflow=workflow)
-        result = await ctx.run_agent("test_agent", "arg1", "arg2")
+        # run_agent is now an async generator - collect events
+        events = [event async for event in ctx.run_agent("test_agent", "arg1", "arg2")]
 
-        workflow.run_agent.assert_called_once_with("test_agent", "arg1", "arg2")
-        assert result == "workflow_result"
+        assert len(events) == 1
+        assert events[0] is mock_event
 
     @pytest.mark.asyncio
     async def test_context_run_agent_always_delegates(
@@ -710,13 +733,24 @@ class TestWorkflowContextDelegation:
             system_context=mock_system_context,
             session_service=mock_session_service,
         )
-        workflow.run_agent = AsyncMock(return_value="delegated_result")
+
+        # Mock run_agent as an async generator
+        mock_event = MagicMock()
+
+        async def mock_run_agent_gen(
+            agent_name: str,  # noqa: ARG001
+            *args: object,  # noqa: ARG001
+        ) -> AsyncGenerator["Event", None]:
+            yield mock_event
+
+        workflow.run_agent = mock_run_agent_gen  # type: ignore[method-assign]
 
         ctx = WorkflowContext(workflow=workflow)
-        result = await ctx.run_agent("test_agent", "arg1")
+        # run_agent is now an async generator - collect events
+        events = [event async for event in ctx.run_agent("test_agent", "arg1")]
 
-        workflow.run_agent.assert_called_once_with("test_agent", "arg1")
-        assert result == "delegated_result"
+        assert len(events) == 1
+        assert events[0] is mock_event
 
 
 class TestCreateContextConnectsWorkflow:

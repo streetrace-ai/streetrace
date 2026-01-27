@@ -16,6 +16,7 @@ if TYPE_CHECKING:
     from google.adk.sessions.base_session_service import BaseSessionService
     from google.genai.types import Content
 
+    from streetrace.dsl.runtime.events import FlowEvent
     from streetrace.llm.model_factory import ModelFactory
     from streetrace.system_context import SystemContext
     from streetrace.tools.tool_provider import ToolProvider
@@ -86,7 +87,7 @@ class DslWorkload:
         self,
         session: "Session",
         message: "Content | None",
-    ) -> AsyncGenerator["Event", None]:
+    ) -> AsyncGenerator["Event | FlowEvent", None]:
         """Execute the workload and yield events.
 
         Delegates to the underlying DslAgentWorkflow's run_async method.
@@ -96,7 +97,7 @@ class DslWorkload:
             message: User message to process, or None for initial runs
 
         Yields:
-            ADK events from execution
+            ADK events or FlowEvents from execution
 
         """
         async for event in self._workflow.run_async(session, message):

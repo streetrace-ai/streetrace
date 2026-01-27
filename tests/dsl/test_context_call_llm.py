@@ -1,7 +1,7 @@
 """Tests for WorkflowContext.call_llm() method.
 
 Test that call_llm properly invokes LLM with named prompts
-and handles model resolution.
+and handles model resolution. These tests use the generator pattern.
 """
 
 from typing import TYPE_CHECKING
@@ -18,6 +18,11 @@ if TYPE_CHECKING:
 def mock_workflow() -> "DslAgentWorkflow":
     """Create a mock DslAgentWorkflow for testing."""
     return MagicMock()
+
+
+async def consume_generator(generator: object) -> list[object]:
+    """Consume an async generator and return all events."""
+    return [event async for event in generator]  # type: ignore[union-attr]
 
 
 class TestCallLlm:
@@ -63,7 +68,8 @@ class TestCallLlm:
             mock_response.choices = [mock_choice]
             mock_acompletion.return_value = mock_response
 
-            result = await workflow_context.call_llm("greeting")
+            await consume_generator(workflow_context.call_llm("greeting"))
+            result = workflow_context.get_last_result()
 
             # Verify acompletion was called with the evaluated prompt
             mock_acompletion.assert_called_once()
@@ -87,7 +93,7 @@ class TestCallLlm:
             mock_response.choices = [MagicMock(message=MagicMock(content="Summary"))]
             mock_acompletion.return_value = mock_response
 
-            await workflow_context.call_llm("summarize")
+            await consume_generator(workflow_context.call_llm("summarize"))
 
             # Verify the prompt was evaluated with context
             mock_acompletion.assert_called_once()
@@ -107,7 +113,7 @@ class TestCallLlm:
             mock_response.choices = [mock_choice]
             mock_acompletion.return_value = mock_response
 
-            await workflow_context.call_llm("summarize")
+            await consume_generator(workflow_context.call_llm("summarize"))
 
             # Verify the correct model was used
             mock_acompletion.assert_called_once()
@@ -126,7 +132,9 @@ class TestCallLlm:
             mock_response.choices = [mock_choice]
             mock_acompletion.return_value = mock_response
 
-            await workflow_context.call_llm("greeting", model="openai/gpt-4")
+            await consume_generator(
+                workflow_context.call_llm("greeting", model="openai/gpt-4"),
+            )
 
             # Verify the override model was used
             mock_acompletion.assert_called_once()
@@ -138,7 +146,7 @@ class TestCallLlm:
         self,
         workflow_context: "WorkflowContext",
     ) -> None:
-        """call_llm returns the LLM response content."""
+        """call_llm stores the LLM response content for retrieval."""
         with patch("litellm.acompletion") as mock_acompletion:
             mock_response = MagicMock()
             mock_response.choices = [
@@ -146,7 +154,8 @@ class TestCallLlm:
             ]
             mock_acompletion.return_value = mock_response
 
-            result = await workflow_context.call_llm("greeting")
+            await consume_generator(workflow_context.call_llm("greeting"))
+            result = workflow_context.get_last_result()
 
             assert result == "The response from LLM"
 
@@ -155,8 +164,9 @@ class TestCallLlm:
         self,
         workflow_context: "WorkflowContext",
     ) -> None:
-        """call_llm returns None if prompt is not found."""
-        result = await workflow_context.call_llm("nonexistent_prompt")
+        """call_llm sets result to None if prompt is not found."""
+        await consume_generator(workflow_context.call_llm("nonexistent_prompt"))
+        result = workflow_context.get_last_result()
         assert result is None
 
     @pytest.mark.asyncio
@@ -171,7 +181,7 @@ class TestCallLlm:
             mock_response.choices = [MagicMock(message=MagicMock(content="Response"))]
             mock_acompletion.return_value = mock_response
 
-            await workflow_context.call_llm("format_output")
+            await consume_generator(workflow_context.call_llm("format_output"))
 
             # Verify main model was used as fallback
             mock_acompletion.assert_called_once()
@@ -191,7 +201,7 @@ class TestCallLlm:
             mock_response.choices = [MagicMock(message=MagicMock(content="Formatted"))]
             mock_acompletion.return_value = mock_response
 
-            await workflow_context.call_llm("format_output")
+            await consume_generator(workflow_context.call_llm("format_output"))
 
             # Verify the message was used
             mock_acompletion.assert_called_once()
@@ -208,7 +218,8 @@ class TestCallLlm:
         with patch("litellm.acompletion") as mock_acompletion:
             mock_acompletion.side_effect = Exception("LLM API error")
 
-            result = await workflow_context.call_llm("greeting")
+            await consume_generator(workflow_context.call_llm("greeting"))
+            result = workflow_context.get_last_result()
 
-            # Should return None on error
+            # Should have None result on error
             assert result is None

@@ -290,28 +290,37 @@ Set the available agents.
 #### run_agent
 
 ```python
-async def run_agent(self, agent_name: str, *args: object) -> object
+async def run_agent(
+    self,
+    agent_name: str,
+    *args: object,
+) -> AsyncGenerator[Event, None]
 ```
 
-Run a named agent with arguments.
+Run a named agent with arguments, yielding ADK events.
 
 Create an ADK LlmAgent from the agent configuration and execute it with the provided
-arguments as the user prompt.
+arguments as the user prompt. Events are yielded as the agent executes.
 
 **Parameters**:
 - `agent_name`: Name of the agent to run.
 - `*args`: Arguments to pass (joined as prompt text).
 
-**Returns**:
-Result from the agent execution, or None if agent not found.
+**Yields**:
+ADK `Event` objects from agent execution.
+
+**Side Effects**:
+Stores final response in `_last_call_result` for retrieval via `get_last_result()`.
 
 **Example**:
 
 ```python
-result = await ctx.run_agent("summarizer", analysis_text)
+async for event in ctx.run_agent("summarizer", analysis_text):
+    yield event
+result = ctx.get_last_result()
 ```
 
-**Location**: `src/streetrace/dsl/runtime/context.py:222`
+**Location**: `src/streetrace/dsl/runtime/context.py:241`
 
 #### call_llm
 
@@ -321,22 +330,41 @@ async def call_llm(
     prompt_name: str,
     *args: object,
     model: str | None = None,
-) -> object
+) -> AsyncGenerator[FlowEvent, None]
 ```
 
-Call an LLM with a named prompt.
+Call an LLM with a named prompt, yielding events.
 
 Look up the prompt by name, evaluate it with the context, and call the LLM.
+Yields events for progress tracking.
 
 **Parameters**:
 - `prompt_name`: Name of the prompt to use.
 - `*args`: Arguments for prompt interpolation.
 - `model`: Optional model override.
 
-**Returns**:
-LLM response content, or None on error.
+**Yields**:
+- `LlmCallEvent` when call initiates
+- `LlmResponseEvent` when call completes
 
-**Location**: `src/streetrace/dsl/runtime/context.py:340`
+**Side Effects**:
+Stores response content in `_last_call_result` for retrieval via `get_last_result()`.
+
+**Location**: `src/streetrace/dsl/runtime/context.py:311`
+
+#### get_last_result
+
+```python
+def get_last_result(self) -> object
+```
+
+Get the result from the last `run_agent` or `call_llm` operation.
+
+**Returns**:
+The result from the most recent operation, or `None` if no operation has been
+executed or the last operation failed.
+
+**Location**: `src/streetrace/dsl/runtime/context.py:407`
 
 #### log / warn / notify
 
@@ -978,5 +1006,7 @@ Registry for source mappings across multiple compiled files.
 ## See Also
 
 - [Architecture Overview](architecture.md) - Compiler pipeline overview
+- [Flow Event Yielding](flow-events/overview.md) - Event streaming architecture
+- [Flow Events API](flow-events/api-reference.md) - Event classes and methods
 - [Extension Guide](extending.md) - Adding new features
 - [CLI Reference](../../user/dsl/cli-reference.md) - Command-line tools
