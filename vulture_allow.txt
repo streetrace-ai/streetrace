@@ -105,6 +105,7 @@ INDENT_type  # unused variable (src/streetrace/dsl/grammar/indenter.py:32) - use
 DEDENT_type  # unused variable (src/streetrace/dsl/grammar/indenter.py:35) - used by Lark Indenter base class
 tab_len  # unused variable (src/streetrace/dsl/grammar/indenter.py:38) - used by Lark Indenter base class
 _.create  # unused method (src/streetrace/dsl/grammar/parser.py:47) - public API for creating parsers
+_.clear_cache  # unused method (src/streetrace/dsl/grammar/parser.py) - public API for testing and cache reset
 
 # AST Transformer methods - called dynamically by Lark based on grammar rule names
 _.statement  # unused method - called by Lark transformer

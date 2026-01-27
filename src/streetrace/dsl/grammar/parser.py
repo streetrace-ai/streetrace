@@ -26,10 +26,16 @@ class ParserFactory:
 
     Create configured Lark parser instances with the Streetrace grammar
     and custom indenter for handling Python-style indentation.
+
+    Parser instances are cached because Earley parser construction is
+    expensive (grammar analysis, FIRST/FOLLOW set computation).
     """
 
     _grammar_cache: str | None = None
     """Cached grammar content to avoid repeated file reads."""
+
+    _parser_cache: Lark | None = None
+    """Cached production parser instance (non-debug mode)."""
 
     @classmethod
     def _load_grammar(cls) -> str:
@@ -49,7 +55,8 @@ class ParserFactory:
         """Create a Streetrace DSL parser.
 
         Args:
-            debug: If True, enables additional debugging output.
+            debug: If True, enables additional debugging output and
+                   returns a fresh parser instance (not cached).
 
         Returns:
             Configured Lark parser instance.
@@ -59,6 +66,11 @@ class ParserFactory:
             complexity. Future optimization may enable LALR for production.
 
         """
+        # Return cached parser for production (non-debug) mode
+        # Debug mode always creates a fresh parser for explicit ambiguity
+        if not debug and cls._parser_cache is not None:
+            return cls._parser_cache
+
         # Use Earley parser for now - the grammar has some constructs
         # that cause LALR reduce/reduce conflicts. These will be resolved
         # in a future grammar refactoring phase.
@@ -67,7 +79,7 @@ class ParserFactory:
 
         grammar = cls._load_grammar()
 
-        return Lark(
+        parser = Lark(
             grammar,
             parser=parser_type,
             postlex=StreetraceIndenter(),
@@ -76,3 +88,18 @@ class ParserFactory:
             ambiguity="resolve" if not debug else "explicit",
             keep_all_tokens=True,
         )
+
+        # Cache the production parser for reuse
+        if not debug:
+            cls._parser_cache = parser
+
+        return parser
+
+    @classmethod
+    def clear_cache(cls) -> None:
+        """Clear all cached parser state.
+
+        Use for testing or when grammar may have changed.
+        """
+        cls._grammar_cache = None
+        cls._parser_cache = None
