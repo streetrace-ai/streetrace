@@ -51,17 +51,7 @@ async for event in self.run_agent('main_agent', input_prompt):
 
 ---
 
-## Tool Auth parameters (CRITICAL)
-
-In a tool DSL like this (snippet):
-
-```
-tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_PERSONAL_ACCESS_TOKEN}"
-```
-
-The resulting generated `McpToolRef`'s Transport should include relevant headers, but it doesn't. As seen from example, we need to make sure we expand env variables.
-
-## Excallate to human
+## Escalate to human
 
 This is not implemented, and the function seems to only output to the UI.
 
@@ -110,3 +100,4 @@ The following documentation updates are deferred:
 | Semantic analyzer variable definition order | 2026-01-20 | Strips `$` prefix when defining variables |
 | Tool Passing Inconsistency Between Loader and Runtime | 2026-01-21 | Implemented via Workload Protocol - DslAgentWorkflow uses composition with DslStreetRaceAgent |
 | Duplicate DslAgentLoader implementations | 2026-01-22 | Phase 6 - Deleted `dsl/loader.py`, added deprecation warnings to old types |
+| Tool Auth parameters not passed to transport | 2026-01-26 | Full chain implemented: grammar → AST → codegen → tool_factory with env var interpolation |
