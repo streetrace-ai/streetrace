@@ -629,11 +629,11 @@ class TestCodeGeneratorControlFlow:
         generator = CodeGenerator()
         code, _mappings = generator.generate(ast, "test.sr")
 
-        # Parallel block now falls back to sequential execution with event yielding
-        # since asyncio.gather doesn't work with async generators
-        assert "Sequential execution" in code
-        assert "run_agent('task_a')" in code
-        assert "run_agent('task_b')" in code
+        # Parallel block generates true parallel execution using asyncio.gather
+        assert "_parallel_specs" in code
+        assert "_execute_parallel_agents" in code
+        assert "'task_a'" in code
+        assert "'task_b'" in code
 
     def test_generate_match_block(self) -> None:
         """Generate code for match block."""

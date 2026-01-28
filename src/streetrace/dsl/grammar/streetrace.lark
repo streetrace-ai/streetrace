@@ -376,9 +376,9 @@ push_stmt: "push" expression "to" variable
 
 escalate_stmt: "escalate" "to" "human" STRING?
 
-log_stmt: "log" STRING
+log_stmt: "log" expression
 
-notify_stmt: "notify" STRING
+notify_stmt: "notify" expression
 
 // ----------------------------------------------------------------------------
 // FAILURE HANDLING
@@ -412,7 +412,8 @@ statement_body: run_stmt
 ?not_expr: "not" not_expr                             -> not_op
          | comparison
 
-?comparison: additive (comparison_op additive)?
+?comparison: filter_expr
+           | additive (comparison_op additive)?
 
 comparison_op: ">" | "<" | ">=" | "<=" | "==" | "!=" | "contains" | "~"
 
@@ -429,6 +430,17 @@ comparison_op: ">" | "<" | ">=" | "<=" | "==" | "!=" | "contains" | "~"
      | function_call
      | identifier                                     -> name_ref
      | LPAR expression RPAR                           -> paren_expr
+     | implicit_property
+
+// Implicit property access for filter conditions (e.g., .confidence, .nested.prop)
+// DOTTED_NAME handles nested properties like .finding.severity being lexed as one token
+implicit_property: "." contextual_name ("." contextual_name)*
+                 | "." DOTTED_NAME
+
+// Filter expression for list filtering (e.g., filter $items where .score > 50)
+// At unary level. The condition uses or_expr to capture full boolean expressions
+// while avoiding ambiguity with the outer expression structure
+filter_expr: "filter" atom "where" or_expr
 
 literal: STRING                                       -> string_lit
        | NUMBER                                       -> number_lit
@@ -477,6 +489,7 @@ contextual_keyword: "escalate" | "match" | "from" | "to" | "agent" | "model"
                   | "fixed" | "exponential" | "linear" | "basic" | "bearer"
                   | "backoff" | "times" | "instruction" | "tools" | "description"
                   | "expecting" | "using" | "inherit" | "delegate" | "loop" | "max"
+                  | "filter" | "where"
 
 // Contextual names - includes NAME and contextual keywords
 // Used for property access where keywords can appear after dot

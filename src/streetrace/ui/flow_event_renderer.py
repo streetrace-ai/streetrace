@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from streetrace.dsl.runtime.events import (
     EscalationEvent,
+    FlowResultEvent,
     LlmCallEvent,
     LlmResponseEvent,
 )
@@ -47,3 +48,15 @@ def render_escalation_event(obj: EscalationEvent, console: "Console") -> None:
         f'"{obj.condition_value}")',
         style=Styles.RICH_WARNING,
     )
+
+
+@register_renderer
+def render_flow_result(obj: FlowResultEvent, console: "Console") -> None:
+    """Handle flow result event.
+
+    The result is not displayed here since the content was already shown
+    by the preceding LlmResponseEvent. The FlowResultEvent exists only to
+    capture the return value for the --out file and final_response.
+    """
+    # Intentionally silent - value already displayed by LlmResponseEvent
+    _ = obj, console

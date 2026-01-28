@@ -347,6 +347,8 @@ class DslAgentFactory:
         model_factory: "ModelFactory",
         tool_provider: "ToolProvider",
         system_context: "SystemContext",
+        *,
+        output_key: str | None = None,
     ) -> "BaseAgent":
         """Create an LlmAgent from an agent definition dict.
 
@@ -359,6 +361,8 @@ class DslAgentFactory:
             model_factory: Factory for creating LLM models.
             tool_provider: Provider for tools.
             system_context: System context.
+            output_key: Optional key for storing agent output in session state.
+                Used by ParallelAgent to collect results from sub-agents.
 
         Returns:
             The created ADK agent.
@@ -408,6 +412,8 @@ class DslAgentFactory:
             agent_kwargs["sub_agents"] = sub_agents
         if output_schema is not None:
             agent_kwargs["output_schema"] = output_schema
+        if output_key is not None:
+            agent_kwargs["output_key"] = output_key
 
         return LlmAgent(**agent_kwargs)
 

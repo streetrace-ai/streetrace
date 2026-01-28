@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, override
 
 from opentelemetry import trace
 
-from streetrace.dsl.runtime.events import FlowEvent, LlmResponseEvent
+from streetrace.dsl.runtime.events import FlowEvent, FlowResultEvent, LlmResponseEvent
 from streetrace.input_handler import (
     HANDLED_CONT,
     HandlerResult,
@@ -90,6 +90,16 @@ class Supervisor(InputHandler):
             Updated response text if this event provides a final response.
 
         """
+        import json
+
+        # FlowResultEvent takes precedence - it's the explicit return value
+        if isinstance(event, FlowResultEvent):
+            result = event.result
+            if isinstance(result, str):
+                return result
+            # Serialize non-string results to JSON
+            return json.dumps(result, indent=2, default=str)
+
         if (
             isinstance(event, LlmResponseEvent)
             and event.is_final

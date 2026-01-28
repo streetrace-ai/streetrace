@@ -23,10 +23,12 @@ from streetrace.dsl.ast.nodes import (
     MatchBlock,
     NotifyStmt,
     ParallelBlock,
+    PropertyAssignment,
     PushStmt,
     RetryStepStmt,
     ReturnStmt,
     RunStmt,
+    VarRef,
 )
 from streetrace.dsl.codegen.visitors.expressions import ExpressionVisitor
 from streetrace.log import get_logger
@@ -57,6 +59,7 @@ class FlowVisitor:
         self._expr_visitor = ExpressionVisitor()
         self._stmt_dispatch: dict[type, Callable[[object], None]] = {
             Assignment: self._visit_assignment,  # type: ignore[dict-item]
+            PropertyAssignment: self._visit_property_assignment,  # type: ignore[dict-item]
             RunStmt: self._visit_run_stmt,  # type: ignore[dict-item]
             CallStmt: self._visit_call_stmt,  # type: ignore[dict-item]
             ReturnStmt: self._visit_return_stmt,  # type: ignore[dict-item]
@@ -222,6 +225,32 @@ class FlowVisitor:
             f"ctx.vars['{target_name}'] = {value}",
             source_line=source_line,
         )
+
+    def _visit_property_assignment(self, node: PropertyAssignment) -> None:
+        """Generate code for property assignment.
+
+        Transform $obj.prop = value to ctx.vars['obj']['prop'] = value.
+        Supports nested properties like $obj.a.b = value.
+
+        Args:
+            node: PropertyAssignment node.
+
+        """
+        source_line = node.meta.line if node.meta else None
+
+        # Get base variable name from PropertyAccess
+        base = node.target.base
+        base_name = base.name if isinstance(base, VarRef) else str(base)
+
+        # Build nested dict access: ctx.vars['obj']['prop1']['prop2']...
+        target = f"ctx.vars['{base_name}']"
+        for prop in node.target.properties:
+            target = f"{target}['{prop}']"
+
+        # Generate value expression
+        value = self._expr_visitor.visit(node.value)
+
+        self._emitter.emit(f"{target} = {value}", source_line=source_line)
 
     def _visit_run_stmt(self, node: RunStmt) -> None:
         """Generate code for run agent statement.
@@ -398,32 +427,72 @@ class FlowVisitor:
     def _visit_parallel_block(self, node: ParallelBlock) -> None:
         """Generate code for parallel block.
 
-        Generate sequential execution with event yielding since asyncio.gather
-        does not work with async generators. True parallel execution with event
-        yielding requires custom implementation.
+        Validate that only RunStmt nodes are present, then generate code
+        for true parallel execution using asyncio.gather.
 
         Args:
             node: Parallel block node.
 
+        Raises:
+            ValueError: If parallel block contains non-RunStmt statements.
+
         """
         source_line = node.meta.line if node.meta else None
 
-        # Collect all run statements using list comprehension
-        run_stmts = [stmt for stmt in node.body if isinstance(stmt, RunStmt)]
-
-        if not run_stmts:
-            # No run statements, just execute sequentially
-            for stmt in node.body:
-                self.visit_statement(stmt)
+        # Empty parallel block - just pass
+        if not node.body:
+            self._emitter.emit("pass", source_line=source_line)
             return
 
-        # Generate sequential execution with comment explaining the fallback
+        # Validate: parallel do only supports run agent statements
+        for stmt in node.body:
+            if not isinstance(stmt, RunStmt):
+                stmt_type = type(stmt).__name__
+                msg = (
+                    f"parallel do only supports 'run agent' statements. "
+                    f"Found: {stmt_type}"
+                )
+                raise TypeError(msg)
+
+        # Collect run statements (already validated to be RunStmt)
+        run_stmts: list[RunStmt] = node.body
+
+        # Generate parallel execution code
         self._emitter.emit(
-            "# Sequential execution (parallel event yielding not yet supported)",
+            "# Parallel block - execute agents concurrently",
             source_line=source_line,
         )
+        self._emitter.emit("_parallel_specs = [")
+        self._emitter.indent()
+
         for stmt in run_stmts:
-            self._visit_run_stmt(stmt)
+            # Generate args list
+            args_parts = [self._expr_visitor.visit(arg) for arg in stmt.args]
+            args_str = f"[{', '.join(args_parts)}]" if args_parts else "[]"
+
+            # Generate target variable name (or None if no target)
+            target_name = f"'{stmt.target.lstrip('$')}'" if stmt.target else "None"
+
+            self._emitter.emit(f"('{stmt.agent}', {args_str}, {target_name}),")
+
+        self._emitter.dedent()
+        self._emitter.emit("]")
+
+        # Call the parallel execution helper
+        self._emitter.emit(
+            "_parallel_results = await self._execute_parallel_agents(",
+        )
+        self._emitter.emit(
+            "    ctx, _parallel_specs)",
+        )
+
+        # Assign results to target variables
+        for stmt in run_stmts:
+            if stmt.target:
+                target_name = stmt.target.lstrip("$")
+                self._emitter.emit(
+                    f"ctx.vars['{target_name}'] = _parallel_results['{target_name}']",
+                )
 
     def _visit_match_block(self, node: MatchBlock) -> None:
         """Generate code for match block.
@@ -508,7 +577,8 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        self._emitter.emit(f"ctx.log('{node.message}')", source_line=source_line)
+        message_code = self._expr_visitor.visit(node.message)
+        self._emitter.emit(f"ctx.log({message_code})", source_line=source_line)
 
     def _visit_notify_stmt(self, node: NotifyStmt) -> None:
         """Generate code for notify statement.
@@ -518,7 +588,8 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        self._emitter.emit(f"ctx.notify('{node.message}')", source_line=source_line)
+        message_code = self._expr_visitor.visit(node.message)
+        self._emitter.emit(f"ctx.notify({message_code})", source_line=source_line)
 
     def _visit_escalate_stmt(self, node: EscalateStmt) -> None:
         """Generate code for escalate statement.

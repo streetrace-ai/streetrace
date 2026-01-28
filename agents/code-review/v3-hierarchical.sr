@@ -10,7 +10,7 @@ streetrace v1
 model main = anthropic/claude-sonnet-4-5
 model fast = anthropic/haiku
 
-tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_TOKEN}"
+tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_PERSONAL_ACCESS_TOKEN}"
 tool fs = builtin streetrace.fs
 
 # -----------------------------------------------------------------------------
