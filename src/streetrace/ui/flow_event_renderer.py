@@ -21,11 +21,13 @@ if TYPE_CHECKING:
 
 @register_renderer
 def render_llm_call(obj: LlmCallEvent, console: "Console") -> None:
-    """Render LLM call initiation event."""
-    console.print(
-        f"{obj.prompt_name}: {obj.prompt_text}",
-        style=Styles.RICH_INFO,
-    )
+    """Render LLM call initiation event.
+
+    Only display the prompt name as a status indicator.
+    The full prompt text is internal implementation detail.
+    """
+    # Intentionally minimal - don't show prompt text to user
+    _ = obj, console
 
 
 @register_renderer

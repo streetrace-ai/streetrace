@@ -134,15 +134,14 @@ class TestParallelBlockExecution:
         mock_session_service.create_session = AsyncMock()
         mock_session_service.get_session = AsyncMock(return_value=mock_session)
 
-        # Create mock runner that populates session state
+        # Create mock runner that populates session state and yields events
         async def mock_run_async_gen(*args: object, **kwargs: object):  # noqa: ARG001
             # Simulate ParallelAgent storing results in session state
             for agent_name, output_key in created_agents:
                 if output_key:
                     mock_session.state[output_key] = f"result_{agent_name}"
-            # Yield nothing - just an async generator
-            if False:
-                yield
+            # Yield a mock event
+            yield MagicMock()
 
         mock_runner_instance = MagicMock()
         mock_runner_instance.run_async = mock_run_async_gen
@@ -161,12 +160,17 @@ class TestParallelBlockExecution:
                 "google.adk.agents.ParallelAgent",
             ) as mock_parallel_agent_class,
         ):
-            # Execute parallel agents
+            # Execute parallel agents - now an async generator
             specs: list[tuple[str, list[object], str | None]] = [
                 ("agent_a", ["arg1"], "var_a"),
                 ("agent_b", ["arg2"], "var_b"),
             ]
-            result_dict = await workflow._execute_parallel_agents(ctx, specs)  # noqa: SLF001
+            events = []
+            async for event in workflow._execute_parallel_agents(ctx, specs):  # noqa: SLF001
+                events.append(event)
+
+            # Verify events were yielded
+            assert len(events) == 1
 
             # Verify ParallelAgent was created with sub_agents
             mock_parallel_agent_class.assert_called_once()
@@ -189,9 +193,9 @@ class TestParallelBlockExecution:
             assert agent_b_entry is not None
             assert agent_b_entry[1] is not None  # output_key should be set
 
-            # Verify results were collected from session state
-            assert result_dict["var_a"] == "result_agent_a"
-            assert result_dict["var_b"] == "result_agent_b"
+            # Verify results were stored in ctx.vars
+            assert ctx.vars["var_a"] == "result_agent_a"
+            assert ctx.vars["var_b"] == "result_agent_b"
 
     @pytest.mark.asyncio
     async def test_execute_parallel_agents_with_none_target(self) -> None:
@@ -241,8 +245,7 @@ class TestParallelBlockExecution:
             for agent_name, output_key in created_agents:
                 if output_key:
                     mock_session.state[output_key] = f"result_{agent_name}"
-            if False:
-                yield
+            yield MagicMock()
 
         mock_runner_instance = MagicMock()
         mock_runner_instance.run_async = mock_run_async_gen
@@ -258,18 +261,17 @@ class TestParallelBlockExecution:
             ),
             patch("google.adk.agents.ParallelAgent"),
         ):
-            # Execute with None target - result should be omitted from dict
+            # Execute with None target - result should be omitted from ctx.vars
             specs: list[tuple[str, list[object], str | None]] = [
                 ("agent_a", [], "var_a"),
                 ("agent_b", [], None),  # No target variable
             ]
-            result_dict = await workflow._execute_parallel_agents(ctx, specs)  # noqa: SLF001
+            async for _ in workflow._execute_parallel_agents(ctx, specs):  # noqa: SLF001
+                pass
 
-            # Only var_a should be in results (agent_b had None target)
-            assert "var_a" in result_dict
-            assert result_dict["var_a"] == "result_agent_a"
-            # None target should not be included in result_dict
-            assert len(result_dict) == 1
+            # Only var_a should be in ctx.vars (agent_b had None target)
+            assert "var_a" in ctx.vars
+            assert ctx.vars["var_a"] == "result_agent_a"
 
     @pytest.mark.asyncio
     async def test_execute_parallel_agents_empty_specs(self) -> None:
@@ -287,11 +289,13 @@ class TestParallelBlockExecution:
 
         ctx = WorkflowContext(workflow=workflow)
 
-        # Execute with empty specs - should return immediately
-        result_dict = await workflow._execute_parallel_agents(ctx, [])  # noqa: SLF001
+        # Execute with empty specs - should return immediately without yielding
+        events = []
+        async for event in workflow._execute_parallel_agents(ctx, []):  # noqa: SLF001
+            events.append(event)
 
-        # Should return empty dict without creating ParallelAgent
-        assert result_dict == {}
+        # Should yield nothing for empty specs
+        assert events == []
 
     @pytest.mark.asyncio
     async def test_execute_parallel_agents_requires_agent_factory(self) -> None:
@@ -315,7 +319,9 @@ class TestParallelBlockExecution:
         ]
 
         with pytest.raises(ValueError, match="requires agent_factory"):
-            await workflow._execute_parallel_agents(ctx, specs)  # noqa: SLF001
+            # Must iterate to trigger the generator execution
+            async for _ in workflow._execute_parallel_agents(ctx, specs):  # noqa: SLF001
+                pass
 
     @pytest.mark.asyncio
     async def test_execute_parallel_agents_creates_unique_output_keys(self) -> None:
@@ -360,8 +366,7 @@ class TestParallelBlockExecution:
         mock_session_service.get_session = AsyncMock(return_value=mock_session)
 
         async def mock_run_async_gen(*args: object, **kwargs: object):  # noqa: ARG001
-            if False:
-                yield
+            yield MagicMock()
 
         mock_runner_instance = MagicMock()
         mock_runner_instance.run_async = mock_run_async_gen
@@ -382,7 +387,8 @@ class TestParallelBlockExecution:
                 ("agent_b", [], "var_b"),
                 ("agent_c", [], "var_c"),
             ]
-            await workflow._execute_parallel_agents(ctx, specs)  # noqa: SLF001
+            async for _ in workflow._execute_parallel_agents(ctx, specs):  # noqa: SLF001
+                pass
 
             # Verify all output_keys are unique
             assert len(output_keys_used) == 3

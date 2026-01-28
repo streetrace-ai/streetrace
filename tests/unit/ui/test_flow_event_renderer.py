@@ -28,7 +28,11 @@ from streetrace.ui.render_protocol import (
 
 
 class TestLlmCallEventRenderer:
-    """Test the render_llm_call renderer function."""
+    """Test the render_llm_call renderer function.
+
+    The renderer intentionally does not print anything - the prompt text
+    is an internal implementation detail and should not be shown to users.
+    """
 
     @pytest.fixture
     def llm_call_event(self) -> LlmCallEvent:
@@ -44,32 +48,19 @@ class TestLlmCallEventRenderer:
         """Create a mock Rich Console."""
         return Mock(spec=Console)
 
-    def test_render_llm_call_prints_event_info(
+    def test_render_llm_call_is_silent(
         self,
         llm_call_event: LlmCallEvent,
         mock_console: Console,
     ):
-        """Test that render_llm_call prints event info."""
+        """Test that render_llm_call does not print anything.
+
+        The LlmCallEvent contains internal prompt details that should
+        not be displayed to the user.
+        """
         render_llm_call(llm_call_event, mock_console)
 
-        mock_console.print.assert_called_once()
-        call_args = mock_console.print.call_args
-        printed_text = call_args[0][0]
-
-        # Output format is "{prompt_name}: {prompt_text}"
-        assert "analyze" in printed_text
-        assert "Analyze this input" in printed_text
-
-    def test_render_llm_call_uses_info_style(
-        self,
-        llm_call_event: LlmCallEvent,
-        mock_console: Console,
-    ):
-        """Test that render_llm_call uses RICH_INFO style."""
-        render_llm_call(llm_call_event, mock_console)
-
-        call_kwargs = mock_console.print.call_args[1]
-        assert call_kwargs["style"] == Styles.RICH_INFO
+        mock_console.print.assert_not_called()
 
     def test_render_llm_call_is_registered(self):
         """Test that render_llm_call is registered in the renderer registry."""
@@ -85,10 +76,10 @@ class TestLlmCallEventRenderer:
         llm_call_event: LlmCallEvent,
         mock_console: Console,
     ):
-        """Test rendering LlmCallEvent through the registry."""
+        """Test rendering LlmCallEvent through the registry is silent."""
         render_using_registered_renderer(llm_call_event, mock_console)
 
-        mock_console.print.assert_called_once()
+        mock_console.print.assert_not_called()
 
 
 class TestLlmResponseEventRenderer:
@@ -223,16 +214,15 @@ class TestRendererIntegration:
             content="Response",
         )
 
+        # LlmCallEvent renderer is silent (internal implementation detail)
         render_using_registered_renderer(call_event, mock_console)
-        first_call = mock_console.print.call_args
+        mock_console.print.assert_not_called()
 
         mock_console.reset_mock()
 
+        # LlmResponseEvent renderer prints prompt name + markdown content
         render_using_registered_renderer(response_event, mock_console)
-        second_call = mock_console.print.call_args
-
-        # The calls should be different (one is text, one is Markdown)
-        assert first_call != second_call
+        assert mock_console.print.call_count == 2
 
     def test_renderer_registry_does_not_contain_base_flow_event(self):
         """Test that FlowEvent base class is not registered."""

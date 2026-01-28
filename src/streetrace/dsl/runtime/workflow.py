@@ -431,24 +431,22 @@ class DslAgentWorkflow:
         self,
         ctx: WorkflowContext,
         specs: list[tuple[str, list[object], str | None]],
-    ) -> dict[str, object]:
+    ) -> AsyncGenerator["Event", None]:
         """Execute multiple agents in parallel using ADK ParallelAgent.
 
         Create sub-agents with output_key for result storage in session state,
-        wrap them in a ParallelAgent, and execute using Runner. Results are
-        retrieved from session state after execution.
+        wrap them in a ParallelAgent, and execute using Runner. Events are
+        yielded as they occur, and results are stored directly in ctx.vars.
 
-        Note: This method collects final results only, not streaming events.
-        The order of results from parallel execution is non-deterministic.
+        The order of events and results from parallel execution is non-deterministic.
 
         Args:
-            ctx: Workflow context for variable access.
+            ctx: Workflow context for variable access and result storage.
             specs: List of (agent_name, args, target_var) tuples. The target_var
                 may be None if no result assignment is needed.
 
-        Returns:
-            Dictionary mapping target variable names to agent results.
-            Entries with None target_var are not included.
+        Yields:
+            ADK events from parallel agent execution.
 
         """
         from google.adk import Runner
@@ -456,10 +454,8 @@ class DslAgentWorkflow:
         from google.adk.sessions import InMemorySessionService
         from google.genai import types as genai_types
 
-        _ = ctx  # Reserved for future use
-
         if not specs:
-            return {}
+            return
 
         if not self._agent_factory:
             msg = "DslAgentWorkflow requires agent_factory for parallel execution"
@@ -518,13 +514,13 @@ class DslAgentWorkflow:
             agent=parallel_agent,
         )
 
-        # Execute ParallelAgent and process events
-        async for _ in runner.run_async(
+        # Execute ParallelAgent and yield events as they occur
+        async for event in runner.run_async(
             user_id=user_id,
             session_id=session_id,
             new_message=content,
         ):
-            pass  # Events are processed by ParallelAgent internally
+            yield event
 
         # Get session and extract results from state
         session = await session_service.get_session(
@@ -533,14 +529,11 @@ class DslAgentWorkflow:
             session_id=session_id,
         )
 
-        # Build result dictionary from session state
-        result_dict: dict[str, object] = {}
+        # Store results directly in ctx.vars
         if session and session.state:
             for target_var, output_key in output_key_mapping.items():
                 if output_key in session.state:
-                    result_dict[target_var] = session.state[output_key]
-
-        return result_dict
+                    ctx.vars[target_var] = session.state[output_key]
 
     async def close(self) -> None:
         """Clean up all created agents.
