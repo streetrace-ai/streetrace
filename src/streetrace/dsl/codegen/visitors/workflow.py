@@ -79,16 +79,25 @@ class WorkflowVisitor:
         self._flows: list[FlowDef] = []
         self._handlers: list[EventHandler] = []
 
-    def visit(self, node: DslFile, source_file: str) -> None:
+    def visit(
+        self,
+        node: DslFile,
+        source_file: str,
+        *,
+        merged_prompts: dict[str, PromptDef] | None = None,
+    ) -> None:
         """Visit a DSL file and generate the complete workflow class.
 
         Args:
             node: DSL file AST node.
             source_file: Name of the source file.
+            merged_prompts: Optional dict of merged prompts from semantic analysis.
+                When provided, these are used instead of extracting prompts from
+                AST statements. This ensures prompt override/merge semantics work.
 
         """
         # Collect all definitions
-        self._collect_definitions(node)
+        self._collect_definitions(node, merged_prompts=merged_prompts)
 
         # Emit header and imports
         self._emit_header(source_file)
@@ -97,18 +106,26 @@ class WorkflowVisitor:
         # Emit the workflow class
         self._emit_class_definition(source_file)
 
-    def _collect_definitions(self, node: DslFile) -> None:
+    def _collect_definitions(
+        self,
+        node: DslFile,
+        *,
+        merged_prompts: dict[str, PromptDef] | None = None,
+    ) -> None:
         """Collect all definitions from the AST.
 
         Args:
             node: DSL file AST node.
+            merged_prompts: Optional dict of merged prompts from semantic analysis.
 
         """
         for stmt in node.statements:
             if isinstance(stmt, ModelDef):
                 self._models.append(stmt)
             elif isinstance(stmt, PromptDef):
-                self._prompts.append(stmt)
+                # Skip prompts here if using merged_prompts
+                if merged_prompts is None:
+                    self._prompts.append(stmt)
             elif isinstance(stmt, ToolDef):
                 self._tools.append(stmt)
             elif isinstance(stmt, SchemaDef):
@@ -119,6 +136,10 @@ class WorkflowVisitor:
                 self._flows.append(stmt)
             elif isinstance(stmt, EventHandler):
                 self._handlers.append(stmt)
+
+        # Use merged prompts if provided (from semantic analysis)
+        if merged_prompts is not None:
+            self._prompts = list(merged_prompts.values())
 
     def _emit_header(self, source_file: str) -> None:
         """Emit the file header comment.

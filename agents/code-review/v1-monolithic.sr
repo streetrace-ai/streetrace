@@ -33,81 +33,12 @@ schema ReviewResult:
     confidence_score: int
 
 # -----------------------------------------------------------------------------
-# PROMPTS
+# PROMPT DECLARATIONS
 # -----------------------------------------------------------------------------
 
-prompt scoring_rubric: """## Confidence Scoring Rubric
-
-Score each finding 0-100:
-
-**90-100**: Definite issue - security vuln with exploit path, guaranteed crash
-**80-89**: Likely issue - missing null check on nullable, clear logic error
-**70-79**: Possible issue - depends on runtime context
-**Below 70**: DO NOT REPORT
-
-Only report findings with confidence >= 80."""
-
-prompt reviewer_instruction expecting ReviewResult: """You are an expert code reviewer.
-
-$scoring_rubric
-
-Review the PR for:
-1. **Security vulnerabilities**: Injection, auth flaws, secrets exposure
-2. **Logic bugs**: Null references, type errors, race conditions
-3. **Best practices**: Error handling, resource management
-
-IMPORTANT:
-- Focus ONLY on changed code, not pre-existing issues
-- Do NOT report linting/formatting issues (handled by CI)
-- Provide actionable descriptions with line numbers
-- Include suggested fixes where possible
-
-PR Context:
-$context
-
-Changed Files (diff):
-$diff
-
-Provide a structured review with findings sorted by severity."""
-
-prompt pr_fetcher_instruction: """Fetch PR metadata from GitHub.
-
-Get:
-- PR number, title, description, state
-- Base and head branches
-- Author information
-- Linked issues (parse "Fixes #X", "Closes #X" from description)
-- Review status
-
-Return structured PR metadata."""
-
-prompt context_instruction: """Build comprehensive review context FOR THIS SPECIFIC PR.
-
-You will receive the PR info. Use it to understand:
-- What areas of the codebase are being changed
-- What the PR is trying to accomplish
-- What review categories are most relevant
-
-Then gather context:
-1. Repository context (PR-aware):
-   - README.md for project understanding
-   - CONTRIBUTING.md for coding guidelines
-   - CLAUDE.md or style guides if present
-   - Docs specifically relevant to changed areas
-
-2. Historical context (for changed files):
-   - Run git blame on key changed lines
-   - Get commit messages explaining why code exists
-   - Find linked bugs/issues from commit messages
-   - Note any recent PRs that touched same files
-
-Return a context summary focused on what the reviewer needs to know
-for security, bug detection, and code quality analysis."""
-
-prompt diff_instruction: """Fetch the complete PR diff.
-
-Use GitHub tools to get the diff for all changed files.
-Return the raw diff output with context lines."""
+prompt reviewer_instruction expecting ReviewResult
+prompt context_instruction
+prompt diff_instruction
 
 # -----------------------------------------------------------------------------
 # AGENTS
@@ -185,3 +116,80 @@ agent:
     tools github, fs
     instruction default_instruction
     description "V1 Monolithic code review agent"
+
+# -----------------------------------------------------------------------------
+# PROMPT BODIES
+# -----------------------------------------------------------------------------
+
+prompt reviewer_instruction: """You are an expert code reviewer.
+
+$scoring_rubric
+
+Review the PR for:
+1. **Security vulnerabilities**: Injection, auth flaws, secrets exposure
+2. **Logic bugs**: Null references, type errors, race conditions
+3. **Best practices**: Error handling, resource management
+
+IMPORTANT:
+- Focus ONLY on changed code, not pre-existing issues
+- Do NOT report linting/formatting issues (handled by CI)
+- Provide actionable descriptions with line numbers
+- Include suggested fixes where possible
+
+PR Context:
+$context
+
+Changed Files (diff):
+$diff
+
+Provide a structured review with findings sorted by severity."""
+
+prompt context_instruction: """Build comprehensive review context FOR THIS SPECIFIC PR.
+
+You will receive the PR info. Use it to understand:
+- What areas of the codebase are being changed
+- What the PR is trying to accomplish
+- What review categories are most relevant
+
+Then gather context:
+1. Repository context (PR-aware):
+   - README.md for project understanding
+   - CONTRIBUTING.md for coding guidelines
+   - CLAUDE.md or style guides if present
+   - Docs specifically relevant to changed areas
+
+2. Historical context (for changed files):
+   - Run git blame on key changed lines
+   - Get commit messages explaining why code exists
+   - Find linked bugs/issues from commit messages
+   - Note any recent PRs that touched same files
+
+Return a context summary focused on what the reviewer needs to know
+for security, bug detection, and code quality analysis."""
+
+prompt diff_instruction: """Fetch the complete PR diff.
+
+Use GitHub tools to get the diff for all changed files.
+Return the raw diff output with context lines."""
+
+prompt scoring_rubric: """## Confidence Scoring Rubric
+
+Score each finding 0-100:
+
+**90-100**: Definite issue - security vuln with exploit path, guaranteed crash
+**80-89**: Likely issue - missing null check on nullable, clear logic error
+**70-79**: Possible issue - depends on runtime context
+**Below 70**: DO NOT REPORT
+
+Only report findings with confidence >= 80."""
+
+prompt pr_fetcher_instruction: """Fetch PR metadata from GitHub.
+
+Get:
+- PR number, title, description, state
+- Base and head branches
+- Author information
+- Linked issues (parse "Fixes #X", "Closes #X" from description)
+- Review status
+
+Return structured PR metadata."""

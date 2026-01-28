@@ -55,6 +55,63 @@ Do NOT report linting issues."""
 # CONTEXT BUILDING AGENTS
 # -----------------------------------------------------------------------------
 
+agent context_builder:
+    tools github, fs
+    instruction context_builder_instruction
+    description "Builds PR-aware repository context"
+
+agent chunk_context_builder:
+    tools github, fs
+    instruction chunk_context_instruction
+    description "Builds historical context for a code chunk"
+
+# -----------------------------------------------------------------------------
+# SPECIALIST AGENTS
+# -----------------------------------------------------------------------------
+
+agent security_specialist:
+    tools github, fs
+    instruction security_specialist_instruction
+    description "Analyzes code for security vulnerabilities"
+
+agent bug_specialist:
+    tools github, fs
+    instruction bug_specialist_instruction
+    description "Detects logic bugs and runtime errors"
+
+agent quality_specialist:
+    tools fs
+    instruction quality_specialist_instruction
+    description "Reviews code quality and architecture"
+
+agent validator:
+    tools github, fs
+    instruction validator_instruction
+    description "Validates findings by verifying code claims with tools"
+
+agent patch_generator:
+    tools github, fs
+    instruction patch_generator_instruction
+    description "Generates minimal git diff patches for findings"
+
+agent synthesizer:
+    instruction synthesizer_instruction
+    description "Synthesizes findings into final review"
+
+# -----------------------------------------------------------------------------
+# ORCHESTRATOR AGENT (uses specialists as tools)
+# -----------------------------------------------------------------------------
+
+agent:
+    tools github, fs
+    instruction orchestrator_instruction
+    use context_builder, chunk_context_builder, security_specialist, bug_specialist, quality_specialist, validator, patch_generator, synthesizer
+    description "Orchestrates code review using specialist agents as tools"
+
+# -----------------------------------------------------------------------------
+# PROMPTS
+# -----------------------------------------------------------------------------
+
 prompt context_builder_instruction: """You are a CONTEXT BUILDER for code review.
 
 Given PR information, build comprehensive repository context:
@@ -75,11 +132,6 @@ Return a focused context summary for the review categories:
 - What's relevant for bug detection?
 - What's relevant for quality review?"""
 
-agent context_builder:
-    tools github, fs
-    instruction context_builder_instruction
-    description "Builds PR-aware repository context"
-
 prompt chunk_context_instruction: """You are a CHUNK CONTEXT BUILDER.
 
 Given a code chunk (diff), gather historical context:
@@ -95,15 +147,6 @@ Return a summary of:
 - What bugs have affected this area
 - What recent changes have been made
 - Any security-relevant history"""
-
-agent chunk_context_builder:
-    tools github, fs
-    instruction chunk_context_instruction
-    description "Builds historical context for a code chunk"
-
-# -----------------------------------------------------------------------------
-# SPECIALIST AGENTS
-# -----------------------------------------------------------------------------
 
 prompt security_specialist_instruction: """You are a SECURITY SPECIALIST.
 
@@ -124,11 +167,6 @@ For each finding:
 
 Use GitHub tools to fetch code context when needed.
 Return findings in structured format with confidence scores."""
-
-agent security_specialist:
-    tools github, fs
-    instruction security_specialist_instruction
-    description "Analyzes code for security vulnerabilities"
 
 prompt bug_specialist_instruction: """You are a BUG DETECTION SPECIALIST.
 
@@ -151,11 +189,6 @@ For each finding:
 Use tools to examine related code when needed.
 Return findings in structured format with confidence scores."""
 
-agent bug_specialist:
-    tools github, fs
-    instruction bug_specialist_instruction
-    description "Detects logic bugs and runtime errors"
-
 prompt quality_specialist_instruction: """You are a CODE QUALITY SPECIALIST.
 
 $scoring_rubric
@@ -172,11 +205,6 @@ DO NOT report:
 
 Only report issues with measurable negative impact.
 Return findings with confidence scores >= 80."""
-
-agent quality_specialist:
-    tools fs
-    instruction quality_specialist_instruction
-    description "Reviews code quality and architecture"
 
 prompt validator_instruction: """You are a FINDING VALIDATOR with tools to verify claims.
 
@@ -215,11 +243,6 @@ For each finding, state: RETAIN or DISCARD with reason.
 
 Return validated findings list with rejection reasons for discarded items."""
 
-agent validator:
-    tools github, fs
-    instruction validator_instruction
-    description "Validates findings by verifying code claims with tools"
-
 prompt patch_generator_instruction: """You are a PATCH GENERATOR for code review fixes.
 
 When asked to generate a patch, you will receive:
@@ -242,11 +265,6 @@ Constraints:
 - Preserve existing code style
 - Do not add unrelated improvements"""
 
-agent patch_generator:
-    tools github, fs
-    instruction patch_generator_instruction
-    description "Generates minimal git diff patches for findings"
-
 prompt synthesizer_instruction: """You are a REVIEW SYNTHESIZER.
 
 Combine findings from multiple specialists into a cohesive review:
@@ -257,14 +275,6 @@ Combine findings from multiple specialists into a cohesive review:
 5. Provide clear recommendation (approve/request_changes/comment)
 
 Return the final structured review."""
-
-agent synthesizer:
-    instruction synthesizer_instruction
-    description "Synthesizes findings into final review"
-
-# -----------------------------------------------------------------------------
-# ORCHESTRATOR AGENT (uses specialists as tools)
-# -----------------------------------------------------------------------------
 
 prompt orchestrator_instruction: """You are the CODE REVIEW ORCHESTRATOR.
 
@@ -356,9 +366,3 @@ Return the synthesized review with:
 - You orchestrate; specialists do the detailed analysis
 - Always validate findings before including them
 - Combine specialist outputs into one coherent review"""
-
-agent:
-    tools github, fs
-    instruction orchestrator_instruction
-    use context_builder, chunk_context_builder, security_specialist, bug_specialist, quality_specialist, validator, patch_generator, synthesizer
-    description "Orchestrates code review using specialist agents as tools"

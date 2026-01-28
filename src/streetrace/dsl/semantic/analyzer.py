@@ -117,8 +117,11 @@ class SemanticAnalyzer:
         # Define built-in variables in global scope
         self._define_builtins()
 
-        # First pass: collect all top-level definitions
+        # First pass: collect all top-level definitions (prompts are merged)
         self._collect_definitions(ast)
+
+        # Validate merged prompts have bodies
+        self._validate_prompts_have_bodies()
 
         # Second pass: validate references and scoping
         self._validate_references(ast)
@@ -231,23 +234,141 @@ class SemanticAnalyzer:
             )
 
     def _collect_prompt(self, prompt: PromptDef) -> None:
-        """Collect a prompt definition."""
-        if prompt.name in self._symbols.prompts:
-            self._add_error(
-                SemanticError.duplicate_definition(
-                    kind="prompt",
+        """Collect a prompt definition, merging with existing definition if present.
+
+        Support the override pattern where prompts can be defined multiple times:
+        - Declarations (no body) define metadata at top of file
+        - Full definitions (with body) define prompt text at bottom
+        - Multiple definitions are merged following these rules:
+          - body: later non-empty body overwrites
+          - model, expecting, inherit: fill if not set, error if conflicting
+          - escalation_condition: later non-None overwrites
+        """
+        if prompt.name not in self._symbols.prompts:
+            # First definition - store as-is
+            self._symbols.prompts[prompt.name] = prompt
+            if self._global_scope is not None:
+                self._global_scope.define(
                     name=prompt.name,
-                    position=prompt.meta,
+                    kind=SymbolKind.PROMPT,
+                    node=prompt,
+                )
+            return
+
+        # Merge with existing definition
+        existing = self._symbols.prompts[prompt.name]
+        merged = self._merge_prompts(existing, prompt)
+        if merged is not None:
+            self._symbols.prompts[prompt.name] = merged
+            # Update scope node reference
+            if self._global_scope is not None:
+                self._global_scope.define(
+                    name=prompt.name,
+                    kind=SymbolKind.PROMPT,
+                    node=merged,
+                )
+
+    def _merge_prompts(
+        self,
+        existing: PromptDef,
+        new: PromptDef,
+    ) -> PromptDef | None:
+        """Merge two prompt definitions.
+
+        Args:
+            existing: The existing prompt definition.
+            new: The new prompt definition to merge.
+
+        Returns:
+            Merged PromptDef, or None if merge failed due to conflicts.
+
+        """
+        # Check for modifier conflicts
+        if not self._check_prompt_modifier_conflict(
+            existing, new, "model", existing.model, new.model,
+        ):
+            return None
+        if not self._check_prompt_modifier_conflict(
+            existing, new, "expecting", existing.expecting, new.expecting,
+        ):
+            return None
+        if not self._check_prompt_modifier_conflict(
+            existing, new, "inherit", existing.inherit, new.inherit,
+        ):
+            return None
+
+        # Merge: later non-empty values overwrite
+        merged_body = new.body if new.body else existing.body
+        merged_model = new.model if new.model else existing.model
+        merged_expecting = new.expecting if new.expecting else existing.expecting
+        merged_inherit = new.inherit if new.inherit else existing.inherit
+        merged_escalation = (
+            new.escalation_condition
+            if new.escalation_condition
+            else existing.escalation_condition
+        )
+
+        # Use the position of the definition with body, or the later one
+        merged_meta = new.meta if new.body else existing.meta
+
+        return PromptDef(
+            name=existing.name,
+            body=merged_body,
+            model=merged_model,
+            expecting=merged_expecting,
+            inherit=merged_inherit,
+            escalation_condition=merged_escalation,
+            meta=merged_meta,
+        )
+
+    def _check_prompt_modifier_conflict(
+        self,
+        _existing: PromptDef,
+        new: PromptDef,
+        modifier_name: str,
+        existing_value: str | None,
+        new_value: str | None,
+    ) -> bool:
+        """Check if two prompt modifier values conflict.
+
+        Args:
+            _existing: The existing prompt definition (unused, for context).
+            new: The new prompt definition.
+            modifier_name: Name of the modifier being checked.
+            existing_value: Value from existing definition.
+            new_value: Value from new definition.
+
+        Returns:
+            True if no conflict, False if conflict (error added).
+
+        """
+        if existing_value and new_value and existing_value != new_value:
+            self._add_error(
+                SemanticError.conflicting_prompt_modifier(
+                    name=new.name,
+                    modifier=modifier_name,
+                    first=existing_value,
+                    second=new_value,
+                    position=new.meta,
                 ),
             )
-            return
-        self._symbols.prompts[prompt.name] = prompt
-        if self._global_scope is not None:
-            self._global_scope.define(
-                name=prompt.name,
-                kind=SymbolKind.PROMPT,
-                node=prompt,
-            )
+            return False
+        return True
+
+    def _validate_prompts_have_bodies(self) -> None:
+        """Validate that all prompts have bodies after merging.
+
+        Report E0013 error for any prompt that has no body definition.
+        This catches cases where only declarations exist without a full definition.
+        """
+        for name, prompt in self._symbols.prompts.items():
+            if not prompt.body:
+                self._add_error(
+                    SemanticError.prompt_missing_body(
+                        name=name,
+                        position=prompt.meta,
+                    ),
+                )
 
     def _collect_agent(self, agent: AgentDef) -> None:
         """Collect an agent definition."""
