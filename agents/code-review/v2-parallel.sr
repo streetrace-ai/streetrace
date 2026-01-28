@@ -1,0 +1,626 @@
+# Version 2: Parallel Multi-Agent Code Reviewer
+# Specialized reviewers with validation and deduplication
+# Primary production configuration
+#
+# Pros: Best precision/recall, specialized expertise, validation layer
+# Cons: More LLM calls, higher cost, more complex
+
+streetrace v1
+
+model main = anthropic/claude-sonnet-4-5
+model fast = anthropic/haiku
+model validator = anthropic/claude-sonnet-4-5
+
+tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_TOKEN}"
+tool fs = builtin streetrace.fs
+
+# -----------------------------------------------------------------------------
+# SCHEMAS
+# -----------------------------------------------------------------------------
+
+schema Finding:
+    file: string
+    line_start: int
+    line_end: int?
+    severity: string
+    category: string
+    title: string
+    description: string
+    confidence: int
+    reasoning: string
+    suggested_fix: string?
+
+schema CategoryFindings:
+    category: string
+    findings: list[Finding]
+
+schema ValidationResult:
+    valid: bool
+    reason: string
+
+schema Patch:
+    file: string
+    line_start: int
+    line_end: int
+    diff: string?                # Git diff format, null if can't fix in place
+    confidence: int              # 0-100 confidence this patch is correct
+    can_fix_in_place: bool
+    alternative_description: string?  # If can't fix in place, describe needed changes
+
+schema FinalReview:
+    summary: string
+    findings: list[Finding]
+    patches: list[Patch]
+    recommendation: string
+    overall_confidence: int
+    stats: string
+
+# -----------------------------------------------------------------------------
+# SHARED SCORING RUBRIC
+# -----------------------------------------------------------------------------
+
+prompt scoring_rubric: """## Confidence Scoring Rubric (MANDATORY)
+
+Score EVERY finding on a 0-100 scale:
+
+### 90-100 (Critical/Definite)
+- Security: SQL injection with user input, RCE, hardcoded secrets
+- Bug: Guaranteed null pointer crash, infinite loop, data loss
+- Evidence: Exact code path demonstrating the flaw
+
+### 80-89 (High/Likely)
+- Security: XSS with plausible attack vector, weak auth
+- Bug: Missing null check on field that can be null
+- Evidence: Strong circumstantial evidence + code pattern match
+
+### 70-79 (Medium/Possible)
+- Potential issue depending on runtime context
+- Edge case that might trigger under specific conditions
+- Evidence: Pattern suggests issue but context unclear
+
+### Below 70: DO NOT REPORT
+- Nitpicks, style preferences, pre-existing issues
+
+CRITICAL RULES:
+1. ONLY report findings with confidence >= 80
+2. Focus ONLY on CHANGED code, not pre-existing issues
+3. Do NOT report linting/formatting (handled by CI)
+4. Include reasoning explaining WHY this is an issue
+5. Suggest a fix when possible"""
+
+# -----------------------------------------------------------------------------
+# SPECIALIZED REVIEWER PROMPTS
+# -----------------------------------------------------------------------------
+
+prompt security_reviewer expecting CategoryFindings using model main: """You are a SECURITY SPECIALIST code reviewer.
+
+$scoring_rubric
+
+Review EXCLUSIVELY for security vulnerabilities:
+
+**High Priority:**
+- Injection flaws (SQL, NoSQL, command, LDAP, XPath)
+- Cross-site scripting (XSS) - reflected, stored, DOM-based
+- Authentication/authorization bypasses
+- Sensitive data exposure (PII, credentials, tokens)
+- Insecure deserialization
+- XML External Entity (XXE)
+
+**Medium Priority:**
+- Insufficient input validation
+- Missing security headers
+- Weak cryptography or hardcoded keys
+- Path traversal vulnerabilities
+- Server-Side Request Forgery (SSRF)
+
+**Context:**
+$context
+
+**Code to Review:**
+$chunk
+
+Return findings in the 'security' category only.
+Include exploit scenarios in reasoning."""
+
+prompt bug_reviewer expecting CategoryFindings using model main: """You are a BUG DETECTION SPECIALIST code reviewer.
+
+$scoring_rubric
+
+Review EXCLUSIVELY for logic bugs and runtime errors:
+
+**High Priority:**
+- Null/undefined reference errors
+- Type mismatches and coercion errors
+- Off-by-one errors in loops/arrays
+- Race conditions and deadlocks
+- Resource leaks (memory, file handles, connections)
+- Unhandled exceptions in critical paths
+
+**Medium Priority:**
+- Incorrect error handling (swallowed exceptions)
+- Dead code that should execute
+- Incorrect boolean logic
+- Missing break/return statements
+- Integer overflow/underflow
+
+**Context:**
+$context
+
+**Code to Review:**
+$chunk
+
+Return findings in the 'bug' category only.
+Include reproduction scenario in reasoning."""
+
+prompt style_reviewer expecting CategoryFindings using model fast: """You are a CODE QUALITY SPECIALIST reviewer.
+
+$scoring_rubric
+
+Review for SIGNIFICANT quality issues only:
+
+**Report (confidence >= 80):**
+- Architectural violations (wrong layer dependencies)
+- SOLID principle violations with real impact
+- Missing error handling in user-facing code
+- Maintainability issues that will cause bugs
+
+**DO NOT Report:**
+- Formatting (handled by formatters)
+- Naming conventions (handled by linters)
+- Comment style or missing comments
+- Subjective preferences
+
+**Context:**
+$context
+
+**Code to Review:**
+$chunk
+
+Return findings in the 'style' category only.
+Only report issues with clear negative impact."""
+
+# -----------------------------------------------------------------------------
+# VALIDATION AGENT (equipped with tools to verify claims)
+# -----------------------------------------------------------------------------
+
+# Based on BitsAI-CR ReviewFilter and VulAgent hypothesis validation patterns
+# See: https://arxiv.org/html/2501.15134v1, https://arxiv.org/abs/2509.11523
+
+prompt validator_instruction: """You are a CODE REVIEW VALIDATOR with tools to verify findings.
+
+Your job: Determine if this finding should be RETAINED or DISCARDED.
+Use Conclusion-First reasoning: state your decision, then explain why.
+
+## PR Context
+**Purpose**: $pr_description
+**Changes**: $changes_summary
+
+Understanding the PR's intent helps you determine if a "problem" might be intentional.
+
+## Finding to Validate
+$finding
+
+## PR Diff (to verify finding is in changed code)
+$diff
+
+## Validation Steps (use tools as needed)
+
+### Step 1: Verify Location Exists
+Use fs tools to read the file at the stated location.
+- Does the file exist?
+- Does the code at line $finding.line_start match the finding's description?
+- If location is wrong → DISCARD (hallucination)
+
+### Step 2: Verify In Changed Code
+Check the diff to confirm this code was ADDED or MODIFIED in this PR.
+- If the issue is in unchanged code → DISCARD (pre-existing issue)
+- If the issue is in removed code → DISCARD (already fixed)
+
+### Step 3: Check PR Intent
+Consider whether the flagged behavior might be intentional:
+- Does the PR description explain this design choice?
+- Is this a conscious trade-off mentioned in the PR?
+- If intentional per PR context → DISCARD (by design)
+
+### Step 4: Check for Defensive Code
+Search for existing guards that might already handle the issue:
+- Null checks before the flagged access
+- Try/catch blocks around the code
+- Validation in callers
+- If adequate defense exists → DISCARD (false positive)
+
+### Step 5: Verify Factual Claims
+If the finding claims specific behavior, verify it:
+- Check imports and types match the claim
+- Check function signatures match usage
+- If claim is factually wrong → DISCARD (hallucination)
+
+### Step 6: Assess Trigger Path
+For the issue to be real, there must be a plausible trigger:
+- How would a user/attacker reach this code?
+- What inputs would trigger the bug?
+- If no realistic trigger path → DISCARD (theoretical only)
+
+## Decision
+After verification, return:
+- valid=true: Issue is real, in changed code, with realistic trigger
+- valid=false: Issue is hallucination, pre-existing, intentional, or already guarded
+
+Include your reason for the decision."""
+
+schema ValidationResult:
+    valid: bool
+    reason: string
+    verification_steps: list[string]
+
+agent validator:
+    tools github, fs
+    instruction validator_instruction
+    description "Validates findings by verifying code claims with tools"
+
+# -----------------------------------------------------------------------------
+# UTILITY PROMPTS
+# -----------------------------------------------------------------------------
+
+prompt chunk_splitter: """Split this diff into logical review chunks.
+
+Each chunk should be:
+- One file OR one logical unit of related changes
+- Small enough to fit in context (max ~2000 lines)
+- Self-contained for a holistic code review purposes
+
+Diff:
+$diff
+
+Return a list of chunks with file paths and line ranges."""
+
+prompt deduplicator: """Deduplicate these findings.
+
+Rules:
+1. Merge findings that describe the same underlying issue
+2. Keep the version with highest confidence
+3. Combine reasoning from duplicates
+4. Remove exact duplicates
+
+Findings:
+$findings
+
+Return deduplicated list maintaining all unique issues."""
+
+# -----------------------------------------------------------------------------
+# PATCH GENERATOR AGENT (has tools to analyze repo before proposing fix)
+# -----------------------------------------------------------------------------
+
+prompt patch_generator_instruction: """You are a PATCH GENERATOR for code review fixes.
+
+## Context
+You are working on a PR with the following purpose:
+$pr_description
+
+The PR implements these changes:
+$changes_summary
+
+## Issue to Fix
+You have identified the following issue:
+- **File**: $finding.file
+- **Lines**: $finding.line_start to $finding.line_end
+- **Category**: $finding.category
+- **Title**: $finding.title
+- **Description**: $finding.description
+- **Confidence**: $finding.confidence%
+- **Suggested Fix**: $finding.suggested_fix
+
+## Your Task
+
+1. **Analyze the context** (use tools):
+   - Read the file around the issue location
+   - Check imports and dependencies
+   - Look at how similar code is handled elsewhere
+   - Read any related tests to understand expected behavior
+   - Check callers/callees if relevant
+
+2. **Propose a minimal patch**:
+   - Only modify the specific lines + adjacent context needed
+   - Do NOT rewrite entire functions or add unrelated improvements
+   - Ensure the fix addresses the root cause, not just the symptom
+
+3. **Output in git diff format**:
+   ```diff
+   --- a/path/to/file.py
+   +++ b/path/to/file.py
+   @@ -line,count +line,count @@
+    context line
+   -removed line
+   +added line
+    context line
+   ```
+
+4. **Assess your confidence** (0-100):
+   - How certain are you this patch is correct?
+   - Does it integrate well with the codebase patterns?
+   - Could it introduce new issues?
+
+## Output Rules
+- If you CAN fix in place: provide the git diff and confidence score
+- If you CANNOT fix in place (requires architectural changes, multiple files, etc.):
+  set can_fix_in_place=false and describe what changes are needed in alternative_description
+
+## Constraints
+- Only patch the identified lines and immediately adjacent code
+- Preserve existing code style and patterns
+- Do not add unrelated improvements or refactoring"""
+
+agent patch_generator:
+    tools github, fs
+    instruction patch_generator_instruction
+    description "Analyzes repo context and generates minimal git diff patches"
+
+prompt final_compiler expecting FinalReview: """Compile the final code review.
+
+PR Information:
+$pr_info
+
+Validated Findings (sorted by severity):
+$findings
+
+Generated Patches:
+$patches
+
+Statistics:
+- Total findings: $total
+- By severity: $by_severity
+- By category: $by_category
+
+Create the final review with:
+1. Executive summary (2-3 sentences)
+2. Findings grouped by severity (error > warning > notice)
+3. Inline-applicable patches
+4. Recommendation: approve | request_changes | comment
+5. Overall confidence score (weighted average)"""
+
+# -----------------------------------------------------------------------------
+# HELPER AGENTS
+# -----------------------------------------------------------------------------
+
+prompt pr_fetcher_instruction: """Fetch complete PR information.
+
+Use GitHub tools to get:
+- PR number, title, body, state
+- Base ref, head ref, merge status
+- Author information
+- Linked issues (parse from body)
+- Review status
+
+Return structured PR metadata."""
+
+agent pr_fetcher:
+    tools github
+    instruction pr_fetcher_instruction
+    description "Fetches PR metadata from GitHub"
+
+prompt context_builder_instruction: """Build repository context FOR THIS SPECIFIC PR.
+
+You will receive the PR info. Use it to understand:
+- What areas of the codebase are being changed
+- What the PR is trying to accomplish
+- What review categories (security, bugs, quality) are most relevant
+
+Then read and summarize ONLY what's relevant:
+- README.md (project purpose, architecture)
+- CONTRIBUTING.md (coding standards)
+- CLAUDE.md or similar (AI guidelines)
+- Docs specifically relevant to the changed areas
+
+Identify with this PR in mind:
+- Primary language and framework
+- Coding conventions for affected code
+- Testing requirements for this type of change
+- Security policies if security-sensitive areas are touched
+
+Return context summary optimized for reviewing THIS PR."""
+
+agent context_builder:
+    tools fs, github
+    instruction context_builder_instruction
+    description "Builds PR-aware repository context"
+
+prompt diff_fetcher_instruction: """Fetch the complete PR diff.
+
+Use GitHub tools to get the full diff.
+Include all changed files with context lines."""
+
+agent diff_fetcher:
+    tools github
+    instruction diff_fetcher_instruction
+    description "Fetches PR diff"
+
+# -----------------------------------------------------------------------------
+# CHUNK CONTEXT BUILDER (runs per chunk - CRITICAL for review quality)
+# -----------------------------------------------------------------------------
+
+prompt chunk_context_instruction: """Build context for this specific code chunk.
+
+You will receive:
+- A chunk of code changes (diff)
+- The overall PR context
+- The repo context
+
+Your job: Gather HISTORICAL CONTEXT for the changed lines.
+
+Steps:
+1. Identify the file(s) and line ranges in this chunk
+2. Run git blame on the affected lines to get commit SHAs
+3. Fetch commit messages for those SHAs
+4. Parse commit messages for linked issues (Fixes #123, Closes #456, etc.)
+5. If issues are found, fetch their descriptions
+6. Check for other recent PRs that touched these same files
+
+Return a SUMMARY that includes:
+- Why these lines exist (based on blame/commit messages)
+- What bugs or issues led to the current implementation
+- Any related PRs that touched this code recently
+- Key context a reviewer should know about this code's history
+
+Keep the summary focused and relevant for review categories:
+- Security: Was this code added to fix a security issue?
+- Bugs: What bugs have affected this area before?
+- Quality: Has this area been refactored recently?"""
+
+agent chunk_context_builder:
+    tools github, fs
+    instruction chunk_context_instruction
+    description "Builds historical context for a code chunk via git blame and issue linking"
+
+# -----------------------------------------------------------------------------
+# MAIN ORCHESTRATION FLOW
+# -----------------------------------------------------------------------------
+
+flow main:
+    log "V2 Parallel: Starting multi-agent review..."
+
+    # Phase 1A: Fetch PR info and diff first (needed for context building)
+    log "Phase 1A: Fetching PR info and diff..."
+    parallel do
+        $pr_info = run agent pr_fetcher $input
+        $diff = run agent diff_fetcher $input
+    end
+
+    # Phase 1B: Build PR-aware repo context (needs PR info)
+    log "Phase 1B: Building PR-aware repository context..."
+    $repo_context = run agent context_builder $pr_info
+
+    # Phase 2: Chunk the diff for parallel processing
+    log "Phase 2: Chunking diff..."
+    $chunks = call llm chunk_splitter $diff
+
+    # Phase 3: Review each chunk with full context hierarchy
+    log "Phase 3: Running specialized reviewers with per-chunk context..."
+    $all_findings = []
+
+    for $chunk in $chunks do
+        # Build chunk-specific historical context (blame, commits, linked issues)
+        log "Building context for chunk..."
+        $chunk_context = run agent chunk_context_builder $chunk $pr_info
+
+        # Combine all context levels for reviewers
+        $full_context = {
+            repo: $repo_context,
+            pr: $pr_info,
+            chunk_history: $chunk_context
+        }
+
+        # Run all specialists in parallel per chunk
+        parallel do
+            $security_findings = call llm security_reviewer $full_context $chunk
+            $bug_findings = call llm bug_reviewer $full_context $chunk
+            $style_findings = call llm style_reviewer $full_context $chunk
+        end
+
+        # Collect findings from all specialists
+        $all_findings = concat($all_findings, $security_findings.findings)
+        $all_findings = concat($all_findings, $bug_findings.findings)
+        $all_findings = concat($all_findings, $style_findings.findings)
+    end
+
+    # Phase 4: Validate findings (validator agent verifies each finding against code)
+    log "Phase 4: Validating findings..."
+    $validated_findings = run validate_all $all_findings $diff $pr_info
+
+    # Phase 5: Deduplicate
+    log "Phase 5: Deduplicating..."
+    $unique_findings = call llm deduplicator $validated_findings
+
+    # Phase 6: Generate patches for fixable issues
+    log "Phase 6: Generating patches..."
+    $patches = run generate_all_patches $unique_findings $pr_info
+
+    # Phase 7: Compile final review
+    log "Phase 7: Compiling final review..."
+    $final = call llm final_compiler $pr_info $unique_findings $patches
+
+    log "Review complete!"
+    return $final
+
+# -----------------------------------------------------------------------------
+# VALIDATION FLOW
+# -----------------------------------------------------------------------------
+
+flow validate_all $findings $diff $pr_info:
+    # Pre-filter to only validate high-confidence findings
+    $high_confidence = filter($findings, $f -> $f.confidence >= 80)
+    $validated = []
+
+    # Build context for validator
+    $validation_context = {
+        diff: $diff,
+        pr_description: $pr_info.description,
+        changes_summary: $pr_info.title
+    }
+
+    for $finding in $high_confidence do
+        # Validator agent has tools to read files, check diff, search for guards
+        $result = run agent validator $finding $validation_context
+        if $result.valid:
+            $validated = concat($validated, [$finding])
+        else:
+            log "Rejected: $finding.title - $result.reason"
+        end
+    end
+
+    return $validated
+
+# -----------------------------------------------------------------------------
+# PATCH GENERATION FLOW
+# -----------------------------------------------------------------------------
+
+flow generate_all_patches $findings $pr_info:
+    # Only process findings with suggested fixes
+    $fixable = filter($findings, $f -> $f.suggested_fix != null)
+    $patches = []
+
+    # Build context for patch generator
+    $patch_context = {
+        pr_description: $pr_info.description,
+        changes_summary: $pr_info.title
+    }
+
+    for $finding in $fixable do
+        # Patch generator agent has tools to read code, understand context
+        $patch = run agent patch_generator $finding $patch_context
+        if $patch.can_fix_in_place:
+            $patches = concat($patches, [$patch])
+        else:
+            # Log findings that need broader changes
+            log "Cannot fix in place: $finding.title - $patch.alternative_description"
+        end
+    end
+
+    return $patches
+
+# -----------------------------------------------------------------------------
+# DEFAULT AGENT
+# -----------------------------------------------------------------------------
+
+prompt default_instruction: """You are the V2 Parallel Multi-Agent Code Reviewer.
+
+This is the production-grade code review system with:
+- Specialized security, bug, and style reviewers
+- Per-chunk historical context (blame, linked issues)
+- Validation layer to reduce false positives
+- Automatic patch generation
+
+To review a PR, you will:
+1. Fetch PR metadata and diff
+2. Build PR-aware repository context
+3. Split diff into logical chunks
+4. For each chunk: build historical context, run all specialists in parallel
+5. Validate and deduplicate findings
+6. Generate patches for fixable issues
+7. Compile the final review
+
+Provide the PR number, URL, or describe what to review."""
+
+agent:
+    tools github, fs
+    instruction default_instruction
+    description "V2 Parallel multi-agent code reviewer"
