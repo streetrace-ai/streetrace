@@ -95,9 +95,9 @@ agent analyzer_b:
     description "Counts verbs"
 
 prompt final_instruction expecting FinalReport: """Compile final report.
-Chunk Results: $chunk_results
-Analysis A Results: $analysis_a_results
-Analysis B Results: $analysis_b_results
+Chunk Results: $all_chunk_results
+Analysis A Results: $all_analysis_a
+Analysis B Results: $all_analysis_b
 
 Return:
 - title: Pattern Test Complete

@@ -428,7 +428,8 @@ class FlowVisitor:
         """Generate code for parallel block.
 
         Validate that only RunStmt nodes are present, then generate code
-        for true parallel execution using asyncio.gather.
+        for true parallel execution. Events are yielded as they occur,
+        and results are stored directly in ctx.vars by the executor.
 
         Args:
             node: Parallel block node.
@@ -478,21 +479,14 @@ class FlowVisitor:
         self._emitter.dedent()
         self._emitter.emit("]")
 
-        # Call the parallel execution helper
+        # Execute parallel agents - yields events, stores results in ctx.vars
         self._emitter.emit(
-            "_parallel_results = await self._execute_parallel_agents(",
+            "async for _event in self._execute_parallel_agents(ctx, _parallel_specs):",
         )
-        self._emitter.emit(
-            "    ctx, _parallel_specs)",
-        )
-
-        # Assign results to target variables
-        for stmt in run_stmts:
-            if stmt.target:
-                target_name = stmt.target.lstrip("$")
-                self._emitter.emit(
-                    f"ctx.vars['{target_name}'] = _parallel_results['{target_name}']",
-                )
+        self._emitter.indent()
+        self._emitter.emit("yield _event")
+        self._emitter.dedent()
+        self._emitter.emit("# Results stored in ctx.vars by _execute_parallel_agents")
 
     def _visit_match_block(self, node: MatchBlock) -> None:
         """Generate code for match block.

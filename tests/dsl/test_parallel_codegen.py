@@ -177,7 +177,11 @@ class TestParallelBlockCodeGeneration:
         assert "'task_b'" in code
 
     def test_parallel_block_assigns_results(self) -> None:
-        """Parallel block should assign results to target variables."""
+        """Parallel block should assign results to target variables.
+
+        Results are stored directly in ctx.vars by _execute_parallel_agents,
+        so target variables are specified in _parallel_specs.
+        """
         ast = DslFile(
             version=VersionDecl(version="v1"),
             statements=[
@@ -211,10 +215,13 @@ class TestParallelBlockCodeGeneration:
         generator = CodeGenerator()
         code, _mappings = generator.generate(ast, "test.sr")
 
-        # Should assign results back to variables
-        assert "ctx.vars['result_a']" in code
-        assert "ctx.vars['result_b']" in code
-        assert "_parallel_results" in code
+        # Target variables are specified in _parallel_specs
+        # Results are stored directly in ctx.vars by _execute_parallel_agents
+        assert "'result_a'" in code
+        assert "'result_b'" in code
+        assert "_parallel_specs" in code
+        # Should use async for loop to yield events
+        assert "async for _event in self._execute_parallel_agents" in code
 
     def test_parallel_block_with_args(self) -> None:
         """Parallel block should handle run agent statements with arguments."""
