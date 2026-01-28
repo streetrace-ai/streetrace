@@ -36,74 +36,41 @@ schema FinalReport:
     combined_analysis: string
 
 # -----------------------------------------------------------------------------
-# SIMPLE AGENTS (no tools, single LLM call each)
+# PROMPT DECLARATIONS (metadata at top for quick reference)
 # -----------------------------------------------------------------------------
 
-prompt agent_a_instruction expecting TextData: """Return test data A.
-Respond with: text set to Hello from agent A"""
+prompt agent_a_instruction
+prompt agent_a_instruction expecting TextData
+prompt agent_b_instruction expecting TextData
+prompt chunk_splitter_instruction expecting ChunkList
+prompt chunk_processor_instruction expecting ChunkResult
+prompt analyzer_a_instruction expecting AnalysisResult
+prompt analyzer_b_instruction expecting AnalysisResult
+prompt final_instruction expecting FinalReport
+
+# -----------------------------------------------------------------------------
+# SIMPLE AGENTS (no tools, single LLM call each)
+# -----------------------------------------------------------------------------
 
 agent agent_a:
     instruction agent_a_instruction
     description "Returns test string A"
 
-prompt agent_b_instruction expecting TextData: """Return test data B.
-Respond with: text set to Hello from agent B"""
-
 agent agent_b:
     instruction agent_b_instruction
     description "Returns test string B"
-
-prompt chunk_splitter_instruction expecting ChunkList: """Split the text into exactly 2 chunks.
-Text to split: The quick brown fox jumps over lazy dog
-
-Return chunks list with:
-- chunk 1: chunk_id=1, text=The quick brown fox
-- chunk 2: chunk_id=2, text=jumps over lazy dog"""
-
-prompt chunk_processor_instruction expecting ChunkResult: """Process this chunk.
-Chunk: $chunk
-
-Return:
-- chunk_id: same as input chunk_id
-- summary: 3 word summary
-- word_count: count the words in the text"""
 
 agent chunk_processor:
     instruction chunk_processor_instruction
     description "Processes a chunk"
 
-prompt analyzer_a_instruction expecting AnalysisResult: """Count nouns in chunk.
-Chunk: $chunk
-
-Return:
-- category: nouns
-- count: number of nouns found"""
-
 agent analyzer_a:
     instruction analyzer_a_instruction
     description "Counts nouns"
 
-prompt analyzer_b_instruction expecting AnalysisResult: """Count verbs in chunk.
-Chunk: $chunk
-
-Return:
-- category: verbs
-- count: number of verbs found"""
-
 agent analyzer_b:
     instruction analyzer_b_instruction
     description "Counts verbs"
-
-prompt final_instruction expecting FinalReport: """Compile final report.
-Chunk Results: $all_chunk_results
-Analysis A Results: $all_analysis_a
-Analysis B Results: $all_analysis_b
-
-Return:
-- title: Pattern Test Complete
-- total_chunks: number of chunk results
-- total_words: sum of word_count from all chunk results
-- combined_analysis: summary of noun and verb counts"""
 
 # -----------------------------------------------------------------------------
 # MAIN FLOW
@@ -177,8 +144,58 @@ flow main:
 # DEFAULT AGENT
 # -----------------------------------------------------------------------------
 
-prompt default_instruction: """Test agent. Say run to start."""
-
 agent:
     instruction default_instruction
     description "Test pattern validator"
+
+# -----------------------------------------------------------------------------
+# PROMPT BODIES (instruction text at bottom for readability)
+# -----------------------------------------------------------------------------
+
+prompt default_instruction: """Test agent. Say run to start."""
+
+prompt agent_a_instruction: """Return test data A.
+Respond with: text set to Hello from agent A"""
+
+prompt agent_b_instruction: """Return test data B.
+Respond with: text set to Hello from agent B"""
+
+prompt chunk_splitter_instruction: """Split the text into exactly 2 chunks.
+Text to split: The quick brown fox jumps over lazy dog
+
+Return chunks list with:
+- chunk 1: chunk_id=1, text=The quick brown fox
+- chunk 2: chunk_id=2, text=jumps over lazy dog"""
+
+prompt chunk_processor_instruction: """Process this chunk.
+Chunk: $chunk
+
+Return:
+- chunk_id: same as input chunk_id
+- summary: 3 word summary
+- word_count: count the words in the text"""
+
+prompt analyzer_a_instruction: """Count nouns in chunk.
+Chunk: $chunk
+
+Return:
+- category: nouns
+- count: number of nouns found"""
+
+prompt analyzer_b_instruction: """Count verbs in chunk.
+Chunk: $chunk
+
+Return:
+- category: verbs
+- count: number of verbs found"""
+
+prompt final_instruction: """Compile final report.
+Chunk Results: $all_chunk_results
+Analysis A Results: $all_analysis_a
+Analysis B Results: $all_analysis_b
+
+Return:
+- title: Pattern Test Complete
+- total_chunks: number of chunk results
+- total_words: sum of word_count from all chunk results
+- combined_analysis: summary of noun and verb counts"""

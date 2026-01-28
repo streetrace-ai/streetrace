@@ -1403,8 +1403,27 @@ class AstTransformer(Transformer):
     # =========================================================================
 
     @v_args(meta=True)
-    def prompt_def(self, meta: object, items: TransformerItems) -> PromptDef:
-        """Transform prompt_def rule."""
+    def prompt_decl(self, meta: object, items: TransformerItems) -> PromptDef:
+        """Transform prompt_decl rule (declaration without body).
+
+        Creates a PromptDef with empty body for forward declarations.
+        Multiple definitions of the same prompt are merged during semantic analysis.
+        """
+        return self._create_prompt_def(meta, items)
+
+    @v_args(meta=True)
+    def prompt_full(self, meta: object, items: TransformerItems) -> PromptDef:
+        """Transform prompt_full rule (full definition with body).
+
+        Creates a PromptDef with body text for complete definitions.
+        """
+        return self._create_prompt_def(meta, items)
+
+    def _create_prompt_def(self, meta: object, items: TransformerItems) -> PromptDef:
+        """Create a PromptDef from parsed items.
+
+        Shared implementation for both prompt_decl and prompt_full rules.
+        """
         filtered = _filter_children(items)
         name, body, modifiers, escalation = self._extract_prompt_components(filtered)
 

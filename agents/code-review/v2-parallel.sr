@@ -51,129 +51,19 @@ schema FinalReview:
     overall_confidence: int
     stats: string
 
-# -----------------------------------------------------------------------------
-# SHARED SCORING RUBRIC
-# -----------------------------------------------------------------------------
-
-prompt scoring_rubric: """## Confidence Scoring Rubric (MANDATORY)
-
-Score EVERY finding on a 0-100 scale:
-
-### 90-100 (Critical/Definite)
-- Security: SQL injection with user input, RCE, hardcoded secrets
-- Bug: Guaranteed null pointer crash, infinite loop, data loss
-- Evidence: Exact code path demonstrating the flaw
-
-### 80-89 (High/Likely)
-- Security: XSS with plausible attack vector, weak auth
-- Bug: Missing null check on field that can be null
-- Evidence: Strong circumstantial evidence + code pattern match
-
-### 70-79 (Medium/Possible)
-- Potential issue depending on runtime context
-- Edge case that might trigger under specific conditions
-- Evidence: Pattern suggests issue but context unclear
-
-### Below 70: DO NOT REPORT
-- Nitpicks, style preferences, pre-existing issues
-
-CRITICAL RULES:
-1. ONLY report findings with confidence >= 80
-2. Focus ONLY on CHANGED code, not pre-existing issues
-3. Do NOT report linting/formatting (handled by CI)
-4. Include reasoning explaining WHY this is an issue
-5. Suggest a fix when possible"""
+schema ValidationResult:
+    valid: bool
+    reason: string
+    verification_steps: list[string]
 
 # -----------------------------------------------------------------------------
-# SPECIALIZED REVIEWER PROMPTS
+# PROMPT DECLARATIONS (metadata at top for quick reference)
 # -----------------------------------------------------------------------------
 
-prompt security_reviewer expecting CategoryFindings using model "main": """You are a SECURITY SPECIALIST code reviewer.
-
-$scoring_rubric
-
-Review EXCLUSIVELY for security vulnerabilities:
-
-**High Priority:**
-- Injection flaws (SQL, NoSQL, command, LDAP, XPath)
-- Cross-site scripting (XSS) - reflected, stored, DOM-based
-- Authentication/authorization bypasses
-- Sensitive data exposure (PII, credentials, tokens)
-- Insecure deserialization
-- XML External Entity (XXE)
-
-**Medium Priority:**
-- Insufficient input validation
-- Missing security headers
-- Weak cryptography or hardcoded keys
-- Path traversal vulnerabilities
-- Server-Side Request Forgery (SSRF)
-
-**Context:**
-$context
-
-**Code to Review:**
-$chunk
-
-Return findings in the 'security' category only.
-Include exploit scenarios in reasoning."""
-
-prompt bug_reviewer expecting CategoryFindings using model "main": """You are a BUG DETECTION SPECIALIST code reviewer.
-
-$scoring_rubric
-
-Review EXCLUSIVELY for logic bugs and runtime errors:
-
-**High Priority:**
-- Null/undefined reference errors
-- Type mismatches and coercion errors
-- Off-by-one errors in loops/arrays
-- Race conditions and deadlocks
-- Resource leaks (memory, file handles, connections)
-- Unhandled exceptions in critical paths
-
-**Medium Priority:**
-- Incorrect error handling (swallowed exceptions)
-- Dead code that should execute
-- Incorrect boolean logic
-- Missing break/return statements
-- Integer overflow/underflow
-
-**Context:**
-$context
-
-**Code to Review:**
-$chunk
-
-Return findings in the 'bug' category only.
-Include reproduction scenario in reasoning."""
-
-prompt style_reviewer expecting CategoryFindings using model "fast": """You are a CODE QUALITY SPECIALIST reviewer.
-
-$scoring_rubric
-
-Review for SIGNIFICANT quality issues only:
-
-**Report (confidence >= 80):**
-- Architectural violations (wrong layer dependencies)
-- SOLID principle violations with real impact
-- Missing error handling in user-facing code
-- Maintainability issues that will cause bugs
-
-**DO NOT Report:**
-- Formatting (handled by formatters)
-- Naming conventions (handled by linters)
-- Comment style or missing comments
-- Subjective preferences
-
-**Context:**
-$context
-
-**Code to Review:**
-$chunk
-
-Return findings in the 'style' category only.
-Only report issues with clear negative impact."""
+prompt security_reviewer expecting CategoryFindings using model "main"
+prompt bug_reviewer expecting CategoryFindings using model "main"
+prompt style_reviewer expecting CategoryFindings using model "fast"
+prompt final_compiler expecting FinalReview
 
 # -----------------------------------------------------------------------------
 # SPECIALIZED REVIEWER AGENTS (wrap prompts for parallel execution)
@@ -259,11 +149,6 @@ After verification, return:
 - valid=false: Issue is hallucination, pre-existing, intentional, or already guarded
 
 Include your reason for the decision."""
-
-schema ValidationResult:
-    valid: bool
-    reason: string
-    verification_steps: list[string]
 
 agent validator:
     tools github, fs
@@ -366,29 +251,6 @@ agent patch_generator:
     tools github, fs
     instruction patch_generator_instruction
     description "Analyzes repo context and generates minimal git diff patches"
-
-prompt final_compiler expecting FinalReview: """Compile the final code review.
-
-PR Information:
-$pr_info
-
-Validated Findings (sorted by severity):
-$findings
-
-Generated Patches:
-$patches
-
-Statistics:
-- Total findings: $total
-- By severity: $by_severity
-- By category: $by_category
-
-Create the final review with:
-1. Executive summary (2-3 sentences)
-2. Findings grouped by severity (error > warning > notice)
-3. Inline-applicable patches
-4. Recommendation: approve | request_changes | comment
-5. Overall confidence score (weighted average)"""
 
 # -----------------------------------------------------------------------------
 # HELPER AGENTS
@@ -653,3 +515,151 @@ agent:
     tools github, fs
     instruction default_instruction
     description "V2 Parallel multi-agent code reviewer"
+
+# -----------------------------------------------------------------------------
+# PROMPT BODIES (long instruction text at bottom for readability)
+# -----------------------------------------------------------------------------
+
+prompt security_reviewer: """You are a SECURITY SPECIALIST code reviewer.
+
+$scoring_rubric
+
+Review EXCLUSIVELY for security vulnerabilities:
+
+**High Priority:**
+- Injection flaws (SQL, NoSQL, command, LDAP, XPath)
+- Cross-site scripting (XSS) - reflected, stored, DOM-based
+- Authentication/authorization bypasses
+- Sensitive data exposure (PII, credentials, tokens)
+- Insecure deserialization
+- XML External Entity (XXE)
+
+**Medium Priority:**
+- Insufficient input validation
+- Missing security headers
+- Weak cryptography or hardcoded keys
+- Path traversal vulnerabilities
+- Server-Side Request Forgery (SSRF)
+
+**Context:**
+$context
+
+**Code to Review:**
+$chunk
+
+Return findings in the 'security' category only.
+Include exploit scenarios in reasoning."""
+
+prompt bug_reviewer: """You are a BUG DETECTION SPECIALIST code reviewer.
+
+$scoring_rubric
+
+Review EXCLUSIVELY for logic bugs and runtime errors:
+
+**High Priority:**
+- Null/undefined reference errors
+- Type mismatches and coercion errors
+- Off-by-one errors in loops/arrays
+- Race conditions and deadlocks
+- Resource leaks (memory, file handles, connections)
+- Unhandled exceptions in critical paths
+
+**Medium Priority:**
+- Incorrect error handling (swallowed exceptions)
+- Dead code that should execute
+- Incorrect boolean logic
+- Missing break/return statements
+- Integer overflow/underflow
+
+**Context:**
+$context
+
+**Code to Review:**
+$chunk
+
+Return findings in the 'bug' category only.
+Include reproduction scenario in reasoning."""
+
+prompt style_reviewer: """You are a CODE QUALITY SPECIALIST reviewer.
+
+$scoring_rubric
+
+Review for SIGNIFICANT quality issues only:
+
+**Report (confidence >= 80):**
+- Architectural violations (wrong layer dependencies)
+- SOLID principle violations with real impact
+- Missing error handling in user-facing code
+- Maintainability issues that will cause bugs
+
+**DO NOT Report:**
+- Formatting (handled by formatters)
+- Naming conventions (handled by linters)
+- Comment style or missing comments
+- Subjective preferences
+
+**Context:**
+$context
+
+**Code to Review:**
+$chunk
+
+Return findings in the 'style' category only.
+Only report issues with clear negative impact."""
+
+prompt final_compiler: """Compile the final code review.
+
+PR Information:
+$pr_info
+
+Validated Findings (sorted by severity):
+$findings
+
+Generated Patches:
+$patches
+
+Statistics:
+- Total findings: $total
+- By severity: $by_severity
+- By category: $by_category
+
+Create the final review with:
+1. Executive summary (2-3 sentences)
+2. Findings grouped by severity (error > warning > notice)
+3. Inline-applicable patches
+4. Recommendation: approve | request_changes | comment
+5. Overall confidence score (weighted average)"""
+
+
+# -----------------------------------------------------------------------------
+# SHARED SCORING RUBRIC
+# -----------------------------------------------------------------------------
+
+prompt scoring_rubric: """## Confidence Scoring Rubric (MANDATORY)
+
+Score EVERY finding on a 0-100 scale:
+
+### 90-100 (Critical/Definite)
+- Security: SQL injection with user input, RCE, hardcoded secrets
+- Bug: Guaranteed null pointer crash, infinite loop, data loss
+- Evidence: Exact code path demonstrating the flaw
+
+### 80-89 (High/Likely)
+- Security: XSS with plausible attack vector, weak auth
+- Bug: Missing null check on field that can be null
+- Evidence: Strong circumstantial evidence + code pattern match
+
+### 70-79 (Medium/Possible)
+- Potential issue depending on runtime context
+- Edge case that might trigger under specific conditions
+- Evidence: Pattern suggests issue but context unclear
+
+### Below 70: DO NOT REPORT
+- Nitpicks, style preferences, pre-existing issues
+
+CRITICAL RULES:
+1. ONLY report findings with confidence >= 80
+2. Focus ONLY on CHANGED code, not pre-existing issues
+3. Do NOT report linting/formatting (handled by CI)
+4. Include reasoning explaining WHY this is an issue
+5. Suggest a fix when possible"""

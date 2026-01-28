@@ -287,7 +287,17 @@ tool_name: NAME
 // PROMPTS
 // ----------------------------------------------------------------------------
 
-prompt_def: "prompt" NAME prompt_modifiers? ":" prompt_body escalation_clause?
+// Prompt definitions support override pattern for better file organization:
+// - Declarations (without body): define metadata at top of file
+// - Full definitions (with body): define prompt text at bottom of file
+// Multiple definitions of the same prompt are merged during semantic analysis.
+// Example:
+//   prompt reviewer expecting Schema using model "main"  # declaration
+//   # ... agents and flows ...
+//   prompt reviewer: """Prompt text here"""              # body definition
+
+prompt_def: "prompt" NAME prompt_modifiers?                                      -> prompt_decl
+          | "prompt" NAME prompt_modifiers? ":" prompt_body escalation_clause?   -> prompt_full
 
 prompt_modifiers: prompt_modifier+
 
