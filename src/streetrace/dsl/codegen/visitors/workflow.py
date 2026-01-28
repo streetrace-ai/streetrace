@@ -277,17 +277,31 @@ class WorkflowVisitor:
             type_expr: DSL type expression.
 
         Returns:
-            Python type annotation as string (e.g., 'str', 'list[str]').
+            Python type annotation as string (e.g., 'str', 'list[str]', 'list[Chunk]').
 
         """
-        # Map DSL types to Python type strings
+        # Map DSL primitive types to Python type strings
         type_map = {
             "string": "str",
             "int": "int",
             "float": "float",
             "bool": "bool",
         }
-        base = type_map.get(type_expr.base_type, "str")
+
+        # Check if it's a primitive type or a custom schema type
+        base_type = type_expr.base_type
+        if base_type in type_map:
+            base = type_map[base_type]
+        else:
+            # Custom type (schema reference) - use the schema name directly
+            # Schema classes are defined in the same scope
+            schema_names = {s.name for s in self._schemas}
+            if base_type in schema_names:
+                base = base_type
+            else:
+                # Unknown type - default to str with warning
+                base = "str"
+
         result = f"list[{base}]" if type_expr.is_list else base
 
         if type_expr.is_optional:

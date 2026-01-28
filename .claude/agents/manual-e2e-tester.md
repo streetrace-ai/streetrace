@@ -25,6 +25,8 @@ You perform comprehensive manual end-to-end testing of StreetRace features, simu
 3. Ensure you're in the correct working directory before test execution
 4. Clear or note the state of `./streetrace.log` before testing
 
+Note that in most cases your environment is already set up with model API keys and all other necessary access. Never assume you don't have access - test end-to-end, and if access issues appear report them in the test report.
+
 ### Phase 3: Test Execution
 1. Execute all documented user scenarios systematically
 2. Execute all documented testing scenarios

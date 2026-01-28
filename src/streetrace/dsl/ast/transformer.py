@@ -23,10 +23,12 @@ from streetrace.dsl.ast.nodes import (
     EscalationHandler,
     EventHandler,
     FailureBlock,
+    FilterExpr,
     FlowDef,
     ForLoop,
     FunctionCall,
     IfBlock,
+    ImplicitProperty,
     ImportStmt,
     ListLiteral,
     Literal,
@@ -43,6 +45,7 @@ from streetrace.dsl.ast.nodes import (
     PolicyDef,
     PromptDef,
     PropertyAccess,
+    PropertyAssignment,
     PushStmt,
     RetryAction,
     RetryPolicyDef,
@@ -251,6 +254,8 @@ def _filter_children(items: TransformerItems) -> list:
                 "DESCRIPTION",
                 "TOOLS",
                 "INSTRUCTION",
+                "FILTER",
+                "WHERE",
             }:
                 continue
         result.append(item)
@@ -1765,15 +1770,33 @@ class AstTransformer(Transformer):
         return items[-1] if items else None
 
     def if_block(self, items: TransformerItems) -> IfBlock:
-        """Transform if_block rule."""
-        condition = items[0]
-        body = items[1] if len(items) > 1 else []
+        """Transform if_block rule.
+
+        Grammar: if_block: "if" condition ":" _NL _INDENT flow_body _DEDENT _NL?
+        Items received: [Token('IF'), condition, Token(':'), ..., body, ...]
+        """
+        # Filter out tokens to get condition and body
+        filtered = [
+            item for item in items
+            if not isinstance(item, Token)
+        ]
+        condition = filtered[0] if filtered else None
+        body = filtered[1] if len(filtered) > 1 else []
         return IfBlock(condition=condition, body=body)
 
     def if_stmt(self, items: TransformerItems) -> IfBlock:
-        """Transform if_stmt rule (inline if)."""
-        condition = items[0]
-        body = [items[1]] if len(items) > 1 else []
+        """Transform if_stmt rule (inline if).
+
+        Grammar: if_stmt: "if" condition ":" statement_body
+        Items received: [Token('IF'), condition, Token(':'), body]
+        """
+        # Filter out tokens to get condition and body
+        filtered = [
+            item for item in items
+            if not isinstance(item, Token)
+        ]
+        condition = filtered[0] if filtered else None
+        body = [filtered[1]] if len(filtered) > 1 else []
         return IfBlock(condition=condition, body=body)
 
     def flow_control(self, items: TransformerItems) -> AstNode:
@@ -1797,11 +1820,24 @@ class AstTransformer(Transformer):
     # Statements
     # =========================================================================
 
-    def assignment(self, items: TransformerItems) -> Assignment:
-        """Transform assignment rule."""
+    def assignment(
+        self,
+        items: TransformerItems,
+    ) -> Assignment | PropertyAssignment:
+        """Transform assignment rule.
+
+        Return PropertyAssignment for property access targets like $obj.prop,
+        or Assignment for simple variable targets like $var.
+        """
         filtered = _filter_children(items)
         var = filtered[0]
         value = filtered[1]
+
+        # If target is a PropertyAccess, create PropertyAssignment
+        if isinstance(var, PropertyAccess):
+            return PropertyAssignment(target=var, value=value)
+
+        # Otherwise, create standard Assignment
         var_str = f"${var.name}" if isinstance(var, VarRef) else str(var)
         return Assignment(target=var_str, value=value)
 
@@ -2036,13 +2072,27 @@ class AstTransformer(Transformer):
         message = items[0] if items else None
         return EscalateStmt(message=message)
 
-    def log_stmt(self, items: TransformerItems) -> LogStmt:
-        """Transform log_stmt rule."""
-        return LogStmt(message=items[0])
+    @v_args(meta=True)
+    def log_stmt(self, meta: object, items: TransformerItems) -> LogStmt:
+        """Transform log_stmt rule.
 
-    def notify_stmt(self, items: TransformerItems) -> NotifyStmt:
-        """Transform notify_stmt rule."""
-        return NotifyStmt(message=items[0])
+        Grammar: log_stmt: "log" expression
+        The first item may be the LOG keyword token due to keep_all_tokens=True.
+        """
+        filtered = _filter_children(items)
+        message = filtered[0] if filtered else Literal(value="", literal_type="string")
+        return LogStmt(message=message, meta=_meta_to_position(meta))
+
+    @v_args(meta=True)
+    def notify_stmt(self, meta: object, items: TransformerItems) -> NotifyStmt:
+        """Transform notify_stmt rule.
+
+        Grammar: notify_stmt: "notify" expression
+        The first item may be the NOTIFY keyword token due to keep_all_tokens=True.
+        """
+        filtered = _filter_children(items)
+        message = filtered[0] if filtered else Literal(value="", literal_type="string")
+        return NotifyStmt(message=message, meta=_meta_to_position(meta))
 
     # =========================================================================
     # Expressions
@@ -2089,7 +2139,7 @@ class AstTransformer(Transformer):
         result = items[0]
         i = 1
         while i < len(items):
-            op = items[i]
+            op = str(items[i])  # Convert Token to string
             right = items[i + 1]
             result = BinaryOp(op=op, left=result, right=right)
             i += TUPLE_PAIR_LENGTH
@@ -2102,7 +2152,7 @@ class AstTransformer(Transformer):
         result = items[0]
         i = 1
         while i < len(items):
-            op = items[i]
+            op = str(items[i])  # Convert Token to string
             right = items[i + 1]
             result = BinaryOp(op=op, left=result, right=right)
             i += TUPLE_PAIR_LENGTH
@@ -2150,7 +2200,8 @@ class AstTransformer(Transformer):
 
     def list_literal(self, items: TransformerItems) -> ListLiteral:
         """Transform list_literal rule."""
-        return ListLiteral(elements=list(items))
+        filtered = _filter_children(items)
+        return ListLiteral(elements=filtered)
 
     def object_literal(self, items: TransformerItems) -> ObjectLiteral:
         """Transform object_literal rule."""
@@ -2252,6 +2303,47 @@ class AstTransformer(Transformer):
     def interpolated_string(self, items: TransformerItems) -> str:
         """Transform interpolated_string rule."""
         return str(items[0])
+
+    # =========================================================================
+    # Filter Expressions
+    # =========================================================================
+
+    def implicit_property(self, items: TransformerItems) -> ImplicitProperty:
+        """Transform implicit_property rule (.prop or .nested.prop).
+
+        Handle two forms:
+        - "." contextual_name ("." contextual_name)* -> list of names
+        - "." DOTTED_NAME -> single dotted name string to split
+        """
+        properties = []
+
+        for item in items:
+            # Skip DOT tokens
+            if isinstance(item, Token):
+                if item.type == "DOT":
+                    continue
+                val = _get_token_value(item)
+                # Check if it's a DOTTED_NAME (contains dots)
+                if "." in val:
+                    properties.extend(val.split("."))
+                elif val:  # Only add non-empty values
+                    properties.append(val)
+            elif isinstance(item, str):
+                # Could be a dotted name string from contextual_name
+                if "." in item:
+                    properties.extend(item.split("."))
+                elif item:  # Only add non-empty values
+                    properties.append(item)
+
+        return ImplicitProperty(properties=properties)
+
+    def filter_expr(self, items: TransformerItems) -> FilterExpr:
+        """Transform filter_expr rule (filter $list where .prop op val)."""
+        filtered = _filter_children(items)
+        # items[0] = list expression, items[1] = condition
+        list_expr = filtered[0] if filtered else None
+        condition = filtered[1] if len(filtered) > 1 else None
+        return FilterExpr(list_expr=list_expr, condition=condition)
 
 
 def transform(tree: Tree[Token]) -> DslFile:

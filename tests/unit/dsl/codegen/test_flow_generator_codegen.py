@@ -347,8 +347,8 @@ class TestCallLlmCodeGeneration:
 class TestParallelBlockCodeGeneration:
     """Test parallel block generates sequential with comment."""
 
-    def test_parallel_block_falls_back_to_sequential(self) -> None:
-        """Parallel block generates sequential execution with comment."""
+    def test_parallel_block_generates_parallel_execution(self) -> None:
+        """Parallel block generates true parallel execution code."""
         ast = DslFile(
             version=VersionDecl(version="v1"),
             statements=[
@@ -381,11 +381,14 @@ class TestParallelBlockCodeGeneration:
         generator = CodeGenerator()
         code, _mappings = generator.generate(ast, "test.sr")
 
-        # Should have a comment explaining sequential fallback
-        assert "# Sequential execution" in code or "parallel" in code.lower()
-        # Should still execute both agents
-        assert "run_agent('task_a')" in code
-        assert "run_agent('task_b')" in code
+        # Should have a comment explaining parallel execution
+        assert "parallel" in code.lower()
+        # Should generate parallel specs and call the parallel execution helper
+        assert "_parallel_specs" in code
+        assert "_execute_parallel_agents" in code
+        # Should include both agent names
+        assert "'task_a'" in code
+        assert "'task_b'" in code
 
 
 class TestImportsInGeneratedCode:

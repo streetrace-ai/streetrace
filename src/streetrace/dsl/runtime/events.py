@@ -58,6 +58,20 @@ class LlmResponseEvent(FlowEvent):
 
 
 @dataclass
+class FlowResultEvent(FlowEvent):
+    """Event emitted when a flow returns a value.
+
+    Provide the return value from the flow's `return` statement to the
+    supervisor for capture as the final response.
+    """
+
+    result: object
+    """The return value from the flow."""
+
+    type: str = field(default="flow_result", init=False)
+
+
+@dataclass
 class EscalationEvent(FlowEvent):
     """Event emitted when escalation is triggered.
 

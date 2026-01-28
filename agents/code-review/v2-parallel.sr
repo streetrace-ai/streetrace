@@ -8,10 +8,10 @@
 streetrace v1
 
 model main = anthropic/claude-sonnet-4-5
-model fast = anthropic/haiku
+model fast = anthropic/claude-sonnet-4-5
 model validator = anthropic/claude-sonnet-4-5
 
-tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_TOKEN}"
+tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_PERSONAL_ACCESS_TOKEN}"
 tool fs = builtin streetrace.fs
 
 # -----------------------------------------------------------------------------
@@ -33,10 +33,6 @@ schema Finding:
 schema CategoryFindings:
     category: string
     findings: list[Finding]
-
-schema ValidationResult:
-    valid: bool
-    reason: string
 
 schema Patch:
     file: string
@@ -92,7 +88,7 @@ CRITICAL RULES:
 # SPECIALIZED REVIEWER PROMPTS
 # -----------------------------------------------------------------------------
 
-prompt security_reviewer expecting CategoryFindings using model main: """You are a SECURITY SPECIALIST code reviewer.
+prompt security_reviewer expecting CategoryFindings using model "main": """You are a SECURITY SPECIALIST code reviewer.
 
 $scoring_rubric
 
@@ -122,7 +118,7 @@ $chunk
 Return findings in the 'security' category only.
 Include exploit scenarios in reasoning."""
 
-prompt bug_reviewer expecting CategoryFindings using model main: """You are a BUG DETECTION SPECIALIST code reviewer.
+prompt bug_reviewer expecting CategoryFindings using model "main": """You are a BUG DETECTION SPECIALIST code reviewer.
 
 $scoring_rubric
 
@@ -152,7 +148,7 @@ $chunk
 Return findings in the 'bug' category only.
 Include reproduction scenario in reasoning."""
 
-prompt style_reviewer expecting CategoryFindings using model fast: """You are a CODE QUALITY SPECIALIST reviewer.
+prompt style_reviewer expecting CategoryFindings using model "fast": """You are a CODE QUALITY SPECIALIST reviewer.
 
 $scoring_rubric
 
@@ -178,6 +174,22 @@ $chunk
 
 Return findings in the 'style' category only.
 Only report issues with clear negative impact."""
+
+# -----------------------------------------------------------------------------
+# SPECIALIZED REVIEWER AGENTS (wrap prompts for parallel execution)
+# -----------------------------------------------------------------------------
+
+agent security_reviewer_agent:
+    instruction security_reviewer
+    description "Reviews code for security vulnerabilities"
+
+agent bug_reviewer_agent:
+    instruction bug_reviewer
+    description "Reviews code for logic bugs and runtime errors"
+
+agent style_reviewer_agent:
+    instruction style_reviewer
+    description "Reviews code for quality issues"
 
 # -----------------------------------------------------------------------------
 # VALIDATION AGENT (equipped with tools to verify claims)
@@ -480,18 +492,23 @@ flow main:
 
     # Phase 1A: Fetch PR info and diff first (needed for context building)
     log "Phase 1A: Fetching PR info and diff..."
+    log "[AGENT] Starting parallel: pr_fetcher + diff_fetcher"
     parallel do
-        $pr_info = run agent pr_fetcher $input
-        $diff = run agent diff_fetcher $input
+        $pr_info = run agent pr_fetcher $input_prompt
+        $diff = run agent diff_fetcher $input_prompt
     end
+    log "[AGENT] Completed parallel: pr_fetcher + diff_fetcher"
 
     # Phase 1B: Build PR-aware repo context (needs PR info)
     log "Phase 1B: Building PR-aware repository context..."
+    log "[AGENT] Starting: context_builder"
     $repo_context = run agent context_builder $pr_info
+    log "[AGENT] Completed: context_builder"
 
     # Phase 2: Chunk the diff for parallel processing
     log "Phase 2: Chunking diff..."
     $chunks = call llm chunk_splitter $diff
+    log "[INFO] Received chunks from chunk_splitter"
 
     # Phase 3: Review each chunk with full context hierarchy
     log "Phase 3: Running specialized reviewers with per-chunk context..."
@@ -499,8 +516,10 @@ flow main:
 
     for $chunk in $chunks do
         # Build chunk-specific historical context (blame, commits, linked issues)
-        log "Building context for chunk..."
+        log "[LOOP] Processing chunk..."
+        log "[AGENT] Starting: chunk_context_builder"
         $chunk_context = run agent chunk_context_builder $chunk $pr_info
+        log "[AGENT] Completed: chunk_context_builder"
 
         # Combine all context levels for reviewers
         $full_context = {
@@ -510,21 +529,26 @@ flow main:
         }
 
         # Run all specialists in parallel per chunk
+        log "[AGENT] Starting parallel: security_reviewer_agent + bug_reviewer_agent + style_reviewer_agent"
         parallel do
-            $security_findings = call llm security_reviewer $full_context $chunk
-            $bug_findings = call llm bug_reviewer $full_context $chunk
-            $style_findings = call llm style_reviewer $full_context $chunk
+            $security_findings = run agent security_reviewer_agent $full_context $chunk
+            $bug_findings = run agent bug_reviewer_agent $full_context $chunk
+            $style_findings = run agent style_reviewer_agent $full_context $chunk
         end
+        log "[AGENT] Completed parallel: security_reviewer_agent + bug_reviewer_agent + style_reviewer_agent"
 
         # Collect findings from all specialists
-        $all_findings = concat($all_findings, $security_findings.findings)
-        $all_findings = concat($all_findings, $bug_findings.findings)
-        $all_findings = concat($all_findings, $style_findings.findings)
+        $all_findings = $all_findings + $security_findings.findings
+        $all_findings = $all_findings + $bug_findings.findings
+        $all_findings = $all_findings + $style_findings.findings
+        log "[LOOP] Chunk processing complete"
     end
 
     # Phase 4: Validate findings (validator agent verifies each finding against code)
     log "Phase 4: Validating findings..."
+    log "[FLOW] Starting: validate_all"
     $validated_findings = run validate_all $all_findings $diff $pr_info
+    log "[FLOW] Completed: validate_all"
 
     # Phase 5: Deduplicate
     log "Phase 5: Deduplicating..."
@@ -532,7 +556,9 @@ flow main:
 
     # Phase 6: Generate patches for fixable issues
     log "Phase 6: Generating patches..."
+    log "[FLOW] Starting: generate_all_patches"
     $patches = run generate_all_patches $unique_findings $pr_info
+    log "[FLOW] Completed: generate_all_patches"
 
     # Phase 7: Compile final review
     log "Phase 7: Compiling final review..."
@@ -546,8 +572,10 @@ flow main:
 # -----------------------------------------------------------------------------
 
 flow validate_all $findings $diff $pr_info:
+    log "[validate_all] Starting validation flow"
     # Pre-filter to only validate high-confidence findings
-    $high_confidence = filter($findings, $f -> $f.confidence >= 80)
+    $high_confidence = filter $findings where .confidence >= 80
+    log "[validate_all] Filtered to high-confidence findings"
     $validated = []
 
     # Build context for validator
@@ -558,15 +586,15 @@ flow validate_all $findings $diff $pr_info:
     }
 
     for $finding in $high_confidence do
+        log "[validate_all] [AGENT] Starting: validator"
         # Validator agent has tools to read files, check diff, search for guards
         $result = run agent validator $finding $validation_context
+        log "[validate_all] [AGENT] Completed: validator"
         if $result.valid:
-            $validated = concat($validated, [$finding])
-        else:
-            log "Rejected: $finding.title - $result.reason"
-        end
+            $validated = $validated + [$finding]
     end
 
+    log "[validate_all] Validation complete"
     return $validated
 
 # -----------------------------------------------------------------------------
@@ -574,8 +602,10 @@ flow validate_all $findings $diff $pr_info:
 # -----------------------------------------------------------------------------
 
 flow generate_all_patches $findings $pr_info:
+    log "[generate_all_patches] Starting patch generation flow"
     # Only process findings with suggested fixes
-    $fixable = filter($findings, $f -> $f.suggested_fix != null)
+    $fixable = filter $findings where .suggested_fix != null
+    log "[generate_all_patches] Filtered to fixable findings"
     $patches = []
 
     # Build context for patch generator
@@ -585,16 +615,15 @@ flow generate_all_patches $findings $pr_info:
     }
 
     for $finding in $fixable do
+        log "[generate_all_patches] [AGENT] Starting: patch_generator"
         # Patch generator agent has tools to read code, understand context
         $patch = run agent patch_generator $finding $patch_context
+        log "[generate_all_patches] [AGENT] Completed: patch_generator"
         if $patch.can_fix_in_place:
-            $patches = concat($patches, [$patch])
-        else:
-            # Log findings that need broader changes
-            log "Cannot fix in place: $finding.title - $patch.alternative_description"
-        end
+            $patches = $patches + [$patch]
     end
 
+    log "[generate_all_patches] Patch generation complete"
     return $patches
 
 # -----------------------------------------------------------------------------

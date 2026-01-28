@@ -265,6 +265,8 @@ _.name_ref  # unused method - called by Lark transformer
 _.interpolated_string  # unused method - called by Lark transformer
 _.version_decl  # unused method - called by Lark transformer
 _.start  # unused method - called by Lark transformer
+_.implicit_property  # unused method - called by Lark transformer for filter expressions
+_.filter_expr  # unused method - called by Lark transformer for filter expressions
 
 # AST Transformer terminal methods - called dynamically by Lark for token transformations
 _.NAME  # unused method - called by Lark transformer for NAME tokens
@@ -416,6 +418,9 @@ _.get_system_prompt  # unused method (street_race_agent.py) - prompt interface
 
 # DslAgentFactory - public API
 _.create_root_agent  # unused method (dsl_agent_factory.py) - factory method for creating agents
+
+# Parallel execution - called by generated code
+_._execute_parallel_agents  # unused method (workflow.py) - called by generated parallel block code
 
 # Escalation support - methods used by generated code or Lark transformer
 _.escalation_clause  # unused method - called by Lark transformer

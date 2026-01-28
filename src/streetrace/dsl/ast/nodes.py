@@ -115,6 +115,30 @@ class NameRef:
     meta: SourcePosition | None = None
 
 
+@dataclass
+class ImplicitProperty:
+    """Implicit property access on filter iteration item.
+
+    Represents `.property` or `.nested.property` in filter conditions.
+    The leading dot indicates access on the implicit loop variable.
+    """
+
+    properties: list[str]
+    meta: SourcePosition | None = None
+
+
+@dataclass
+class FilterExpr:
+    """Filter expression for list filtering.
+
+    Example: filter $findings where .confidence >= 80
+    """
+
+    list_expr: AstNode  # The list to filter
+    condition: AstNode  # The condition expression (uses ImplicitProperty)
+    meta: SourcePosition | None = None
+
+
 # =============================================================================
 # Statement Nodes
 # =============================================================================
@@ -126,6 +150,19 @@ class Assignment:
 
     target: str
     value: AstNode
+    meta: SourcePosition | None = None
+
+
+@dataclass
+class PropertyAssignment:
+    """Property assignment statement node (e.g., $obj.prop = value).
+
+    Assign a value to an object property using dictionary-style access.
+    Supports nested properties like $obj.a.b = value.
+    """
+
+    target: "PropertyAccess"  # The property to assign to
+    value: AstNode  # The value to assign
     meta: SourcePosition | None = None
 
 
@@ -187,17 +224,25 @@ class EscalateStmt:
 
 @dataclass
 class LogStmt:
-    """Log statement node."""
+    """Log statement node.
 
-    message: str
+    The message can be any expression - string literal, variable,
+    or concatenation like "prefix: " + $variable.
+    """
+
+    message: AstNode
     meta: SourcePosition | None = None
 
 
 @dataclass
 class NotifyStmt:
-    """Notify statement node."""
+    """Notify statement node.
 
-    message: str
+    The message can be any expression - string literal, variable,
+    or concatenation like "prefix: " + $variable.
+    """
+
+    message: AstNode
     meta: SourcePosition | None = None
 
 
