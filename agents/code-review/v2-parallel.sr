@@ -30,10 +30,6 @@ schema Finding:
     reasoning: string
     suggested_fix: string?
 
-schema CategoryFindings:
-    category: string
-    findings: list[Finding]
-
 schema Patch:
     file: string
     line_start: int
@@ -56,13 +52,18 @@ schema ValidationResult:
     reason: string
     verification_steps: list[string]
 
+schema DiffChunk:
+    title: string
+    description: string
+    git_diff_patch: string
+
 # -----------------------------------------------------------------------------
 # PROMPT DECLARATIONS (metadata at top for quick reference)
 # -----------------------------------------------------------------------------
 
-prompt security_reviewer expecting CategoryFindings using model "main"
-prompt bug_reviewer expecting CategoryFindings using model "main"
-prompt style_reviewer expecting CategoryFindings using model "fast"
+prompt security_reviewer expecting Finding[] using model "main"
+prompt bug_reviewer expecting Finding[] using model "main"
+prompt style_reviewer expecting Finding[] using model "fast"
 prompt final_compiler expecting FinalReview
 
 # -----------------------------------------------------------------------------
@@ -85,6 +86,156 @@ agent style_reviewer_agent:
 # VALIDATION AGENT (equipped with tools to verify claims)
 # -----------------------------------------------------------------------------
 
+agent validator:
+    tools github, fs
+    instruction validator_instruction
+    description "Validates findings by verifying code claims with tools"
+
+# -----------------------------------------------------------------------------
+# PATCH GENERATOR AGENT (has tools to analyze repo before proposing fix)
+# -----------------------------------------------------------------------------
+
+agent patch_generator:
+    tools github, fs
+    prompt patch_generator_prompt
+    instruction patch_generator_instruction
+    description "Analyzes repo context and generates minimal git diff patches"
+
+# -----------------------------------------------------------------------------
+# HELPER AGENTS
+# -----------------------------------------------------------------------------
+
+agent context_builder:
+    tools fs, github
+    instruction context_builder_instruction
+    description "Builds PR-aware repository context"
+
+agent pr_context_fetcher:
+    tools github
+    instruction pr_context_fetcher_instruction
+    description "Fetches PR metadata from GitHub"
+
+agent requirements_fetcher:
+    tools github
+    instruction requirements_fetcher_instruction
+    description "Fetches requirements associated with the PR from GitHub"
+
+agent diff_chunks_fetcher:
+    tools github
+    instruction diff_fetcher_instruction
+    description "Fetches PR diff"
+
+# -----------------------------------------------------------------------------
+# CHUNK CONTEXT BUILDER (runs per chunk - CRITICAL for review quality)
+# -----------------------------------------------------------------------------
+
+agent chunk_context_builder:
+    tools github, fs
+    instruction chunk_context_instruction
+    prompt chunk_context_prompt
+    description "Builds historical context for a code chunk via git blame and issue linking"
+
+# -----------------------------------------------------------------------------
+# MAIN ORCHESTRATION FLOW
+# -----------------------------------------------------------------------------
+
+flow main:
+    log "V2 Parallel: Starting multi-agent review..."
+
+    log "Phase 1: Fetch project description and PR Info -> text..."
+    $pr_context = run agent pr_context_fetcher $input_prompt
+
+    log "Phase 2: Get Diff Chunks -> DiffChunk[]..."
+    $diff = run agent diff_chunks_fetcher $input_prompt $pr_context
+
+    log "Phase 3: Fetch requirements -> text..."
+    $requirements = run agent requirements_fetcher $pr_context
+
+    $all_findings = []
+
+    for $chunk in $chunks do
+        # Build chunk-specific historical context (blame, commits, linked issues)
+        log "Phase 4 [CHUNK LOOP]: Build historical context"
+        $chunk_context = run agent chunk_context_builder $chunk $pr_context
+
+        $reviewer_prompt = format $reviewer_prompt_template $pr_context $requirements $chunk $chunk_context
+
+        # Run the review
+        log "Phase 5 [CHUNK LOOP]: Run analyzers"
+        parallel do
+            $security_findings = run agent security_reviewer_agent $reviewer_prompt
+            $bug_findings = run agent bug_reviewer_agent $reviewer_prompt
+            $style_findings = run agent style_reviewer_agent $reviewer_prompt
+        end
+
+        # Collect findings from all specialists
+        $all_findings = $all_findings + $security_findings + $bug_findings + $style_findings
+    end
+
+    log "Phase 6: Validate chunk findings"
+    $validated_findings = run validate_all $pr_context $all_findings
+
+    log "Phase 7: Deduplicating..."
+    $unique_findings = call llm deduplicator $validated_findings
+
+    log "Phase 8: Generating patches..."
+    $patches = run generate_all_patches $unique_findings $pr_context $requirements
+
+    log "Phase 9: Compiling final review..."
+    $final = call llm final_compiler $pr_context $requirements $unique_findings $patches
+
+    log "Review complete!"
+    return $final
+
+# -----------------------------------------------------------------------------
+# VALIDATION FLOW
+# -----------------------------------------------------------------------------
+
+flow validate_all $pr_context $findings:
+    log "[validate_all] Starting validation flow"
+    # Pre-filter to only validate high-confidence findings
+    $high_confidence = filter $findings where .confidence >= 80
+    log "[validate_all] Filtered to high-confidence findings"
+    $validated = []
+
+    for $finding in $high_confidence do
+        log "[validate_all] [AGENT] Starting: validator"
+        # Validator agent has tools to read files, check diff, search for guards
+        $result = run agent validator $pr_context $finding
+        log "[validate_all] [AGENT] Completed: validator"
+        if $result.valid:
+            $validated = $validated + [$finding]
+    end
+
+    log "[validate_all] Validation complete"
+    return $validated
+
+# -----------------------------------------------------------------------------
+# PATCH GENERATION FLOW
+# -----------------------------------------------------------------------------
+
+flow generate_all_patches $findings $pr_context $requirements:
+    log "[generate_all_patches] Starting patch generation flow"
+    # Only process findings with suggested fixes
+    $fixable = filter $findings where .suggested_fix != null
+    $patches = []
+
+    for $finding in $fixable do
+        log "[generate_all_patches] [AGENT] Starting: patch_generator"
+        # Patch generator agent has tools to read code, understand context
+        $patch = run agent patch_generator $pr_context $requirements $finding
+        log "[generate_all_patches] [AGENT] Completed: patch_generator"
+        if $patch.can_fix_in_place:
+            $patches = $patches + [$patch]
+    end
+
+    log "[generate_all_patches] Patch generation complete"
+    return $patches
+
+# -----------------------------------------------------------------------------
+# PROMPT BODIES (long instruction text at bottom for readability)
+# -----------------------------------------------------------------------------
+
 # Based on BitsAI-CR ReviewFilter and VulAgent hypothesis validation patterns
 # See: https://arxiv.org/html/2501.15134v1, https://arxiv.org/abs/2509.11523
 
@@ -99,11 +250,17 @@ Use Conclusion-First reasoning: state your decision, then explain why.
 
 Understanding the PR's intent helps you determine if a "problem" might be intentional.
 
+---
+
 ## Finding to Validate
 $finding
 
+---
+
 ## PR Diff (to verify finding is in changed code)
 $diff
+
+---
 
 ## Validation Steps (use tools as needed)
 
@@ -150,11 +307,6 @@ After verification, return:
 
 Include your reason for the decision."""
 
-agent validator:
-    tools github, fs
-    instruction validator_instruction
-    description "Validates findings by verifying code claims with tools"
-
 # -----------------------------------------------------------------------------
 # UTILITY PROMPTS
 # -----------------------------------------------------------------------------
@@ -162,33 +314,65 @@ agent validator:
 prompt chunk_splitter: """Split this diff into logical review chunks.
 
 Each chunk should be:
-- One file OR one logical unit of related changes
+- A batch of closely related changes
 - Small enough to fit in context (max ~2000 lines)
 - Self-contained for a holistic code review purposes
 
 Diff:
+
+---
+
 $diff
+
+---
+
 
 Return a list of chunks with file paths and line ranges."""
 
-prompt deduplicator: """Deduplicate these findings.
+prompt deduplicator: """You are a systems engineer working in a cross-functional team.
+
+You will receive PR review comments from the rest of the team.
+
+You need to deduplicate these findings.
 
 Rules:
 1. Merge findings that describe the same underlying issue
 2. Keep the version with highest confidence
 3. Combine reasoning from duplicates
-4. Remove exact duplicates
+4. Remove duplicates
+
+---
 
 Findings:
-$findings
 
-Return deduplicated list maintaining all unique issues."""
+$validated_findings
 
-# -----------------------------------------------------------------------------
-# PATCH GENERATOR AGENT (has tools to analyze repo before proposing fix)
-# -----------------------------------------------------------------------------
+---
 
-prompt patch_generator_instruction: """You are a PATCH GENERATOR for code review fixes.
+Do not infer or assume, just process the feedback received.
+
+Return deduplicated list maintaining all unique issues that we need to fix."""
+
+prompt patch_generator_prompt: """
+
+We are working on the following PR:
+
+$pr_context
+
+---
+
+Full requirements:
+
+$requirements
+
+---
+
+Please analyze this comment received during PR review and see if you can create a patch to address it:
+
+$finding
+"""
+
+prompt patch_generator_instruction expecting Patch: """You are a PATCH GENERATOR for code review fixes.
 
 ## Context
 You are working on a PR with the following purpose:
@@ -247,32 +431,101 @@ You have identified the following issue:
 - Preserve existing code style and patterns
 - Do not add unrelated improvements or refactoring"""
 
-agent patch_generator:
-    tools github, fs
-    instruction patch_generator_instruction
-    description "Analyzes repo context and generates minimal git diff patches"
-
 # -----------------------------------------------------------------------------
 # HELPER AGENTS
 # -----------------------------------------------------------------------------
 
-prompt pr_fetcher_instruction: """Fetch complete PR information.
+prompt no_inference: """
+ONLY get the factual requested information, do not analyze, infer, or make assumptions.
+"""
 
-Use GitHub tools to get:
-- PR number, title, body, state
+prompt pr_context_fetcher_instruction: """You are a PR review analyst.
+Your role is to understand this PR and fetch relevant context.
+You do not provide review comments and analysis, ONLY fetch the requested info.
+
+1. Retrieve PR info
+
+For each PR, you have to provide:
+
+- PR number, title, description, state
 - Base ref, head ref, merge status
 - Author information
-- Linked issues (parse from body)
+- Linked issues (parse from description)
+- Full discussion history in the same timeline with the commit and changes history
 - Review status
+- List files modified/added/removed in this PR.
 
-Return structured PR metadata."""
+2. Retrieve project context
 
-agent pr_fetcher:
-    tools github
-    instruction pr_fetcher_instruction
-    description "Fetches PR metadata from GitHub"
+Read project context:
 
-prompt context_builder_instruction: """Build repository context FOR THIS SPECIFIC PR.
+- README.md (project purpose, architecture)
+- CONTRIBUTING.md (coding standards)
+- Root CLAUDE.md, AGENTS.md or similar (AI guidelines)
+- Docs specifically relevant to PR
+- Components stored in this repo (check if it's a monorepo or a single component)
+- Primary languages and frameworks
+- Coding conventions for affected code
+- Quality goals and testing requirements
+- Security policies
+
+Summarize only what's relevant to this PR.
+
+---
+
+Provide your output in the format:
+
+## Project Context
+
+... Project Info relevant to this PR ...
+
+## PR Info
+
+... PR Info described above ...
+
+---
+
+$no_inference
+"""
+
+prompt requirements_fetcher_instruction: """You are a system analyst.
+Your role is to analyze and document product requirements.
+You do not provide review comments or judgement, ONLY get the requirements.
+
+1. Retrieve project context
+
+Read project context:
+
+- README.md (project purpose, architecture)
+- Docs specifically relevant this PR
+- Components stored in this repo (check if it's a monorepo or a single component)
+- Functional and non-functional requirements horizontal to this project
+
+2. Retrieve PR info
+
+In many cases you will be provided with the PR info.
+When necessary, you can also analyze linked issues and discussions in those issues, aligning them
+on timeline to understand the key product, business, system, and other requirements driving the changes introduced in this PR.
+Summarize the functional and non-functional requirements defined in the PR context (description, relevant linked issues, discussions).
+
+3. Retrieve project context
+
+Consolidate everything you learned and provide ONLY functional and non-functional requirements this PR needs to implement or adhere to.
+
+---
+
+Provide your output in the format:
+
+# Product requirements
+
+... Details for all requirements relevant to this PR ...
+
+---
+
+$no_inference
+"""
+
+prompt context_builder_instruction: """Build the repository context narrowed down focused on information relevant to THIS SPECIFIC PR.
 
 You will receive the PR info. Use it to understand:
 - What areas of the codebase are being changed
@@ -291,28 +544,43 @@ Identify with this PR in mind:
 - Testing requirements for this type of change
 - Security policies if security-sensitive areas are touched
 
-Return context summary optimized for reviewing THIS PR."""
+Your role is to provide context summary of this respository, while keeping only details relevant to this PR. Do not describe this PR itself.
 
-agent context_builder:
-    tools fs, github
-    instruction context_builder_instruction
-    description "Builds PR-aware repository context"
+$no_inference
+"""
 
-prompt diff_fetcher_instruction: """Fetch the complete PR diff.
+prompt diff_fetcher_instruction expecting DiffChunk[]: """You are a PR review analyst working on this PR:
 
-Use GitHub tools to get the full diff.
-Include all changed files with context lines."""
+Your role is to break changes introduced in this PR into isolated reviewable chunks - minimal related logical chunks of changes. For example "Class renamed", "Global variable introduced", "Component added to design document", etc.
 
-agent diff_fetcher:
-    tools github
-    instruction diff_fetcher_instruction
-    description "Fetches PR diff"
+A "chunk" is a short title, description, and a list of file changes (file:lines). Chunk title is a unique ~5 word title describing this change. Chunk description must answer the question of why this change is relevant to this PR, and to the project in general. Leverage provided context to understand how this change contributes to the PR and the project. For each chunk, provide the combined machine readable diff patch.
+
+Return chunks in JSON format.
+
+In many cases, a minimal related logical chunk is a full single commit.
+
+1. Start by listing all commits included in this PR.
+2. Go one commit after another from the oldest commits to newest.
+3. Get commit message and diff.
+4. If the commit introduces several logical changes, break it down into separate logical changes.
+5. If changes in this commit closely relate to one of the previous chunks you observed, update the previously observed chunk.
+
+When in doubt whether two changes are related, use the total patch size: if more than 2000 lines, keep them separate, if less - keep them in the same chunk.
+
+As a result, you will produce a set of chunks representing atomic changes. When done, check again to make sure you included all PR changes in chunks and the chunks you created address all changes in this PR.
+
+DO NOT provide review comments or analysis, we will review each chunk that you created in isolation at a later stage.
+
+$no_inference
+"""
 
 # -----------------------------------------------------------------------------
 # CHUNK CONTEXT BUILDER (runs per chunk - CRITICAL for review quality)
 # -----------------------------------------------------------------------------
 
 prompt chunk_context_instruction: """Build context for this specific code chunk.
+Your role is only to fetch historical context for the relevant code chunks.
+Do not assume or infer, just provide the observed facts.
 
 You will receive:
 - A chunk of code changes (diff)
@@ -338,155 +606,37 @@ Return a SUMMARY that includes:
 Keep the summary focused and relevant for review categories:
 - Security: Was this code added to fix a security issue?
 - Bugs: What bugs have affected this area before?
-- Quality: Has this area been refactored recently?"""
+- Quality: Has this area been refactored recently?
 
-agent chunk_context_builder:
-    tools github, fs
-    instruction chunk_context_instruction
-    description "Builds historical context for a code chunk via git blame and issue linking"
+$no_inference
+"""
 
-# -----------------------------------------------------------------------------
-# MAIN ORCHESTRATION FLOW
-# -----------------------------------------------------------------------------
+prompt chunk_context_prompt: """Please gather historical context for these changes:
 
-flow main:
-    log "V2 Parallel: Starting multi-agent review..."
+# $chunk.title
 
-    # Phase 1A: Fetch PR info and diff first (needed for context building)
-    log "Phase 1A: Fetching PR info and diff..."
-    log "[AGENT] Starting parallel: pr_fetcher + diff_fetcher"
-    parallel do
-        $pr_info = run agent pr_fetcher $input_prompt
-        $diff = run agent diff_fetcher $input_prompt
-    end
-    log "[AGENT] Completed parallel: pr_fetcher + diff_fetcher"
+$chunk.description
 
-    # Phase 1B: Build PR-aware repo context (needs PR info)
-    log "Phase 1B: Building PR-aware repository context..."
-    log "[AGENT] Starting: context_builder"
-    $repo_context = run agent context_builder $pr_info
-    log "[AGENT] Completed: context_builder"
+# Changes
 
-    # Phase 2: Chunk the diff for parallel processing
-    log "Phase 2: Chunking diff..."
-    $chunks = call llm chunk_splitter $diff
-    log "[INFO] Received chunks from chunk_splitter"
+```
+$chunk.git_diff_patch
+```
 
-    # Phase 3: Review each chunk with full context hierarchy
-    log "Phase 3: Running specialized reviewers with per-chunk context..."
-    $all_findings = []
+# Context
 
-    for $chunk in $chunks do
-        # Build chunk-specific historical context (blame, commits, linked issues)
-        log "[LOOP] Processing chunk..."
-        log "[AGENT] Starting: chunk_context_builder"
-        $chunk_context = run agent chunk_context_builder $chunk $pr_info
-        log "[AGENT] Completed: chunk_context_builder"
+$pr_context
 
-        # Combine all context levels for reviewers
-        $full_context = {
-            repo: $repo_context,
-            pr: $pr_info,
-            chunk_history: $chunk_context
-        }
+---
 
-        # Run all specialists in parallel per chunk
-        log "[AGENT] Starting parallel: security_reviewer_agent + bug_reviewer_agent + style_reviewer_agent"
-        parallel do
-            $security_findings = run agent security_reviewer_agent $full_context $chunk
-            $bug_findings = run agent bug_reviewer_agent $full_context $chunk
-            $style_findings = run agent style_reviewer_agent $full_context $chunk
-        end
-        log "[AGENT] Completed parallel: security_reviewer_agent + bug_reviewer_agent + style_reviewer_agent"
+$no_inference
 
-        # Collect findings from all specialists
-        $all_findings = $all_findings + $security_findings.findings
-        $all_findings = $all_findings + $bug_findings.findings
-        $all_findings = $all_findings + $style_findings.findings
-        log "[LOOP] Chunk processing complete"
-    end
+---
 
-    # Phase 4: Validate findings (validator agent verifies each finding against code)
-    log "Phase 4: Validating findings..."
-    log "[FLOW] Starting: validate_all"
-    $validated_findings = run validate_all $all_findings $diff $pr_info
-    log "[FLOW] Completed: validate_all"
+Respond here:
 
-    # Phase 5: Deduplicate
-    log "Phase 5: Deduplicating..."
-    $unique_findings = call llm deduplicator $validated_findings
-
-    # Phase 6: Generate patches for fixable issues
-    log "Phase 6: Generating patches..."
-    log "[FLOW] Starting: generate_all_patches"
-    $patches = run generate_all_patches $unique_findings $pr_info
-    log "[FLOW] Completed: generate_all_patches"
-
-    # Phase 7: Compile final review
-    log "Phase 7: Compiling final review..."
-    $final = call llm final_compiler $pr_info $unique_findings $patches
-
-    log "Review complete!"
-    return $final
-
-# -----------------------------------------------------------------------------
-# VALIDATION FLOW
-# -----------------------------------------------------------------------------
-
-flow validate_all $findings $diff $pr_info:
-    log "[validate_all] Starting validation flow"
-    # Pre-filter to only validate high-confidence findings
-    $high_confidence = filter $findings where .confidence >= 80
-    log "[validate_all] Filtered to high-confidence findings"
-    $validated = []
-
-    # Build context for validator
-    $validation_context = {
-        diff: $diff,
-        pr_description: $pr_info.description,
-        changes_summary: $pr_info.title
-    }
-
-    for $finding in $high_confidence do
-        log "[validate_all] [AGENT] Starting: validator"
-        # Validator agent has tools to read files, check diff, search for guards
-        $result = run agent validator $finding $validation_context
-        log "[validate_all] [AGENT] Completed: validator"
-        if $result.valid:
-            $validated = $validated + [$finding]
-    end
-
-    log "[validate_all] Validation complete"
-    return $validated
-
-# -----------------------------------------------------------------------------
-# PATCH GENERATION FLOW
-# -----------------------------------------------------------------------------
-
-flow generate_all_patches $findings $pr_info:
-    log "[generate_all_patches] Starting patch generation flow"
-    # Only process findings with suggested fixes
-    $fixable = filter $findings where .suggested_fix != null
-    log "[generate_all_patches] Filtered to fixable findings"
-    $patches = []
-
-    # Build context for patch generator
-    $patch_context = {
-        pr_description: $pr_info.description,
-        changes_summary: $pr_info.title
-    }
-
-    for $finding in $fixable do
-        log "[generate_all_patches] [AGENT] Starting: patch_generator"
-        # Patch generator agent has tools to read code, understand context
-        $patch = run agent patch_generator $finding $patch_context
-        log "[generate_all_patches] [AGENT] Completed: patch_generator"
-        if $patch.can_fix_in_place:
-            $patches = $patches + [$patch]
-    end
-
-    log "[generate_all_patches] Patch generation complete"
-    return $patches
+# Historical Context
+"""
 
 # -----------------------------------------------------------------------------
 # DEFAULT AGENT
@@ -511,14 +661,34 @@ To review a PR, you will:
 
 Provide the PR number, URL, or describe what to review."""
 
-agent:
-    tools github, fs
-    instruction default_instruction
-    description "V2 Parallel multi-agent code reviewer"
+prompt reviewer_prompt_template: """Please analyze the following chage that's implemented as a part of a larger scope addressed by this PR:
 
-# -----------------------------------------------------------------------------
-# PROMPT BODIES (long instruction text at bottom for readability)
-# -----------------------------------------------------------------------------
+# $chunk.title
+
+$chunk.description
+
+# Changes
+
+```
+$chunk.git_diff_patch
+```
+
+# Prior knowlege
+
+$chunk_context
+
+# New requirements
+
+$requirements
+
+# PR Context
+
+$pr_context
+
+---
+
+You can investigate the code and the diff but focus your review on the changes mentioned above.
+"""
 
 prompt security_reviewer: """You are a SECURITY SPECIALIST code reviewer.
 
@@ -544,8 +714,14 @@ Review EXCLUSIVELY for security vulnerabilities:
 **Context:**
 $context
 
+---
+
 **Code to Review:**
 $chunk
+
+---
+
+$no_inference
 
 Return findings in the 'security' category only.
 Include exploit scenarios in reasoning."""
@@ -571,11 +747,19 @@ Review EXCLUSIVELY for logic bugs and runtime errors:
 - Missing break/return statements
 - Integer overflow/underflow
 
+---
+
 **Context:**
 $context
 
+---
+
 **Code to Review:**
 $chunk
+
+---
+
+$no_inference
 
 Return findings in the 'bug' category only.
 Include reproduction scenario in reasoning."""
@@ -598,25 +782,41 @@ Review for SIGNIFICANT quality issues only:
 - Comment style or missing comments
 - Subjective preferences
 
+---
+
 **Context:**
 $context
 
+---
+
 **Code to Review:**
 $chunk
+
+---
+
+$no_inference
 
 Return findings in the 'style' category only.
 Only report issues with clear negative impact."""
 
 prompt final_compiler: """Compile the final code review.
 
+---
+
 PR Information:
-$pr_info
+$pr_context
+
+---
 
 Validated Findings (sorted by severity):
 $findings
 
+---
+
 Generated Patches:
 $patches
+
+---
 
 Statistics:
 - Total findings: $total
@@ -628,7 +828,10 @@ Create the final review with:
 2. Findings grouped by severity (error > warning > notice)
 3. Inline-applicable patches
 4. Recommendation: approve | request_changes | comment
-5. Overall confidence score (weighted average)"""
+5. Overall confidence score (weighted average)
+
+$no_inference
+"""
 
 
 # -----------------------------------------------------------------------------
