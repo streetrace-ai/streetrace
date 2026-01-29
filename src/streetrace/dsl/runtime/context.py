@@ -205,6 +205,24 @@ class WorkflowContext:
 
         logger.debug("Created WorkflowContext")
 
+    def stringify(self, value: object) -> str:
+        """Convert a value to a string for prompt interpolation.
+
+        Serialize dicts and lists as JSON so that structured data appears
+        with double-quoted keys and JSON-standard booleans/nulls.
+        All other types use Python's built-in ``str()``.
+
+        Args:
+            value: The value to convert.
+
+        Returns:
+            A string representation suitable for embedding in prompt text.
+
+        """
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, default=str)
+        return str(value)
+
     def set_models(self, models: dict[str, str]) -> None:
         """Set the available models.
 

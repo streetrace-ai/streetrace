@@ -420,7 +420,7 @@ class WorkflowVisitor:
 
         def replace_var(match: re.Match[str]) -> str:
             var_name = match.group(1)
-            return "{ctx.vars['" + var_name + "']}"
+            return "{ctx.stringify(ctx.vars['" + var_name + "'])}"
 
         # Replace variables with f-string expressions
         processed = re.sub(var_pattern, replace_var, body)
