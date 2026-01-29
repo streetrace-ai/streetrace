@@ -362,7 +362,7 @@ class DslAgentWorkflow:
         agent = await self._create_agent(agent_name)
 
         # Build prompt from args
-        prompt_text = " ".join(str(arg) for arg in args) if args else ""
+        prompt_text = "\n---\n".join(str(arg) for arg in args) if args else ""
         content = None
         if prompt_text:
             parts = [genai_types.Part.from_text(text=prompt_text)]
