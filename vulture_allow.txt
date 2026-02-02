@@ -92,6 +92,7 @@ render_warn  # unused function (src/streetrace/ui/ui_events.py:35)
 render_info  # unused function (src/streetrace/ui/ui_events.py:44)
 render_markdown  # unused function (src/streetrace/ui/ui_events.py:53)
 render_user_input  # unused function (src/streetrace/ui/ui_events.py:67)
+render_flow_result  # unused function (flow_event_renderer.py) - called dynamically by renderer registry
 render_llm_call  # unused function (flow_event_renderer.py) - called dynamically by renderer registry
 render_llm_response  # unused function (flow_event_renderer.py) - called dynamically by renderer registry
 render_escalation_event  # unused function (flow_event_renderer.py) - called dynamically by renderer registry
@@ -179,7 +180,6 @@ _.warn_action  # unused method - called by Lark transformer
 _.retry_action  # unused method - called by Lark transformer
 _.flow_def  # unused method - called by Lark transformer
 _.flow_name  # unused method - called by Lark transformer
-_.flow_params  # unused method - called by Lark transformer
 _.flow_body  # unused method - called by Lark transformer
 _.flow_statement  # unused method - called by Lark transformer
 _.expression_stmt  # unused method - called by Lark transformer
@@ -296,6 +296,7 @@ provider_model  # unused variable (nodes.py) - dataclass field for ModelDef node
 auth_type  # unused variable (nodes.py) - dataclass field for ToolDef node
 auth_value  # unused variable (nodes.py) - dataclass field for ToolDef node
 builtin_ref  # unused variable (nodes.py) - dataclass field for ToolDef node
+params  # unused variable (nodes.py) - dataclass field for FlowDef node
 retry  # unused variable (nodes.py) - dataclass field for AgentDef node
 timeout_value  # unused variable (nodes.py) - dataclass field for AgentDef node
 timeout_unit  # unused variable (nodes.py) - dataclass field for AgentDef node
@@ -314,6 +315,7 @@ _.analyze  # unused method (analyzer.py) - public API entry point
 is_valid  # unused variable (analyzer.py) - dataclass field for AnalysisResult
 symbols  # unused variable (analyzer.py) - dataclass field for AnalysisResult
 _._current_scope  # unused attribute (analyzer.py) - internal state tracking
+PARAMETER  # unused variable (scope.py) - SymbolKind enum value for flow parameters
 defined_at  # unused variable (scope.py) - dataclass field for Symbol
 _.lookup_local  # unused method (scope.py) - public API for local-only lookups
 _.is_defined_locally  # unused method (scope.py) - public API for checking local scope
@@ -423,6 +425,13 @@ _.create_root_agent  # unused method (dsl_agent_factory.py) - factory method for
 _._execute_parallel_agents  # unused method (workflow.py) - called by generated parallel block code
 
 # Escalation support - methods used by generated code or Lark transformer
+_.agent_prompt  # unused method - called by Lark transformer
+_.agent_produces  # unused method - called by Lark transformer
+_.prompt_decl  # unused method - called by Lark transformer
+_.prompt_full  # unused method - called by Lark transformer
+_.expecting_single  # unused method - called by Lark transformer
+_.expecting_array  # unused method - called by Lark transformer
+_.var_bare  # unused method - called by Lark transformer
 _.escalation_clause  # unused method - called by Lark transformer
 _.normalized_escalation  # unused method - called by Lark transformer
 _.exact_escalation  # unused method - called by Lark transformer

@@ -195,7 +195,7 @@ class TestPropertyAssignmentCodegen:
                     params=[],
                     body=[
                         Assignment(
-                            target="$result",
+                            target="result",
                             value=Literal(value="value", literal_type="string"),
                         ),
                         ReturnStmt(value=VarRef(name="result")),
@@ -239,7 +239,7 @@ class TestPropertyAssignmentIntegration:
                     body=[
                         # Initialize object
                         Assignment(
-                            target="$review",
+                            target="review",
                             value=ObjectLiteral(
                                 entries={
                                     "findings": VarRef(name="input"),

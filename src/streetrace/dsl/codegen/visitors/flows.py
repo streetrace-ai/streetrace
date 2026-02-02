@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from streetrace.dsl.ast.nodes import (
     AbortStmt,
+    AgentDef,
     Assignment,
     CallStmt,
     ContinueStmt,
@@ -48,15 +49,22 @@ class FlowVisitor:
     with proper control flow translation.
     """
 
-    def __init__(self, emitter: CodeEmitter) -> None:
+    def __init__(
+        self,
+        emitter: CodeEmitter,
+        *,
+        agents: dict[str, AgentDef] | None = None,
+    ) -> None:
         """Initialize the flow visitor.
 
         Args:
             emitter: Code emitter for output generation.
+            agents: Agent definitions indexed by name, for prompt/produces lookup.
 
         """
         self._emitter = emitter
         self._expr_visitor = ExpressionVisitor()
+        self._agents: dict[str, AgentDef] = agents or {}
         self._stmt_dispatch: dict[type, Callable[[object], None]] = {
             Assignment: self._visit_assignment,  # type: ignore[dict-item]
             PropertyAssignment: self._visit_property_assignment,  # type: ignore[dict-item]
@@ -181,7 +189,7 @@ class FlowVisitor:
         self._emitter.dedent()
 
         # Emit statements after the failure block (if any)
-        for stmt in body[failure_idx + 1:]:
+        for stmt in body[failure_idx + 1 :]:
             self.visit_statement(stmt)
 
     def _emit_statements_or_pass(self, statements: list[object]) -> None:
@@ -255,64 +263,139 @@ class FlowVisitor:
     def _visit_run_stmt(self, node: RunStmt) -> None:
         """Generate code for run agent statement.
 
+        Handles prompt (default input) and produces (auto-assign) fields:
+        - When no `with` input and agent has `prompt`, resolve it as default input
+        - When no explicit assignment and agent has `produces`, auto-assign result
+
         Args:
             node: Run statement node.
 
         """
         source_line = node.meta.line if node.meta else None
-        args_str = ", ".join(self._expr_visitor.visit(arg) for arg in node.args)
+        input_str = self._expr_visitor.visit(node.input) if node.input else None
+        input_str = self._resolve_default_input(node, input_str)
+        produces_name = self._resolve_produces_target(node)
 
         if node.escalation_handler:
-            # Use run_agent_with_escalation which tracks escalation state
-            if args_str:
-                call = f"ctx.run_agent_with_escalation('{node.agent}', {args_str})"
-            else:
-                call = f"ctx.run_agent_with_escalation('{node.agent}')"
-
-            # Generate async for loop to yield events and capture result
-            self._emitter.emit(
-                f"async for _event in {call}:",
-                source_line=source_line,
-            )
-            self._emitter.indent()
-            self._emitter.emit("yield _event")
-            self._emitter.dedent()
-
-            # Get result and escalation flag
-            self._emitter.emit(
-                "_result, _escalated = ctx.get_last_result_with_escalation()",
-            )
-
-            # Assign result to target if specified
-            if node.target:
-                target_name = node.target.lstrip("$")
-                self._emitter.emit(f"ctx.vars['{target_name}'] = _result")
-
-            # Handle escalation
-            self._emitter.emit("if _escalated:")
-            self._emitter.indent()
-            self._emit_escalation_action(node.escalation_handler)
-            self._emitter.dedent()
+            self._emit_escalation_run(node, input_str, produces_name, source_line)
         else:
-            # Original logic for non-escalation runs
-            if args_str:
-                call = f"ctx.run_agent('{node.agent}', {args_str})"
-            else:
-                call = f"ctx.run_agent('{node.agent}')"
+            self._emit_standard_run(node, input_str, produces_name, source_line)
 
-            # Generate async for loop to yield events
+    def _resolve_default_input(
+        self,
+        node: RunStmt,
+        input_str: str | None,
+    ) -> str | None:
+        """Resolve default input from agent's prompt field.
+
+        Args:
+            node: Run statement node.
+            input_str: Explicit input expression, or None.
+
+        Returns:
+            Input expression string, possibly resolved from agent prompt.
+
+        """
+        if input_str is None and not node.is_flow:
+            agent_def = self._agents.get(node.agent)
+            if agent_def and agent_def.prompt:
+                return f"ctx.resolve('{agent_def.prompt}')"
+        return input_str
+
+    def _resolve_produces_target(self, node: RunStmt) -> str | None:
+        """Resolve auto-assign target from agent's produces field.
+
+        Args:
+            node: Run statement node.
+
+        Returns:
+            Variable name to auto-assign, or None.
+
+        """
+        if node.target is None and not node.is_flow:
+            agent_def = self._agents.get(node.agent)
+            if agent_def and agent_def.produces:
+                return agent_def.produces
+        return None
+
+    def _emit_escalation_run(
+        self,
+        node: RunStmt,
+        input_str: str | None,
+        produces_name: str | None,
+        source_line: int | None,
+    ) -> None:
+        """Emit code for run with escalation handler.
+
+        Args:
+            node: Run statement node.
+            input_str: Input expression string, or None.
+            produces_name: Auto-assign variable name, or None.
+            source_line: Source line number for mapping.
+
+        """
+        if input_str:
+            call = f"ctx.run_agent_with_escalation('{node.agent}', {input_str})"
+        else:
+            call = f"ctx.run_agent_with_escalation('{node.agent}')"
+
+        self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
+        self._emitter.indent()
+        self._emitter.emit("yield _event")
+        self._emitter.dedent()
+
+        self._emitter.emit(
+            "_result, _escalated = ctx.get_last_result_with_escalation()",
+        )
+
+        # Assign result to target or produces variable
+        if node.target:
+            target_name = node.target.lstrip("$")
+            self._emitter.emit(f"ctx.vars['{target_name}'] = _result")
+        elif produces_name:
+            self._emitter.emit(f"ctx.vars['{produces_name}'] = _result")
+
+        self._emitter.emit("if _escalated:")
+        self._emitter.indent()
+        if node.escalation_handler:
+            self._emit_escalation_action(node.escalation_handler)
+        self._emitter.dedent()
+
+    def _emit_standard_run(
+        self,
+        node: RunStmt,
+        input_str: str | None,
+        produces_name: str | None,
+        source_line: int | None,
+    ) -> None:
+        """Emit code for standard agent/flow run.
+
+        Args:
+            node: Run statement node.
+            input_str: Input expression string, or None.
+            produces_name: Auto-assign variable name, or None.
+            source_line: Source line number for mapping.
+
+        """
+        if input_str:
+            call = f"ctx.run_agent('{node.agent}', {input_str})"
+        else:
+            call = f"ctx.run_agent('{node.agent}')"
+
+        self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
+        self._emitter.indent()
+        self._emitter.emit("yield _event")
+        self._emitter.dedent()
+
+        # Assign result to target or produces variable
+        if node.target:
             self._emitter.emit(
-                f"async for _event in {call}:",
-                source_line=source_line,
+                f"ctx.vars['{node.target}'] = ctx.get_last_result()",
             )
-            self._emitter.indent()
-            self._emitter.emit("yield _event")
-            self._emitter.dedent()
-
-            # Assign result from context if target specified
-            if node.target:
-                target_name = node.target.lstrip("$")
-                self._emitter.emit(f"ctx.vars['{target_name}'] = ctx.get_last_result()")
+        elif produces_name:
+            self._emitter.emit(
+                f"ctx.vars['{produces_name}'] = ctx.get_last_result()",
+            )
 
     def _emit_escalation_action(self, handler: EscalationHandler) -> None:
         """Emit code for escalation action.
@@ -338,18 +421,17 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        args_str = ", ".join(self._expr_visitor.visit(arg) for arg in node.args)
+        input_str = self._expr_visitor.visit(node.input) if node.input else None
 
         if node.model:
-            if args_str:
+            if input_str:
                 call = (
-                    f"ctx.call_llm('{node.prompt}', {args_str}, "
-                    f"model='{node.model}')"
+                    f"ctx.call_llm('{node.prompt}', {input_str}, model='{node.model}')"
                 )
             else:
                 call = f"ctx.call_llm('{node.prompt}', model='{node.model}')"
-        elif args_str:
-            call = f"ctx.call_llm('{node.prompt}', {args_str})"
+        elif input_str:
+            call = f"ctx.call_llm('{node.prompt}', {input_str})"
         else:
             call = f"ctx.call_llm('{node.prompt}')"
 
@@ -361,8 +443,9 @@ class FlowVisitor:
 
         # Assign result from context if target specified
         if node.target:
-            target_name = node.target.lstrip("$")
-            self._emitter.emit(f"ctx.vars['{target_name}'] = ctx.get_last_result()")
+            self._emitter.emit(
+                f"ctx.vars['{node.target}'] = ctx.get_last_result()",
+            )
 
     def _visit_return_stmt(self, node: ReturnStmt) -> None:
         """Generate code for return statement.
@@ -392,9 +475,8 @@ class FlowVisitor:
         """
         source_line = node.meta.line if node.meta else None
         value = self._expr_visitor.visit(node.value)
-        target_name = node.target.lstrip("$")
         self._emitter.emit(
-            f"ctx.vars['{target_name}'].append({value})",
+            f"ctx.vars['{node.target}'].append({value})",
             source_line=source_line,
         )
 
@@ -406,17 +488,18 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        var_name = node.variable.lstrip("$")
         iterable = self._expr_visitor.visit(node.iterable)
 
         self._emitter.emit(
-            f"for _item_{var_name} in {iterable}:",
+            f"for _item_{node.variable} in {iterable}:",
             source_line=source_line,
         )
         self._emitter.indent()
 
         # Assign loop variable to ctx.vars
-        self._emitter.emit(f"ctx.vars['{var_name}'] = _item_{var_name}")
+        self._emitter.emit(
+            f"ctx.vars['{node.variable}'] = _item_{node.variable}",
+        )
 
         # Visit loop body
         for stmt in node.body:
@@ -467,14 +550,16 @@ class FlowVisitor:
         self._emitter.indent()
 
         for stmt in run_stmts:
-            # Generate args list
-            args_parts = [self._expr_visitor.visit(arg) for arg in stmt.args]
-            args_str = f"[{', '.join(args_parts)}]" if args_parts else "[]"
+            # Generate input expression or empty list
+            if stmt.input is not None:
+                input_str = f"[{self._expr_visitor.visit(stmt.input)}]"
+            else:
+                input_str = "[]"
 
             # Generate target variable name (or None if no target)
-            target_name = f"'{stmt.target.lstrip('$')}'" if stmt.target else "None"
+            target_name = f"'{stmt.target}'" if stmt.target else "None"
 
-            self._emitter.emit(f"('{stmt.agent}', {args_str}, {target_name}),")
+            self._emitter.emit(f"('{stmt.agent}', {input_str}, {target_name}),")
 
         self._emitter.dedent()
         self._emitter.emit("]")

@@ -21,6 +21,6 @@ agent summarizer:
     description "Summarizes analysis results"
 
 flow main:
-    $analysis = run agent analyzer $input_prompt
-    $summary = run agent summarizer $analysis
+    $analysis = run agent analyzer with $input_prompt
+    $summary = run agent summarizer with $analysis
     return $summary

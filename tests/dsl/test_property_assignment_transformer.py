@@ -113,7 +113,7 @@ flow test_flow:
         # Should be Assignment, not PropertyAssignment
         assigns = [s for s in flow.body if isinstance(s, Assignment)]
         assert len(assigns) == 1
-        assert assigns[0].target == "$result"
+        assert assigns[0].target == "result"
 
     def test_transforms_both_assignment_types(self, parser):
         """Test both simple and property assignment in same flow."""
@@ -136,7 +136,7 @@ flow test_flow:
         prop_assigns = [s for s in flow.body if isinstance(s, PropertyAssignment)]
 
         assert len(assigns) == 1
-        assert assigns[0].target == "$review"
+        assert assigns[0].target == "review"
 
         assert len(prop_assigns) == 1
         assert prop_assigns[0].target.base.name == "review"

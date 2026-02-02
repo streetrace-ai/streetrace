@@ -526,7 +526,7 @@ agent bug_agent:
     description "Bug detector"
 
 flow main:
-    $result = run agent security_agent $input_prompt
+    $result = run agent security_agent with $input_prompt
     return $result
 
 # Bodies at bottom

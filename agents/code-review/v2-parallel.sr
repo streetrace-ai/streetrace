@@ -72,14 +72,20 @@ prompt final_compiler expecting FinalReview
 
 agent security_reviewer_agent:
     instruction security_reviewer
+    prompt reviewer_prompt_template
+    produces security_findings
     description "Reviews code for security vulnerabilities"
 
 agent bug_reviewer_agent:
     instruction bug_reviewer
+    prompt reviewer_prompt_template
+    produces bug_findings
     description "Reviews code for logic bugs and runtime errors"
 
 agent style_reviewer_agent:
     instruction style_reviewer
+    prompt reviewer_prompt_template
+    produces style_findings
     description "Reviews code for quality issues"
 
 # -----------------------------------------------------------------------------
@@ -90,6 +96,7 @@ agent validator:
     tools github, fs
     instruction validator_instruction
     description "Validates findings by verifying code claims with tools"
+    produces validated
 
 # -----------------------------------------------------------------------------
 # PATCH GENERATOR AGENT (has tools to analyze repo before proposing fix)
@@ -97,8 +104,9 @@ agent validator:
 
 agent patch_generator:
     tools github, fs
-    prompt patch_generator_prompt
     instruction patch_generator_instruction
+    prompt patch_generator_prompt
+    produces patch
     description "Analyzes repo context and generates minimal git diff patches"
 
 # -----------------------------------------------------------------------------
@@ -109,21 +117,28 @@ agent context_builder:
     tools fs, github
     instruction context_builder_instruction
     description "Builds PR-aware repository context"
+    produces repo_context
 
 agent pr_context_fetcher:
     tools github
     instruction pr_context_fetcher_instruction
     description "Fetches PR metadata from GitHub"
+    prompt input_prompt
+    produces pr_context
 
 agent requirements_fetcher:
     tools github
     instruction requirements_fetcher_instruction
     description "Fetches requirements associated with the PR from GitHub"
+    prompt pr_context
+    produces requirements
 
 agent diff_chunks_fetcher:
     tools github
     instruction diff_fetcher_instruction
     description "Fetches PR diff"
+    prompt input_prompt
+    produces diff_chunks
 
 # -----------------------------------------------------------------------------
 # CHUNK CONTEXT BUILDER (runs per chunk - CRITICAL for review quality)
@@ -133,6 +148,7 @@ agent chunk_context_builder:
     tools github, fs
     instruction chunk_context_instruction
     prompt chunk_context_prompt
+    produces chunk_context
     description "Builds historical context for a code chunk via git blame and issue linking"
 
 # -----------------------------------------------------------------------------
@@ -143,94 +159,90 @@ flow main:
     log "V2 Parallel: Starting multi-agent review..."
 
     log "Phase 1: Fetch project description and PR Info -> text..."
-    $pr_context = run agent pr_context_fetcher $input_prompt
+    run agent pr_context_fetcher
 
     log "Phase 2: Get Diff Chunks -> DiffChunk[]..."
-    $diff = run agent diff_chunks_fetcher $input_prompt $pr_context
+    run agent diff_chunks_fetcher
 
     log "Phase 3: Fetch requirements -> text..."
-    $requirements = run agent requirements_fetcher $pr_context
+    run agent requirements_fetcher
 
-    $all_findings = []
+    findings = []
 
-    for $chunk in $chunks do
+    for chunk in diff_chunks do
         # Build chunk-specific historical context (blame, commits, linked issues)
         log "Phase 4 [CHUNK LOOP]: Build historical context"
-        $chunk_context = run agent chunk_context_builder $chunk $pr_context
+        run agent chunk_context_builder
 
-        $reviewer_prompt = format $reviewer_prompt_template $pr_context $requirements $chunk $chunk_context
-
-        # Run the review
+        # Run the review (agents use reviewer_prompt_template via prompt field)
         log "Phase 5 [CHUNK LOOP]: Run analyzers"
         parallel do
-            $security_findings = run agent security_reviewer_agent $reviewer_prompt
-            $bug_findings = run agent bug_reviewer_agent $reviewer_prompt
-            $style_findings = run agent style_reviewer_agent $reviewer_prompt
+            run agent security_reviewer_agent
+            run agent bug_reviewer_agent
+            run agent style_reviewer_agent
         end
 
         # Collect findings from all specialists
-        $all_findings = $all_findings + $security_findings + $bug_findings + $style_findings
+        findings = findings + security_findings + bug_findings + style_findings
     end
 
     log "Phase 6: Validate chunk findings"
-    $validated_findings = run validate_all $pr_context $all_findings
+    run validate_all
 
     log "Phase 7: Deduplicating..."
-    $unique_findings = call llm deduplicator $validated_findings
+    findings = call llm deduplicator
 
     log "Phase 8: Generating patches..."
-    $patches = run generate_all_patches $unique_findings $pr_context $requirements
+    run generate_all_patches
 
     log "Phase 9: Compiling final review..."
-    $final = call llm final_compiler $pr_context $requirements $unique_findings $patches
+    final = call llm final_compiler
 
     log "Review complete!"
-    return $final
+    return final
 
 # -----------------------------------------------------------------------------
 # VALIDATION FLOW
 # -----------------------------------------------------------------------------
 
-flow validate_all $pr_context $findings:
+flow validate_all:
     log "[validate_all] Starting validation flow"
     # Pre-filter to only validate high-confidence findings
-    $high_confidence = filter $findings where .confidence >= 80
+    high_confidence = filter findings where .confidence >= 80
     log "[validate_all] Filtered to high-confidence findings"
-    $validated = []
+    validated_findings = []
 
-    for $finding in $high_confidence do
+    for finding in high_confidence do
         log "[validate_all] [AGENT] Starting: validator"
         # Validator agent has tools to read files, check diff, search for guards
-        $result = run agent validator $pr_context $finding
+        result = run agent validator with finding
         log "[validate_all] [AGENT] Completed: validator"
-        if $result.valid:
-            $validated = $validated + [$finding]
+        if result.valid:
+            validated_findings = validated_findings + [finding]
     end
-
     log "[validate_all] Validation complete"
-    return $validated
 
 # -----------------------------------------------------------------------------
 # PATCH GENERATION FLOW
 # -----------------------------------------------------------------------------
 
-flow generate_all_patches $findings $pr_context $requirements:
+flow generate_all_patches:
     log "[generate_all_patches] Starting patch generation flow"
     # Only process findings with suggested fixes
-    $fixable = filter $findings where .suggested_fix != null
-    $patches = []
+    fixable = filter findings where .suggested_fix != null
+    patches = []
 
-    for $finding in $fixable do
+    for finding in fixable do
         log "[generate_all_patches] [AGENT] Starting: patch_generator"
-        # Patch generator agent has tools to read code, understand context
-        $patch = run agent patch_generator $pr_context $requirements $finding
+        # Patch generator uses prompt and produces fields for default input/output
+        run agent patch_generator
         log "[generate_all_patches] [AGENT] Completed: patch_generator"
-        if $patch.can_fix_in_place:
-            $patches = $patches + [$patch]
+        if patch.can_fix_in_place:
+            patches = patches + [patch]
     end
 
     log "[generate_all_patches] Patch generation complete"
-    return $patches
+    return patches
 
 # -----------------------------------------------------------------------------
 # PROMPT BODIES (long instruction text at bottom for readability)

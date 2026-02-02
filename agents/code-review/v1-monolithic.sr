@@ -68,13 +68,13 @@ flow main:
 
     # 1. Fetch PR info and diff first (needed for context building)
     parallel do
-        $pr_info = run agent pr_fetcher $input_prompt
-        $diff = run agent diff_fetcher $input_prompt
+        $pr_info = run agent pr_fetcher with $input_prompt
+        $diff = run agent diff_fetcher with $input_prompt
     end
 
     # 2. Build PR-aware context (needs PR info to prioritize relevant context)
     log "Building PR-aware context..."
-    $context = run agent context_gatherer $pr_info
+    $context = run agent context_gatherer with $pr_info
 
     # 3. Combine all context
     $full_context = {
@@ -84,7 +84,7 @@ flow main:
 
     # 4. Single-pass review with full context
     log "Running comprehensive review..."
-    $review = call llm reviewer_instruction $full_context $diff
+    $review = call llm reviewer_instruction with $full_context
 
     # 5. Post-filter low-confidence findings
     $filtered = filter $review.findings where .confidence >= 80

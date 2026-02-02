@@ -89,9 +89,9 @@ class TestRunAgentCodeGeneration:
                     params=[],
                     body=[
                         RunStmt(
-                            target="$result",
+                            target="result",
                             agent="helper",
-                            args=[VarRef(name="input_prompt")],
+                            input=VarRef(name="input_prompt"),
                         ),
                     ],
                 ),
@@ -120,9 +120,9 @@ class TestRunAgentCodeGeneration:
                     params=[],
                     body=[
                         RunStmt(
-                            target="$result",
+                            target="result",
                             agent="task_agent",
-                            args=[],
+
                         ),
                     ],
                 ),
@@ -152,7 +152,7 @@ class TestRunAgentCodeGeneration:
                         RunStmt(
                             target=None,
                             agent="fire_forget",
-                            args=[],
+
                         ),
                     ],
                 ),
@@ -167,8 +167,8 @@ class TestRunAgentCodeGeneration:
         # No get_last_result assignment since no target
         assert "ctx.get_last_result()" not in code
 
-    def test_run_agent_with_args(self) -> None:
-        """Run agent with arguments passes them correctly."""
+    def test_run_agent_with_input(self) -> None:
+        """Run agent with input passes it correctly."""
         ast = DslFile(
             version=VersionDecl(version="v1"),
             statements=[
@@ -180,15 +180,11 @@ class TestRunAgentCodeGeneration:
                 ),
                 FlowDef(
                     name="main",
-                    params=[],
                     body=[
                         RunStmt(
-                            target="$analysis",
+                            target="analysis",
                             agent="analyzer",
-                            args=[
-                                VarRef(name="data"),
-                                Literal(value="deep", literal_type="string"),
-                            ],
+                            input=VarRef(name="data"),
                         ),
                     ],
                 ),
@@ -200,7 +196,7 @@ class TestRunAgentCodeGeneration:
 
         expected = (
             "async for _event in ctx.run_agent('analyzer', "
-            "ctx.vars['data'], \"deep\"):"
+            "ctx.vars['data']):"
         )
         assert expected in code
 
@@ -219,9 +215,9 @@ class TestCallLlmCodeGeneration:
                     params=[],
                     body=[
                         CallStmt(
-                            target="$summary",
+                            target="summary",
                             prompt="summarize",
-                            args=[VarRef(name="text")],
+                            input=VarRef(name="text"),
                         ),
                     ],
                 ),
@@ -245,9 +241,9 @@ class TestCallLlmCodeGeneration:
                     params=[],
                     body=[
                         CallStmt(
-                            target="$output",
+                            target="output",
                             prompt="generate",
-                            args=[],
+
                         ),
                     ],
                 ),
@@ -272,7 +268,7 @@ class TestCallLlmCodeGeneration:
                         CallStmt(
                             target=None,
                             prompt="log_prompt",
-                            args=[],
+
                         ),
                     ],
                 ),
@@ -298,9 +294,9 @@ class TestCallLlmCodeGeneration:
                     params=[],
                     body=[
                         CallStmt(
-                            target="$response",
+                            target="response",
                             prompt="fast_prompt",
-                            args=[],
+
                             model="fast_model",
                         ),
                     ],
@@ -324,9 +320,9 @@ class TestCallLlmCodeGeneration:
                     params=[],
                     body=[
                         CallStmt(
-                            target="$result",
+                            target="result",
                             prompt="analyze_prompt",
-                            args=[VarRef(name="data")],
+                            input=VarRef(name="data"),
                             model="analysis_model",
                         ),
                     ],
@@ -369,8 +365,8 @@ class TestParallelBlockCodeGeneration:
                     body=[
                         ParallelBlock(
                             body=[
-                                RunStmt(target="$a", agent="task_a", args=[]),
-                                RunStmt(target="$b", agent="task_b", args=[]),
+                                RunStmt(target="a", agent="task_a"),
+                                RunStmt(target="b", agent="task_b"),
                             ],
                         ),
                     ],
@@ -495,9 +491,9 @@ class TestGeneratedCodeCompilation:
                     params=[],
                     body=[
                         RunStmt(
-                            target="$result",
+                            target="result",
                             agent="helper",
-                            args=[VarRef(name="input_prompt")],
+                            input=VarRef(name="input_prompt"),
                         ),
                         ReturnStmt(value=VarRef(name="result")),
                     ],
@@ -522,9 +518,9 @@ class TestGeneratedCodeCompilation:
                     params=[],
                     body=[
                         CallStmt(
-                            target="$analysis",
+                            target="analysis",
                             prompt="analyze",
-                            args=[VarRef(name="input_prompt")],
+                            input=VarRef(name="input_prompt"),
                         ),
                         ReturnStmt(value=VarRef(name="analysis")),
                     ],
@@ -554,14 +550,14 @@ class TestGeneratedCodeCompilation:
                     params=[],
                     body=[
                         RunStmt(
-                            target="$data",
+                            target="data",
                             agent="extractor",
-                            args=[VarRef(name="input_prompt")],
+                            input=VarRef(name="input_prompt"),
                         ),
                         CallStmt(
-                            target="$analysis",
+                            target="analysis",
                             prompt="analyze_prompt",
-                            args=[VarRef(name="data")],
+                            input=VarRef(name="data"),
                         ),
                         ReturnStmt(value=VarRef(name="analysis")),
                     ],
@@ -590,16 +586,16 @@ class TestGeneratedCodeCompilation:
                     params=[],
                     body=[
                         Assignment(
-                            target="$count",
+                            target="count",
                             value=Literal(value=0, literal_type="int"),
                         ),
                         RunStmt(
-                            target="$result",
+                            target="result",
                             agent="processor",
-                            args=[],
+
                         ),
                         Assignment(
-                            target="$count",
+                            target="count",
                             value=Literal(value=1, literal_type="int"),
                         ),
                         ReturnStmt(value=VarRef(name="result")),
@@ -633,9 +629,9 @@ class TestSourceMappingsPreserved:
                     params=[],
                     body=[
                         RunStmt(
-                            target="$result",
+                            target="result",
                             agent="worker",
-                            args=[],
+
                             meta=SourcePosition(line=10, column=4),
                         ),
                     ],
@@ -664,9 +660,9 @@ class TestSourceMappingsPreserved:
                     params=[],
                     body=[
                         CallStmt(
-                            target="$response",
+                            target="response",
                             prompt="call_prompt",
-                            args=[],
+
                             meta=SourcePosition(line=15, column=4),
                         ),
                     ],

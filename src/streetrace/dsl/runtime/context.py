@@ -223,6 +223,31 @@ class WorkflowContext:
             return json.dumps(value, default=str)
         return str(value)
 
+    def resolve(self, name: str) -> str:
+        """Resolve a name to its string value.
+
+        Check ctx.vars first, then fall back to prompt definitions.
+        Return empty string if not found (tolerant for prompt composition).
+
+        Args:
+            name: Variable or prompt name to resolve.
+
+        Returns:
+            String value of the resolved name.
+
+        """
+        if name in self.vars:
+            return self.stringify(self.vars[name])
+
+        prompt_spec = self._prompts.get(name)
+        if prompt_spec is not None and hasattr(prompt_spec, "body"):
+            body_fn = prompt_spec.body
+            if callable(body_fn):
+                return str(body_fn(self))
+            return str(body_fn)
+
+        return ""
+
     def set_models(self, models: dict[str, str]) -> None:
         """Set the available models.
 
@@ -511,7 +536,36 @@ class WorkflowContext:
         # Last resort: return empty string (will use provider default)
         return ""
 
-    def _parse_json_response(self, content: str) -> dict[str, object]:
+    def _validate_array_schema(
+        self,
+        parsed: object,
+        raw_response: str,
+        schema_model: type[BaseModel],
+    ) -> None:
+        """Validate parsed response as array of schema objects.
+
+        Args:
+            parsed: Parsed JSON response.
+            raw_response: Original response string for error reporting.
+            schema_model: Pydantic model for validation.
+
+        Raises:
+            JSONParseError: If parsed is not a list.
+
+        """
+        if not isinstance(parsed, list):
+            msg = f"Expected JSON array, got {type(parsed).__name__}"
+            raise JSONParseError(
+                raw_response=raw_response,
+                parse_error=msg,
+            )
+        validated_items = []
+        for item in parsed:
+            validated = schema_model.model_validate(item)
+            validated_items.append(validated.model_dump())
+        self._last_call_result = validated_items
+
+    def _parse_json_response(self, content: str) -> dict[str, object] | list[object]:
         """Parse JSON from LLM response, handling markdown code blocks.
 
         Extract JSON content from LLM responses which may include markdown
@@ -551,7 +605,7 @@ class WorkflowContext:
             )
 
         try:
-            result: dict[str, object] = json.loads(json_content)
+            result: dict[str, object] | list[object] = json.loads(json_content)
         except json.JSONDecodeError as e:
             raise JSONParseError(
                 raw_response=content,
@@ -593,6 +647,23 @@ class WorkflowContext:
 
         return blocks
 
+    def _is_array_schema(self, prompt_spec: PromptSpec | None) -> bool:
+        """Check if a prompt spec has an array schema (e.g., Finding[]).
+
+        Args:
+            prompt_spec: Prompt specification to check.
+
+        Returns:
+            True if schema ends with [], False otherwise.
+
+        """
+        if prompt_spec is None:
+            return False
+        schema_name = getattr(prompt_spec, "schema", None)
+        if not schema_name or not isinstance(schema_name, str):
+            return False
+        return bool(schema_name.endswith("[]"))
+
     def _get_schema_model(
         self,
         prompt_spec: PromptSpec | None,
@@ -600,7 +671,8 @@ class WorkflowContext:
         """Get the Pydantic model for a prompt's schema.
 
         Look up the schema name from the prompt spec and resolve it
-        to the corresponding Pydantic model class.
+        to the corresponding Pydantic model class. Strip [] suffix
+        for array types.
 
         Args:
             prompt_spec: Prompt specification, may be None.
@@ -616,12 +688,18 @@ class WorkflowContext:
         if not schema_name:
             return None
 
+        # Strip [] suffix for array types
+        if isinstance(schema_name, str) and schema_name.endswith("[]"):
+            schema_name = schema_name[:-2]
+
         return self._schemas.get(schema_name)
 
     def _enrich_prompt_with_schema(
         self,
         prompt_text: str,
         json_schema: dict[str, object],
+        *,
+        is_array: bool = False,
     ) -> str:
         """Append JSON format instructions to a prompt.
 
@@ -631,12 +709,21 @@ class WorkflowContext:
         Args:
             prompt_text: Original prompt text.
             json_schema: JSON Schema dict from Pydantic model.
+            is_array: If True, instruct LLM to return a JSON array of items.
 
         Returns:
             Enriched prompt with JSON instructions.
 
         """
         schema_str = json.dumps(json_schema, indent=2)
+        if is_array:
+            return (
+                f"{prompt_text}\n\n"
+                f"IMPORTANT: You MUST respond with a JSON array of objects, "
+                f"where each element matches this schema:\n"
+                f"```json\n{schema_str}\n```\n\n"
+                f"Do NOT include any text outside the JSON array."
+            )
         return (
             f"{prompt_text}\n\n"
             f"IMPORTANT: You MUST respond with valid JSON that matches this schema:\n"
@@ -749,9 +836,12 @@ class WorkflowContext:
         schema_model = self._get_schema_model(prompt_spec)
 
         # Enrich prompt with JSON instructions if schema expected
+        is_array = self._is_array_schema(prompt_spec)
         if schema_model:
             json_schema = schema_model.model_json_schema()
-            prompt_text = self._enrich_prompt_with_schema(prompt_text, json_schema)
+            prompt_text = self._enrich_prompt_with_schema(
+                prompt_text, json_schema, is_array=is_array,
+            )
 
         # Resolve model and yield call event
         resolved_model = model or self._resolve_agent_model(prompt_name)
@@ -767,6 +857,7 @@ class WorkflowContext:
             resolved_model=resolved_model,
             prompt_text=prompt_text,
             schema_model=schema_model,
+            is_array=is_array,
         ):
             yield event
 
@@ -777,6 +868,7 @@ class WorkflowContext:
         resolved_model: str,
         prompt_text: str,
         schema_model: type[BaseModel] | None,
+        is_array: bool = False,
     ) -> AsyncGenerator[FlowEvent, None]:
         """Execute LLM call with optional schema validation and retry.
 
@@ -785,6 +877,7 @@ class WorkflowContext:
             resolved_model: Model identifier to use.
             prompt_text: The prompt text to send.
             schema_model: Pydantic model for validation, or None.
+            is_array: True if expecting an array of schema items.
 
         Yields:
             LlmResponseEvent on success.
@@ -821,8 +914,15 @@ class WorkflowContext:
 
                 # Parse and validate response
                 parsed = self._parse_json_response(last_content)
-                validated = schema_model.model_validate(parsed)
-                self._last_call_result = validated.model_dump()
+
+                if is_array:
+                    # Array schema: parse as list and validate each element
+                    self._validate_array_schema(
+                        parsed, last_content, schema_model,
+                    )
+                else:
+                    validated = schema_model.model_validate(parsed)
+                    self._last_call_result = validated.model_dump()
                 validation_succeeded = True
 
             except (JSONParseError, PydanticValidationError) as e:
