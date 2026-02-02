@@ -5,7 +5,7 @@ Each node is a frozen dataclass that can be used for semantic analysis and
 code generation.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from streetrace.log import get_logger
@@ -171,16 +171,16 @@ class RunStmt:
     """Run statement node for agents and flows.
 
     Examples:
-    - $result = run agent fetch_data $input  (agent call)
+    - $result = run agent fetch_data with $input  (agent call)
     - $goal = run get_agent_goal  (flow call, is_flow=True)
     - run my_workflow  (flow call without assignment)
-    - $x = run agent peer $y, on escalate return $y  (with escalation handler)
+    - $x = run agent peer with $y, on escalate return $y  (with escalation handler)
 
     """
 
     target: str | None  # None if no assignment
     agent: str  # Agent or flow name
-    args: list[AstNode]
+    input: AstNode | None = None  # Optional input expression (with keyword)
     meta: SourcePosition | None = None
     is_flow: bool = False  # True for flow calls, False for agent calls
     escalation_handler: "EscalationHandler | None" = None  # on escalate clause
@@ -188,11 +188,11 @@ class RunStmt:
 
 @dataclass
 class CallStmt:
-    """Call LLM statement node (e.g., $goal = call llm analyze_prompt $input)."""
+    """Call LLM statement node (e.g., $goal = call llm analyze_prompt with $input)."""
 
     target: str | None  # None if no assignment
     prompt: str
-    args: list[AstNode]
+    input: AstNode | None = None  # Optional input expression (with keyword)
     model: str | None = None  # Optional model override
     meta: SourcePosition | None = None
 
@@ -477,6 +477,9 @@ class AgentDef:
     description: str | None = None
     delegate: list[str] | None = None  # Sub-agents for coordinator pattern
     use: list[str] | None = None  # AgentTool for hierarchical pattern
+    prompt: str | None = None  # Default prompt for agent invocation
+    prompt_meta: "SourcePosition | None" = None  # Position of prompt field
+    produces: str | None = None  # Default output variable name
     meta: SourcePosition | None = None
 
 
@@ -524,8 +527,8 @@ class FlowDef:
     """Flow definition node."""
 
     name: str
-    params: list[str]
     body: list[AstNode]
+    params: list[str] = field(default_factory=list)
     meta: SourcePosition | None = None
 
 

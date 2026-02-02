@@ -142,7 +142,7 @@ class TestLoopBlock:
         source = """
 flow refine_result:
     loop max 5 do
-        $result = run agent refiner $input
+        $result = run agent refiner with $input
         if $result.quality > 0.9:
             return $result
     end
@@ -155,7 +155,7 @@ flow refine_result:
         source = """
 flow infinite_loop:
     loop do
-        $result = run agent processor $input
+        $result = run agent processor with $input
         if $result.done:
             return $result
     end
@@ -168,7 +168,7 @@ flow infinite_loop:
 flow complex_loop:
     $counter = 0
     loop max 10 do
-        $result = run agent worker $input
+        $result = run agent worker with $input
         push $result to $results
         if $result.status == "complete":
             return $results
@@ -183,7 +183,7 @@ flow complex_loop:
 flow nested_loop:
     loop max 3 do
         loop max 5 do
-            $result = run agent inner_worker $input
+            $result = run agent inner_worker with $input
         end
     end
 """
@@ -194,7 +194,7 @@ flow nested_loop:
         source = """
 on output do
     loop max 3 do
-        $check = run validate_output $output
+        $check = run validate_output with $output
         if $check.passed:
             continue
         retry step $check.message
@@ -349,7 +349,7 @@ class TestLoopBlockAstTransformation:
         source = """
 flow refine:
     loop max 5 do
-        $result = run agent worker $input
+        $result = run agent worker with $input
     end
     return $result
 """
@@ -374,7 +374,7 @@ flow refine:
         source = """
 flow infinite:
     loop do
-        $result = run agent worker $input
+        $result = run agent worker with $input
         return $result
     end
 """
@@ -399,7 +399,7 @@ flow infinite:
         source = """
 flow refine:
     loop max 3 do
-        $result = run agent worker $input
+        $result = run agent worker with $input
     end
 """
         tree = parser.parse(source)

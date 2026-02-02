@@ -32,13 +32,13 @@ prompt main_instruction: """You are a code quality improvement assistant.
 Help users improve their code through iterative refinement."""
 
 # Flow that refines code with bounded iteration
-flow refine_with_limit $code:
-    $current_code = $code
+flow refine_with_limit:
+    $current_code = "initial code"
 
     # Loop with max 5 iterations to prevent infinite loops
     loop max 5 do
-        $quality = call llm quality_check $current_code
-        $result = call llm refine_code $current_code
+        $quality = call llm quality_check with $current_code
+        $result = call llm refine_code with $current_code
         $current_code = $result.improved_code
         log "Refinement iteration completed"
     end

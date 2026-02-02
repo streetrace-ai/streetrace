@@ -94,7 +94,7 @@ class TestRunStatementEscalationParsing:
         source = """
 flow resolver:
     $current = $input_prompt
-    $current = run agent peer1 $current, on escalate return $current
+    $current = run agent peer1 with $current, on escalate return $current
     return $current
 """
         tree = parser.parse(source)
@@ -105,7 +105,7 @@ flow resolver:
         source = """
 flow processor:
     for $item in $items do
-        run agent validator $item, on escalate continue
+        run agent validator with $item, on escalate continue
     end
     return $items
 """
@@ -116,7 +116,7 @@ flow processor:
         """Test parsing run statement with on escalate abort handler."""
         source = """
 flow critical_flow:
-    $result = run agent processor $input, on escalate abort
+    $result = run agent processor with $input, on escalate abort
     return $result
 """
         tree = parser.parse(source)
@@ -126,7 +126,7 @@ flow critical_flow:
         """Test parsing run without assignment but with escalation handler."""
         source = """
 flow validator_flow:
-    run agent checker $data, on escalate abort
+    run agent checker with $data, on escalate abort
     return $data
 """
         tree = parser.parse(source)
@@ -136,17 +136,17 @@ flow validator_flow:
         """Test backward compatibility - run without escalation still works."""
         source = """
 flow simple_flow:
-    $result = run agent processor $input
+    $result = run agent processor with $input
     return $result
 """
         tree = parser.parse(source)
         assert tree.data == "start"
 
-    def test_parses_run_with_multiple_args_and_escalation(self, parser):
-        """Test parsing run with multiple args and escalation handler."""
+    def test_parses_run_with_input_and_escalation(self, parser):
+        """Test parsing run with input and escalation handler."""
         source = """
-flow multi_arg_flow:
-    $result = run agent processor $arg1 $arg2 $arg3, on escalate return $fallback
+flow single_arg_flow:
+    $result = run agent processor with $arg1, on escalate return $fallback
     return $result
 """
         tree = parser.parse(source)
@@ -166,8 +166,8 @@ class TestLoopWithEscalation:
 flow iterative_resolver:
     $current = $input_prompt
     loop max 3 do
-        $current = run agent peer1 $current, on escalate return $current
-        $current = run agent peer2 $current, on escalate return $current
+        $current = run agent peer1 with $current, on escalate return $current
+        $current = run agent peer2 with $current, on escalate return $current
     end
     return $current
 """
@@ -180,7 +180,7 @@ flow iterative_resolver:
 flow batch_processor:
     $results = []
     for $item in $items do
-        $processed = run agent processor $item, on escalate continue
+        $processed = run agent processor with $item, on escalate continue
         push $processed to $results
     end
     return $results
@@ -216,8 +216,8 @@ agent peer2:
 flow default:
     $current = $input_prompt
     loop max 3 do
-        $current = run agent peer1 $current, on escalate return $current
-        $current = run agent peer2 $current, on escalate return $current
+        $current = run agent peer1 with $current, on escalate return $current
+        $current = run agent peer2 with $current, on escalate return $current
     end
     return $current
 '''

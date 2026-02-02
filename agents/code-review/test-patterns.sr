@@ -83,8 +83,8 @@ flow main:
     log "[TEST 1] Parallel agents..."
     log "[PARALLEL] Starting: agent_a + agent_b"
     parallel do
-        $result_a = run agent agent_a $input_prompt
-        $result_b = run agent agent_b $input_prompt
+        $result_a = run agent agent_a with $input_prompt
+        $result_b = run agent agent_b with $input_prompt
     end
     log "[PARALLEL] Completed: agent_a + agent_b"
     log "[CHECK] result_a and result_b should be populated"
@@ -93,7 +93,7 @@ flow main:
 
     # Test 2: Get chunks via LLM call
     log "[TEST 2] Chunking via LLM..."
-    $chunk_data = call llm chunk_splitter_instruction $result_a
+    $chunk_data = call llm chunk_splitter_instruction with $result_a
     log "[LLM] chunk_data received"
 
     # Test 3: Loop over chunks with agents
@@ -107,15 +107,15 @@ flow main:
 
         # Sequential agent in loop
         log "[LOOP] Running chunk_processor..."
-        $chunk_result = run agent chunk_processor $chunk
+        $chunk_result = run agent chunk_processor with $chunk
         log "[LOOP] chunk_processor done"
         log $chunk_result
 
         # Parallel agents in loop
         log "[LOOP] Running parallel analyzers..."
         parallel do
-            $analysis_a = run agent analyzer_a $chunk
-            $analysis_b = run agent analyzer_b $chunk
+            $analysis_a = run agent analyzer_a with $chunk
+            $analysis_b = run agent analyzer_b with $chunk
         end
         log "[LOOP] parallel analyzers done"
 
@@ -134,7 +134,7 @@ flow main:
 
     # Test 4: Final compilation
     log "[TEST 4] Final LLM compilation..."
-    $final = call llm final_instruction $all_chunk_results $all_analysis_a $all_analysis_b
+    $final = call llm final_instruction with $all_chunk_results
     log "[LLM] Final result received"
 
     log "=== TEST COMPLETE ==="

@@ -306,7 +306,7 @@ class TestFlowDefinitions:
     def test_parses_simple_flow(self, parser):
         source = """
 flow my_workflow:
-    $result = run agent fetch_data $input
+    $result = run agent fetch_data with $input
     return $result
 """
         tree = parser.parse(source)
@@ -317,7 +317,7 @@ flow my_workflow:
 flow process_items:
     $results = []
     for $item in $items do
-        $result = run agent process_item $item
+        $result = run agent process_item with $item
         push $result to $results
     end
     return $results
@@ -329,8 +329,8 @@ flow process_items:
         source = """
 flow parallel_search:
     parallel do
-        $web_results = run agent web_search $topic
-        $doc_results = run agent doc_search $topic
+        $web_results = run agent web_search with $topic
+        $doc_results = run agent doc_search with $topic
     end
     return $web_results
 """
@@ -341,8 +341,8 @@ flow parallel_search:
         source = """
 flow handle_type:
     match $item.type
-        when "standard" -> run agent process_standard $item
-        when "expedited" -> run agent process_expedited $item
+        when "standard" -> run agent process_standard with $item
+        when "expedited" -> run agent process_expedited with $item
         else -> log "Unknown type"
     end
 """
@@ -361,11 +361,11 @@ flow conditional_flow:
     def test_parses_flow_with_failure_handler(self, parser):
         source = """
 flow transfer_money:
-    $debit = run agent debit_account $from_account $amount
+    $debit = run agent debit_account with $from_account
 
-    $credit = run agent credit_account $to_account $amount
+    $credit = run agent credit_account with $to_account
     on failure:
-        run agent refund_account $from_account $amount
+        run agent refund_account with $from_account
         notify "Transfer failed"
         return $debit
 """
@@ -375,16 +375,16 @@ flow transfer_money:
     def test_parses_flow_with_underscored_name(self, parser):
         source = """
 flow get_agent_goal:
-    $goal = call llm analyze_prompt $input
+    $goal = call llm analyze_prompt with $input
     return $goal
 """
         tree = parser.parse(source)
         assert tree.data == "start"
 
-    def test_parses_flow_with_parameters(self, parser):
+    def test_parses_flow_without_parameters(self, parser):
         source = """
-flow detect_trajectory_drift $goal:
-    $drift = call llm drift_detection_prompt $goal
+flow detect_trajectory_drift:
+    $drift = call llm drift_detection_prompt with $goal
     return $drift
 """
         tree = parser.parse(source)
@@ -393,7 +393,7 @@ flow detect_trajectory_drift $goal:
     def test_parses_flow_returning_object_literal(self, parser):
         source = """
 flow transfer_money:
-    $debit = run agent debit_account $from_account $amount
+    $debit = run agent debit_account with $from_account
     return { success: true, debit: $debit }
 """
         tree = parser.parse(source)
@@ -430,7 +430,7 @@ end
     def test_parses_on_output_handler(self, parser):
         source = """
 on output do
-    $drift = run detect_trajectory_drift $goal
+    $drift = run detect_trajectory_drift
     retry with $drift.message if $drift.score > 0.2
 end
 """
@@ -846,13 +846,13 @@ schema ResearchResult:
     sources: list[string]
     confidence: float
 
-flow research $topic:
+flow research:
     parallel do
-        $web_results = run agent web_search $topic
-        $doc_results = run agent doc_search $topic
+        $web_results = run agent web_search with $topic
+        $doc_results = run agent doc_search with $topic
     end
 
-    $combined = run agent synthesize $web_results $doc_results
+    $combined = run agent synthesize with $web_results
     return $combined
 
 agent web_search:
@@ -896,7 +896,7 @@ schema TriageResult:
     escalate: bool
 
 on input do
-    $triage = call llm triage_prompt $input using model "triage"
+    $triage = call llm triage_prompt with $input using model "triage"
     if $triage.escalate:
         escalate to human "High priority issue detected"
 end
@@ -905,11 +905,11 @@ on output do
     warn if $output contains "refund"
 end
 
-flow handle_support $ticket:
+flow handle_support:
     match $triage.category
-        when "billing" -> run agent billing_agent $ticket
-        when "technical" -> run agent technical_agent $ticket
-        when "general" -> run agent general_agent $ticket
+        when "billing" -> run agent billing_agent with $ticket
+        when "technical" -> run agent technical_agent with $ticket
+        when "general" -> run agent general_agent with $ticket
         else -> escalate to human "Unknown category"
     end
 
@@ -963,7 +963,7 @@ on tool-result do
 end
 
 on output do
-    $drift = run detect_trajectory_drift $goal
+    $drift = run detect_trajectory_drift
     retry with $drift.message if $drift.score > 0.2
 end
 
@@ -971,7 +971,7 @@ end
 # You can define any flows with any names.
 
 flow get_agent_goal:
-    $goal = call llm goal_analysis_prompt $instruction $input_prompt $agent_context
+    $goal = call llm goal_analysis_prompt with $instruction
     return $goal
 
 prompt goal_analysis_prompt using model "compact": """
@@ -983,8 +983,8 @@ Input: $input_prompt
 Context: $context
 """
 
-flow detect_trajectory_drift $goal:
-    $drift = call llm drift_detection_prompt $goal
+flow detect_trajectory_drift:
+    $drift = call llm drift_detection_prompt with $goal
     return $drift
 
 prompt drift_detection_prompt using model "compact" expecting Drift: """
@@ -1009,12 +1009,12 @@ after tool-result do
 end
 
 flow my_workflow:
-    $invoices = run agent fetch_invoices $input_prompt
+    $invoices = run agent fetch_invoices with $input_prompt
     $processed = []
 
     for $invoice in $invoices do
         $converted = lib.convert($invoice)
-        $result = run agent process_invoice $converted
+        $result = run agent process_invoice with $converted
         push $result to $processed
     end
 

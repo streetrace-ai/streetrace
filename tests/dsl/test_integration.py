@@ -100,7 +100,7 @@ agent processor:
     instruction task_prompt
 
 flow process_items:
-    $result = run agent processor $input_prompt
+    $result = run agent processor with $input_prompt
     return $result
 """
 

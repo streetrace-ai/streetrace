@@ -150,11 +150,11 @@ class TestRunStmtWithEscalation:
     def test_creates_run_stmt_without_escalation(self):
         """Test that RunStmt works without escalation handler (backward compat)."""
         run = RunStmt(
-            target="$result",
+            target="result",
             agent="fetch_data",
-            args=[VarRef(name="input")],
+            input=VarRef(name="input"),
         )
-        assert run.target == "$result"
+        assert run.target == "result"
         assert run.agent == "fetch_data"
         assert run.escalation_handler is None
 
@@ -162,9 +162,9 @@ class TestRunStmtWithEscalation:
         """Test creating a run statement with return escalation handler."""
         handler = EscalationHandler(action="return", value=VarRef(name="current"))
         run = RunStmt(
-            target="$current",
+            target="current",
             agent="peer1",
-            args=[VarRef(name="current")],
+            input=VarRef(name="current"),
             escalation_handler=handler,
         )
         assert run.escalation_handler is not None
@@ -175,9 +175,9 @@ class TestRunStmtWithEscalation:
         """Test creating a run statement with continue escalation handler."""
         handler = EscalationHandler(action="continue")
         run = RunStmt(
-            target="$data",
+            target="data",
             agent="validator",
-            args=[VarRef(name="data")],
+            input=VarRef(name="data"),
             escalation_handler=handler,
         )
         assert run.escalation_handler is not None
@@ -187,9 +187,9 @@ class TestRunStmtWithEscalation:
         """Test creating a run statement with abort escalation handler."""
         handler = EscalationHandler(action="abort")
         run = RunStmt(
-            target="$result",
+            target="result",
             agent="processor",
-            args=[VarRef(name="input")],
+            input=VarRef(name="input"),
             escalation_handler=handler,
         )
         assert run.escalation_handler is not None
@@ -199,9 +199,8 @@ class TestRunStmtWithEscalation:
         """Test creating a flow run statement with escalation handler."""
         handler = EscalationHandler(action="return", value=VarRef(name="fallback"))
         run = RunStmt(
-            target="$result",
+            target="result",
             agent="process_flow",
-            args=[],
             is_flow=True,
             escalation_handler=handler,
         )

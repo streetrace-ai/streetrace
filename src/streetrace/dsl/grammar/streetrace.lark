@@ -226,14 +226,12 @@ retry_action: "retry" "with" expression "if" condition
 // FLOWS
 // ----------------------------------------------------------------------------
 
-flow_def: "flow" flow_name flow_params? ":" _NL _INDENT flow_body _DEDENT
+flow_def: "flow" flow_name ":" _NL _INDENT flow_body _DEDENT
 
 // Flow names use underscores for consistency (e.g., "get_agent_goal")
 // Multi-word flows are supported but we recommend snake_case for clarity
 // Use identifier to allow keywords as part of flow names
 flow_name: identifier+
-
-flow_params: variable+
 
 flow_body: flow_statement+
 
@@ -269,6 +267,8 @@ agent_body: agent_property+
 
 agent_property: "tools" name_list _NL                 -> agent_tools
               | "instruction" NAME _NL                -> agent_instruction
+              | "prompt" NAME _NL                     -> agent_prompt
+              | "produces" NAME _NL                   -> agent_produces
               | "retry" NAME _NL                      -> agent_retry
               | "timeout" timeout_value _NL           -> agent_timeout
               | "description" STRING _NL              -> agent_description
@@ -302,8 +302,11 @@ prompt_def: "prompt" NAME prompt_modifiers?                                     
 prompt_modifiers: prompt_modifier+
 
 prompt_modifier: "using" "model" interpolated_string  -> prompt_using_model
-               | "expecting" NAME                     -> prompt_expecting
+               | "expecting" expecting_type           -> prompt_expecting
                | "inherit" variable                   -> prompt_inherit
+
+expecting_type: NAME                                  -> expecting_single
+             | NAME LSQB RSQB                         -> expecting_array
 
 // Prompt body uses triple-quoted string for multi-line text
 // This approach works better with Lark's lexer-first architecture
@@ -362,10 +365,10 @@ assignment: variable "=" expression
 // Agent names and flow names can be keywords (identifier allows this)
 // Flows are called with "run flow_name [args]" syntax
 // Optional escalation_handler: ", on escalate <action>"
-run_stmt: variable "=" "run" "agent" identifier expression* escalation_handler?
-        | "run" "agent" identifier expression* escalation_handler?
-        | variable "=" "run" identifier expression* escalation_handler?  -> run_flow_assign
-        | "run" identifier expression* escalation_handler?  -> run_flow
+run_stmt: variable "=" "run" "agent" identifier ("with" expression)? escalation_handler?
+        | "run" "agent" identifier ("with" expression)? escalation_handler?
+        | variable "=" "run" identifier ("with" expression)? escalation_handler?  -> run_flow_assign
+        | "run" identifier ("with" expression)? escalation_handler?  -> run_flow
 
 // Escalation handler for run statements
 // Syntax: , on escalate <action>
@@ -375,8 +378,8 @@ escalation_action: "return" expression               -> escalation_return
                  | "continue"                        -> escalation_continue
                  | "abort"                           -> escalation_abort
 
-call_stmt: variable "=" "call" "llm" identifier expression* call_modifiers?
-         | "call" "llm" identifier expression* call_modifiers?
+call_stmt: variable "=" "call" "llm" identifier ("with" expression)? call_modifiers?
+         | "call" "llm" identifier ("with" expression)? call_modifiers?
 
 call_modifiers: "using" "model" interpolated_string
 
@@ -473,8 +476,10 @@ object_entry: identifier ":" expression
 
 // Variable names can be keywords, so we accept NAME or contextual_keyword
 // Note: $var.prop.path is lexed as $ + DOTTED_NAME due to terminal priority
+// $ prefix is optional in flow context — both $var and var are accepted
 variable: "$" var_name                                -> var_ref
         | "$" DOTTED_NAME                             -> var_dotted
+        | var_name                                    -> var_bare
 
 // Variable names can be regular identifiers or soft keywords
 var_name: NAME | contextual_keyword
@@ -499,7 +504,7 @@ contextual_keyword: "escalate" | "match" | "from" | "to" | "agent" | "model"
                   | "fixed" | "exponential" | "linear" | "basic" | "bearer"
                   | "backoff" | "times" | "instruction" | "tools" | "description"
                   | "expecting" | "using" | "inherit" | "delegate" | "loop" | "max"
-                  | "filter" | "where"
+                  | "filter" | "where" | "with" | "produces"
 
 // Contextual names - includes NAME and contextual keywords
 // Used for property access where keywords can appear after dot
@@ -509,6 +514,7 @@ contextual_name: NAME | contextual_keyword
 // Deep property access for nested objects (e.g., $tool_result.guardrails.passed)
 property_access: NAME "." contextual_name ("." contextual_name)*
                | variable "." contextual_name ("." contextual_name)*
+               | DOTTED_NAME
 
 // Function calls for library functions and utility methods
 // User-defined flows are called using "run flow_name" syntax (see run_stmt)

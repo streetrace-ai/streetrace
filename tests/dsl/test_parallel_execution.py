@@ -50,14 +50,14 @@ class TestParallelBlockExecution:
                         ParallelBlock(
                             body=[
                                 RunStmt(
-                                    target="$a",
+                                    target="a",
                                     agent="task_a",
-                                    args=[VarRef(name="input_prompt")],
+                                    input=VarRef(name="input_prompt"),
                                 ),
                                 RunStmt(
-                                    target="$b",
+                                    target="b",
                                     agent="task_b",
-                                    args=[VarRef(name="input_prompt")],
+                                    input=VarRef(name="input_prompt"),
                                 ),
                             ],
                         ),
@@ -165,9 +165,10 @@ class TestParallelBlockExecution:
                 ("agent_a", ["arg1"], "var_a"),
                 ("agent_b", ["arg2"], "var_b"),
             ]
-            events = []
-            async for event in workflow._execute_parallel_agents(ctx, specs):  # noqa: SLF001
-                events.append(event)
+            events = [
+                event
+                async for event in workflow._execute_parallel_agents(ctx, specs)  # noqa: SLF001
+            ]
 
             # Verify events were yielded
             assert len(events) == 1
@@ -290,9 +291,10 @@ class TestParallelBlockExecution:
         ctx = WorkflowContext(workflow=workflow)
 
         # Execute with empty specs - should return immediately without yielding
-        events = []
-        async for event in workflow._execute_parallel_agents(ctx, []):  # noqa: SLF001
-            events.append(event)
+        events = [
+            event
+            async for event in workflow._execute_parallel_agents(ctx, [])  # noqa: SLF001
+        ]
 
         # Should yield nothing for empty specs
         assert events == []

@@ -391,7 +391,7 @@ class TestDslAgentWorkflowRunAgentGenerator:
 
         # Verify message was created with joined args
         assert captured_message is not None
-        assert captured_message.parts[0].text == "arg1 arg2"
+        assert captured_message.parts[0].text == "arg1\n---\narg2"
 
 
 class TestWorkflowContextRunAgentGenerator:

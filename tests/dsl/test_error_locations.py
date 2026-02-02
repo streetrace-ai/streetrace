@@ -82,7 +82,7 @@ streetrace v1
 model main = anthropic/claude-sonnet
 
 flow my_flow:
-    $result = run agent undefined_agent $input_prompt
+    $result = run agent undefined_agent with $input_prompt
     return $result
 """
         diagnostics = validate_dsl(source, "test.sr")
@@ -128,7 +128,7 @@ streetrace v1
 model main = anthropic/claude-sonnet
 
 flow my_flow:
-    $result = call llm undefined_prompt $input_prompt
+    $result = call llm undefined_prompt with $input_prompt
     return $result
 """
         diagnostics = validate_dsl(source, "test.sr")

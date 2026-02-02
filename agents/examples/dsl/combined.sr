@@ -90,12 +90,12 @@ agent:
 prompt review_check expecting ReviewResult: """Evaluate the work product.
 Score from 0-100, list any feedback items, approve if score >= 85."""
 
-flow quality_loop $work:
-    $current = $work
+flow quality_loop:
+    $current = "initial work"
 
     # Bounded iteration for quality checks
     loop max 3 do
-        $current = call llm review_check $current
+        $current = call llm review_check with $current
         log "Quality check iteration complete"
     end
 

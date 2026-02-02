@@ -38,9 +38,8 @@ class TestParallelBlockValidation:
                         ParallelBlock(
                             body=[
                                 CallStmt(
-                                    target="$result",
+                                    target="result",
                                     prompt="task_prompt",
-                                    args=[],
                                 ),
                             ],
                         ),
@@ -72,11 +71,10 @@ class TestParallelBlockValidation:
                     body=[
                         ParallelBlock(
                             body=[
-                                RunStmt(target="$a", agent="task_a", args=[]),
+                                RunStmt(target="a", agent="task_a"),
                                 CallStmt(
-                                    target="$result",
+                                    target="result",
                                     prompt="task_prompt",
-                                    args=[],
                                 ),
                             ],
                         ),
@@ -113,8 +111,8 @@ class TestParallelBlockValidation:
                     body=[
                         ParallelBlock(
                             body=[
-                                RunStmt(target="$a", agent="task_a", args=[]),
-                                RunStmt(target="$b", agent="task_b", args=[]),
+                                RunStmt(target="a", agent="task_a"),
+                                RunStmt(target="b", agent="task_b"),
                             ],
                         ),
                     ],
@@ -156,8 +154,8 @@ class TestParallelBlockCodeGeneration:
                     body=[
                         ParallelBlock(
                             body=[
-                                RunStmt(target="$a", agent="task_a", args=[]),
-                                RunStmt(target="$b", agent="task_b", args=[]),
+                                RunStmt(target="a", agent="task_a"),
+                                RunStmt(target="b", agent="task_b"),
                             ],
                         ),
                     ],
@@ -203,8 +201,8 @@ class TestParallelBlockCodeGeneration:
                     body=[
                         ParallelBlock(
                             body=[
-                                RunStmt(target="$result_a", agent="task_a", args=[]),
-                                RunStmt(target="$result_b", agent="task_b", args=[]),
+                                RunStmt(target="result_a", agent="task_a"),
+                                RunStmt(target="result_b", agent="task_b"),
                             ],
                         ),
                     ],
@@ -242,9 +240,9 @@ class TestParallelBlockCodeGeneration:
                         ParallelBlock(
                             body=[
                                 RunStmt(
-                                    target="$a",
+                                    target="a",
                                     agent="task_a",
-                                    args=[VarRef(name="input")],
+                                    input=VarRef(name="input"),
                                 ),
                             ],
                         ),
@@ -277,7 +275,7 @@ class TestParallelBlockCodeGeneration:
                     body=[
                         ParallelBlock(
                             body=[
-                                RunStmt(target=None, agent="task_a", args=[]),
+                                RunStmt(target=None, agent="task_a"),
                             ],
                         ),
                     ],
@@ -339,14 +337,14 @@ class TestParallelBlockCodeGeneration:
                         ParallelBlock(
                             body=[
                                 RunStmt(
-                                    target="$a",
+                                    target="a",
                                     agent="task_a",
-                                    args=[VarRef(name="input")],
+                                    input=VarRef(name="input"),
                                 ),
                                 RunStmt(
-                                    target="$b",
+                                    target="b",
                                     agent="task_b",
-                                    args=[Literal(value="test", literal_type="string")],
+                                    input=Literal(value="test", literal_type="string"),
                                 ),
                             ],
                         ),

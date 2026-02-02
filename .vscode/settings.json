@@ -9,5 +9,8 @@
   },
   "python.analysis.typeCheckingMode": "standard",
   "editor.rulers": [88],
-  "python.analysis.exclude": ["tests"]
+  "python.analysis.exclude": [
+    "tests"
+  ],
+  "python.defaultInterpreterPath": "/home/data/repos/github.com/streetrace-ai/streetrace/.venv/bin/python"
 }

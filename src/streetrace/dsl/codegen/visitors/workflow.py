@@ -119,23 +119,20 @@ class WorkflowVisitor:
             merged_prompts: Optional dict of merged prompts from semantic analysis.
 
         """
+        type_dispatch: dict[type, list] = {  # type: ignore[type-arg]
+            ModelDef: self._models,
+            ToolDef: self._tools,
+            SchemaDef: self._schemas,
+            AgentDef: self._agents,
+            FlowDef: self._flows,
+            EventHandler: self._handlers,
+        }
         for stmt in node.statements:
-            if isinstance(stmt, ModelDef):
-                self._models.append(stmt)
-            elif isinstance(stmt, PromptDef):
-                # Skip prompts here if using merged_prompts
-                if merged_prompts is None:
-                    self._prompts.append(stmt)
-            elif isinstance(stmt, ToolDef):
-                self._tools.append(stmt)
-            elif isinstance(stmt, SchemaDef):
-                self._schemas.append(stmt)
-            elif isinstance(stmt, AgentDef):
-                self._agents.append(stmt)
-            elif isinstance(stmt, FlowDef):
-                self._flows.append(stmt)
-            elif isinstance(stmt, EventHandler):
-                self._handlers.append(stmt)
+            target = type_dispatch.get(type(stmt))
+            if target is not None:
+                target.append(stmt)
+            elif isinstance(stmt, PromptDef) and merged_prompts is None:
+                self._prompts.append(stmt)
 
         # Use merged prompts if provided (from semantic analysis)
         if merged_prompts is not None:
@@ -193,7 +190,8 @@ class WorkflowVisitor:
             handler_visitor.visit(handler)
 
         # Emit flow methods
-        flow_visitor = FlowVisitor(self._emitter)
+        agents_by_name = {a.name: a for a in self._agents if a.name}
+        flow_visitor = FlowVisitor(self._emitter, agents=agents_by_name)
         for flow in self._flows:
             flow_visitor.visit(flow)
 
@@ -317,11 +315,8 @@ class WorkflowVisitor:
             # Custom type (schema reference) - use the schema name directly
             # Schema classes are defined in the same scope
             schema_names = {s.name for s in self._schemas}
-            if base_type in schema_names:
-                base = base_type
-            else:
-                # Unknown type - default to str with warning
-                base = "str"
+            # Schema reference or unknown type (default to str)
+            base = base_type if base_type in schema_names else "str"
 
         result = f"list[{base}]" if type_expr.is_list else base
 
@@ -420,7 +415,7 @@ class WorkflowVisitor:
 
         def replace_var(match: re.Match[str]) -> str:
             var_name = match.group(1)
-            return "{ctx.stringify(ctx.vars['" + var_name + "'])}"
+            return "{ctx.resolve('" + var_name + "')}"
 
         # Replace variables with f-string expressions
         processed = re.sub(var_pattern, replace_var, body)
@@ -526,6 +521,14 @@ class WorkflowVisitor:
             if agent.use:
                 agent_tools_str = ", ".join(f"'{a}'" for a in agent.use)
                 self._emitter.emit(f"'agent_tools': [{agent_tools_str}],")
+
+            # Optional: default prompt for agent invocation
+            if agent.prompt:
+                self._emitter.emit(f"'prompt': '{agent.prompt}',")
+
+            # Optional: default output variable name
+            if agent.produces:
+                self._emitter.emit(f"'produces': '{agent.produces}',")
 
             # Optional: description for agent
             if agent.description:
