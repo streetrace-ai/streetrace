@@ -28,6 +28,38 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _try_parse_json(value: object) -> object:
+    """Try to parse a string value as JSON.
+
+    Agent results are often JSON-formatted text. Parse them into
+    native Python objects (lists, dicts) so flow code can operate
+    on structured data. Return the original value if parsing fails.
+
+    Args:
+        value: Value to try parsing.
+
+    Returns:
+        Parsed JSON object, or original value if not JSON.
+
+    """
+    if not isinstance(value, str):
+        return value
+    import json
+
+    # Strip markdown code fences if present (opening + content + closing)
+    min_fenced_lines = 3
+    text = value.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        if len(lines) >= min_fenced_lines and lines[-1].strip() == "```":
+            text = "\n".join(lines[1:-1]).strip()
+
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return value
+
+
 @dataclass
 class EscalationSpec:
     """Escalation specification for prompt outputs.
@@ -397,18 +429,25 @@ class DslAgentWorkflow:
 
         # Store result for context retrieval
         if self._context:
-            self._context._last_call_result = final_response  # noqa: SLF001
+            self._context._last_call_result = _try_parse_json(  # noqa: SLF001
+                final_response,
+            )
 
     async def run_flow(
         self,
         flow_name: str,
         *args: object,
+        caller_ctx: "WorkflowContext | None" = None,
     ) -> AsyncGenerator["Event | FlowEvent", None]:
         """Run a flow from within another flow, yielding events.
+
+        Sub-flows share the caller's variable scope so they can access
+        and modify variables set by the parent flow.
 
         Args:
             flow_name: Name of the flow to run.
             *args: Arguments to pass to the flow.
+            caller_ctx: Parent context to share. Creates a new one if None.
 
         Yields:
             Events from flow execution.
@@ -423,7 +462,7 @@ class DslAgentWorkflow:
             msg = f"Flow '{flow_name}' not found"
             raise ValueError(msg)
 
-        ctx = self.create_context()
+        ctx = caller_ctx if caller_ctx is not None else self.create_context()
         async for event in flow_method(ctx):
             yield event
 
@@ -529,11 +568,24 @@ class DslAgentWorkflow:
             session_id=session_id,
         )
 
-        # Store results directly in ctx.vars
+        # Store results directly in ctx.vars (parse JSON if possible)
+        logger.debug(
+            "Parallel execution complete. Session state keys: %s, "
+            "output_key_mapping: %s",
+            list(session.state.keys()) if session and session.state else "None",
+            output_key_mapping,
+        )
         if session and session.state:
             for target_var, output_key in output_key_mapping.items():
                 if output_key in session.state:
-                    ctx.vars[target_var] = session.state[output_key]
+                    raw = session.state[output_key]
+                    parsed = _try_parse_json(raw)
+                    logger.debug(
+                        "Parallel result for %s: type=%s",
+                        target_var,
+                        type(parsed).__name__,
+                    )
+                    ctx.vars[target_var] = parsed
 
     async def close(self) -> None:
         """Clean up all created agents.

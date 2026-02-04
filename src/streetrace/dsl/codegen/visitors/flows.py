@@ -377,10 +377,11 @@ class FlowVisitor:
             source_line: Source line number for mapping.
 
         """
+        method = "run_flow" if node.is_flow else "run_agent"
         if input_str:
-            call = f"ctx.run_agent('{node.agent}', {input_str})"
+            call = f"ctx.{method}('{node.agent}', {input_str})"
         else:
-            call = f"ctx.run_agent('{node.agent}')"
+            call = f"ctx.{method}('{node.agent}')"
 
         self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
         self._emitter.indent()
@@ -554,10 +555,18 @@ class FlowVisitor:
             if stmt.input is not None:
                 input_str = f"[{self._expr_visitor.visit(stmt.input)}]"
             else:
-                input_str = "[]"
+                # Resolve default input from agent's prompt field
+                resolved = self._resolve_default_input(stmt, None)
+                input_str = f"[{resolved}]" if resolved is not None else "[]"
 
-            # Generate target variable name (or None if no target)
-            target_name = f"'{stmt.target}'" if stmt.target else "None"
+            # Resolve target: explicit target or agent's produces field
+            produces_name = self._resolve_produces_target(stmt)
+            if stmt.target:
+                target_name = f"'{stmt.target}'"
+            elif produces_name:
+                target_name = f"'{produces_name}'"
+            else:
+                target_name = "None"
 
             self._emitter.emit(f"('{stmt.agent}', {input_str}, {target_name}),")
 

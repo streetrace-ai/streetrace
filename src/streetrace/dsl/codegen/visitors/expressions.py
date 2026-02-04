@@ -236,14 +236,17 @@ class ExpressionVisitor:
     def _visit_name_ref(self, node: NameRef) -> str:
         """Generate code for name reference.
 
+        Bare names in DSL expressions are context variables, same
+        as explicit $-prefixed references.
+
         Args:
             node: Name reference node.
 
         Returns:
-            Python name reference.
+            Python code to access the variable via ctx.vars.
 
         """
-        return node.name
+        return f"ctx.vars['{node.name}']"
 
     def _visit_implicit_property(self, node: ImplicitProperty) -> str:
         """Generate code for implicit property access.

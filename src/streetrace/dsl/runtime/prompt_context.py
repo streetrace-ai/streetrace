@@ -4,6 +4,8 @@ Provide a lightweight context that can be used to evaluate prompt lambdas
 without requiring a full workflow reference.
 """
 
+import json
+
 
 class PromptResolutionContext:
     """Minimal context for resolving prompts during agent creation.
@@ -11,7 +13,7 @@ class PromptResolutionContext:
     Unlike WorkflowContext, this doesn't require a workflow reference
     because it's only used for prompt evaluation, not agent execution.
     This context provides the minimal interface needed to evaluate
-    DSL prompt lambdas (access to vars and message).
+    DSL prompt lambdas (access to vars, message, and resolve).
     """
 
     def __init__(self) -> None:
@@ -21,3 +23,20 @@ class PromptResolutionContext:
 
         self.message: str = ""
         """Current message being processed."""
+
+    def resolve(self, name: str) -> str:
+        """Resolve a name to its string value from variables.
+
+        Args:
+            name: Variable name to resolve.
+
+        Returns:
+            String value, or empty string if not found.
+
+        """
+        if name in self.vars:
+            value = self.vars[name]
+            if isinstance(value, (dict, list)):
+                return json.dumps(value, default=str)
+            return str(value)
+        return ""
