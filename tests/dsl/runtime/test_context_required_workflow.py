@@ -194,7 +194,9 @@ class TestRunFlowDelegation:
         # run_flow is now an async generator - collect events
         events = [event async for event in ctx.run_flow("test_flow", "arg1")]
 
-        mock_workflow.run_flow.assert_called_once_with("test_flow", "arg1")
+        mock_workflow.run_flow.assert_called_once_with(
+            "test_flow", "arg1", caller_ctx=ctx,
+        )
         assert events == ["flow_result"]
 
     @pytest.mark.asyncio
@@ -213,7 +215,9 @@ class TestRunFlowDelegation:
         # run_flow is now an async generator - consume it
         _ = [event async for event in ctx.run_flow("flow", "x", "y", "z")]
 
-        workflow.run_flow.assert_called_once_with("flow", "x", "y", "z")
+        workflow.run_flow.assert_called_once_with(
+            "flow", "x", "y", "z", caller_ctx=ctx,
+        )
 
     @pytest.mark.asyncio
     async def test_run_flow_yields_events_from_workflow(

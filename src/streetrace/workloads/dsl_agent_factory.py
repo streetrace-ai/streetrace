@@ -6,6 +6,7 @@ depending on the deprecated DslStreetRaceAgent class.
 """
 
 import inspect
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -308,6 +309,10 @@ class DslAgentFactory:
         Look up the instruction's PromptSpec and extract the schema name,
         then look up the corresponding Pydantic model from _schemas.
 
+        Array types (e.g., Finding[]) are NOT returned here because ADK's
+        output_schema only supports single objects. Array schemas are
+        handled via instruction enrichment instead.
+
         Args:
             agent_def: Agent definition dict.
 
@@ -315,31 +320,94 @@ class DslAgentFactory:
             Pydantic model class if schema found, None otherwise.
 
         """
+        schema_name, schema_model = self._get_instruction_schema(agent_def)
+        if schema_name is None or schema_model is None:
+            return None
+
+        # Skip array types — ADK output_schema only supports single objects.
+        # Array schemas are handled by enriching the instruction text.
+        if isinstance(schema_name, str) and schema_name.endswith("[]"):
+            return None
+
+        return schema_model
+
+    def _get_instruction_schema(
+        self,
+        agent_def: dict[str, object],
+    ) -> "tuple[str | None, type[BaseModel] | None]":
+        """Get the schema name and model from an agent's instruction prompt.
+
+        Args:
+            agent_def: Agent definition dict.
+
+        Returns:
+            Tuple of (schema_name, schema_model). Both None if no schema.
+
+        """
         from streetrace.dsl.runtime.workflow import PromptSpec
 
-        # Get instruction name from agent definition
         instruction_name = agent_def.get("instruction")
         if not instruction_name or not isinstance(instruction_name, str):
-            return None
+            return None, None
 
-        # Look up prompt from workflow
         if not hasattr(self._workflow_class, "_prompts"):
-            return None
+            return None, None
 
         prompts = self._workflow_class._prompts  # noqa: SLF001
         prompt_spec = prompts.get(instruction_name)
 
-        # Must be a PromptSpec with schema attribute
         if not isinstance(prompt_spec, PromptSpec):
-            return None
+            return None, None
 
         schema_name = prompt_spec.schema
-        if not schema_name:
-            return None
+        if not schema_name or not isinstance(schema_name, str):
+            return None, None
 
-        # Look up schema model
+        # Strip [] suffix for lookup (e.g., Finding[] -> Finding)
+        lookup_name = schema_name.rstrip("[]")
+
         schemas = getattr(self._workflow_class, "_schemas", {})
-        return schemas.get(schema_name)
+        schema_model = schemas.get(lookup_name)
+        return schema_name, schema_model
+
+    def _enrich_instruction_with_schema(
+        self,
+        instruction: str,
+        agent_def: dict[str, object],
+    ) -> str:
+        """Enrich instruction with JSON schema for array-type schemas.
+
+        When an agent's instruction prompt declares an array schema
+        (e.g., expecting Finding[]), append JSON format instructions
+        to the agent's instruction text so the LLM returns a parseable
+        JSON array.
+
+        Args:
+            instruction: The resolved instruction text.
+            agent_def: Agent definition dict.
+
+        Returns:
+            Enriched instruction, or original if no array schema.
+
+        """
+        schema_name, schema_model = self._get_instruction_schema(agent_def)
+        if schema_name is None or schema_model is None:
+            return instruction
+
+        json_schema = schema_model.model_json_schema()
+        schema_str = json.dumps(json_schema, indent=2)
+
+        is_array = isinstance(schema_name, str) and schema_name.endswith("[]")
+        if is_array:
+            return (
+                f"{instruction}\n\n"
+                f"IMPORTANT: You MUST respond with a JSON array of objects, "
+                f"where each element matches this schema:\n"
+                f"```json\n{schema_str}\n```\n\n"
+                f"Do NOT include any text outside the JSON array."
+            )
+
+        return instruction
 
     async def create_agent(
         self,
@@ -385,6 +453,7 @@ class DslAgentFactory:
             raise TypeError(msg)
 
         instruction = self._resolve_instruction(agent_def)
+        instruction = self._enrich_instruction_with_schema(instruction, agent_def)
         model = self._resolve_model(model_factory, agent_def)
         tools = self._resolve_tools(tool_provider, agent_def)
         output_schema = self._resolve_output_schema(agent_def)

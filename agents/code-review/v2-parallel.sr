@@ -251,7 +251,7 @@ flow generate_all_patches:
 # Based on BitsAI-CR ReviewFilter and VulAgent hypothesis validation patterns
 # See: https://arxiv.org/html/2501.15134v1, https://arxiv.org/abs/2509.11523
 
-prompt validator_instruction: """You are a CODE REVIEW VALIDATOR with tools to verify findings.
+prompt validator_instruction expecting ValidationResult: """You are a CODE REVIEW VALIDATOR with tools to verify findings.
 
 Your job: Determine if this finding should be RETAINED or DISCARDED.
 Use Conclusion-First reasoning: state your decision, then explain why.
@@ -341,7 +341,7 @@ $diff
 
 Return a list of chunks with file paths and line ranges."""
 
-prompt deduplicator: """You are a systems engineer working in a cross-functional team.
+prompt deduplicator expecting Finding[]: """You are a systems engineer working in a cross-functional team.
 
 You will receive PR review comments from the rest of the team.
 

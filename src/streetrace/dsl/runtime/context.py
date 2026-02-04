@@ -493,7 +493,8 @@ class WorkflowContext:
     ) -> AsyncGenerator[Event | FlowEvent, None]:
         """Run a named flow with arguments, yielding events.
 
-        Always delegates to the parent workflow.
+        Delegates to the parent workflow, passing this context so the
+        sub-flow shares the same variable scope as the caller.
 
         Args:
             flow_name: Name of the flow to run.
@@ -503,7 +504,9 @@ class WorkflowContext:
             Events from flow execution.
 
         """
-        async for event in self._workflow.run_flow(flow_name, *args):
+        async for event in self._workflow.run_flow(
+            flow_name, *args, caller_ctx=self,
+        ):
             yield event
 
     def _resolve_agent_model(self, instruction_name: str | None) -> str:
