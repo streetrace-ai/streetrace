@@ -27,6 +27,9 @@ from streetrace.log import get_logger
 
 logger = get_logger(__name__)
 
+_MAX_SELF_REF_DEPTH = 3
+"""Maximum nesting depth for self-referencing agent tools."""
+
 
 class DslAgentFactory:
     """Factory for creating ADK agents from DSL workflow definitions.
@@ -53,6 +56,7 @@ class DslAgentFactory:
         self._workflow_class = workflow_class
         self._source_file = source_file
         self._source_map = source_map
+        self._creation_stack: list[str] = []
 
         logger.debug(
             "Created DslAgentFactory for %s from %s",
@@ -452,39 +456,47 @@ class DslAgentFactory:
             msg = f"Agent definition for '{agent_name}' is not a dict"
             raise TypeError(msg)
 
-        instruction = self._resolve_instruction(agent_def)
-        instruction = self._enrich_instruction_with_schema(instruction, agent_def)
-        model = self._resolve_model(model_factory, agent_def)
-        tools = self._resolve_tools(tool_provider, agent_def)
-        output_schema = self._resolve_output_schema(agent_def)
+        self._creation_stack.append(agent_name)
+        try:
+            instruction = self._resolve_instruction(agent_def)
+            instruction = self._enrich_instruction_with_schema(
+                instruction, agent_def,
+            )
+            model = self._resolve_model(model_factory, agent_def)
+            tools = self._resolve_tools(tool_provider, agent_def)
+            output_schema = self._resolve_output_schema(agent_def)
 
-        # Recursively resolve nested patterns
-        sub_agents = await self._resolve_sub_agents(
-            agent_def, model_factory, tool_provider, system_context,
-        )
-        agent_tools = await self._resolve_agent_tools(
-            agent_def, model_factory, tool_provider, system_context,
-        )
-        tools.extend(agent_tools)
+            # Recursively resolve nested patterns
+            sub_agents = await self._resolve_sub_agents(
+                agent_def, model_factory, tool_provider, system_context,
+            )
+            agent_tools = await self._resolve_agent_tools(
+                agent_def, model_factory, tool_provider, system_context,
+            )
+            tools.extend(agent_tools)
 
-        # Get description from agent definition or use default
-        description = agent_def.get("description", f"Agent: {agent_name}")
+            # Get description from agent definition or use default
+            description = agent_def.get(
+                "description", f"Agent: {agent_name}",
+            )
 
-        agent_kwargs: dict[str, Any] = {
-            "name": agent_name,
-            "model": model,
-            "instruction": instruction,
-            "tools": tools,
-            "description": description,
-        }
-        if sub_agents:
-            agent_kwargs["sub_agents"] = sub_agents
-        if output_schema is not None:
-            agent_kwargs["output_schema"] = output_schema
-        if output_key is not None:
-            agent_kwargs["output_key"] = output_key
+            agent_kwargs: dict[str, Any] = {
+                "name": agent_name,
+                "model": model,
+                "instruction": instruction,
+                "tools": tools,
+                "description": description,
+            }
+            if sub_agents:
+                agent_kwargs["sub_agents"] = sub_agents
+            if output_schema is not None:
+                agent_kwargs["output_schema"] = output_schema
+            if output_key is not None:
+                agent_kwargs["output_key"] = output_key
 
-        return LlmAgent(**agent_kwargs)
+            return LlmAgent(**agent_kwargs)
+        finally:
+            self._creation_stack.pop()
 
     async def create_root_agent(
         self,
@@ -645,6 +657,16 @@ class DslAgentFactory:
                 continue
             if agent_name not in agents:
                 logger.warning("Agent tool '%s' not found in workflow", agent_name)
+                continue
+
+            # Guard against infinite self-referencing recursion
+            self_ref_count = self._creation_stack.count(agent_name)
+            if self_ref_count >= _MAX_SELF_REF_DEPTH:
+                logger.info(
+                    "Self-ref depth limit reached for '%s' (depth=%d)",
+                    agent_name,
+                    self_ref_count,
+                )
                 continue
 
             sub_agent_def = agents[agent_name]

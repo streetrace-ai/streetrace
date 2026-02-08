@@ -203,7 +203,7 @@ class TestListConcatenationCodegen:
 
         code = visitor.visit(node)
 
-        assert code == "(ctx.vars['a'] + ctx.vars['b'])"
+        assert code == "list_concat(ctx.vars['a'], ctx.vars['b'])"
 
     def test_generates_code_for_variable_plus_property_access(self):
         """Test code generation for $all + $obj.items."""
@@ -219,7 +219,7 @@ class TestListConcatenationCodegen:
 
         code = visitor.visit(node)
 
-        assert code == "(ctx.vars['all'] + ctx.vars['obj']['items'])"
+        assert code == "list_concat(ctx.vars['all'], ctx.vars['obj']['items'])"
 
     def test_generates_code_for_variable_plus_list_literal(self):
         """Test code generation for $items + [$item]."""
@@ -232,7 +232,7 @@ class TestListConcatenationCodegen:
 
         code = visitor.visit(node)
 
-        assert code == "(ctx.vars['items'] + [ctx.vars['item']])"
+        assert code == "list_concat(ctx.vars['items'], [ctx.vars['item']])"
 
     def test_generates_code_for_nested_property_access(self):
         """Test code generation for $all + $obj.nested.items."""
@@ -248,7 +248,8 @@ class TestListConcatenationCodegen:
 
         code = visitor.visit(node)
 
-        assert code == "(ctx.vars['all'] + ctx.vars['obj']['nested']['items'])"
+        expected = "list_concat(ctx.vars['all'], ctx.vars['obj']['nested']['items'])"
+        assert code == expected
 
     def test_generates_code_for_chained_concatenation(self):
         """Test code generation for $a + $b + $c."""
@@ -266,7 +267,10 @@ class TestListConcatenationCodegen:
 
         code = visitor.visit(node)
 
-        assert code == "((ctx.vars['a'] + ctx.vars['b']) + ctx.vars['c'])"
+        expected = (
+            "list_concat(list_concat(ctx.vars['a'], ctx.vars['b']), ctx.vars['c'])"
+        )
+        assert code == expected
 
     def test_generates_code_for_list_with_string_literal(self):
         """Test code generation for $items + ["value"]."""
@@ -281,7 +285,7 @@ class TestListConcatenationCodegen:
 
         code = visitor.visit(node)
 
-        assert code == '(ctx.vars[\'items\'] + ["value"])'
+        assert code == 'list_concat(ctx.vars[\'items\'], ["value"])'
 
 
 class TestListConcatenationIntegration:
@@ -304,7 +308,7 @@ flow accumulate:
         generator = CodeGenerator()
         code, _mappings = generator.generate(ast, "test.sr")
 
-        assert "(ctx.vars['a'] + ctx.vars['b'])" in code
+        assert "list_concat(ctx.vars['a'], ctx.vars['b'])" in code
 
     def test_generated_code_contains_property_concatenation(self):
         """Test generated code for property access concatenation."""
@@ -323,7 +327,7 @@ flow accumulate_findings:
         generator = CodeGenerator()
         code, _mappings = generator.generate(ast, "test.sr")
 
-        assert "(ctx.vars['all'] + ctx.vars['obj']['findings'])" in code
+        assert "list_concat(ctx.vars['all'], ctx.vars['obj']['findings'])" in code
 
     def test_generated_code_contains_list_literal_concatenation(self):
         """Test generated code for list literal concatenation."""
@@ -342,7 +346,7 @@ flow append_item:
         generator = CodeGenerator()
         code, _mappings = generator.generate(ast, "test.sr")
 
-        assert "(ctx.vars['validated'] + [ctx.vars['finding']])" in code
+        assert "list_concat(ctx.vars['validated'], [ctx.vars['finding']])" in code
 
     def test_generated_code_is_valid_python(self):
         """Test that generated code compiles as valid Python."""

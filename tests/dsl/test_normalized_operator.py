@@ -133,7 +133,10 @@ flow check_response:
         compile(code, "<generated>", "exec")
 
         # Verify normalized_equals is imported and used
-        assert "from streetrace.dsl.runtime.utils import normalized_equals" in code
+        expected_import = (
+            "from streetrace.dsl.runtime.utils import list_concat, normalized_equals"
+        )
+        assert expected_import in code
         assert "normalized_equals" in code
 
     def test_generated_code_contains_correct_imports(self):
