@@ -51,7 +51,7 @@ from streetrace.dsl.runtime.errors import (
     RetryInputError,
     RetryStepError,
 )
-from streetrace.dsl.runtime.utils import normalized_equals
+from streetrace.dsl.runtime.utils import list_concat, normalized_equals
 
 """
 
@@ -410,12 +410,26 @@ class WorkflowVisitor:
         """
         import re
 
-        # Find all $variable references
-        var_pattern = r"\$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}?"
+        # Match $variable or $variable.prop1.prop2 (dotted property access)
+        var_pattern = (
+            r"\$\{?([a-zA-Z_][a-zA-Z0-9_]*"
+            r"(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\}?"
+        )
 
         def replace_var(match: re.Match[str]) -> str:
-            var_name = match.group(1)
-            return "{ctx.resolve('" + var_name + "')}"
+            full_ref = match.group(1)
+            parts = full_ref.split(".")
+            var_name = parts[0]
+
+            if len(parts) == 1:
+                # Simple variable: $name → ctx.resolve('name')
+                return "{ctx.resolve('" + var_name + "')}"
+
+            # Dotted access uses resolve_property for safe traversal
+            prop_args = ", ".join(f"'{p}'" for p in parts[1:])
+            return (
+                "{ctx.resolve_property('" + var_name + "', " + prop_args + ")}"
+            )
 
         # Replace variables with f-string expressions
         processed = re.sub(var_pattern, replace_var, body)

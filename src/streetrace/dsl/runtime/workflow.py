@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 from streetrace.dsl.runtime.context import WorkflowContext
+from streetrace.dsl.runtime.errors import JSONParseError, SchemaValidationError
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
@@ -26,6 +27,9 @@ if TYPE_CHECKING:
     from streetrace.workloads.dsl_agent_factory import DslAgentFactory
 
 logger = get_logger(__name__)
+
+MAX_AGENT_SCHEMA_RETRIES = 1
+"""Maximum retry attempts for agent schema validation (1 retry = 2 total attempts)."""
 
 
 def _try_parse_json(value: object) -> object:
@@ -105,6 +109,23 @@ class EntryPoint:
     """Entry point type: 'flow' or 'agent'."""
 
     name: str
+
+
+@dataclass
+class SchemaValidationParams:
+    """Parameters for agent result schema validation.
+
+    Bundle validation parameters to reduce argument count in methods.
+    """
+
+    schema_name: str | None
+    """Full schema name (e.g., 'Finding[]')."""
+
+    schema_model: "type[BaseModel]"
+    """Pydantic model class for validation."""
+
+    is_array: bool
+    """True if expecting an array of schema items."""
     """Name of the flow or agent."""
 
 
@@ -298,6 +319,105 @@ class DslAgentWorkflow:
             return " ".join(texts)
         return ""
 
+    def _resolve_agent_schema(
+        self,
+        agent_name: str,
+    ) -> tuple[str | None, "type[BaseModel] | None", bool]:
+        """Resolve the expected schema from an agent's instruction prompt.
+
+        Look up the agent's instruction prompt and extract its schema definition.
+        Return schema metadata for validation.
+
+        Args:
+            agent_name: Name of the agent to resolve schema for.
+
+        Returns:
+            Tuple of (schema_name, schema_model, is_array).
+            Returns (None, None, False) if no schema is defined.
+
+        """
+        agent_def = self._agents.get(agent_name)
+        if not agent_def:
+            return (None, None, False)
+
+        instruction_name = agent_def.get("instruction")
+        if not instruction_name or not isinstance(instruction_name, str):
+            return (None, None, False)
+
+        prompt_spec = self._prompts.get(instruction_name)
+        if not prompt_spec:
+            return (None, None, False)
+
+        schema_name = getattr(prompt_spec, "schema", None)
+        if not schema_name or not isinstance(schema_name, str):
+            return (None, None, False)
+
+        # Check if array type
+        is_array = schema_name.endswith("[]")
+        base_name = schema_name[:-2] if is_array else schema_name
+
+        schema_model = self._schemas.get(base_name)
+        if not schema_model:
+            return (None, None, False)
+
+        return (schema_name, schema_model, is_array)
+
+    def _validate_agent_result(
+        self,
+        raw_response: str,
+        schema_model: "type[BaseModel]",
+        *,
+        is_array: bool,
+    ) -> object:
+        """Validate an agent's raw response against a schema.
+
+        Parse the response as JSON and validate against the Pydantic model.
+
+        Args:
+            raw_response: The raw text response from the agent.
+            schema_model: Pydantic model class for validation.
+            is_array: True if expecting an array of schema items.
+
+        Returns:
+            Validated result as dict or list of dicts.
+
+        Raises:
+            JSONParseError: If response cannot be parsed as JSON.
+            SchemaValidationError: If parsed response fails validation.
+
+        """
+        from pydantic import ValidationError as PydanticValidationError
+
+        if not self._context:
+            msg = "Context required for validation"
+            raise ValueError(msg)
+
+        # Parse JSON using context's method (let JSONParseError propagate)
+        parsed = self._context._parse_json_response(raw_response)  # noqa: SLF001
+
+        # Validate against schema
+        try:
+            if is_array:
+                if not isinstance(parsed, list):
+                    msg = f"Expected JSON array, got {type(parsed).__name__}"
+                    raise JSONParseError(
+                        raw_response=raw_response,
+                        parse_error=msg,
+                    )
+                validated_items = []
+                for item in parsed:
+                    validated = schema_model.model_validate(item)
+                    validated_items.append(validated.model_dump())
+                return validated_items
+            validated = schema_model.model_validate(parsed)
+            return validated.model_dump()
+        except PydanticValidationError as e:
+            raise SchemaValidationError(
+                schema_name=schema_model.__name__,
+                errors=[str(e)],
+                raw_response=raw_response,
+            ) from e
+
     async def _execute_flow(
         self,
         flow_name: str,
@@ -376,6 +496,11 @@ class DslAgentWorkflow:
         Called by generated flow code via ctx.run_agent().
         Uses _create_agent() which delegates to DslAgentFactory.
 
+        When the agent's prompt has an `expecting` schema, the result is
+        validated against that schema. On validation failure, the agent
+        is retried once with error feedback. If retry also fails, an
+        empty result ([] for arrays, {} for objects) is stored.
+
         Args:
             agent_name: Name of the agent to run.
             *args: Arguments to pass to the agent.
@@ -385,6 +510,53 @@ class DslAgentWorkflow:
 
         Raises:
             ValueError: If agent_factory not set.
+
+        """
+        # Resolve schema for validation
+        schema_name, schema_model, is_array = self._resolve_agent_schema(agent_name)
+
+        # Execute agent and collect response
+        final_response, events = await self._execute_agent_run(agent_name, *args)
+
+        # Yield all collected events
+        for event in events:
+            yield event
+
+        # Validate and potentially retry
+        if self._context:
+            if schema_model is None:
+                # No schema - use simple JSON parsing
+                self._context._last_call_result = _try_parse_json(  # noqa: SLF001
+                    final_response,
+                )
+            else:
+                # Schema validation with retry
+                params = SchemaValidationParams(
+                    schema_name=schema_name,
+                    schema_model=schema_model,
+                    is_array=is_array,
+                )
+                result = await self._validate_with_retry(
+                    agent_name=agent_name,
+                    raw_response=str(final_response) if final_response else "",
+                    params=params,
+                    args=args,
+                )
+                self._context._last_call_result = result  # noqa: SLF001
+
+    async def _execute_agent_run(
+        self,
+        agent_name: str,
+        *args: object,
+    ) -> tuple[object, list["Event"]]:
+        """Execute a single agent run and collect events.
+
+        Args:
+            agent_name: Name of the agent to run.
+            *args: Arguments to pass to the agent.
+
+        Returns:
+            Tuple of (final_response, collected_events).
 
         """
         from google.adk import Runner
@@ -403,7 +575,6 @@ class DslAgentWorkflow:
         # Use InMemorySessionService for nested runs (isolated context)
         nested_session_service = InMemorySessionService()  # type: ignore[no-untyped-call]
 
-        # Create session before running (InMemorySessionService requires this)
         await nested_session_service.create_session(
             app_name="dsl_workflow",
             user_id="workflow_user",
@@ -418,20 +589,76 @@ class DslAgentWorkflow:
         )
 
         final_response: object = None
+        collected_events: list[Event] = []
+
         async for event in runner.run_async(
             user_id="workflow_user",
             session_id="nested_session",
             new_message=content,
         ):
-            yield event  # Forward event to caller
+            collected_events.append(event)
             if event.is_final_response() and event.content and event.content.parts:
                 final_response = event.content.parts[0].text
 
-        # Store result for context retrieval
-        if self._context:
-            self._context._last_call_result = _try_parse_json(  # noqa: SLF001
-                final_response,
+        return final_response, collected_events
+
+    async def _validate_with_retry(
+        self,
+        agent_name: str,
+        raw_response: str,
+        params: SchemaValidationParams,
+        args: tuple[object, ...],
+    ) -> object:
+        """Validate agent result with one retry on failure.
+
+        Args:
+            agent_name: Name of the agent (for retry).
+            raw_response: The raw response text to validate.
+            params: Schema validation parameters.
+            args: Original args for retry.
+
+        Returns:
+            Validated result, or empty fallback on failure.
+
+        """
+        # First attempt
+        first_error = ""
+        try:
+            return self._validate_agent_result(
+                raw_response, params.schema_model, is_array=params.is_array,
             )
+        except (JSONParseError, SchemaValidationError) as e:
+            first_error = str(e)
+            logger.debug(
+                "Agent '%s' validation failed, retrying: %s",
+                agent_name,
+                first_error,
+            )
+
+        # Retry with error feedback appended to args
+        error_feedback = (
+            f"Error: Your response could not be parsed. {first_error}\n\n"
+            f"Please respond with valid JSON matching the expected schema."
+        )
+        retry_args = (*args, error_feedback)
+
+        retry_response, _ = await self._execute_agent_run(agent_name, *retry_args)
+
+        # Second attempt
+        try:
+            return self._validate_agent_result(
+                str(retry_response) if retry_response else "",
+                params.schema_model,
+                is_array=params.is_array,
+            )
+        except (JSONParseError, SchemaValidationError):
+            logger.warning(
+                "Agent '%s' expected %s but returned unparseable response after retry",
+                agent_name,
+                params.schema_name,
+            )
+            # Fall back to empty result
+            return [] if params.is_array else {}
 
     async def run_flow(
         self,
@@ -568,24 +795,144 @@ class DslAgentWorkflow:
             session_id=session_id,
         )
 
-        # Store results directly in ctx.vars (parse JSON if possible)
+        # Store results directly in ctx.vars with schema validation
         logger.debug(
             "Parallel execution complete. Session state keys: %s, "
             "output_key_mapping: %s",
             list(session.state.keys()) if session and session.state else "None",
             output_key_mapping,
         )
+
+        # Build mapping from target_var to (agent_name, args) for retries
+        target_var_to_spec: dict[str, tuple[str, list[object]]] = {}
+        for agent_name, args, target_var in specs:
+            if target_var is not None:
+                target_var_to_spec[target_var] = (agent_name, args)
+
         if session and session.state:
-            for target_var, output_key in output_key_mapping.items():
-                if output_key in session.state:
-                    raw = session.state[output_key]
-                    parsed = _try_parse_json(raw)
-                    logger.debug(
-                        "Parallel result for %s: type=%s",
-                        target_var,
-                        type(parsed).__name__,
-                    )
-                    ctx.vars[target_var] = parsed
+            await self._process_parallel_results(
+                ctx, session.state, output_key_mapping, target_var_to_spec,
+            )
+
+    async def _process_parallel_results(
+        self,
+        ctx: WorkflowContext,
+        state: dict[str, object],
+        output_key_mapping: dict[str, str],
+        target_var_to_spec: dict[str, tuple[str, list[object]]],
+    ) -> None:
+        """Process and validate parallel agent results.
+
+        Extract results from session state, validate against schemas,
+        and store in context variables.
+
+        Args:
+            ctx: Workflow context for variable storage.
+            state: Session state containing agent outputs.
+            output_key_mapping: Maps target_var to output_key in state.
+            target_var_to_spec: Maps target_var to (agent_name, args).
+
+        """
+        for target_var, output_key in output_key_mapping.items():
+            if output_key not in state:
+                continue
+
+            raw = state[output_key]
+            agent_name, args = target_var_to_spec.get(target_var, (target_var, []))
+
+            # Resolve schema for this agent
+            schema_name, schema_model, is_array = self._resolve_agent_schema(agent_name)
+
+            if schema_model is None:
+                # No schema - use simple JSON parsing
+                parsed = _try_parse_json(raw)
+                logger.debug(
+                    "Parallel result for %s: type=%s (no schema)",
+                    target_var,
+                    type(parsed).__name__,
+                )
+                ctx.vars[target_var] = parsed
+            else:
+                # Validate with retry
+                params = SchemaValidationParams(
+                    schema_name=schema_name,
+                    schema_model=schema_model,
+                    is_array=is_array,
+                )
+                result = await self._validate_parallel_result(
+                    agent_name=agent_name,
+                    raw_response=str(raw) if raw else "",
+                    params=params,
+                    args=tuple(args),
+                )
+                logger.debug(
+                    "Parallel result for %s: type=%s (validated)",
+                    target_var,
+                    type(result).__name__,
+                )
+                ctx.vars[target_var] = result
+
+    async def _validate_parallel_result(
+        self,
+        agent_name: str,
+        raw_response: str,
+        params: SchemaValidationParams,
+        args: tuple[object, ...],
+    ) -> object:
+        """Validate parallel agent result with one sequential retry on failure.
+
+        Similar to _validate_with_retry but uses sequential execution for retry
+        since parallel execution already completed.
+
+        Args:
+            agent_name: Name of the agent (for retry).
+            raw_response: The raw response text to validate.
+            params: Schema validation parameters.
+            args: Original args for retry.
+
+        Returns:
+            Validated result, or empty fallback on failure.
+
+        """
+        # First attempt
+        first_error = ""
+        try:
+            return self._validate_agent_result(
+                raw_response, params.schema_model, is_array=params.is_array,
+            )
+        except (JSONParseError, SchemaValidationError) as e:
+            first_error = str(e)
+            logger.debug(
+                "Parallel agent '%s' validation failed, retrying sequentially: %s",
+                agent_name,
+                first_error,
+            )
+
+        # Sequential retry with error feedback
+        error_feedback = (
+            f"Error: Your response could not be parsed. {first_error}\n\n"
+            f"Please respond with valid JSON matching the expected schema."
+        )
+        retry_args = (*args, error_feedback)
+
+        retry_response, _ = await self._execute_agent_run(agent_name, *retry_args)
+
+        # Second attempt
+        try:
+            return self._validate_agent_result(
+                str(retry_response) if retry_response else "",
+                params.schema_model,
+                is_array=params.is_array,
+            )
+        except (JSONParseError, SchemaValidationError):
+            logger.warning(
+                "Parallel agent '%s' expected %s but returned unparseable "
+                "response after retry",
+                agent_name,
+                params.schema_name,
+            )
+            # Fall back to empty result
+            return [] if params.is_array else {}
 
     async def close(self) -> None:
         """Clean up all created agents.

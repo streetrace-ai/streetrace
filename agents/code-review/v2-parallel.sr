@@ -133,12 +133,13 @@ agent requirements_fetcher:
     prompt pr_context
     produces requirements
 
-agent diff_chunks_fetcher:
+agent diff_chunker:
     tools github
-    instruction diff_fetcher_instruction
-    description "Fetches PR diff"
+    instruction diff_chunker_instruction
+    use diff_chunker
     prompt input_prompt
     produces diff_chunks
+    description "Recursively chunks large diffs into reviewable pieces"
 
 # -----------------------------------------------------------------------------
 # CHUNK CONTEXT BUILDER (runs per chunk - CRITICAL for review quality)
@@ -162,7 +163,7 @@ flow main:
     run agent pr_context_fetcher
 
     log "Phase 2: Get Diff Chunks -> DiffChunk[]..."
-    run agent diff_chunks_fetcher
+    run agent diff_chunker
 
     log "Phase 3: Fetch requirements -> text..."
     run agent requirements_fetcher
@@ -561,27 +562,41 @@ Your role is to provide context summary of this respository, while keeping only 
 $no_inference
 """
 
-prompt diff_fetcher_instruction expecting DiffChunk[]: """You are a PR review analyst working on this PR:
+prompt diff_chunker_instruction expecting DiffChunk[]: """You are a PR diff chunker that recursively splits large diffs into reviewable pieces.
 
-Your role is to break changes introduced in this PR into isolated reviewable chunks - minimal related logical chunks of changes. For example "Class renamed", "Global variable introduced", "Component added to design document", etc.
+When the user asks you to review a PR, or send any info pointing to a PR or a change set, they are actually asking you to chunk the related change set into reviewable pieces.
 
-A "chunk" is a short title, description, and a list of file changes (file:lines). Chunk title is a unique ~5 word title describing this change. Chunk description must answer the question of why this change is relevant to this PR, and to the project in general. Leverage provided context to understand how this change contributes to the PR and the project. For each chunk, provide the combined machine readable diff patch.
+## Step 1: Assess total size
 
-Return chunks in JSON format.
+List the PR's changed files with their addition/deletion line counts using the GitHub API (lightweight file list, NOT full diff). Sum the total changed lines.
 
-In many cases, a minimal related logical chunk is a full single commit.
+## Step 2: Decide strategy
 
-1. Start by listing all commits included in this PR.
-2. Go one commit after another from the oldest commits to newest.
-3. Get commit message and diff.
-4. If the commit introduces several logical changes, break it down into separate logical changes.
-5. If changes in this commit closely relate to one of the previous chunks you observed, update the previously observed chunk.
+- **If total changed lines <= 2000**: Fetch the full diff and split it into logical DiffChunk[] items below. Skip to Step 4.
+- **If total changed lines > 2000**: Don't fetch the full diff and instead group files by directory proximity and use diff_chunker tool to split each group into logical DiffChunk[] items. Collect and return the combined results.
 
-When in doubt whether two changes are related, use the total patch size: if more than 2000 lines, keep them separate, if less - keep them in the same chunk.
+## Step 3: Grouping heuristic (only when > 2000 lines)
 
-As a result, you will produce a set of chunks representing atomic changes. When done, check again to make sure you included all PR changes in chunks and the chunks you created address all changes in this PR.
+1. Sort files by directory path.
+2. Walk the sorted list, accumulating files into the current group.
+3. When a group's estimated line count exceeds ~2000, start a new group.
+4. Prefer keeping files in the same directory together.
+5. Call the diff_chunker tool once per group, passing the file list as context.
 
-DO NOT provide review comments or analysis, we will review each chunk that you created in isolation at a later stage.
+## Step 4: Chunk creation (only when <= 2000 lines)
+
+Break the diff into minimal logical chunks:
+- A "chunk" has a short title (~5 words), a description explaining relevance, and the combined machine-readable git diff patch.
+- In many cases a full single commit is one logical chunk.
+- If a commit introduces several logical changes, split it.
+- If changes across commits are closely related, merge them into one chunk.
+
+## Rules
+
+- Return chunks in JSON format matching the DiffChunk schema.
+- DO NOT provide review comments or analysis.
+- DO NOT infer or assume, use only the provided facts.
+- Ensure every changed file appears in exactly one chunk.
 
 $no_inference
 """

@@ -888,6 +888,12 @@ class SemanticAnalyzer:
     def _build_agent_graph(self) -> dict[str, list[str]]:
         """Build adjacency list for agent delegate/use relationships.
 
+        Self-references via ``use`` are filtered out because the ``use``
+        pattern wraps an agent as an AgentTool — the LLM chooses when to
+        call it, providing natural recursion termination.  Self-references
+        via ``delegate`` remain in the graph because delegate transfers
+        control unconditionally and is harder to bound.
+
         Returns:
             Dictionary mapping agent names to their referenced agents.
 
@@ -898,7 +904,9 @@ class SemanticAnalyzer:
             if agent.delegate:
                 neighbors.extend(agent.delegate)
             if agent.use:
-                neighbors.extend(agent.use)
+                neighbors.extend(
+                    name for name in agent.use if name != agent_name
+                )
             graph[agent_name] = neighbors
         return graph
 

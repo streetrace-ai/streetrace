@@ -25,6 +25,36 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
+def _log_dsl_exception(workload_name: str, exc: BaseException) -> None:
+    """Log a workload exception with source-map-translated line numbers.
+
+    If the traceback passes through generated DSL code, translate the
+    generated Python line numbers back to ``.sr`` source lines so the
+    log is actionable.  Fall back to the raw traceback when no source
+    map is available.
+
+    Args:
+        workload_name: Name of the workload that failed.
+        exc: The inner exception to log.
+
+    """
+    try:
+        from streetrace.dsl.compiler import get_source_map_registry
+        from streetrace.dsl.sourcemap.excepthook import (
+            format_exception_with_source_map,
+        )
+
+        registry = get_source_map_registry()
+        translated = format_exception_with_source_map(
+            type(exc), exc, exc.__traceback__, registry,
+        )
+        logger.error(
+            "Error running workload '%s'\n%s", workload_name, translated,
+        )
+    except ImportError:
+        logger.exception("Error running workload '%s'", workload_name)
+
+
 def _format_exception_message(exc: BaseException) -> str:
     """Format an exception for user-friendly display.
 
@@ -217,8 +247,9 @@ class Supervisor(InputHandler):
             )
             raise
         except* BaseException as err_group:
-            logger.exception("Error running workload '%s'", workload_name)
-            error_msg = _format_exception_message(err_group.exceptions[0])
+            inner = err_group.exceptions[0]
+            _log_dsl_exception(workload_name, inner)
+            error_msg = _format_exception_message(inner)
             self.ui_bus.dispatch_ui_update(
                 ui_events.Error(f"'{workload_name}': {error_msg}"),
             )

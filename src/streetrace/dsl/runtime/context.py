@@ -248,6 +248,42 @@ class WorkflowContext:
 
         return ""
 
+    def resolve_property(self, name: str, *properties: str) -> str:
+        """Resolve a dotted property path like ``$chunk.title``.
+
+        Look up the base variable, coerce JSON strings to dicts if
+        needed, then walk the property chain.  Return the stringified
+        leaf value, or an empty string on any lookup failure.
+
+        Args:
+            name: Base variable name.
+            *properties: Property names to traverse.
+
+        Returns:
+            String value of the resolved property.
+
+        """
+        value: object = self.vars.get(name)
+        if value is None:
+            return ""
+
+        # Coerce JSON strings to dicts/lists so property access works
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                return self.stringify(value)
+
+        for prop in properties:
+            if isinstance(value, dict):
+                value = value.get(prop)
+            else:
+                return ""
+            if value is None:
+                return ""
+
+        return self.stringify(value)
+
     def set_models(self, models: dict[str, str]) -> None:
         """Set the available models.
 

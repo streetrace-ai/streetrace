@@ -297,7 +297,27 @@ class TestCircularReferenceDetection:
         error_message = e0011_errors[0].message.lower()
         assert "circular" in error_message
 
-    def test_self_reference_error(self) -> None:
+    def test_self_reference_via_use_allowed(self) -> None:
+        """Agent using itself is allowed (recursive tool pattern)."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(name="agent_prompt", body="Self-referencing agent"),
+                AgentDef(
+                    name="self_agent",
+                    tools=[],
+                    instruction="agent_prompt",
+                    use=["self_agent"],  # Self-reference via use — allowed
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        e0011_errors = [e for e in result.errors if e.code == ErrorCode.E0011]
+        assert len(e0011_errors) == 0
+
+    def test_self_reference_via_delegate_error(self) -> None:
         """Agent delegating to itself produces E0011 error."""
         ast = DslFile(
             version=VersionDecl(version="1.0"),
@@ -307,7 +327,7 @@ class TestCircularReferenceDetection:
                     name="self_agent",
                     tools=[],
                     instruction="agent_prompt",
-                    delegate=["self_agent"],  # Self-reference!
+                    delegate=["self_agent"],  # Self-reference via delegate — error
                 ),
             ],
         )

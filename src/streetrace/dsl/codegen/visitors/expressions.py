@@ -160,6 +160,10 @@ class ExpressionVisitor:
         if op == "~":
             return f"normalized_equals({left}, {right})"
 
+        # Use list_concat for + to handle mixed list/string operands
+        if op == "+":
+            return f"list_concat({left}, {right})"
+
         # Map operator if needed
         python_op = OPERATOR_MAP.get(op, op)
 

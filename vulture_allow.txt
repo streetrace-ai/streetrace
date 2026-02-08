@@ -460,3 +460,9 @@ _._get_definition_loader  # unused method (manager.py) - used by tests for loade
 JSONParseError  # unused class (errors.py) - will be used by call_llm schema validation
 SchemaValidationError  # unused class (errors.py) - will be used by call_llm schema validation
 schema_to_pydantic  # unused function (schema_factory.py) - will be used by code generation
+
+# Runtime utilities - used by generated code
+list_concat  # unused function (utils.py) - called by generated code for list concatenation
+_.resolve_property  # unused method (context.py) - called by generated code for property access
+_.resolve_property  # unused method (prompt_context.py) - called by generated code for property access
+MAX_AGENT_SCHEMA_RETRIES  # unused variable (workflow.py) - documents retry limit for agent validation
