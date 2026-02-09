@@ -5,6 +5,7 @@ Generate Python code for flow definitions and control flow statements.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from streetrace.dsl.ast.nodes import (
@@ -19,6 +20,7 @@ from streetrace.dsl.ast.nodes import (
     FlowDef,
     ForLoop,
     IfBlock,
+    Literal,
     LogStmt,
     LoopBlock,
     MatchBlock,
@@ -665,7 +667,7 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        message_code = self._expr_visitor.visit(node.message)
+        message_code = self._process_interpolated_message(node.message)
         self._emitter.emit(f"ctx.log({message_code})", source_line=source_line)
 
     def _visit_notify_stmt(self, node: NotifyStmt) -> None:
@@ -676,8 +678,110 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        message_code = self._expr_visitor.visit(node.message)
+        message_code = self._process_interpolated_message(node.message)
         self._emitter.emit(f"ctx.notify({message_code})", source_line=source_line)
+
+    def _process_interpolated_message(self, message: object) -> str:
+        """Process a message expression, handling string interpolation.
+
+        If the message is a string literal containing ${...} patterns,
+        convert it to an f-string expression with proper variable/expression
+        substitution.
+
+        Args:
+            message: Message AST node.
+
+        Returns:
+            Python expression string for the message.
+
+        """
+        # Only process Literal strings
+        if not isinstance(message, Literal) or message.literal_type != "string":
+            return self._expr_visitor.visit(message)
+
+        text = str(message.value)
+
+        # Check if interpolation is needed
+        if "${" not in text:
+            return self._expr_visitor.visit(message)
+
+        # Process interpolation patterns: ${expr} where expr can be:
+        # - variable: diff_chunks
+        # - dotted access: chunk.title
+        # - function call: len(diff_chunks), len(chunk.items)
+        return self._build_interpolated_fstring(text)
+
+    def _build_interpolated_fstring(self, text: str) -> str:
+        """Build an f-string expression from interpolated text.
+
+        Args:
+            text: String containing ${...} interpolation patterns.
+
+        Returns:
+            Python f-string expression.
+
+        """
+        # Pattern for ${...} interpolation
+        # Captures the content inside ${}
+        pattern = r"\$\{([^}]+)\}"
+
+        def replace_interpolation(match: re.Match[str]) -> str:
+            expr = match.group(1).strip()
+            return "{" + self._convert_dsl_expr_to_python(expr) + "}"
+
+        processed = re.sub(pattern, replace_interpolation, text)
+
+        # Escape backslashes and quotes for f-string
+        processed = processed.replace("\\", "\\\\")
+        processed = processed.replace('"', '\\"')
+
+        return f'f"{processed}"'
+
+    def _convert_dsl_expr_to_python(self, expr: str) -> str:
+        """Convert a DSL expression inside ${...} to Python code.
+
+        Handles:
+        - Simple variables: diff_chunks -> ctx.vars['diff_chunks']
+        - Dotted access: chunk.title -> ctx.vars['chunk']['title']
+        - Function calls: len(var) -> len(ctx.vars['var'])
+        - Nested: len(chunk.items) -> len(ctx.vars['chunk']['items'])
+
+        Args:
+            expr: DSL expression string.
+
+        Returns:
+            Python expression string.
+
+        """
+        # Match function call pattern: func(arg) or func(arg.prop.prop)
+        func_match = re.match(r"(\w+)\(([^)]+)\)", expr)
+        if func_match:
+            func_name = func_match.group(1)
+            arg = func_match.group(2).strip()
+            python_arg = self._convert_var_to_python(arg)
+            return f"{func_name}({python_arg})"
+
+        # Otherwise, treat as variable or dotted access
+        return self._convert_var_to_python(expr)
+
+    def _convert_var_to_python(self, var_expr: str) -> str:
+        """Convert a variable expression to Python accessor.
+
+        Args:
+            var_expr: Variable expression (e.g., 'chunk' or 'chunk.title').
+
+        Returns:
+            Python code to access the variable.
+
+        """
+        parts = var_expr.split(".")
+        base = parts[0].strip()
+        result = f"ctx.vars['{base}']"
+
+        for prop in parts[1:]:
+            result = f"{result}['{prop.strip()}']"
+
+        return result
 
     def _visit_escalate_stmt(self, node: EscalateStmt) -> None:
         """Generate code for escalate statement.

@@ -2205,6 +2205,14 @@ class AstTransformer(Transformer):
         """Transform string_lit rule."""
         return Literal(value=items[0], literal_type="string")
 
+    def interpolated_string_lit(self, items: TransformerItems) -> Literal:
+        """Transform interpolated_string_lit rule.
+
+        Interpolated strings contain ${...} patterns that will be
+        processed during code generation.
+        """
+        return Literal(value=items[0], literal_type="string")
+
     def number_lit(self, items: TransformerItems) -> Literal:
         """Transform number_lit rule."""
         return Literal(value=items[0], literal_type="float")
@@ -2331,19 +2339,22 @@ class AstTransformer(Transformer):
     def function_call(self, items: TransformerItems) -> FunctionCall:
         """Transform function_call rule."""
         name = items[0]
-        args = list(items[1:])
+        # Filter out LPAR, RPAR, COMMA tokens from args
+        args = _filter_children(items[1:])
         return FunctionCall(name=name, args=args)
 
     def named_function_call(self, items: TransformerItems) -> FunctionCall:
         """Transform named_function_call rule."""
         name = items[0]
-        args = list(items[1:])
+        # Filter out LPAR, RPAR, COMMA tokens from args
+        args = _filter_children(items[1:])
         return FunctionCall(name=name, args=args)
 
     def bare_function_call(self, items: TransformerItems) -> FunctionCall:
         """Transform bare_function_call rule."""
         name = items[0]
-        args = list(items[1:])
+        # Filter children but bare_function_call has no parentheses
+        args = _filter_children(items[1:])
         return FunctionCall(name=name, args=args)
 
     def process_call(self, items: TransformerItems) -> FunctionCall:

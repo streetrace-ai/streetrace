@@ -456,6 +456,7 @@ implicit_property: "." contextual_name ("." contextual_name)*
 filter_expr: "filter" atom "where" or_expr
 
 literal: STRING                                       -> string_lit
+       | INTERPOLATED_STRING                          -> interpolated_string_lit
        | NUMBER                                       -> number_lit
        | INT                                          -> int_lit
        | "true"                                       -> true_lit
