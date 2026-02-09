@@ -237,6 +237,7 @@ _.neg  # unused method - called by Lark transformer
 _.atom  # unused method - called by Lark transformer
 _.literal  # unused method - called by Lark transformer
 _.string_lit  # unused method - called by Lark transformer
+_.interpolated_string_lit  # unused method - called by Lark transformer
 _.number_lit  # unused method - called by Lark transformer
 _.int_lit  # unused method - called by Lark transformer
 _.true_lit  # unused method - called by Lark transformer

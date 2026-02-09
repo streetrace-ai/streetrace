@@ -19,6 +19,8 @@ tool fs = builtin streetrace.fs
 # -----------------------------------------------------------------------------
 
 schema Finding:
+    repo_owner: string
+    repo_name: string
     file: string
     line_start: int
     line_end: int?
@@ -31,6 +33,8 @@ schema Finding:
     suggested_fix: string?
 
 schema Patch:
+    repo_owner: string
+    repo_name: string
     file: string
     line_start: int
     line_end: int
@@ -40,6 +44,8 @@ schema Patch:
     alternative_description: string?  # If can't fix in place, describe needed changes
 
 schema FinalReview:
+    repo_owner: string
+    repo_name: string
     summary: string
     findings: list[Finding]
     patches: list[Patch]
@@ -53,6 +59,8 @@ schema ValidationResult:
     verification_steps: list[string]
 
 schema DiffChunk:
+    repo_owner: string
+    repo_name: string
     title: string
     description: string
     git_diff_patch: string
@@ -164,13 +172,18 @@ flow main:
 
     log "Phase 2: Get Diff Chunks -> DiffChunk[]..."
     run agent diff_chunker
+    log "Phase 2 Complete: Created ${len(diff_chunks)} chunks"
 
     log "Phase 3: Fetch requirements -> text..."
     run agent requirements_fetcher
 
     findings = []
 
+    chunk_count = len(diff_chunks)
+    chunk_index = 0
     for chunk in diff_chunks do
+        chunk_index = chunk_index + 1
+        log "Processing chunk ${chunk_index}/${chunk_count}: ${chunk.title}"
         # Build chunk-specific historical context (blame, commits, linked issues)
         log "Phase 4 [CHUNK LOOP]: Build historical context"
         run agent chunk_context_builder
@@ -184,20 +197,25 @@ flow main:
         end
 
         # Collect findings from all specialists
+        log "Chunk findings - security: ${len(security_findings)}, bugs: ${len(bug_findings)}, style: ${len(style_findings)}"
         findings = findings + security_findings + bug_findings + style_findings
+        log "Total accumulated findings: ${len(findings)}"
     end
 
     log "Phase 6: Validate chunk findings"
     run validate_all
 
-    log "Phase 7: Deduplicating..."
+    log "Phase 7: Deduplicating ${len(validated_findings)} findings..."
     findings = call llm deduplicator
+    log "Phase 7 Complete: ${len(findings)} unique findings after deduplication"
 
     log "Phase 8: Generating patches..."
     run generate_all_patches
 
     log "Phase 9: Compiling final review..."
     final = call llm final_compiler
+    log "Phase 9 Complete: ${len(final.findings)} findings, ${len(final.patches)} patches"
+    log "Recommendation: ${final.recommendation}, Confidence: ${final.overall_confidence}"
 
     log "Review complete!"
     return final
@@ -211,6 +229,7 @@ flow validate_all:
     # Pre-filter to only validate high-confidence findings
     high_confidence = filter findings where .confidence >= 80
     log "[validate_all] Filtered to high-confidence findings"
+    log "[validate_all] High-confidence findings to validate: ${len(high_confidence)}"
     validated_findings = []
 
     for finding in high_confidence do
@@ -218,10 +237,12 @@ flow validate_all:
         # Validator agent has tools to read files, check diff, search for guards
         result = run agent validator with finding
         log "[validate_all] [AGENT] Completed: validator"
+        log "[validate_all] Finding validation result: valid=${result.valid}"
         if result.valid:
             validated_findings = validated_findings + [finding]
     end
     log "[validate_all] Validation complete"
+    log "[validate_all] Validated findings count: ${len(validated_findings)}"
 
 # -----------------------------------------------------------------------------
 # PATCH GENERATION FLOW
@@ -231,6 +252,7 @@ flow generate_all_patches:
     log "[generate_all_patches] Starting patch generation flow"
     # Only process findings with suggested fixes
     fixable = filter findings where .suggested_fix != null
+    log "[generate_all_patches] Fixable findings count: ${len(fixable)}"
     patches = []
 
     for finding in fixable do
@@ -238,11 +260,13 @@ flow generate_all_patches:
         # Patch generator uses prompt and produces fields for default input/output
         run agent patch_generator
         log "[generate_all_patches] [AGENT] Completed: patch_generator"
+        log "[generate_all_patches] Patch result: can_fix_in_place=${patch.can_fix_in_place}"
         if patch.can_fix_in_place:
             patches = patches + [patch]
     end
 
     log "[generate_all_patches] Patch generation complete"
+    log "[generate_all_patches] Generated patches count: ${len(patches)}"
     return patches
 
 # -----------------------------------------------------------------------------
@@ -460,6 +484,7 @@ You do not provide review comments and analysis, ONLY fetch the requested info.
 
 For each PR, you have to provide:
 
+- Repo owner and name
 - PR number, title, description, state
 - Base ref, head ref, merge status
 - Author information
