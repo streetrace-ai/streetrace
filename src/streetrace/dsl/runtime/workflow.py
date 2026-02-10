@@ -18,6 +18,7 @@ from streetrace.dsl.runtime.history_compactor import (
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
+    from google.adk import Runner
     from google.adk.agents import BaseAgent
     from google.adk.events import Event
     from google.adk.sessions import Session
@@ -131,7 +132,29 @@ class SchemaValidationParams:
 
     is_array: bool
     """True if expecting an array of schema items."""
-    """Name of the flow or agent."""
+
+
+@dataclass
+class RunnerContext:
+    """Context for agent runner execution.
+
+    Bundle runner parameters to reduce argument count in methods.
+    """
+
+    runner: "Runner"
+    """The ADK Runner instance."""
+
+    user_id: str
+    """User ID for session lookup."""
+
+    session_id: str
+    """Session ID."""
+
+    app_name: str
+    """App name for session lookup."""
+
+    content: "Content | None"
+    """User message content."""
 
 
 class DslAgentWorkflow:
@@ -336,6 +359,7 @@ class DslAgentWorkflow:
 
         """
         from google.adk import Runner
+        from litellm.exceptions import ContextWindowExceededError
 
         agent = await self._create_agent(agent_name)
 
@@ -344,18 +368,54 @@ class DslAgentWorkflow:
             msg = "Session service not available for agent execution"
             raise ValueError(msg)
 
+        # Check and perform history compaction BEFORE the LLM call
+        if session.events:
+            await self._pre_run_compaction(agent_name, session)
+
         runner = Runner(
             app_name=session.app_name,
             session_service=self._session_service,
             agent=agent,
         )
 
-        async for event in runner.run_async(
-            user_id=session.user_id,
-            session_id=session.id,
-            new_message=message,
-        ):
-            yield event
+        # Try running with automatic compaction retry on context overflow
+        max_retries = 1
+        retry_count = 0
+
+        while True:
+            try:
+                async for event in runner.run_async(
+                    user_id=session.user_id,
+                    session_id=session.id,
+                    new_message=message,
+                ):
+                    yield event
+                break  # Success, exit loop
+
+            except ContextWindowExceededError:
+                if retry_count >= max_retries:
+                    logger.warning(
+                        "Context window exceeded after %d compaction retries",
+                        retry_count,
+                    )
+                    raise
+
+                retry_count += 1
+                logger.info(
+                    "Context window exceeded for agent '%s', "
+                    "compacting and retrying (attempt %d)",
+                    agent_name,
+                    retry_count,
+                )
+
+                # Refresh session and compact
+                current_session = await self._session_service.get_session(
+                    app_name=session.app_name,
+                    user_id=session.user_id,
+                    session_id=session.id,
+                )
+                if current_session and current_session.events:
+                    await self._force_compaction(agent_name, current_session)
 
     def _extract_message_text(self, message: "Content | None") -> str:
         """Extract text content from a message.
@@ -665,6 +725,15 @@ class DslAgentWorkflow:
                 session_id=session_id,
                 state={},
             )
+            existing = await self._session_service.get_session(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+        # Check and perform history compaction BEFORE the LLM call
+        if existing and existing.events:
+            await self._pre_run_compaction(agent_name, existing)
 
         runner = Runner(
             app_name=app_name,
@@ -672,19 +741,165 @@ class DslAgentWorkflow:
             agent=agent,
         )
 
+        # Try running with automatic compaction on context window overflow
+        runner_ctx = RunnerContext(
+            runner=runner,
+            user_id=user_id,
+            session_id=session_id,
+            app_name=app_name,
+            content=content,
+        )
+        return await self._run_with_compaction_retry(agent_name, runner_ctx)
+
+    async def _run_with_compaction_retry(
+        self,
+        agent_name: str,
+        ctx: RunnerContext,
+        *,
+        retry_count: int = 0,
+        max_retries: int = 1,
+    ) -> tuple[object, list["Event"]]:
+        """Run agent with automatic compaction retry on context overflow.
+
+        If context window is exceeded, compact the session and retry once.
+
+        Args:
+            agent_name: Name of the agent for compaction strategy lookup.
+            ctx: Runner context containing runner, session info, and content.
+            retry_count: Current retry attempt.
+            max_retries: Maximum retry attempts.
+
+        Returns:
+            Tuple of (final_response, collected_events).
+
+        """
+        from litellm.exceptions import ContextWindowExceededError
+
         final_response: object = None
         collected_events: list[Event] = []
 
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=content,
-        ):
-            collected_events.append(event)
-            if event.is_final_response() and event.content and event.content.parts:
-                final_response = event.content.parts[0].text
+        try:
+            async for event in ctx.runner.run_async(
+                user_id=ctx.user_id,
+                session_id=ctx.session_id,
+                new_message=ctx.content,
+            ):
+                collected_events.append(event)
+                if event.is_final_response() and event.content and event.content.parts:
+                    final_response = event.content.parts[0].text
+        except ContextWindowExceededError:
+            if retry_count >= max_retries:
+                logger.warning(
+                    "Context window exceeded after %d compaction retries for '%s'",
+                    retry_count,
+                    agent_name,
+                )
+                raise
 
-        return final_response, collected_events
+            logger.info(
+                "Context window exceeded for agent '%s', compacting and retrying",
+                agent_name,
+            )
+
+            # Get current session and compact it
+            session = await self._session_service.get_session(
+                app_name=ctx.app_name,
+                user_id=ctx.user_id,
+                session_id=ctx.session_id,
+            )
+
+            if session and session.events:
+                await self._force_compaction(agent_name, session)
+
+            # Retry with incremented count
+            return await self._run_with_compaction_retry(
+                agent_name,
+                ctx,
+                retry_count=retry_count + 1,
+                max_retries=max_retries,
+            )
+        else:
+            return final_response, collected_events
+
+    async def _force_compaction(
+        self,
+        agent_name: str,
+        session: "Session",
+    ) -> None:
+        """Force compaction of session history regardless of threshold.
+
+        Called when context window is exceeded to reduce history size.
+
+        Args:
+            agent_name: Name of the agent for strategy and model lookup.
+            session: The session to compact.
+
+        """
+        strategy = self._get_agent_history_strategy(agent_name)
+        if not strategy:
+            strategy = "truncate"  # Default to truncate if no strategy configured
+
+        model = self._get_agent_model(agent_name)
+        max_input_tokens = self._get_model_max_input_tokens(agent_name)
+
+        # Extract messages from session events
+        messages = extract_messages_from_events(session.events)
+        if not messages:
+            return
+
+        # Create compactor and force compaction (don't check threshold)
+        compactor = HistoryCompactor(
+            strategy=strategy,
+            llm_client=None,
+        )
+
+        result = await compactor.compact(messages, model, max_input_tokens)
+
+        logger.info(
+            "Forced compaction for agent '%s': %d -> %d tokens, %d messages removed",
+            agent_name,
+            result.original_tokens,
+            result.compacted_tokens,
+            result.messages_removed,
+        )
+
+        # Convert compacted messages back to events and replace session
+        new_events = self._messages_to_events(result.compacted_messages)
+        await self._replace_session_events(session, new_events)
+
+    async def _replace_session_events(
+        self,
+        session: "Session",
+        new_events: list["Event"],
+    ) -> None:
+        """Replace all events in a session with new events.
+
+        ADK session services don't have a replace_events method, so this
+        deletes and recreates the session with the new events.
+
+        Args:
+            session: The session to modify.
+            new_events: The new events to store.
+
+        """
+        # Delete the existing session
+        await self._session_service.delete_session(
+            app_name=session.app_name,
+            user_id=session.user_id,
+            session_id=session.id,
+        )
+
+        # Recreate with the same ID and state
+        new_session = await self._session_service.create_session(
+            app_name=session.app_name,
+            user_id=session.user_id,
+            session_id=session.id,
+            state=session.state,
+        )
+
+        # Append all new events
+        for event in new_events:
+            await self._session_service.append_event(new_session, event)
 
     async def _validate_with_retry(
         self,
@@ -777,7 +992,7 @@ class DslAgentWorkflow:
         async for event in flow_method(ctx):
             yield event
 
-    async def _execute_parallel_agents(
+    async def _execute_parallel_agents(  # noqa: C901
         self,
         ctx: WorkflowContext,
         specs: list[tuple[str, list[object], str | None]],
@@ -1171,6 +1386,92 @@ class DslAgentWorkflow:
             compacted_tokens=result.compacted_tokens,
             messages_removed=result.messages_removed,
         )
+
+    async def _pre_run_compaction(
+        self,
+        agent_name: str,
+        session: "Session",
+    ) -> None:
+        """Check and compact history BEFORE running the agent.
+
+        This prevents context window overflow by compacting the session
+        history before the LLM call is made.
+
+        Args:
+            agent_name: Name of the agent for strategy and model lookup.
+            session: The session to check and potentially compact.
+
+        """
+        strategy = self._get_agent_history_strategy(agent_name)
+        if not strategy:
+            return
+
+        model = self._get_agent_model(agent_name)
+        max_input_tokens = self._get_model_max_input_tokens(agent_name)
+
+        # Extract messages from session events
+        messages = extract_messages_from_events(session.events)
+        if not messages:
+            return
+
+        # Create compactor and check threshold
+        compactor = HistoryCompactor(
+            strategy=strategy,
+            llm_client=None,
+        )
+
+        if not compactor.should_compact(messages, model, max_input_tokens):
+            return
+
+        # Perform compaction
+        result = await compactor.compact(messages, model, max_input_tokens)
+
+        logger.info(
+            "Pre-run compaction for agent '%s': %d -> %d tokens, %d messages removed",
+            agent_name,
+            result.original_tokens,
+            result.compacted_tokens,
+            result.messages_removed,
+        )
+
+        # Convert compacted messages back to events and replace session
+        new_events = self._messages_to_events(result.compacted_messages)
+        await self._replace_session_events(session, new_events)
+
+    def _messages_to_events(
+        self,
+        messages: list[dict[str, object]],
+    ) -> list["Event"]:
+        """Convert message dicts back to ADK Event objects.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'.
+
+        Returns:
+            List of Event objects.
+
+        """
+        from google.adk.events import Event
+        from google.genai import types as genai_types
+
+        events = []
+        for msg in messages:
+            role = msg.get("role", "assistant")
+            content = msg.get("content", "")
+
+            # Map role to author
+            author = "user" if role == "user" else "model"
+
+            # Create content with text part
+            parts = [genai_types.Part.from_text(text=str(content))]
+            genai_content = genai_types.Content(
+                role="user" if role == "user" else "model",
+                parts=parts,
+            )
+
+            events.append(Event(author=author, content=genai_content))
+
+        return events
 
     async def close(self) -> None:
         """Clean up all created agents.
