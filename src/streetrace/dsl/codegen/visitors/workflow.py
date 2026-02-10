@@ -9,6 +9,7 @@ from streetrace.dsl.ast.nodes import (
     EventHandler,
     FlowDef,
     ModelDef,
+    PolicyDef,
     PromptDef,
     SchemaDef,
     ToolDef,
@@ -78,6 +79,7 @@ class WorkflowVisitor:
         self._agents: list[AgentDef] = []
         self._flows: list[FlowDef] = []
         self._handlers: list[EventHandler] = []
+        self._policies: list[PolicyDef] = []
 
     def visit(
         self,
@@ -126,6 +128,7 @@ class WorkflowVisitor:
             AgentDef: self._agents,
             FlowDef: self._flows,
             EventHandler: self._handlers,
+            PolicyDef: self._policies,
         }
         for stmt in node.statements:
             target = type_dispatch.get(type(stmt))
@@ -183,6 +186,7 @@ class WorkflowVisitor:
         self._emit_prompts()
         self._emit_tools()
         self._emit_agents()
+        self._emit_compaction_policy()
 
         # Emit event handlers
         handler_visitor = HandlerVisitor(self._emitter)
@@ -558,3 +562,73 @@ class WorkflowVisitor:
         self._emitter.dedent()
         self._emitter.emit("}")
         self._emitter.emit_blank()
+
+    def _emit_compaction_policy(self) -> None:
+        """Emit the _compaction_policy class attribute.
+
+        Find the compaction policy and emit its configuration as a class
+        attribute that the runtime can use as the default history strategy.
+        """
+        # Find the compaction policy
+        compaction_policy = self._find_compaction_policy()
+
+        if not compaction_policy:
+            self._emitter.emit("_compaction_policy: dict[str, object] | None = None")
+            self._emitter.emit_blank()
+            return
+
+        # Emit the policy as a dict
+        self._emitter.emit("_compaction_policy = {")
+        self._emitter.indent()
+
+        props = compaction_policy.properties
+        self._emit_policy_strategy(props)
+        self._emit_policy_trigger(props)
+        self._emit_policy_preserve(props)
+
+        self._emitter.dedent()
+        self._emitter.emit("}")
+        self._emitter.emit_blank()
+
+    def _find_compaction_policy(self) -> PolicyDef | None:
+        """Find the compaction policy in collected policies."""
+        for policy in self._policies:
+            if policy.name == "compaction":
+                return policy
+        return None
+
+    def _emit_policy_strategy(self, props: dict[str, object]) -> None:
+        """Emit strategy property if present."""
+        if "strategy" in props:
+            strategy = props["strategy"]
+            self._emitter.emit(f"'strategy': '{strategy}',")
+
+    def _emit_policy_trigger(self, props: dict[str, object]) -> None:
+        """Emit trigger property if present."""
+        if "trigger" not in props:
+            return
+        trigger = props["trigger"]
+        if isinstance(trigger, dict):
+            self._emitter.emit(
+                f"'trigger': {{'var': '{trigger['var']}', "
+                f"'op': '{trigger['op']}', 'value': {trigger['value']}}},",
+            )
+
+    def _emit_policy_preserve(self, props: dict[str, object]) -> None:
+        """Emit preserve property if present."""
+        if "preserve" not in props:
+            return
+        preserve = props["preserve"]
+        if not isinstance(preserve, list):
+            return
+        preserve_items = [self._format_preserve_item(item) for item in preserve]
+        self._emitter.emit(f"'preserve': [{', '.join(preserve_items)}],")
+
+    def _format_preserve_item(self, item: object) -> str:
+        """Format a single preserve list item."""
+        if hasattr(item, "name"):
+            # VarRef
+            return f"'${item.name}'"
+        if isinstance(item, str):
+            return f"'{item}'"
+        return repr(item)
