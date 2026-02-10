@@ -10,6 +10,11 @@ from typing import TYPE_CHECKING, ClassVar
 
 from streetrace.dsl.runtime.context import WorkflowContext
 from streetrace.dsl.runtime.errors import JSONParseError, SchemaValidationError
+from streetrace.dsl.runtime.events import HistoryCompactionEvent
+from streetrace.dsl.runtime.history_compactor import (
+    HistoryCompactor,
+    extract_messages_from_events,
+)
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
@@ -490,7 +495,7 @@ class DslAgentWorkflow:
         self,
         agent_name: str,
         *args: object,
-    ) -> AsyncGenerator["Event", None]:
+    ) -> AsyncGenerator["Event | FlowEvent", None]:
         """Run an agent from within a flow, yielding events.
 
         Called by generated flow code via ctx.run_agent().
@@ -543,6 +548,14 @@ class DslAgentWorkflow:
                     args=args,
                 )
                 self._context._last_call_result = result  # noqa: SLF001
+
+        # Check and perform history compaction if configured
+        history_strategy = self._get_agent_history_strategy(agent_name)
+        if history_strategy:
+            async for compaction_event in self._check_and_compact_history(
+                agent_name, events, history_strategy,
+            ):
+                yield compaction_event
 
     async def _execute_agent_run(
         self,
@@ -933,6 +946,135 @@ class DslAgentWorkflow:
             )
             # Fall back to empty result
             return [] if params.is_array else {}
+
+    def _get_agent_history_strategy(self, agent_name: str) -> str | None:
+        """Get the history management strategy for an agent.
+
+        Args:
+            agent_name: Name of the agent.
+
+        Returns:
+            Strategy name ('summarize' or 'truncate') or None if not configured.
+
+        """
+        agent_def = self._agents.get(agent_name)
+        if not agent_def:
+            return None
+
+        history = agent_def.get("history")
+        return str(history) if history else None
+
+    def _get_agent_model(self, agent_name: str) -> str:
+        """Resolve the model name for an agent.
+
+        Look up the agent's model from its definition or use default.
+
+        Args:
+            agent_name: Name of the agent.
+
+        Returns:
+            Model identifier string.
+
+        """
+        # Check if agent has a specific model configured
+        agent_def = self._agents.get(agent_name)
+        if agent_def:
+            # Check for model in agent definition
+            model_name = agent_def.get("model")
+            if model_name and isinstance(model_name, str):
+                # Resolve model reference
+                if model_name in self._models:
+                    return self._models[model_name]
+                return model_name
+
+        # Use first model defined or default
+        if self._models:
+            return next(iter(self._models.values()))
+
+        return "gpt-4"  # Default fallback
+
+    def _get_model_max_input_tokens(self, agent_name: str) -> int | None:
+        """Get max_input_tokens setting for an agent's model.
+
+        Args:
+            agent_name: Name of the agent.
+
+        Returns:
+            Max input tokens or None to use LiteLLM lookup.
+
+        """
+        # Look for max_input_tokens in model properties
+        agent_def = self._agents.get(agent_name)
+        if not agent_def:
+            return None
+
+        model_name = agent_def.get("model")
+        if not model_name or not isinstance(model_name, str):
+            # Use first model
+            model_name = next(iter(self._models.keys()), None) if self._models else None
+
+        if not model_name:
+            return None
+
+        # Get model properties (stored in class during codegen)
+        # For now, max_input_tokens from DSL is stored in model properties
+        # This requires the model definition to include max_input_tokens
+        return None  # Will be enhanced when model properties are fully exposed
+
+    async def _check_and_compact_history(
+        self,
+        agent_name: str,
+        events: list["Event"],
+        strategy: str,
+    ) -> AsyncGenerator["HistoryCompactionEvent", None]:
+        """Check if history needs compaction and perform it if needed.
+
+        Args:
+            agent_name: Name of the agent for model lookup.
+            events: Collected events from agent execution.
+            strategy: Compaction strategy name.
+
+        Yields:
+            HistoryCompactionEvent if compaction was performed.
+
+        """
+        model = self._get_agent_model(agent_name)
+        max_input_tokens = self._get_model_max_input_tokens(agent_name)
+
+        # Extract messages from events
+        messages = extract_messages_from_events(events)
+
+        if not messages:
+            return
+
+        # Create compactor with strategy
+        compactor = HistoryCompactor(
+            strategy=strategy,
+            llm_client=None,  # LLM client for summarize strategy (future enhancement)
+        )
+
+        # Check if compaction is needed
+        if not compactor.should_compact(messages, model, max_input_tokens):
+            return
+
+        # Perform compaction
+        result = await compactor.compact(messages, model, max_input_tokens)
+
+        logger.info(
+            "Compacted history for agent '%s': %d -> %d tokens, %d messages removed",
+            agent_name,
+            result.original_tokens,
+            result.compacted_tokens,
+            result.messages_removed,
+        )
+
+        # Yield compaction event for visibility
+        yield HistoryCompactionEvent(
+            strategy=strategy,
+            original_tokens=result.original_tokens,
+            compacted_tokens=result.compacted_tokens,
+            messages_removed=result.messages_removed,
+        )
 
     async def close(self) -> None:
         """Clean up all created agents.

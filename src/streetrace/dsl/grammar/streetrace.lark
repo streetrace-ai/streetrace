@@ -66,6 +66,7 @@ model_property: "provider" ":" NAME _NL               -> model_provider
               | "name" ":" NAME _NL                   -> model_name
               | "temperature" ":" NUMBER _NL          -> model_temperature
               | "max_tokens" ":" INT _NL              -> model_max_tokens
+              | "max_input_tokens" ":" INT _NL        -> model_max_input_tokens
 
 // ----------------------------------------------------------------------------
 // SCHEMAS (Structured Outputs)
@@ -274,6 +275,7 @@ agent_property: "tools" name_list _NL                 -> agent_tools
               | "description" STRING _NL              -> agent_description
               | "delegate" name_list _NL              -> agent_delegate
               | "use" name_list _NL                   -> agent_use
+              | "history" NAME _NL                    -> agent_history
 
 timeout_value: NAME                                   -> timeout_ref
              | INT time_unit                          -> timeout_literal
@@ -505,7 +507,7 @@ contextual_keyword: "escalate" | "match" | "from" | "to" | "agent" | "model"
                   | "fixed" | "exponential" | "linear" | "basic" | "bearer"
                   | "backoff" | "times" | "instruction" | "tools" | "description"
                   | "expecting" | "using" | "inherit" | "delegate" | "loop" | "max"
-                  | "filter" | "where" | "with" | "produces"
+                  | "filter" | "where" | "with" | "produces" | "history"
 
 // Contextual names - includes NAME and contextual keywords
 // Used for property access where keywords can appear after dot

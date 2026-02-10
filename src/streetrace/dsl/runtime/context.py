@@ -354,7 +354,7 @@ class WorkflowContext:
         self,
         agent_name: str,
         *args: object,
-    ) -> AsyncGenerator[Event, None]:
+    ) -> AsyncGenerator[Event | FlowEvent, None]:
         """Run a named agent with arguments, yielding events.
 
         Always delegates to the parent workflow.
@@ -374,7 +374,7 @@ class WorkflowContext:
         self,
         agent_name: str,
         *args: object,
-    ) -> AsyncGenerator[Event | EscalationEvent, None]:
+    ) -> AsyncGenerator[Event | FlowEvent, None]:
         """Run agent and check for escalation.
 
         Similar to run_agent() but tracks escalation state based on

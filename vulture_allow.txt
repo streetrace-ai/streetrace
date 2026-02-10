@@ -467,3 +467,9 @@ list_concat  # unused function (utils.py) - called by generated code for list co
 _.resolve_property  # unused method (context.py) - called by generated code for property access
 _.resolve_property  # unused method (prompt_context.py) - called by generated code for property access
 MAX_AGENT_SCHEMA_RETRIES  # unused variable (workflow.py) - documents retry limit for agent validation
+
+# History compaction - Lark transformer methods and dataclass fields
+_.model_max_input_tokens  # unused method - called by Lark transformer
+_.agent_history  # unused method - called by Lark transformer
+compacted_messages  # unused variable (history_compactor.py) - dataclass field for CompactionResult
+_.count_tokens  # unused method (history_compactor.py) - public API for token counting

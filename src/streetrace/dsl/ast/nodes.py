@@ -480,6 +480,7 @@ class AgentDef:
     prompt: str | None = None  # Default prompt for agent invocation
     prompt_meta: "SourcePosition | None" = None  # Position of prompt field
     produces: str | None = None  # Default output variable name
+    history: str | None = None  # History management: "summarize" or "truncate"
     meta: SourcePosition | None = None
 
 
