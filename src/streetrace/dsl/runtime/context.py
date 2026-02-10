@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable
 
     from google.adk.events import Event
+    from google.adk.sessions import Session
     from pydantic import BaseModel
 
     from streetrace.dsl.runtime.workflow import (
@@ -239,6 +240,15 @@ class WorkflowContext:
         self._schemas: dict[str, type[BaseModel]] = {}
         """Schema definitions as Pydantic models."""
 
+        self._parent_session: Session | None = None
+        """Parent session for deriving child session identifiers."""
+
+        self._current_flow_name: str | None = None
+        """Current flow name for session ID derivation."""
+
+        self._invocation_counter: int = 0
+        """Counter for generating unique session IDs within a flow."""
+
         logger.debug("Created WorkflowContext")
 
     def stringify(self, value: object) -> str:
@@ -385,6 +395,44 @@ class WorkflowContext:
 
         """
         self._escalation_callback = callback
+
+    def set_parent_session(self, session: Session) -> None:
+        """Set the parent session for deriving child session identifiers.
+
+        Args:
+            session: Parent ADK session to use as reference.
+
+        """
+        self._parent_session = session
+
+    @property
+    def parent_session(self) -> Session | None:
+        """Get the parent session, if set."""
+        return self._parent_session
+
+    def set_current_flow(self, flow_name: str) -> None:
+        """Set the current flow name for session ID derivation.
+
+        Args:
+            flow_name: Name of the currently executing flow.
+
+        """
+        self._current_flow_name = flow_name
+
+    @property
+    def current_flow_name(self) -> str | None:
+        """Get the current flow name."""
+        return self._current_flow_name
+
+    def next_invocation_id(self) -> int:
+        """Get the next invocation ID for session uniqueness.
+
+        Returns:
+            Unique incrementing ID for this context's invocations.
+
+        """
+        self._invocation_counter += 1
+        return self._invocation_counter
 
     async def run_agent(
         self,

@@ -8,7 +8,7 @@ It has been updated to test the new DslDefinitionLoader from streetrace.workload
 
 from pathlib import Path
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -47,8 +47,11 @@ def mock_system_context() -> "SystemContext":
 
 @pytest.fixture
 def mock_session_service() -> "BaseSessionService":
-    """Create a mock BaseSessionService."""
-    return MagicMock()
+    """Create a mock BaseSessionService with async methods."""
+    service = MagicMock()
+    service.get_session = AsyncMock(return_value=None)
+    service.create_session = AsyncMock()
+    return service
 
 
 # =============================================================================

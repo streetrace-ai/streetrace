@@ -113,26 +113,26 @@ class TestParallelBlockExecution:
 
         mock_agent_factory.create_agent = mock_create_agent
 
+        # Create mock session with state containing results
+        mock_session = MagicMock()
+        mock_session.state = {}
+
+        # Create mock session service with async methods
+        mock_session_service = MagicMock()
+        mock_session_service.create_session = AsyncMock()
+        mock_session_service.get_session = AsyncMock(return_value=mock_session)
+
         # Create workflow with mocked dependencies
         workflow = DslAgentWorkflow(
             model_factory=MagicMock(),
             tool_provider=MagicMock(),
             system_context=MagicMock(),
-            session_service=MagicMock(),
+            session_service=mock_session_service,
             agent_factory=mock_agent_factory,
         )
 
         # Create context
         ctx = WorkflowContext(workflow=workflow)
-
-        # Create mock session with state containing results
-        mock_session = MagicMock()
-        mock_session.state = {}
-
-        # Create mock session service
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock()
-        mock_session_service.get_session = AsyncMock(return_value=mock_session)
 
         # Create mock runner that populates session state and yields events
         async def mock_run_async_gen(*args: object, **kwargs: object):  # noqa: ARG001
@@ -148,10 +148,6 @@ class TestParallelBlockExecution:
 
         # Patch the actual import locations (google.adk modules)
         with (
-            patch(
-                "google.adk.sessions.InMemorySessionService",
-                return_value=mock_session_service,
-            ),
             patch(
                 "google.adk.Runner",
                 return_value=mock_runner_instance,
@@ -223,23 +219,24 @@ class TestParallelBlockExecution:
 
         mock_agent_factory.create_agent = mock_create_agent
 
-        workflow = DslAgentWorkflow(
-            model_factory=MagicMock(),
-            tool_provider=MagicMock(),
-            system_context=MagicMock(),
-            session_service=MagicMock(),
-            agent_factory=mock_agent_factory,
-        )
-
-        ctx = WorkflowContext(workflow=workflow)
-
         # Create mock session with state
         mock_session = MagicMock()
         mock_session.state = {}
 
+        # Create mock session service with async methods
         mock_session_service = MagicMock()
         mock_session_service.create_session = AsyncMock()
         mock_session_service.get_session = AsyncMock(return_value=mock_session)
+
+        workflow = DslAgentWorkflow(
+            model_factory=MagicMock(),
+            tool_provider=MagicMock(),
+            system_context=MagicMock(),
+            session_service=mock_session_service,
+            agent_factory=mock_agent_factory,
+        )
+
+        ctx = WorkflowContext(workflow=workflow)
 
         async def mock_run_async_gen(*args: object, **kwargs: object):  # noqa: ARG001
             # Store results for agents with output_keys
@@ -252,10 +249,6 @@ class TestParallelBlockExecution:
         mock_runner_instance.run_async = mock_run_async_gen
 
         with (
-            patch(
-                "google.adk.sessions.InMemorySessionService",
-                return_value=mock_session_service,
-            ),
             patch(
                 "google.adk.Runner",
                 return_value=mock_runner_instance,
@@ -351,21 +344,23 @@ class TestParallelBlockExecution:
 
         mock_agent_factory.create_agent = mock_create_agent
 
+        mock_session = MagicMock()
+        mock_session.state = {}
+
+        # Create mock session service with async methods
+        mock_session_service = MagicMock()
+        mock_session_service.create_session = AsyncMock()
+        mock_session_service.get_session = AsyncMock(return_value=mock_session)
+
         workflow = DslAgentWorkflow(
             model_factory=MagicMock(),
             tool_provider=MagicMock(),
             system_context=MagicMock(),
-            session_service=MagicMock(),
+            session_service=mock_session_service,
             agent_factory=mock_agent_factory,
         )
 
         ctx = WorkflowContext(workflow=workflow)
-
-        mock_session = MagicMock()
-        mock_session.state = {}
-        mock_session_service = MagicMock()
-        mock_session_service.create_session = AsyncMock()
-        mock_session_service.get_session = AsyncMock(return_value=mock_session)
 
         async def mock_run_async_gen(*args: object, **kwargs: object):  # noqa: ARG001
             yield MagicMock()
@@ -374,10 +369,6 @@ class TestParallelBlockExecution:
         mock_runner_instance.run_async = mock_run_async_gen
 
         with (
-            patch(
-                "google.adk.sessions.InMemorySessionService",
-                return_value=mock_session_service,
-            ),
             patch(
                 "google.adk.Runner",
                 return_value=mock_runner_instance,

@@ -194,6 +194,58 @@ class DslAgentWorkflow:
 
         logger.debug("Created %s", self.__class__.__name__)
 
+    def _derive_session_identifiers(
+        self,
+        agent_name: str,
+        *,
+        parallel_index: int | None = None,
+    ) -> tuple[str, str, str]:
+        """Derive session identifiers for a nested agent run.
+
+        Create child session identifiers based on the parent session context,
+        ensuring session continuity and persistence for nested agent executions.
+
+        Args:
+            agent_name: Name of the agent being executed.
+            parallel_index: Index for parallel execution uniqueness.
+
+        Returns:
+            Tuple of (app_name, user_id, session_id).
+
+        """
+        import uuid
+
+        ctx = self._context
+        parent_session = ctx.parent_session if ctx else None
+
+        if parent_session:
+            app_name = parent_session.app_name
+            user_id = parent_session.user_id
+            flow_part = (
+                ctx.current_flow_name if ctx and ctx.current_flow_name else "agent"
+            )
+            invocation_id = ctx.next_invocation_id() if ctx else 1
+
+            if parallel_index is not None:
+                session_id = (
+                    f"{parent_session.id}:{flow_part}:p{parallel_index}:{agent_name}"
+                )
+            else:
+                session_id = (
+                    f"{parent_session.id}:{flow_part}:{agent_name}:{invocation_id}"
+                )
+        else:
+            # Fallback when no parent session
+            if self._agent_factory and hasattr(self._agent_factory, "_source_file"):
+                source_file = self._agent_factory._source_file  # noqa: SLF001
+                app_name = source_file.stem if source_file else self.__class__.__name__
+            else:
+                app_name = self.__class__.__name__
+            user_id = "workflow_user"
+            session_id = f"nested_{agent_name}_{uuid.uuid4().hex[:8]}"
+
+        return app_name, user_id, session_id
+
     def _determine_entry_point(self) -> EntryPoint:
         """Determine the entry point for workflow execution.
 
@@ -440,16 +492,13 @@ class DslAgentWorkflow:
 
         Args:
             flow_name: Name of the flow to execute.
-            session: ADK session (reserved for future event forwarding).
+            session: ADK session for session context propagation.
             message: User message to process.
 
         Yields:
             Events from all operations within the flow.
 
         """
-        # Reserved for future event forwarding (Option 2/3 in design doc)
-        _ = session
-
         flow_method = getattr(self, f"flow_{flow_name}", None)
         if flow_method is None:
             msg = f"Flow '{flow_name}' not found"
@@ -458,6 +507,10 @@ class DslAgentWorkflow:
         # Extract user input and create context with built-in variables
         input_text = self._extract_message_text(message)
         ctx = self.create_context(input_prompt=input_text)
+
+        # Propagate session context for nested agent execution
+        ctx.set_parent_session(session)
+        ctx.set_current_flow(flow_name)
 
         # Flow method is now a generator - iterate and yield events
         async for event in flow_method(ctx):
@@ -580,7 +633,6 @@ class DslAgentWorkflow:
 
         """
         from google.adk import Runner
-        from google.adk.sessions import InMemorySessionService
         from google.genai import types as genai_types
 
         agent = await self._create_agent(agent_name)
@@ -592,19 +644,31 @@ class DslAgentWorkflow:
             parts = [genai_types.Part.from_text(text=prompt_text)]
             content = genai_types.Content(role="user", parts=parts)
 
-        # Use InMemorySessionService for nested runs (isolated context)
-        nested_session_service = InMemorySessionService()  # type: ignore[no-untyped-call]
+        # Derive session identifiers from parent context
+        app_name, user_id, session_id = self._derive_session_identifiers(agent_name)
 
-        await nested_session_service.create_session(
-            app_name="dsl_workflow",
-            user_id="workflow_user",
-            session_id="nested_session",
-            state={},
+        # Use shared session service for session continuity
+        if not self._session_service:
+            msg = "Session service not available for agent execution"
+            raise ValueError(msg)
+
+        # Create child session if it doesn't exist
+        existing = await self._session_service.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
         )
+        if existing is None:
+            await self._session_service.create_session(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                state={},
+            )
 
         runner = Runner(
-            app_name="dsl_workflow",
-            session_service=nested_session_service,
+            app_name=app_name,
+            session_service=self._session_service,
             agent=agent,
         )
 
@@ -612,8 +676,8 @@ class DslAgentWorkflow:
         collected_events: list[Event] = []
 
         async for event in runner.run_async(
-            user_id="workflow_user",
-            session_id="nested_session",
+            user_id=user_id,
+            session_id=session_id,
             new_message=content,
         ):
             collected_events.append(event)
@@ -737,7 +801,6 @@ class DslAgentWorkflow:
         """
         from google.adk import Runner
         from google.adk.agents import ParallelAgent
-        from google.adk.sessions import InMemorySessionService
         from google.genai import types as genai_types
 
         if not specs:
@@ -781,22 +844,35 @@ class DslAgentWorkflow:
             parts = [genai_types.Part.from_text(text=prompt_text)]
             content = genai_types.Content(role="user", parts=parts)
 
-        # Use InMemorySessionService for parallel execution (isolated context)
-        session_service = InMemorySessionService()  # type: ignore[no-untyped-call]
-        app_name = "dsl_parallel"
-        user_id = "workflow_user"
-        session_id = f"parallel_session_{id(specs)}"
+        # Use shared session service for session continuity
+        if not self._session_service:
+            msg = "Session service not available for parallel agent execution"
+            raise ValueError(msg)
 
-        await session_service.create_session(
+        # Derive session identifiers for the parallel block
+        app_name, user_id, base_session_id = self._derive_session_identifiers(
+            "parallel_block",
+            parallel_index=0,
+        )
+        session_id = f"{base_session_id}_{id(specs)}"
+
+        # Create child session if it doesn't exist
+        existing = await self._session_service.get_session(
             app_name=app_name,
             user_id=user_id,
             session_id=session_id,
-            state={},
         )
+        if existing is None:
+            await self._session_service.create_session(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                state={},
+            )
 
         runner = Runner(
             app_name=app_name,
-            session_service=session_service,
+            session_service=self._session_service,
             agent=parallel_agent,
         )
 
@@ -809,7 +885,7 @@ class DslAgentWorkflow:
             yield event
 
         # Get session and extract results from state
-        session = await session_service.get_session(
+        session = await self._session_service.get_session(
             app_name=app_name,
             user_id=user_id,
             session_id=session_id,
