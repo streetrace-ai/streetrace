@@ -43,8 +43,11 @@ def mock_system_context() -> "SystemContext":
 
 @pytest.fixture
 def mock_session_service() -> "BaseSessionService":
-    """Create a mock BaseSessionService."""
-    return MagicMock()
+    """Create a mock BaseSessionService with async methods."""
+    service = MagicMock()
+    service.get_session = AsyncMock(return_value=None)
+    service.create_session = AsyncMock()
+    return service
 
 
 @pytest.fixture
@@ -693,3 +696,135 @@ class TestRunAgentWithoutContext:
             events = [event async for event in workflow.run_agent("test_agent")]
 
         assert len(events) == 1
+
+
+class TestSessionContextPropagation:
+    """Test session context propagation for nested agent execution."""
+
+    def test_derive_session_identifiers_with_parent_session(
+        self,
+        mock_session_service: "BaseSessionService",
+    ) -> None:
+        """Session IDs are derived from parent session context."""
+        from streetrace.dsl.runtime.context import WorkflowContext
+        from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+
+        workflow = DslAgentWorkflow(
+            model_factory=MagicMock(),
+            tool_provider=MagicMock(),
+            system_context=MagicMock(),
+            session_service=mock_session_service,
+        )
+
+        # Create context and set parent session
+        ctx = WorkflowContext(workflow=workflow)
+        workflow._context = ctx  # noqa: SLF001
+
+        mock_parent = MagicMock()
+        mock_parent.app_name = "test_app"
+        mock_parent.user_id = "test_user"
+        mock_parent.id = "session_123"
+
+        ctx.set_parent_session(mock_parent)
+        ctx.set_current_flow("main")
+
+        # Derive session identifiers
+        app_name, user_id, session_id = workflow._derive_session_identifiers(  # noqa: SLF001
+            "analyzer",
+        )
+
+        assert app_name == "test_app"
+        assert user_id == "test_user"
+        assert session_id == "session_123:main:analyzer:1"
+
+        # Second invocation should increment counter
+        _, _, session_id2 = workflow._derive_session_identifiers("summarizer")  # noqa: SLF001
+        assert session_id2 == "session_123:main:summarizer:2"
+
+    def test_derive_session_identifiers_fallback_without_parent(
+        self,
+        mock_session_service: "BaseSessionService",
+    ) -> None:
+        """Session IDs fall back to generated values without parent session."""
+        from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+
+        workflow = DslAgentWorkflow(
+            model_factory=MagicMock(),
+            tool_provider=MagicMock(),
+            system_context=MagicMock(),
+            session_service=mock_session_service,
+        )
+
+        # No context set
+        app_name, user_id, session_id = workflow._derive_session_identifiers(  # noqa: SLF001
+            "test_agent",
+        )
+
+        assert app_name == "DslAgentWorkflow"
+        assert user_id == "workflow_user"
+        assert session_id.startswith("nested_test_agent_")
+
+    def test_derive_session_identifiers_parallel_index(
+        self,
+        mock_session_service: "BaseSessionService",
+    ) -> None:
+        """Parallel execution uses index-based session IDs."""
+        from streetrace.dsl.runtime.context import WorkflowContext
+        from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+
+        workflow = DslAgentWorkflow(
+            model_factory=MagicMock(),
+            tool_provider=MagicMock(),
+            system_context=MagicMock(),
+            session_service=mock_session_service,
+        )
+
+        ctx = WorkflowContext(workflow=workflow)
+        workflow._context = ctx  # noqa: SLF001
+
+        mock_parent = MagicMock()
+        mock_parent.app_name = "test_app"
+        mock_parent.user_id = "test_user"
+        mock_parent.id = "session_456"
+
+        ctx.set_parent_session(mock_parent)
+        ctx.set_current_flow("review")
+
+        # Derive with parallel_index
+        _, _, session_id = workflow._derive_session_identifiers(  # noqa: SLF001
+            "parallel_block",
+            parallel_index=0,
+        )
+
+        assert session_id == "session_456:review:p0:parallel_block"
+
+    def test_context_session_properties(self) -> None:
+        """WorkflowContext tracks parent session and flow name."""
+        from streetrace.dsl.runtime.context import WorkflowContext
+        from streetrace.dsl.runtime.workflow import DslAgentWorkflow
+
+        workflow = DslAgentWorkflow(
+            model_factory=MagicMock(),
+            tool_provider=MagicMock(),
+            system_context=MagicMock(),
+            session_service=MagicMock(),
+        )
+
+        ctx = WorkflowContext(workflow=workflow)
+
+        # Initially None
+        assert ctx.parent_session is None
+        assert ctx.current_flow_name is None
+
+        # Set values
+        mock_session = MagicMock()
+        ctx.set_parent_session(mock_session)
+        ctx.set_current_flow("my_flow")
+
+        assert ctx.parent_session is mock_session
+        assert ctx.current_flow_name == "my_flow"
+
+        # Invocation counter increments
+        assert ctx.next_invocation_id() == 1
+        assert ctx.next_invocation_id() == 2
+        assert ctx.next_invocation_id() == 3

@@ -51,8 +51,11 @@ def mock_system_context() -> "SystemContext":
 
 @pytest.fixture
 def mock_session_service() -> "BaseSessionService":
-    """Create a mock BaseSessionService."""
-    return MagicMock()
+    """Create a mock BaseSessionService with async methods."""
+    service = MagicMock()
+    service.get_session = AsyncMock(return_value=None)
+    service.create_session = AsyncMock()
+    return service
 
 
 @pytest.fixture
