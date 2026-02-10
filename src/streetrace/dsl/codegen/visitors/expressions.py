@@ -11,7 +11,9 @@ from lark import Token
 
 from streetrace.dsl.ast.nodes import (
     BinaryOp,
+    FilterExpr,
     FunctionCall,
+    ImplicitProperty,
     ListLiteral,
     Literal,
     NameRef,
@@ -51,6 +53,8 @@ class ExpressionVisitor:
             ListLiteral: self._visit_list_literal,
             ObjectLiteral: self._visit_object_literal,
             NameRef: self._visit_name_ref,
+            ImplicitProperty: self._visit_implicit_property,
+            FilterExpr: self._visit_filter_expr,
         }
 
     def visit(self, node: object) -> str:
@@ -156,6 +160,10 @@ class ExpressionVisitor:
         if op == "~":
             return f"normalized_equals({left}, {right})"
 
+        # Use list_concat for + to handle mixed list/string operands
+        if op == "+":
+            return f"list_concat({left}, {right})"
+
         # Map operator if needed
         python_op = OPERATOR_MAP.get(op, op)
 
@@ -232,11 +240,51 @@ class ExpressionVisitor:
     def _visit_name_ref(self, node: NameRef) -> str:
         """Generate code for name reference.
 
+        Bare names in DSL expressions are context variables, same
+        as explicit $-prefixed references.
+
         Args:
             node: Name reference node.
 
         Returns:
-            Python name reference.
+            Python code to access the variable via ctx.vars.
 
         """
-        return node.name
+        return f"ctx.vars['{node.name}']"
+
+    def _visit_implicit_property(self, node: ImplicitProperty) -> str:
+        """Generate code for implicit property access.
+
+        Args:
+            node: Implicit property node.
+
+        Returns:
+            Python code accessing properties on _item.
+
+        Example:
+            .confidence -> _item['confidence']
+            .nested.prop -> _item['nested']['prop']
+
+        """
+        base = "_item"
+        for prop in node.properties:
+            base = f"{base}['{prop}']"
+        return base
+
+    def _visit_filter_expr(self, node: FilterExpr) -> str:
+        """Generate code for filter expression.
+
+        Args:
+            node: Filter expression node.
+
+        Returns:
+            Python list comprehension that filters the list.
+
+        Example:
+            filter $findings where .confidence >= 80
+            -> [_item for _item in ctx.vars['findings'] if _item['confidence'] >= 80]
+
+        """
+        list_code = self.visit(node.list_expr)
+        condition_code = self.visit(node.condition)
+        return f"[_item for _item in {list_code} if {condition_code}]"

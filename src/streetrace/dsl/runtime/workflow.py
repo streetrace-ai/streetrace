@@ -8,10 +8,17 @@ from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
-from streetrace.dsl.runtime.context import WorkflowContext
+from streetrace.dsl.runtime.context import WorkflowContext, deep_parse_json_strings
+from streetrace.dsl.runtime.errors import JSONParseError, SchemaValidationError
+from streetrace.dsl.runtime.events import HistoryCompactionEvent
+from streetrace.dsl.runtime.history_compactor import (
+    HistoryCompactor,
+    extract_messages_from_events,
+)
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
+    from google.adk import Runner
     from google.adk.agents import BaseAgent
     from google.adk.events import Event
     from google.adk.sessions import Session
@@ -26,6 +33,41 @@ if TYPE_CHECKING:
     from streetrace.workloads.dsl_agent_factory import DslAgentFactory
 
 logger = get_logger(__name__)
+
+MAX_AGENT_SCHEMA_RETRIES = 1
+"""Maximum retry attempts for agent schema validation (1 retry = 2 total attempts)."""
+
+
+def _try_parse_json(value: object) -> object:
+    """Try to parse a string value as JSON.
+
+    Agent results are often JSON-formatted text. Parse them into
+    native Python objects (lists, dicts) so flow code can operate
+    on structured data. Return the original value if parsing fails.
+
+    Args:
+        value: Value to try parsing.
+
+    Returns:
+        Parsed JSON object, or original value if not JSON.
+
+    """
+    if not isinstance(value, str):
+        return value
+    import json
+
+    # Strip markdown code fences if present (opening + content + closing)
+    min_fenced_lines = 3
+    text = value.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        if len(lines) >= min_fenced_lines and lines[-1].strip() == "```":
+            text = "\n".join(lines[1:-1]).strip()
+
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        return value
 
 
 @dataclass
@@ -73,7 +115,46 @@ class EntryPoint:
     """Entry point type: 'flow' or 'agent'."""
 
     name: str
-    """Name of the flow or agent."""
+
+
+@dataclass
+class SchemaValidationParams:
+    """Parameters for agent result schema validation.
+
+    Bundle validation parameters to reduce argument count in methods.
+    """
+
+    schema_name: str | None
+    """Full schema name (e.g., 'Finding[]')."""
+
+    schema_model: "type[BaseModel]"
+    """Pydantic model class for validation."""
+
+    is_array: bool
+    """True if expecting an array of schema items."""
+
+
+@dataclass
+class RunnerContext:
+    """Context for agent runner execution.
+
+    Bundle runner parameters to reduce argument count in methods.
+    """
+
+    runner: "Runner"
+    """The ADK Runner instance."""
+
+    user_id: str
+    """User ID for session lookup."""
+
+    session_id: str
+    """Session ID."""
+
+    app_name: str
+    """App name for session lookup."""
+
+    content: "Content | None"
+    """User message content."""
 
 
 class DslAgentWorkflow:
@@ -104,6 +185,9 @@ class DslAgentWorkflow:
     _agents: ClassVar[dict[str, dict[str, object]]] = {}
     """Agent definitions for this workflow."""
 
+    _compaction_policy: ClassVar[dict[str, object] | None] = None
+    """Default compaction policy for history management."""
+
     def __init__(
         self,
         *,
@@ -132,6 +216,58 @@ class DslAgentWorkflow:
         self._created_agents: list[BaseAgent] = []
 
         logger.debug("Created %s", self.__class__.__name__)
+
+    def _derive_session_identifiers(
+        self,
+        agent_name: str,
+        *,
+        parallel_index: int | None = None,
+    ) -> tuple[str, str, str]:
+        """Derive session identifiers for a nested agent run.
+
+        Create child session identifiers based on the parent session context,
+        ensuring session continuity and persistence for nested agent executions.
+
+        Args:
+            agent_name: Name of the agent being executed.
+            parallel_index: Index for parallel execution uniqueness.
+
+        Returns:
+            Tuple of (app_name, user_id, session_id).
+
+        """
+        import uuid
+
+        ctx = self._context
+        parent_session = ctx.parent_session if ctx else None
+
+        if parent_session:
+            app_name = parent_session.app_name
+            user_id = parent_session.user_id
+            flow_part = (
+                ctx.current_flow_name if ctx and ctx.current_flow_name else "agent"
+            )
+            invocation_id = ctx.next_invocation_id() if ctx else 1
+
+            if parallel_index is not None:
+                session_id = (
+                    f"{parent_session.id}:{flow_part}:p{parallel_index}:{agent_name}"
+                )
+            else:
+                session_id = (
+                    f"{parent_session.id}:{flow_part}:{agent_name}:{invocation_id}"
+                )
+        else:
+            # Fallback when no parent session
+            if self._agent_factory and hasattr(self._agent_factory, "_source_file"):
+                source_file = self._agent_factory._source_file  # noqa: SLF001
+                app_name = source_file.stem if source_file else self.__class__.__name__
+            else:
+                app_name = self.__class__.__name__
+            user_id = "workflow_user"
+            session_id = f"nested_{agent_name}_{uuid.uuid4().hex[:8]}"
+
+        return app_name, user_id, session_id
 
     def _determine_entry_point(self) -> EntryPoint:
         """Determine the entry point for workflow execution.
@@ -223,6 +359,7 @@ class DslAgentWorkflow:
 
         """
         from google.adk import Runner
+        from litellm.exceptions import ContextWindowExceededError
 
         agent = await self._create_agent(agent_name)
 
@@ -231,18 +368,54 @@ class DslAgentWorkflow:
             msg = "Session service not available for agent execution"
             raise ValueError(msg)
 
+        # Check and perform history compaction BEFORE the LLM call
+        if session.events:
+            await self._pre_run_compaction(agent_name, session)
+
         runner = Runner(
             app_name=session.app_name,
             session_service=self._session_service,
             agent=agent,
         )
 
-        async for event in runner.run_async(
-            user_id=session.user_id,
-            session_id=session.id,
-            new_message=message,
-        ):
-            yield event
+        # Try running with automatic compaction retry on context overflow
+        max_retries = 1
+        retry_count = 0
+
+        while True:
+            try:
+                async for event in runner.run_async(
+                    user_id=session.user_id,
+                    session_id=session.id,
+                    new_message=message,
+                ):
+                    yield event
+                break  # Success, exit loop
+
+            except ContextWindowExceededError:
+                if retry_count >= max_retries:
+                    logger.warning(
+                        "Context window exceeded after %d compaction retries",
+                        retry_count,
+                    )
+                    raise
+
+                retry_count += 1
+                logger.info(
+                    "Context window exceeded for agent '%s', "
+                    "compacting and retrying (attempt %d)",
+                    agent_name,
+                    retry_count,
+                )
+
+                # Refresh session and compact
+                current_session = await self._session_service.get_session(
+                    app_name=session.app_name,
+                    user_id=session.user_id,
+                    session_id=session.id,
+                )
+                if current_session and current_session.events:
+                    await self._force_compaction(agent_name, current_session)
 
     def _extract_message_text(self, message: "Content | None") -> str:
         """Extract text content from a message.
@@ -266,6 +439,109 @@ class DslAgentWorkflow:
             return " ".join(texts)
         return ""
 
+    def _resolve_agent_schema(
+        self,
+        agent_name: str,
+    ) -> tuple[str | None, "type[BaseModel] | None", bool]:
+        """Resolve the expected schema from an agent's instruction prompt.
+
+        Look up the agent's instruction prompt and extract its schema definition.
+        Return schema metadata for validation.
+
+        Args:
+            agent_name: Name of the agent to resolve schema for.
+
+        Returns:
+            Tuple of (schema_name, schema_model, is_array).
+            Returns (None, None, False) if no schema is defined.
+
+        """
+        agent_def = self._agents.get(agent_name)
+        if not agent_def:
+            return (None, None, False)
+
+        instruction_name = agent_def.get("instruction")
+        if not instruction_name or not isinstance(instruction_name, str):
+            return (None, None, False)
+
+        prompt_spec = self._prompts.get(instruction_name)
+        if not prompt_spec:
+            return (None, None, False)
+
+        schema_name = getattr(prompt_spec, "schema", None)
+        if not schema_name or not isinstance(schema_name, str):
+            return (None, None, False)
+
+        # Check if array type
+        is_array = schema_name.endswith("[]")
+        base_name = schema_name[:-2] if is_array else schema_name
+
+        schema_model = self._schemas.get(base_name)
+        if not schema_model:
+            return (None, None, False)
+
+        return (schema_name, schema_model, is_array)
+
+    def _validate_agent_result(
+        self,
+        raw_response: str,
+        schema_model: "type[BaseModel]",
+        *,
+        is_array: bool,
+    ) -> object:
+        """Validate an agent's raw response against a schema.
+
+        Parse the response as JSON and validate against the Pydantic model.
+
+        Args:
+            raw_response: The raw text response from the agent.
+            schema_model: Pydantic model class for validation.
+            is_array: True if expecting an array of schema items.
+
+        Returns:
+            Validated result as dict or list of dicts.
+
+        Raises:
+            JSONParseError: If response cannot be parsed as JSON.
+            SchemaValidationError: If parsed response fails validation.
+
+        """
+        from pydantic import ValidationError as PydanticValidationError
+
+        if not self._context:
+            msg = "Context required for validation"
+            raise ValueError(msg)
+
+        # Parse JSON using context's method (let JSONParseError propagate)
+        parsed = self._context._parse_json_response(raw_response)  # noqa: SLF001
+
+        # Pre-process to handle JSON strings in nested fields
+        # Type is preserved (dict stays dict, list stays list)
+        parsed = deep_parse_json_strings(parsed)  # type: ignore[assignment]
+
+        # Validate against schema
+        try:
+            if is_array:
+                if not isinstance(parsed, list):
+                    msg = f"Expected JSON array, got {type(parsed).__name__}"
+                    raise JSONParseError(
+                        raw_response=raw_response,
+                        parse_error=msg,
+                    )
+                validated_items = []
+                for item in parsed:
+                    validated = schema_model.model_validate(item)
+                    validated_items.append(validated.model_dump())
+                return validated_items
+            validated = schema_model.model_validate(parsed)
+            return validated.model_dump()
+        except PydanticValidationError as e:
+            raise SchemaValidationError(
+                schema_name=schema_model.__name__,
+                errors=[str(e)],
+                raw_response=raw_response,
+            ) from e
+
     async def _execute_flow(
         self,
         flow_name: str,
@@ -276,16 +552,13 @@ class DslAgentWorkflow:
 
         Args:
             flow_name: Name of the flow to execute.
-            session: ADK session (reserved for future event forwarding).
+            session: ADK session for session context propagation.
             message: User message to process.
 
         Yields:
             Events from all operations within the flow.
 
         """
-        # Reserved for future event forwarding (Option 2/3 in design doc)
-        _ = session
-
         flow_method = getattr(self, f"flow_{flow_name}", None)
         if flow_method is None:
             msg = f"Flow '{flow_name}' not found"
@@ -295,9 +568,19 @@ class DslAgentWorkflow:
         input_text = self._extract_message_text(message)
         ctx = self.create_context(input_prompt=input_text)
 
+        # Propagate session context for nested agent execution
+        ctx.set_parent_session(session)
+        ctx.set_current_flow(flow_name)
+
         # Flow method is now a generator - iterate and yield events
         async for event in flow_method(ctx):
             yield event
+
+        # Yield flow result if return statement was executed
+        if "_return_value" in ctx.vars:
+            from streetrace.dsl.runtime.events import FlowResultEvent
+
+            yield FlowResultEvent(result=ctx.vars["_return_value"])
 
     async def run_async(
         self,
@@ -332,11 +615,16 @@ class DslAgentWorkflow:
         self,
         agent_name: str,
         *args: object,
-    ) -> AsyncGenerator["Event", None]:
+    ) -> AsyncGenerator["Event | FlowEvent", None]:
         """Run an agent from within a flow, yielding events.
 
         Called by generated flow code via ctx.run_agent().
         Uses _create_agent() which delegates to DslAgentFactory.
+
+        When the agent's prompt has an `expecting` schema, the result is
+        validated against that schema. On validation failure, the agent
+        is retried once with error feedback. If retry also fails, an
+        empty result ([] for arrays, {} for objects) is stored.
 
         Args:
             agent_name: Name of the agent to run.
@@ -349,60 +637,343 @@ class DslAgentWorkflow:
             ValueError: If agent_factory not set.
 
         """
+        # Resolve schema for validation
+        schema_name, schema_model, is_array = self._resolve_agent_schema(agent_name)
+
+        # Execute agent and collect response
+        final_response, events = await self._execute_agent_run(agent_name, *args)
+
+        # Yield all collected events
+        for event in events:
+            yield event
+
+        # Validate and potentially retry
+        if self._context:
+            if schema_model is None:
+                # No schema - use simple JSON parsing
+                self._context._last_call_result = _try_parse_json(  # noqa: SLF001
+                    final_response,
+                )
+            else:
+                # Schema validation with retry
+                params = SchemaValidationParams(
+                    schema_name=schema_name,
+                    schema_model=schema_model,
+                    is_array=is_array,
+                )
+                result = await self._validate_with_retry(
+                    agent_name=agent_name,
+                    raw_response=str(final_response) if final_response else "",
+                    params=params,
+                    args=args,
+                )
+                self._context._last_call_result = result  # noqa: SLF001
+
+        # Check and perform history compaction if configured
+        history_strategy = self._get_agent_history_strategy(agent_name)
+        if history_strategy:
+            async for compaction_event in self._check_and_compact_history(
+                agent_name, events, history_strategy,
+            ):
+                yield compaction_event
+
+    async def _execute_agent_run(
+        self,
+        agent_name: str,
+        *args: object,
+    ) -> tuple[object, list["Event"]]:
+        """Execute a single agent run and collect events.
+
+        Args:
+            agent_name: Name of the agent to run.
+            *args: Arguments to pass to the agent.
+
+        Returns:
+            Tuple of (final_response, collected_events).
+
+        """
         from google.adk import Runner
-        from google.adk.sessions import InMemorySessionService
         from google.genai import types as genai_types
 
         agent = await self._create_agent(agent_name)
 
         # Build prompt from args
-        prompt_text = " ".join(str(arg) for arg in args) if args else ""
+        prompt_text = "\n---\n".join(str(arg) for arg in args) if args else ""
         content = None
         if prompt_text:
             parts = [genai_types.Part.from_text(text=prompt_text)]
             content = genai_types.Content(role="user", parts=parts)
 
-        # Use InMemorySessionService for nested runs (isolated context)
-        nested_session_service = InMemorySessionService()  # type: ignore[no-untyped-call]
+        # Derive session identifiers from parent context
+        app_name, user_id, session_id = self._derive_session_identifiers(agent_name)
 
-        # Create session before running (InMemorySessionService requires this)
-        await nested_session_service.create_session(
-            app_name="dsl_workflow",
-            user_id="workflow_user",
-            session_id="nested_session",
-            state={},
+        # Use shared session service for session continuity
+        if not self._session_service:
+            msg = "Session service not available for agent execution"
+            raise ValueError(msg)
+
+        # Create child session if it doesn't exist
+        existing = await self._session_service.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
         )
+        if existing is None:
+            await self._session_service.create_session(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                state={},
+            )
+            existing = await self._session_service.get_session(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+            )
+
+        # Check and perform history compaction BEFORE the LLM call
+        if existing and existing.events:
+            await self._pre_run_compaction(agent_name, existing)
 
         runner = Runner(
-            app_name="dsl_workflow",
-            session_service=nested_session_service,
+            app_name=app_name,
+            session_service=self._session_service,
             agent=agent,
         )
 
-        final_response: object = None
-        async for event in runner.run_async(
-            user_id="workflow_user",
-            session_id="nested_session",
-            new_message=content,
-        ):
-            yield event  # Forward event to caller
-            if event.is_final_response() and event.content and event.content.parts:
-                final_response = event.content.parts[0].text
+        # Try running with automatic compaction on context window overflow
+        runner_ctx = RunnerContext(
+            runner=runner,
+            user_id=user_id,
+            session_id=session_id,
+            app_name=app_name,
+            content=content,
+        )
+        return await self._run_with_compaction_retry(agent_name, runner_ctx)
 
-        # Store result for context retrieval
-        if self._context:
-            self._context._last_call_result = final_response  # noqa: SLF001
+    async def _run_with_compaction_retry(
+        self,
+        agent_name: str,
+        ctx: RunnerContext,
+        *,
+        retry_count: int = 0,
+        max_retries: int = 1,
+    ) -> tuple[object, list["Event"]]:
+        """Run agent with automatic compaction retry on context overflow.
+
+        If context window is exceeded, compact the session and retry once.
+
+        Args:
+            agent_name: Name of the agent for compaction strategy lookup.
+            ctx: Runner context containing runner, session info, and content.
+            retry_count: Current retry attempt.
+            max_retries: Maximum retry attempts.
+
+        Returns:
+            Tuple of (final_response, collected_events).
+
+        """
+        from litellm.exceptions import ContextWindowExceededError
+
+        final_response: object = None
+        collected_events: list[Event] = []
+
+        try:
+            async for event in ctx.runner.run_async(
+                user_id=ctx.user_id,
+                session_id=ctx.session_id,
+                new_message=ctx.content,
+            ):
+                collected_events.append(event)
+                if event.is_final_response() and event.content and event.content.parts:
+                    final_response = event.content.parts[0].text
+        except ContextWindowExceededError:
+            if retry_count >= max_retries:
+                logger.warning(
+                    "Context window exceeded after %d compaction retries for '%s'",
+                    retry_count,
+                    agent_name,
+                )
+                raise
+
+            logger.info(
+                "Context window exceeded for agent '%s', compacting and retrying",
+                agent_name,
+            )
+
+            # Get current session and compact it
+            session = await self._session_service.get_session(
+                app_name=ctx.app_name,
+                user_id=ctx.user_id,
+                session_id=ctx.session_id,
+            )
+
+            if session and session.events:
+                await self._force_compaction(agent_name, session)
+
+            # Retry with incremented count
+            return await self._run_with_compaction_retry(
+                agent_name,
+                ctx,
+                retry_count=retry_count + 1,
+                max_retries=max_retries,
+            )
+        else:
+            return final_response, collected_events
+
+    async def _force_compaction(
+        self,
+        agent_name: str,
+        session: "Session",
+    ) -> None:
+        """Force compaction of session history regardless of threshold.
+
+        Called when context window is exceeded to reduce history size.
+
+        Args:
+            agent_name: Name of the agent for strategy and model lookup.
+            session: The session to compact.
+
+        """
+        strategy = self._get_agent_history_strategy(agent_name)
+        if not strategy:
+            strategy = "truncate"  # Default to truncate if no strategy configured
+
+        model = self._get_agent_model(agent_name)
+        max_input_tokens = self._get_model_max_input_tokens(agent_name)
+
+        # Extract messages from session events
+        messages = extract_messages_from_events(session.events)
+        if not messages:
+            return
+
+        # Create compactor and force compaction (don't check threshold)
+        compactor = HistoryCompactor(
+            strategy=strategy,
+            llm_client=None,
+        )
+
+        result = await compactor.compact(messages, model, max_input_tokens)
+
+        logger.info(
+            "Forced compaction for agent '%s': %d -> %d tokens, %d messages removed",
+            agent_name,
+            result.original_tokens,
+            result.compacted_tokens,
+            result.messages_removed,
+        )
+
+        # Convert compacted messages back to events and replace session
+        new_events = self._messages_to_events(result.compacted_messages)
+        await self._replace_session_events(session, new_events)
+
+    async def _replace_session_events(
+        self,
+        session: "Session",
+        new_events: list["Event"],
+    ) -> None:
+        """Replace all events in a session with new events.
+
+        ADK session services don't have a replace_events method, so this
+        deletes and recreates the session with the new events.
+
+        Args:
+            session: The session to modify.
+            new_events: The new events to store.
+
+        """
+        # Delete the existing session
+        await self._session_service.delete_session(
+            app_name=session.app_name,
+            user_id=session.user_id,
+            session_id=session.id,
+        )
+
+        # Recreate with the same ID and state
+        new_session = await self._session_service.create_session(
+            app_name=session.app_name,
+            user_id=session.user_id,
+            session_id=session.id,
+            state=session.state,
+        )
+
+        # Append all new events
+        for event in new_events:
+            await self._session_service.append_event(new_session, event)
+
+    async def _validate_with_retry(
+        self,
+        agent_name: str,
+        raw_response: str,
+        params: SchemaValidationParams,
+        args: tuple[object, ...],
+    ) -> object:
+        """Validate agent result with one retry on failure.
+
+        Args:
+            agent_name: Name of the agent (for retry).
+            raw_response: The raw response text to validate.
+            params: Schema validation parameters.
+            args: Original args for retry.
+
+        Returns:
+            Validated result, or empty fallback on failure.
+
+        """
+        # First attempt
+        first_error = ""
+        try:
+            return self._validate_agent_result(
+                raw_response, params.schema_model, is_array=params.is_array,
+            )
+        except (JSONParseError, SchemaValidationError) as e:
+            first_error = str(e)
+            logger.debug(
+                "Agent '%s' validation failed, retrying: %s",
+                agent_name,
+                first_error,
+            )
+
+        # Retry with error feedback appended to args
+        error_feedback = (
+            f"Error: Your response could not be parsed. {first_error}\n\n"
+            f"Please respond with valid JSON matching the expected schema."
+        )
+        retry_args = (*args, error_feedback)
+
+        retry_response, _ = await self._execute_agent_run(agent_name, *retry_args)
+
+        # Second attempt
+        try:
+            return self._validate_agent_result(
+                str(retry_response) if retry_response else "",
+                params.schema_model,
+                is_array=params.is_array,
+            )
+        except (JSONParseError, SchemaValidationError):
+            logger.warning(
+                "Agent '%s' expected %s but returned unparseable response after retry",
+                agent_name,
+                params.schema_name,
+            )
+            # Fall back to empty result
+            return [] if params.is_array else {}
 
     async def run_flow(
         self,
         flow_name: str,
         *args: object,
+        caller_ctx: "WorkflowContext | None" = None,
     ) -> AsyncGenerator["Event | FlowEvent", None]:
         """Run a flow from within another flow, yielding events.
+
+        Sub-flows share the caller's variable scope so they can access
+        and modify variables set by the parent flow.
 
         Args:
             flow_name: Name of the flow to run.
             *args: Arguments to pass to the flow.
+            caller_ctx: Parent context to share. Creates a new one if None.
 
         Yields:
             Events from flow execution.
@@ -417,9 +988,490 @@ class DslAgentWorkflow:
             msg = f"Flow '{flow_name}' not found"
             raise ValueError(msg)
 
-        ctx = self.create_context()
+        ctx = caller_ctx if caller_ctx is not None else self.create_context()
         async for event in flow_method(ctx):
             yield event
+
+    async def _execute_parallel_agents(  # noqa: C901
+        self,
+        ctx: WorkflowContext,
+        specs: list[tuple[str, list[object], str | None]],
+    ) -> AsyncGenerator["Event", None]:
+        """Execute multiple agents in parallel using ADK ParallelAgent.
+
+        Create sub-agents with output_key for result storage in session state,
+        wrap them in a ParallelAgent, and execute using Runner. Events are
+        yielded as they occur, and results are stored directly in ctx.vars.
+
+        The order of events and results from parallel execution is non-deterministic.
+
+        Args:
+            ctx: Workflow context for variable access and result storage.
+            specs: List of (agent_name, args, target_var) tuples. The target_var
+                may be None if no result assignment is needed.
+
+        Yields:
+            ADK events from parallel agent execution.
+
+        """
+        from google.adk import Runner
+        from google.adk.agents import ParallelAgent
+        from google.genai import types as genai_types
+
+        if not specs:
+            return
+
+        if not self._agent_factory:
+            msg = "DslAgentWorkflow requires agent_factory for parallel execution"
+            raise ValueError(msg)
+
+        # Create sub-agents with output_keys for result storage
+        sub_agents = []
+        output_key_mapping: dict[str, str] = {}  # target_var -> output_key
+
+        for agent_name, _, target_var in specs:
+            # Generate unique output_key for session state storage
+            output_key = f"_parallel_{agent_name}_{id(specs)}"
+            if target_var is not None:
+                output_key_mapping[target_var] = output_key
+
+            agent = await self._agent_factory.create_agent(
+                agent_name=agent_name,
+                model_factory=self._model_factory,
+                tool_provider=self._tool_provider,
+                system_context=self._system_context,
+                output_key=output_key,
+            )
+            sub_agents.append(agent)
+
+        # Create ParallelAgent to orchestrate concurrent execution
+        parallel_agent = ParallelAgent(
+            name=f"parallel_block_{id(specs)}",
+            sub_agents=sub_agents,
+        )
+
+        # Build input message from first agent's args
+        # All parallel agents receive the same initial context
+        first_args = specs[0][1] if specs else []
+        prompt_text = " ".join(str(arg) for arg in first_args) if first_args else ""
+        content = None
+        if prompt_text:
+            parts = [genai_types.Part.from_text(text=prompt_text)]
+            content = genai_types.Content(role="user", parts=parts)
+
+        # Use shared session service for session continuity
+        if not self._session_service:
+            msg = "Session service not available for parallel agent execution"
+            raise ValueError(msg)
+
+        # Derive session identifiers for the parallel block
+        app_name, user_id, base_session_id = self._derive_session_identifiers(
+            "parallel_block",
+            parallel_index=0,
+        )
+        session_id = f"{base_session_id}_{id(specs)}"
+
+        # Create child session if it doesn't exist
+        existing = await self._session_service.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+        if existing is None:
+            await self._session_service.create_session(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                state={},
+            )
+
+        runner = Runner(
+            app_name=app_name,
+            session_service=self._session_service,
+            agent=parallel_agent,
+        )
+
+        # Execute ParallelAgent and yield events as they occur
+        async for event in runner.run_async(
+            user_id=user_id,
+            session_id=session_id,
+            new_message=content,
+        ):
+            yield event
+
+        # Get session and extract results from state
+        session = await self._session_service.get_session(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+        )
+
+        # Store results directly in ctx.vars with schema validation
+        logger.debug(
+            "Parallel execution complete. Session state keys: %s, "
+            "output_key_mapping: %s",
+            list(session.state.keys()) if session and session.state else "None",
+            output_key_mapping,
+        )
+
+        # Build mapping from target_var to (agent_name, args) for retries
+        target_var_to_spec: dict[str, tuple[str, list[object]]] = {}
+        for agent_name, args, target_var in specs:
+            if target_var is not None:
+                target_var_to_spec[target_var] = (agent_name, args)
+
+        if session and session.state:
+            await self._process_parallel_results(
+                ctx, session.state, output_key_mapping, target_var_to_spec,
+            )
+
+    async def _process_parallel_results(
+        self,
+        ctx: WorkflowContext,
+        state: dict[str, object],
+        output_key_mapping: dict[str, str],
+        target_var_to_spec: dict[str, tuple[str, list[object]]],
+    ) -> None:
+        """Process and validate parallel agent results.
+
+        Extract results from session state, validate against schemas,
+        and store in context variables.
+
+        Args:
+            ctx: Workflow context for variable storage.
+            state: Session state containing agent outputs.
+            output_key_mapping: Maps target_var to output_key in state.
+            target_var_to_spec: Maps target_var to (agent_name, args).
+
+        """
+        for target_var, output_key in output_key_mapping.items():
+            if output_key not in state:
+                continue
+
+            raw = state[output_key]
+            agent_name, args = target_var_to_spec.get(target_var, (target_var, []))
+
+            # Resolve schema for this agent
+            schema_name, schema_model, is_array = self._resolve_agent_schema(agent_name)
+
+            if schema_model is None:
+                # No schema - use simple JSON parsing
+                parsed = _try_parse_json(raw)
+                logger.debug(
+                    "Parallel result for %s: type=%s (no schema)",
+                    target_var,
+                    type(parsed).__name__,
+                )
+                ctx.vars[target_var] = parsed
+            else:
+                # Validate with retry
+                params = SchemaValidationParams(
+                    schema_name=schema_name,
+                    schema_model=schema_model,
+                    is_array=is_array,
+                )
+                result = await self._validate_parallel_result(
+                    agent_name=agent_name,
+                    raw_response=str(raw) if raw else "",
+                    params=params,
+                    args=tuple(args),
+                )
+                logger.debug(
+                    "Parallel result for %s: type=%s (validated)",
+                    target_var,
+                    type(result).__name__,
+                )
+                ctx.vars[target_var] = result
+
+    async def _validate_parallel_result(
+        self,
+        agent_name: str,
+        raw_response: str,
+        params: SchemaValidationParams,
+        args: tuple[object, ...],
+    ) -> object:
+        """Validate parallel agent result with one sequential retry on failure.
+
+        Similar to _validate_with_retry but uses sequential execution for retry
+        since parallel execution already completed.
+
+        Args:
+            agent_name: Name of the agent (for retry).
+            raw_response: The raw response text to validate.
+            params: Schema validation parameters.
+            args: Original args for retry.
+
+        Returns:
+            Validated result, or empty fallback on failure.
+
+        """
+        # First attempt
+        first_error = ""
+        try:
+            return self._validate_agent_result(
+                raw_response, params.schema_model, is_array=params.is_array,
+            )
+        except (JSONParseError, SchemaValidationError) as e:
+            first_error = str(e)
+            logger.debug(
+                "Parallel agent '%s' validation failed, retrying sequentially: %s",
+                agent_name,
+                first_error,
+            )
+
+        # Sequential retry with error feedback
+        error_feedback = (
+            f"Error: Your response could not be parsed. {first_error}\n\n"
+            f"Please respond with valid JSON matching the expected schema."
+        )
+        retry_args = (*args, error_feedback)
+
+        retry_response, _ = await self._execute_agent_run(agent_name, *retry_args)
+
+        # Second attempt
+        try:
+            return self._validate_agent_result(
+                str(retry_response) if retry_response else "",
+                params.schema_model,
+                is_array=params.is_array,
+            )
+        except (JSONParseError, SchemaValidationError):
+            logger.warning(
+                "Parallel agent '%s' expected %s but returned unparseable "
+                "response after retry",
+                agent_name,
+                params.schema_name,
+            )
+            # Fall back to empty result
+            return [] if params.is_array else {}
+
+    def _get_agent_history_strategy(self, agent_name: str) -> str | None:
+        """Get the history management strategy for an agent.
+
+        Priority:
+        1. Agent's explicit history property
+        2. Compaction policy's strategy (workflow default)
+
+        Args:
+            agent_name: Name of the agent.
+
+        Returns:
+            Strategy name ('summarize' or 'truncate') or None if not configured.
+
+        """
+        agent_def = self._agents.get(agent_name)
+
+        # First check agent's explicit history property
+        if agent_def:
+            history = agent_def.get("history")
+            if history:
+                return str(history)
+
+        # Fall back to compaction policy if defined
+        if self._compaction_policy:
+            strategy = self._compaction_policy.get("strategy")
+            if strategy:
+                return str(strategy)
+
+        return None
+
+    def _get_agent_model(self, agent_name: str) -> str:
+        """Resolve the model name for an agent.
+
+        Look up the agent's model from its definition or use default.
+
+        Args:
+            agent_name: Name of the agent.
+
+        Returns:
+            Model identifier string.
+
+        """
+        # Check if agent has a specific model configured
+        agent_def = self._agents.get(agent_name)
+        if agent_def:
+            # Check for model in agent definition
+            model_name = agent_def.get("model")
+            if model_name and isinstance(model_name, str):
+                # Resolve model reference
+                if model_name in self._models:
+                    return self._models[model_name]
+                return model_name
+
+        # Use first model defined or default
+        if self._models:
+            return next(iter(self._models.values()))
+
+        return "gpt-4"  # Default fallback
+
+    def _get_model_max_input_tokens(self, agent_name: str) -> int | None:
+        """Get max_input_tokens setting for an agent's model.
+
+        Args:
+            agent_name: Name of the agent.
+
+        Returns:
+            Max input tokens or None to use LiteLLM lookup.
+
+        """
+        # Look for max_input_tokens in model properties
+        agent_def = self._agents.get(agent_name)
+        if not agent_def:
+            return None
+
+        model_name = agent_def.get("model")
+        if not model_name or not isinstance(model_name, str):
+            # Use first model
+            model_name = next(iter(self._models.keys()), None) if self._models else None
+
+        if not model_name:
+            return None
+
+        # Get model properties (stored in class during codegen)
+        # For now, max_input_tokens from DSL is stored in model properties
+        # This requires the model definition to include max_input_tokens
+        return None  # Will be enhanced when model properties are fully exposed
+
+    async def _check_and_compact_history(
+        self,
+        agent_name: str,
+        events: list["Event"],
+        strategy: str,
+    ) -> AsyncGenerator["HistoryCompactionEvent", None]:
+        """Check if history needs compaction and perform it if needed.
+
+        Args:
+            agent_name: Name of the agent for model lookup.
+            events: Collected events from agent execution.
+            strategy: Compaction strategy name.
+
+        Yields:
+            HistoryCompactionEvent if compaction was performed.
+
+        """
+        model = self._get_agent_model(agent_name)
+        max_input_tokens = self._get_model_max_input_tokens(agent_name)
+
+        # Extract messages from events
+        messages = extract_messages_from_events(events)
+
+        if not messages:
+            return
+
+        # Create compactor with strategy
+        compactor = HistoryCompactor(
+            strategy=strategy,
+            llm_client=None,  # LLM client for summarize strategy (future enhancement)
+        )
+
+        # Check if compaction is needed
+        if not compactor.should_compact(messages, model, max_input_tokens):
+            return
+
+        # Perform compaction
+        result = await compactor.compact(messages, model, max_input_tokens)
+
+        logger.info(
+            "Compacted history for agent '%s': %d -> %d tokens, %d messages removed",
+            agent_name,
+            result.original_tokens,
+            result.compacted_tokens,
+            result.messages_removed,
+        )
+
+        # Yield compaction event for visibility
+        yield HistoryCompactionEvent(
+            strategy=strategy,
+            original_tokens=result.original_tokens,
+            compacted_tokens=result.compacted_tokens,
+            messages_removed=result.messages_removed,
+        )
+
+    async def _pre_run_compaction(
+        self,
+        agent_name: str,
+        session: "Session",
+    ) -> None:
+        """Check and compact history BEFORE running the agent.
+
+        This prevents context window overflow by compacting the session
+        history before the LLM call is made.
+
+        Args:
+            agent_name: Name of the agent for strategy and model lookup.
+            session: The session to check and potentially compact.
+
+        """
+        strategy = self._get_agent_history_strategy(agent_name)
+        if not strategy:
+            return
+
+        model = self._get_agent_model(agent_name)
+        max_input_tokens = self._get_model_max_input_tokens(agent_name)
+
+        # Extract messages from session events
+        messages = extract_messages_from_events(session.events)
+        if not messages:
+            return
+
+        # Create compactor and check threshold
+        compactor = HistoryCompactor(
+            strategy=strategy,
+            llm_client=None,
+        )
+
+        if not compactor.should_compact(messages, model, max_input_tokens):
+            return
+
+        # Perform compaction
+        result = await compactor.compact(messages, model, max_input_tokens)
+
+        logger.info(
+            "Pre-run compaction for agent '%s': %d -> %d tokens, %d messages removed",
+            agent_name,
+            result.original_tokens,
+            result.compacted_tokens,
+            result.messages_removed,
+        )
+
+        # Convert compacted messages back to events and replace session
+        new_events = self._messages_to_events(result.compacted_messages)
+        await self._replace_session_events(session, new_events)
+
+    def _messages_to_events(
+        self,
+        messages: list[dict[str, object]],
+    ) -> list["Event"]:
+        """Convert message dicts back to ADK Event objects.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content'.
+
+        Returns:
+            List of Event objects.
+
+        """
+        from google.adk.events import Event
+        from google.genai import types as genai_types
+
+        events = []
+        for msg in messages:
+            role = msg.get("role", "assistant")
+            content = msg.get("content", "")
+
+            # Map role to author
+            author = "user" if role == "user" else "model"
+
+            # Create content with text part
+            parts = [genai_types.Part.from_text(text=str(content))]
+            genai_content = genai_types.Content(
+                role="user" if role == "user" else "model",
+                parts=parts,
+            )
+
+            events.append(Event(author=author, content=genai_content))
+
+        return events
 
     async def close(self) -> None:
         """Clean up all created agents.

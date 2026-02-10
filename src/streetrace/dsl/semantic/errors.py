@@ -27,6 +27,8 @@ class ErrorCode(Enum):
     E0010 = "missing required property '{property}' in {kind} '{name}'"
     E0011 = "circular agent reference detected: {cycle}"
     E0012 = "'on escalate continue' can only be used inside a loop"
+    E0013 = "prompt '{name}' has no body after merging all definitions"
+    E0014 = "conflicting {modifier} for prompt '{name}': '{first}' vs '{second}'"
     W0002 = "agent '{name}' has both delegate and use - this is unusual"
 
 
@@ -229,6 +231,60 @@ class SemanticError:
         msg = "'on escalate continue' can only be used inside a loop"
         return cls(
             code=ErrorCode.E0012,
+            message=msg,
+            position=position,
+        )
+
+    @classmethod
+    def prompt_missing_body(
+        cls,
+        name: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for prompt with no body after merging all definitions.
+
+        Args:
+            name: Name of the prompt missing a body.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"prompt '{name}' has no body after merging all definitions"
+        suggestion = f'add a body definition: prompt {name}: """..."""'
+        return cls(
+            code=ErrorCode.E0013,
+            message=msg,
+            position=position,
+            suggestion=suggestion,
+        )
+
+    @classmethod
+    def conflicting_prompt_modifier(
+        cls,
+        name: str,
+        modifier: str,
+        first: str,
+        second: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for conflicting prompt modifier values.
+
+        Args:
+            name: Name of the prompt with conflicting modifiers.
+            modifier: Name of the modifier (model, expecting, inherit).
+            first: First value of the modifier.
+            second: Second (conflicting) value.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"conflicting {modifier} for prompt '{name}': '{first}' vs '{second}'"
+        return cls(
+            code=ErrorCode.E0014,
             message=msg,
             position=position,
         )

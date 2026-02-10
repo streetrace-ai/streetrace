@@ -117,8 +117,11 @@ class SemanticAnalyzer:
         # Define built-in variables in global scope
         self._define_builtins()
 
-        # First pass: collect all top-level definitions
+        # First pass: collect all top-level definitions (prompts are merged)
         self._collect_definitions(ast)
+
+        # Validate merged prompts have bodies
+        self._validate_prompts_have_bodies()
 
         # Second pass: validate references and scoping
         self._validate_references(ast)
@@ -231,23 +234,141 @@ class SemanticAnalyzer:
             )
 
     def _collect_prompt(self, prompt: PromptDef) -> None:
-        """Collect a prompt definition."""
-        if prompt.name in self._symbols.prompts:
-            self._add_error(
-                SemanticError.duplicate_definition(
-                    kind="prompt",
+        """Collect a prompt definition, merging with existing definition if present.
+
+        Support the override pattern where prompts can be defined multiple times:
+        - Declarations (no body) define metadata at top of file
+        - Full definitions (with body) define prompt text at bottom
+        - Multiple definitions are merged following these rules:
+          - body: later non-empty body overwrites
+          - model, expecting, inherit: fill if not set, error if conflicting
+          - escalation_condition: later non-None overwrites
+        """
+        if prompt.name not in self._symbols.prompts:
+            # First definition - store as-is
+            self._symbols.prompts[prompt.name] = prompt
+            if self._global_scope is not None:
+                self._global_scope.define(
                     name=prompt.name,
-                    position=prompt.meta,
+                    kind=SymbolKind.PROMPT,
+                    node=prompt,
+                )
+            return
+
+        # Merge with existing definition
+        existing = self._symbols.prompts[prompt.name]
+        merged = self._merge_prompts(existing, prompt)
+        if merged is not None:
+            self._symbols.prompts[prompt.name] = merged
+            # Update scope node reference
+            if self._global_scope is not None:
+                self._global_scope.define(
+                    name=prompt.name,
+                    kind=SymbolKind.PROMPT,
+                    node=merged,
+                )
+
+    def _merge_prompts(
+        self,
+        existing: PromptDef,
+        new: PromptDef,
+    ) -> PromptDef | None:
+        """Merge two prompt definitions.
+
+        Args:
+            existing: The existing prompt definition.
+            new: The new prompt definition to merge.
+
+        Returns:
+            Merged PromptDef, or None if merge failed due to conflicts.
+
+        """
+        # Check for modifier conflicts
+        if not self._check_prompt_modifier_conflict(
+            existing, new, "model", existing.model, new.model,
+        ):
+            return None
+        if not self._check_prompt_modifier_conflict(
+            existing, new, "expecting", existing.expecting, new.expecting,
+        ):
+            return None
+        if not self._check_prompt_modifier_conflict(
+            existing, new, "inherit", existing.inherit, new.inherit,
+        ):
+            return None
+
+        # Merge: later non-empty values overwrite
+        merged_body = new.body if new.body else existing.body
+        merged_model = new.model if new.model else existing.model
+        merged_expecting = new.expecting if new.expecting else existing.expecting
+        merged_inherit = new.inherit if new.inherit else existing.inherit
+        merged_escalation = (
+            new.escalation_condition
+            if new.escalation_condition
+            else existing.escalation_condition
+        )
+
+        # Use the position of the definition with body, or the later one
+        merged_meta = new.meta if new.body else existing.meta
+
+        return PromptDef(
+            name=existing.name,
+            body=merged_body,
+            model=merged_model,
+            expecting=merged_expecting,
+            inherit=merged_inherit,
+            escalation_condition=merged_escalation,
+            meta=merged_meta,
+        )
+
+    def _check_prompt_modifier_conflict(
+        self,
+        _existing: PromptDef,
+        new: PromptDef,
+        modifier_name: str,
+        existing_value: str | None,
+        new_value: str | None,
+    ) -> bool:
+        """Check if two prompt modifier values conflict.
+
+        Args:
+            _existing: The existing prompt definition (unused, for context).
+            new: The new prompt definition.
+            modifier_name: Name of the modifier being checked.
+            existing_value: Value from existing definition.
+            new_value: Value from new definition.
+
+        Returns:
+            True if no conflict, False if conflict (error added).
+
+        """
+        if existing_value and new_value and existing_value != new_value:
+            self._add_error(
+                SemanticError.conflicting_prompt_modifier(
+                    name=new.name,
+                    modifier=modifier_name,
+                    first=existing_value,
+                    second=new_value,
+                    position=new.meta,
                 ),
             )
-            return
-        self._symbols.prompts[prompt.name] = prompt
-        if self._global_scope is not None:
-            self._global_scope.define(
-                name=prompt.name,
-                kind=SymbolKind.PROMPT,
-                node=prompt,
-            )
+            return False
+        return True
+
+    def _validate_prompts_have_bodies(self) -> None:
+        """Validate that all prompts have bodies after merging.
+
+        Report E0013 error for any prompt that has no body definition.
+        This catches cases where only declarations exist without a full definition.
+        """
+        for name, prompt in self._symbols.prompts.items():
+            if not prompt.body:
+                self._add_error(
+                    SemanticError.prompt_missing_body(
+                        name=name,
+                        position=prompt.meta,
+                    ),
+                )
 
     def _collect_agent(self, agent: AgentDef) -> None:
         """Collect an agent definition."""
@@ -377,23 +498,24 @@ class SemanticAnalyzer:
             )
 
         # Check expecting (schema) reference if specified
-        if (
-            prompt.expecting is not None
-            and prompt.expecting not in self._symbols.schemas
-        ):
-            self._add_error(
-                SemanticError.undefined_reference(
-                    kind="schema",
-                    name=prompt.expecting,
-                    position=prompt.meta,
-                ),
-            )
+        # Strip [] suffix for array types before validating schema reference
+        if prompt.expecting is not None:
+            schema_name = prompt.expecting.rstrip("[]")
+            if schema_name not in self._symbols.schemas:
+                self._add_error(
+                    SemanticError.undefined_reference(
+                        kind="schema",
+                        name=schema_name,
+                        position=prompt.meta,
+                    ),
+                )
 
     def _validate_agent_refs(self, agent: AgentDef) -> None:
         """Validate references in an agent definition."""
         agent_name = agent.name or "default"
 
         self._validate_agent_instruction(agent, agent_name)
+        self._validate_agent_prompt_ref(agent)
         self._validate_agent_tool_refs(agent)
         self._validate_agent_policy_refs(agent)
         self._validate_agent_delegate_refs(agent, agent_name)
@@ -418,6 +540,32 @@ class SemanticAnalyzer:
                     suggestion=suggestion,
                 ),
             )
+
+    def _validate_agent_prompt_ref(self, agent: AgentDef) -> None:
+        """Validate agent prompt field references a defined prompt or variable.
+
+        The agent prompt field is resolved at runtime via ctx.resolve(),
+        which checks ctx.vars first then prompt definitions. Accept:
+        - Defined prompt names
+        - Built-in variables (e.g. input_prompt)
+        - Produces names from other agents (become variables at runtime)
+        """
+        if agent.prompt is None:
+            return
+        if agent.prompt in self._symbols.prompts:
+            return
+        if agent.prompt in BUILTIN_VARIABLES:
+            return
+        if self._is_known_produces_name(agent.prompt):
+            return
+        self._add_error(
+            SemanticError.undefined_reference(
+                kind="prompt or variable",
+                name=agent.prompt,
+                position=agent.prompt_meta or agent.meta,
+                suggestion=self._suggest_prompt_or_variable(agent.prompt),
+            ),
+        )
 
     def _validate_agent_tool_refs(self, agent: AgentDef) -> None:
         """Validate agent tool references."""
@@ -504,13 +652,7 @@ class SemanticAnalyzer:
             parent=self._global_scope,
         )
 
-        # Define parameters in flow scope
-        # Strip $ prefix for consistency with VarRef which uses name without $
-        for param in flow.params:
-            param_name = param.lstrip("$")
-            flow_scope.define(name=param_name, kind=SymbolKind.PARAMETER)
-
-        # Validate flow body with flow scope
+        # Flows read from ambient context (ctx.vars) -- no parameter scope
         self._validate_statements(flow.body, flow_scope)
 
     def _validate_event_handler(self, handler: EventHandler) -> None:
@@ -565,9 +707,7 @@ class SemanticAnalyzer:
     def _validate_assignment(self, stmt: Assignment, scope: Scope) -> None:
         """Validate an assignment statement."""
         self._validate_expression(stmt.value, scope)
-        # Strip $ prefix for consistency with VarRef which uses name without $
-        var_name = stmt.target.lstrip("$")
-        scope.define(name=var_name, kind=SymbolKind.VARIABLE)
+        scope.define(name=stmt.target, kind=SymbolKind.VARIABLE)
 
     def _validate_run_stmt(self, stmt: RunStmt, scope: Scope) -> None:
         """Validate a run statement for agents or flows."""
@@ -592,12 +732,15 @@ class SemanticAnalyzer:
                     suggestion=self._suggest_similar("agent", stmt.agent),
                 ),
             )
-        for arg in stmt.args:
-            self._validate_expression(arg, scope)
+        if stmt.input is not None:
+            self._validate_expression(stmt.input, scope)
         if stmt.target is not None:
-            # Strip $ prefix for consistency with VarRef which uses name without $
-            var_name = stmt.target.lstrip("$")
-            scope.define(name=var_name, kind=SymbolKind.VARIABLE)
+            scope.define(name=stmt.target, kind=SymbolKind.VARIABLE)
+        elif not stmt.is_flow:
+            # Auto-define produces variable when agent has produces field
+            agent_def = self._symbols.agents.get(stmt.agent)
+            if agent_def and agent_def.produces:
+                scope.define(name=agent_def.produces, kind=SymbolKind.VARIABLE)
         # Validate escalation handler context
         self._validate_escalation_handler(stmt)
 
@@ -640,12 +783,10 @@ class SemanticAnalyzer:
                     position=stmt.meta,
                 ),
             )
-        for arg in stmt.args:
-            self._validate_expression(arg, scope)
+        if stmt.input is not None:
+            self._validate_expression(stmt.input, scope)
         if stmt.target is not None:
-            # Strip $ prefix for consistency with VarRef which uses name without $
-            var_name = stmt.target.lstrip("$")
-            scope.define(name=var_name, kind=SymbolKind.VARIABLE)
+            scope.define(name=stmt.target, kind=SymbolKind.VARIABLE)
 
     def _validate_return_or_push(
         self,
@@ -657,9 +798,7 @@ class SemanticAnalyzer:
             self._validate_expression(stmt.value, scope)
         elif isinstance(stmt, PushStmt):
             self._validate_expression(stmt.value, scope)
-            # Strip $ prefix for consistency with VarRef which uses name without $
-            var_name = stmt.target.lstrip("$")
-            if scope.lookup(var_name) is None:
+            if scope.lookup(stmt.target) is None:
                 self._add_error(
                     SemanticError.undefined_variable(
                         name=stmt.target,
@@ -687,9 +826,7 @@ class SemanticAnalyzer:
     def _validate_for_loop(self, stmt: ForLoop, scope: Scope) -> None:
         """Validate a for loop statement."""
         block_scope = Scope(scope_type=ScopeType.BLOCK, parent=scope)
-        # Strip $ prefix for consistency with VarRef which uses name without $
-        var_name = stmt.variable.lstrip("$")
-        block_scope.define(name=var_name, kind=SymbolKind.VARIABLE)
+        block_scope.define(name=stmt.variable, kind=SymbolKind.VARIABLE)
         self._validate_expression(stmt.iterable, scope)
         self._loop_depth += 1
         try:
@@ -751,6 +888,12 @@ class SemanticAnalyzer:
     def _build_agent_graph(self) -> dict[str, list[str]]:
         """Build adjacency list for agent delegate/use relationships.
 
+        Self-references via ``use`` are filtered out because the ``use``
+        pattern wraps an agent as an AgentTool — the LLM chooses when to
+        call it, providing natural recursion termination.  Self-references
+        via ``delegate`` remain in the graph because delegate transfers
+        control unconditionally and is harder to bound.
+
         Returns:
             Dictionary mapping agent names to their referenced agents.
 
@@ -761,7 +904,9 @@ class SemanticAnalyzer:
             if agent.delegate:
                 neighbors.extend(agent.delegate)
             if agent.use:
-                neighbors.extend(agent.use)
+                neighbors.extend(
+                    name for name in agent.use if name != agent_name
+                )
             graph[agent_name] = neighbors
         return graph
 
@@ -942,4 +1087,47 @@ class SemanticAnalyzer:
         if candidates:
             return f"defined {kind}s are: {', '.join(candidates)}"
 
+        return None
+
+    def _is_known_produces_name(self, name: str) -> bool:
+        """Check if a name matches any agent's produces field.
+
+        Args:
+            name: Name to check.
+
+        Returns:
+            True if any agent produces this name.
+
+        """
+        return any(
+            a.produces == name
+            for a in self._symbols.agents.values()
+        )
+
+    def _suggest_prompt_or_variable(self, name: str) -> str | None:
+        """Suggest similar prompts or variable names.
+
+        Combine prompt names, built-in variables, and produces names
+        as candidates for suggestions.
+
+        Args:
+            name: Name that was not found.
+
+        Returns:
+            Suggestion string or None.
+
+        """
+        candidates = list(self._symbols.prompts.keys())
+        candidates.extend(BUILTIN_VARIABLES)
+        candidates.extend(
+            a.produces for a in self._symbols.agents.values() if a.produces
+        )
+        for candidate in candidates:
+            if candidate.lower().startswith(name.lower()[:3]):
+                return f"did you mean '{candidate}'?"
+        if candidates:
+            return (
+                f"defined prompts are: "
+                f"{', '.join(self._symbols.prompts.keys())}"
+            )
         return None

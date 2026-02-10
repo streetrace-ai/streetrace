@@ -360,32 +360,32 @@ class TestStatementNodes:
         from streetrace.dsl.ast.nodes import Assignment, Literal
 
         assign = Assignment(
-            target="$x",
+            target="x",
             value=Literal(value=42, literal_type="int"),
         )
-        assert assign.target == "$x"
+        assert assign.target == "x"
 
     def test_run_stmt_creation(self):
         from streetrace.dsl.ast.nodes import RunStmt, VarRef
 
         run = RunStmt(
-            target="$result",
+            target="result",
             agent="fetch_data",
-            args=[VarRef(name="input")],
+            input=VarRef(name="input"),
         )
-        assert run.target == "$result"
+        assert run.target == "result"
         assert run.agent == "fetch_data"
 
     def test_call_stmt_creation(self):
         from streetrace.dsl.ast.nodes import CallStmt, VarRef
 
         call = CallStmt(
-            target="$goal",
+            target="goal",
             prompt="analyze_prompt",
-            args=[VarRef(name="input")],
+            input=VarRef(name="input"),
             model="compact",
         )
-        assert call.target == "$goal"
+        assert call.target == "goal"
         assert call.prompt == "analyze_prompt"
         assert call.model == "compact"
 
@@ -400,9 +400,9 @@ class TestStatementNodes:
 
         push = PushStmt(
             value=VarRef(name="item"),
-            target="$results",
+            target="results",
         )
-        assert push.target == "$results"
+        assert push.target == "results"
 
     def test_escalate_stmt_creation(self):
         from streetrace.dsl.ast.nodes import EscalateStmt
@@ -424,11 +424,11 @@ class TestControlFlowNodes:
         from streetrace.dsl.ast.nodes import ForLoop, LogStmt, VarRef
 
         loop = ForLoop(
-            variable="$item",
+            variable="item",
             iterable=VarRef(name="items"),
             body=[LogStmt(message="Processing")],
         )
-        assert loop.variable == "$item"
+        assert loop.variable == "item"
         assert len(loop.body) == 1
 
     def test_parallel_block_creation(self):
@@ -437,9 +437,9 @@ class TestControlFlowNodes:
         parallel = ParallelBlock(
             body=[
                 RunStmt(
-                    target="$web",
+                    target="web",
                     agent="web_search",
-                    args=[VarRef(name="topic")],
+                    input=VarRef(name="topic"),
                 ),
             ],
         )
@@ -796,7 +796,7 @@ end
 flow process_items:
     $results = []
     for $item in $items do
-        $result = run agent process_item $item
+        $result = run agent process_item with $item
         push $result to $results
     end
     return $results
@@ -813,7 +813,7 @@ flow process_items:
         # Find for loop in flow body
         for_loops = [s for s in flow.body if isinstance(s, ForLoop)]
         assert len(for_loops) == 1
-        assert for_loops[0].variable == "$item"
+        assert for_loops[0].variable == "item"
 
         # Find push statement in for loop body
         push_stmts = [s for s in for_loops[0].body if isinstance(s, PushStmt)]
@@ -871,8 +871,8 @@ end
         source = """
 flow handle_type:
     match $item.type
-        when "standard" -> run agent process_standard $item
-        when "expedited" -> run agent process_expedited $item
+        when "standard" -> run agent process_standard with $item
+        when "expedited" -> run agent process_expedited with $item
         else -> log "Unknown type"
     end
 """
@@ -897,8 +897,8 @@ flow handle_type:
         source = """
 flow parallel_search:
     parallel do
-        $web_results = run agent web_search $topic
-        $doc_results = run agent doc_search $topic
+        $web_results = run agent web_search with $topic
+        $doc_results = run agent doc_search with $topic
     end
     return $web_results
 """

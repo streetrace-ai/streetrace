@@ -47,6 +47,35 @@ def normalize_for_comparison(text: str) -> str:
     return WHITESPACE_PATTERN.sub(" ", result).strip()
 
 
+def list_concat(left: object, right: object) -> object:
+    """Concatenate two values, coercing to lists when needed.
+
+    If both operands are lists, concatenate them directly.
+    If one operand is a list and the other is not, wrap the non-list
+    as a single-element list (unless it's None, which is skipped).
+    If neither operand is a list, fall back to regular ``+``.
+
+    Args:
+        left: Left operand (often a list of findings).
+        right: Right operand (agent result, may be list or scalar).
+
+    Returns:
+        Concatenated result.
+
+    """
+    if isinstance(left, list):
+        if isinstance(right, list):
+            return left + right
+        if right is None:
+            return left
+        return [*left, right]
+    if isinstance(right, list):
+        if left is None:
+            return right
+        return [left, *right]
+    return left + right  # type: ignore[operator]
+
+
 def normalized_equals(left: object, right: object) -> bool:
     """Perform normalized equality comparison.
 

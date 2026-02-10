@@ -5,10 +5,12 @@ Generate Python code for flow definitions and control flow statements.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from streetrace.dsl.ast.nodes import (
     AbortStmt,
+    AgentDef,
     Assignment,
     CallStmt,
     ContinueStmt,
@@ -18,15 +20,18 @@ from streetrace.dsl.ast.nodes import (
     FlowDef,
     ForLoop,
     IfBlock,
+    Literal,
     LogStmt,
     LoopBlock,
     MatchBlock,
     NotifyStmt,
     ParallelBlock,
+    PropertyAssignment,
     PushStmt,
     RetryStepStmt,
     ReturnStmt,
     RunStmt,
+    VarRef,
 )
 from streetrace.dsl.codegen.visitors.expressions import ExpressionVisitor
 from streetrace.log import get_logger
@@ -46,17 +51,25 @@ class FlowVisitor:
     with proper control flow translation.
     """
 
-    def __init__(self, emitter: CodeEmitter) -> None:
+    def __init__(
+        self,
+        emitter: CodeEmitter,
+        *,
+        agents: dict[str, AgentDef] | None = None,
+    ) -> None:
         """Initialize the flow visitor.
 
         Args:
             emitter: Code emitter for output generation.
+            agents: Agent definitions indexed by name, for prompt/produces lookup.
 
         """
         self._emitter = emitter
         self._expr_visitor = ExpressionVisitor()
+        self._agents: dict[str, AgentDef] = agents or {}
         self._stmt_dispatch: dict[type, Callable[[object], None]] = {
             Assignment: self._visit_assignment,  # type: ignore[dict-item]
+            PropertyAssignment: self._visit_property_assignment,  # type: ignore[dict-item]
             RunStmt: self._visit_run_stmt,  # type: ignore[dict-item]
             CallStmt: self._visit_call_stmt,  # type: ignore[dict-item]
             ReturnStmt: self._visit_return_stmt,  # type: ignore[dict-item]
@@ -178,7 +191,7 @@ class FlowVisitor:
         self._emitter.dedent()
 
         # Emit statements after the failure block (if any)
-        for stmt in body[failure_idx + 1:]:
+        for stmt in body[failure_idx + 1 :]:
             self.visit_statement(stmt)
 
     def _emit_statements_or_pass(self, statements: list[object]) -> None:
@@ -223,67 +236,169 @@ class FlowVisitor:
             source_line=source_line,
         )
 
+    def _visit_property_assignment(self, node: PropertyAssignment) -> None:
+        """Generate code for property assignment.
+
+        Transform $obj.prop = value to ctx.vars['obj']['prop'] = value.
+        Supports nested properties like $obj.a.b = value.
+
+        Args:
+            node: PropertyAssignment node.
+
+        """
+        source_line = node.meta.line if node.meta else None
+
+        # Get base variable name from PropertyAccess
+        base = node.target.base
+        base_name = base.name if isinstance(base, VarRef) else str(base)
+
+        # Build nested dict access: ctx.vars['obj']['prop1']['prop2']...
+        target = f"ctx.vars['{base_name}']"
+        for prop in node.target.properties:
+            target = f"{target}['{prop}']"
+
+        # Generate value expression
+        value = self._expr_visitor.visit(node.value)
+
+        self._emitter.emit(f"{target} = {value}", source_line=source_line)
+
     def _visit_run_stmt(self, node: RunStmt) -> None:
         """Generate code for run agent statement.
+
+        Handles prompt (default input) and produces (auto-assign) fields:
+        - When no `with` input and agent has `prompt`, resolve it as default input
+        - When no explicit assignment and agent has `produces`, auto-assign result
 
         Args:
             node: Run statement node.
 
         """
         source_line = node.meta.line if node.meta else None
-        args_str = ", ".join(self._expr_visitor.visit(arg) for arg in node.args)
+        input_str = self._expr_visitor.visit(node.input) if node.input else None
+        input_str = self._resolve_default_input(node, input_str)
+        produces_name = self._resolve_produces_target(node)
 
         if node.escalation_handler:
-            # Use run_agent_with_escalation which tracks escalation state
-            if args_str:
-                call = f"ctx.run_agent_with_escalation('{node.agent}', {args_str})"
-            else:
-                call = f"ctx.run_agent_with_escalation('{node.agent}')"
-
-            # Generate async for loop to yield events and capture result
-            self._emitter.emit(
-                f"async for _event in {call}:",
-                source_line=source_line,
-            )
-            self._emitter.indent()
-            self._emitter.emit("yield _event")
-            self._emitter.dedent()
-
-            # Get result and escalation flag
-            self._emitter.emit(
-                "_result, _escalated = ctx.get_last_result_with_escalation()",
-            )
-
-            # Assign result to target if specified
-            if node.target:
-                target_name = node.target.lstrip("$")
-                self._emitter.emit(f"ctx.vars['{target_name}'] = _result")
-
-            # Handle escalation
-            self._emitter.emit("if _escalated:")
-            self._emitter.indent()
-            self._emit_escalation_action(node.escalation_handler)
-            self._emitter.dedent()
+            self._emit_escalation_run(node, input_str, produces_name, source_line)
         else:
-            # Original logic for non-escalation runs
-            if args_str:
-                call = f"ctx.run_agent('{node.agent}', {args_str})"
-            else:
-                call = f"ctx.run_agent('{node.agent}')"
+            self._emit_standard_run(node, input_str, produces_name, source_line)
 
-            # Generate async for loop to yield events
+    def _resolve_default_input(
+        self,
+        node: RunStmt,
+        input_str: str | None,
+    ) -> str | None:
+        """Resolve default input from agent's prompt field.
+
+        Args:
+            node: Run statement node.
+            input_str: Explicit input expression, or None.
+
+        Returns:
+            Input expression string, possibly resolved from agent prompt.
+
+        """
+        if input_str is None and not node.is_flow:
+            agent_def = self._agents.get(node.agent)
+            if agent_def and agent_def.prompt:
+                return f"ctx.resolve('{agent_def.prompt}')"
+        return input_str
+
+    def _resolve_produces_target(self, node: RunStmt) -> str | None:
+        """Resolve auto-assign target from agent's produces field.
+
+        Args:
+            node: Run statement node.
+
+        Returns:
+            Variable name to auto-assign, or None.
+
+        """
+        if node.target is None and not node.is_flow:
+            agent_def = self._agents.get(node.agent)
+            if agent_def and agent_def.produces:
+                return agent_def.produces
+        return None
+
+    def _emit_escalation_run(
+        self,
+        node: RunStmt,
+        input_str: str | None,
+        produces_name: str | None,
+        source_line: int | None,
+    ) -> None:
+        """Emit code for run with escalation handler.
+
+        Args:
+            node: Run statement node.
+            input_str: Input expression string, or None.
+            produces_name: Auto-assign variable name, or None.
+            source_line: Source line number for mapping.
+
+        """
+        if input_str:
+            call = f"ctx.run_agent_with_escalation('{node.agent}', {input_str})"
+        else:
+            call = f"ctx.run_agent_with_escalation('{node.agent}')"
+
+        self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
+        self._emitter.indent()
+        self._emitter.emit("yield _event")
+        self._emitter.dedent()
+
+        self._emitter.emit(
+            "_result, _escalated = ctx.get_last_result_with_escalation()",
+        )
+
+        # Assign result to target or produces variable
+        if node.target:
+            target_name = node.target.lstrip("$")
+            self._emitter.emit(f"ctx.vars['{target_name}'] = _result")
+        elif produces_name:
+            self._emitter.emit(f"ctx.vars['{produces_name}'] = _result")
+
+        self._emitter.emit("if _escalated:")
+        self._emitter.indent()
+        if node.escalation_handler:
+            self._emit_escalation_action(node.escalation_handler)
+        self._emitter.dedent()
+
+    def _emit_standard_run(
+        self,
+        node: RunStmt,
+        input_str: str | None,
+        produces_name: str | None,
+        source_line: int | None,
+    ) -> None:
+        """Emit code for standard agent/flow run.
+
+        Args:
+            node: Run statement node.
+            input_str: Input expression string, or None.
+            produces_name: Auto-assign variable name, or None.
+            source_line: Source line number for mapping.
+
+        """
+        method = "run_flow" if node.is_flow else "run_agent"
+        if input_str:
+            call = f"ctx.{method}('{node.agent}', {input_str})"
+        else:
+            call = f"ctx.{method}('{node.agent}')"
+
+        self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
+        self._emitter.indent()
+        self._emitter.emit("yield _event")
+        self._emitter.dedent()
+
+        # Assign result to target or produces variable
+        if node.target:
             self._emitter.emit(
-                f"async for _event in {call}:",
-                source_line=source_line,
+                f"ctx.vars['{node.target}'] = ctx.get_last_result()",
             )
-            self._emitter.indent()
-            self._emitter.emit("yield _event")
-            self._emitter.dedent()
-
-            # Assign result from context if target specified
-            if node.target:
-                target_name = node.target.lstrip("$")
-                self._emitter.emit(f"ctx.vars['{target_name}'] = ctx.get_last_result()")
+        elif produces_name:
+            self._emitter.emit(
+                f"ctx.vars['{produces_name}'] = ctx.get_last_result()",
+            )
 
     def _emit_escalation_action(self, handler: EscalationHandler) -> None:
         """Emit code for escalation action.
@@ -309,18 +424,17 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        args_str = ", ".join(self._expr_visitor.visit(arg) for arg in node.args)
+        input_str = self._expr_visitor.visit(node.input) if node.input else None
 
         if node.model:
-            if args_str:
+            if input_str:
                 call = (
-                    f"ctx.call_llm('{node.prompt}', {args_str}, "
-                    f"model='{node.model}')"
+                    f"ctx.call_llm('{node.prompt}', {input_str}, model='{node.model}')"
                 )
             else:
                 call = f"ctx.call_llm('{node.prompt}', model='{node.model}')"
-        elif args_str:
-            call = f"ctx.call_llm('{node.prompt}', {args_str})"
+        elif input_str:
+            call = f"ctx.call_llm('{node.prompt}', {input_str})"
         else:
             call = f"ctx.call_llm('{node.prompt}')"
 
@@ -332,8 +446,9 @@ class FlowVisitor:
 
         # Assign result from context if target specified
         if node.target:
-            target_name = node.target.lstrip("$")
-            self._emitter.emit(f"ctx.vars['{target_name}'] = ctx.get_last_result()")
+            self._emitter.emit(
+                f"ctx.vars['{node.target}'] = ctx.get_last_result()",
+            )
 
     def _visit_return_stmt(self, node: ReturnStmt) -> None:
         """Generate code for return statement.
@@ -363,9 +478,8 @@ class FlowVisitor:
         """
         source_line = node.meta.line if node.meta else None
         value = self._expr_visitor.visit(node.value)
-        target_name = node.target.lstrip("$")
         self._emitter.emit(
-            f"ctx.vars['{target_name}'].append({value})",
+            f"ctx.vars['{node.target}'].append({value})",
             source_line=source_line,
         )
 
@@ -377,17 +491,18 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        var_name = node.variable.lstrip("$")
         iterable = self._expr_visitor.visit(node.iterable)
 
         self._emitter.emit(
-            f"for _item_{var_name} in {iterable}:",
+            f"for _item_{node.variable} in {iterable}:",
             source_line=source_line,
         )
         self._emitter.indent()
 
         # Assign loop variable to ctx.vars
-        self._emitter.emit(f"ctx.vars['{var_name}'] = _item_{var_name}")
+        self._emitter.emit(
+            f"ctx.vars['{node.variable}'] = _item_{node.variable}",
+        )
 
         # Visit loop body
         for stmt in node.body:
@@ -398,32 +513,76 @@ class FlowVisitor:
     def _visit_parallel_block(self, node: ParallelBlock) -> None:
         """Generate code for parallel block.
 
-        Generate sequential execution with event yielding since asyncio.gather
-        does not work with async generators. True parallel execution with event
-        yielding requires custom implementation.
+        Validate that only RunStmt nodes are present, then generate code
+        for true parallel execution. Events are yielded as they occur,
+        and results are stored directly in ctx.vars by the executor.
 
         Args:
             node: Parallel block node.
 
+        Raises:
+            ValueError: If parallel block contains non-RunStmt statements.
+
         """
         source_line = node.meta.line if node.meta else None
 
-        # Collect all run statements using list comprehension
-        run_stmts = [stmt for stmt in node.body if isinstance(stmt, RunStmt)]
-
-        if not run_stmts:
-            # No run statements, just execute sequentially
-            for stmt in node.body:
-                self.visit_statement(stmt)
+        # Empty parallel block - just pass
+        if not node.body:
+            self._emitter.emit("pass", source_line=source_line)
             return
 
-        # Generate sequential execution with comment explaining the fallback
+        # Validate: parallel do only supports run agent statements
+        for stmt in node.body:
+            if not isinstance(stmt, RunStmt):
+                stmt_type = type(stmt).__name__
+                msg = (
+                    f"parallel do only supports 'run agent' statements. "
+                    f"Found: {stmt_type}"
+                )
+                raise TypeError(msg)
+
+        # Collect run statements (already validated to be RunStmt)
+        run_stmts: list[RunStmt] = node.body
+
+        # Generate parallel execution code
         self._emitter.emit(
-            "# Sequential execution (parallel event yielding not yet supported)",
+            "# Parallel block - execute agents concurrently",
             source_line=source_line,
         )
+        self._emitter.emit("_parallel_specs = [")
+        self._emitter.indent()
+
         for stmt in run_stmts:
-            self._visit_run_stmt(stmt)
+            # Generate input expression or empty list
+            if stmt.input is not None:
+                input_str = f"[{self._expr_visitor.visit(stmt.input)}]"
+            else:
+                # Resolve default input from agent's prompt field
+                resolved = self._resolve_default_input(stmt, None)
+                input_str = f"[{resolved}]" if resolved is not None else "[]"
+
+            # Resolve target: explicit target or agent's produces field
+            produces_name = self._resolve_produces_target(stmt)
+            if stmt.target:
+                target_name = f"'{stmt.target}'"
+            elif produces_name:
+                target_name = f"'{produces_name}'"
+            else:
+                target_name = "None"
+
+            self._emitter.emit(f"('{stmt.agent}', {input_str}, {target_name}),")
+
+        self._emitter.dedent()
+        self._emitter.emit("]")
+
+        # Execute parallel agents - yields events, stores results in ctx.vars
+        self._emitter.emit(
+            "async for _event in self._execute_parallel_agents(ctx, _parallel_specs):",
+        )
+        self._emitter.indent()
+        self._emitter.emit("yield _event")
+        self._emitter.dedent()
+        self._emitter.emit("# Results stored in ctx.vars by _execute_parallel_agents")
 
     def _visit_match_block(self, node: MatchBlock) -> None:
         """Generate code for match block.
@@ -508,7 +667,8 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        self._emitter.emit(f"ctx.log('{node.message}')", source_line=source_line)
+        message_code = self._process_interpolated_message(node.message)
+        self._emitter.emit(f"ctx.log({message_code})", source_line=source_line)
 
     def _visit_notify_stmt(self, node: NotifyStmt) -> None:
         """Generate code for notify statement.
@@ -518,7 +678,110 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        self._emitter.emit(f"ctx.notify('{node.message}')", source_line=source_line)
+        message_code = self._process_interpolated_message(node.message)
+        self._emitter.emit(f"ctx.notify({message_code})", source_line=source_line)
+
+    def _process_interpolated_message(self, message: object) -> str:
+        """Process a message expression, handling string interpolation.
+
+        If the message is a string literal containing ${...} patterns,
+        convert it to an f-string expression with proper variable/expression
+        substitution.
+
+        Args:
+            message: Message AST node.
+
+        Returns:
+            Python expression string for the message.
+
+        """
+        # Only process Literal strings
+        if not isinstance(message, Literal) or message.literal_type != "string":
+            return self._expr_visitor.visit(message)
+
+        text = str(message.value)
+
+        # Check if interpolation is needed
+        if "${" not in text:
+            return self._expr_visitor.visit(message)
+
+        # Process interpolation patterns: ${expr} where expr can be:
+        # - variable: diff_chunks
+        # - dotted access: chunk.title
+        # - function call: len(diff_chunks), len(chunk.items)
+        return self._build_interpolated_fstring(text)
+
+    def _build_interpolated_fstring(self, text: str) -> str:
+        """Build an f-string expression from interpolated text.
+
+        Args:
+            text: String containing ${...} interpolation patterns.
+
+        Returns:
+            Python f-string expression.
+
+        """
+        # Pattern for ${...} interpolation
+        # Captures the content inside ${}
+        pattern = r"\$\{([^}]+)\}"
+
+        def replace_interpolation(match: re.Match[str]) -> str:
+            expr = match.group(1).strip()
+            return "{" + self._convert_dsl_expr_to_python(expr) + "}"
+
+        processed = re.sub(pattern, replace_interpolation, text)
+
+        # Escape backslashes and quotes for f-string
+        processed = processed.replace("\\", "\\\\")
+        processed = processed.replace('"', '\\"')
+
+        return f'f"{processed}"'
+
+    def _convert_dsl_expr_to_python(self, expr: str) -> str:
+        """Convert a DSL expression inside ${...} to Python code.
+
+        Handles:
+        - Simple variables: diff_chunks -> ctx.vars['diff_chunks']
+        - Dotted access: chunk.title -> ctx.vars['chunk']['title']
+        - Function calls: len(var) -> len(ctx.vars['var'])
+        - Nested: len(chunk.items) -> len(ctx.vars['chunk']['items'])
+
+        Args:
+            expr: DSL expression string.
+
+        Returns:
+            Python expression string.
+
+        """
+        # Match function call pattern: func(arg) or func(arg.prop.prop)
+        func_match = re.match(r"(\w+)\(([^)]+)\)", expr)
+        if func_match:
+            func_name = func_match.group(1)
+            arg = func_match.group(2).strip()
+            python_arg = self._convert_var_to_python(arg)
+            return f"{func_name}({python_arg})"
+
+        # Otherwise, treat as variable or dotted access
+        return self._convert_var_to_python(expr)
+
+    def _convert_var_to_python(self, var_expr: str) -> str:
+        """Convert a variable expression to Python accessor.
+
+        Args:
+            var_expr: Variable expression (e.g., 'chunk' or 'chunk.title').
+
+        Returns:
+            Python code to access the variable.
+
+        """
+        parts = var_expr.split(".")
+        base = parts[0].strip()
+        result = f"ctx.vars['{base}']"
+
+        for prop in parts[1:]:
+            result = f"{result}['{prop.strip()}']"
+
+        return result
 
     def _visit_escalate_stmt(self, node: EscalateStmt) -> None:
         """Generate code for escalate statement.

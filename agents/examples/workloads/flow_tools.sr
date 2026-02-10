@@ -10,7 +10,7 @@ agent file_checker:
     instruction file_check_prompt
 
 flow main:
-    $result = run agent file_checker "List files in the current directory. Be brief."
+    $result = run agent file_checker with "List files in the current directory. Be brief."
     return $result
 
 prompt file_check_prompt: """You have filesystem access via the fs tools. Use list_directory to list files.

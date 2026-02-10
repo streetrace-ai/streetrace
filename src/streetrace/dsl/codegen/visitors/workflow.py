@@ -9,6 +9,7 @@ from streetrace.dsl.ast.nodes import (
     EventHandler,
     FlowDef,
     ModelDef,
+    PolicyDef,
     PromptDef,
     SchemaDef,
     ToolDef,
@@ -51,7 +52,7 @@ from streetrace.dsl.runtime.errors import (
     RetryInputError,
     RetryStepError,
 )
-from streetrace.dsl.runtime.utils import normalized_equals
+from streetrace.dsl.runtime.utils import list_concat, normalized_equals
 
 """
 
@@ -78,17 +79,27 @@ class WorkflowVisitor:
         self._agents: list[AgentDef] = []
         self._flows: list[FlowDef] = []
         self._handlers: list[EventHandler] = []
+        self._policies: list[PolicyDef] = []
 
-    def visit(self, node: DslFile, source_file: str) -> None:
+    def visit(
+        self,
+        node: DslFile,
+        source_file: str,
+        *,
+        merged_prompts: dict[str, PromptDef] | None = None,
+    ) -> None:
         """Visit a DSL file and generate the complete workflow class.
 
         Args:
             node: DSL file AST node.
             source_file: Name of the source file.
+            merged_prompts: Optional dict of merged prompts from semantic analysis.
+                When provided, these are used instead of extracting prompts from
+                AST statements. This ensures prompt override/merge semantics work.
 
         """
         # Collect all definitions
-        self._collect_definitions(node)
+        self._collect_definitions(node, merged_prompts=merged_prompts)
 
         # Emit header and imports
         self._emit_header(source_file)
@@ -97,28 +108,38 @@ class WorkflowVisitor:
         # Emit the workflow class
         self._emit_class_definition(source_file)
 
-    def _collect_definitions(self, node: DslFile) -> None:
+    def _collect_definitions(
+        self,
+        node: DslFile,
+        *,
+        merged_prompts: dict[str, PromptDef] | None = None,
+    ) -> None:
         """Collect all definitions from the AST.
 
         Args:
             node: DSL file AST node.
+            merged_prompts: Optional dict of merged prompts from semantic analysis.
 
         """
+        type_dispatch: dict[type, list] = {  # type: ignore[type-arg]
+            ModelDef: self._models,
+            ToolDef: self._tools,
+            SchemaDef: self._schemas,
+            AgentDef: self._agents,
+            FlowDef: self._flows,
+            EventHandler: self._handlers,
+            PolicyDef: self._policies,
+        }
         for stmt in node.statements:
-            if isinstance(stmt, ModelDef):
-                self._models.append(stmt)
-            elif isinstance(stmt, PromptDef):
+            target = type_dispatch.get(type(stmt))
+            if target is not None:
+                target.append(stmt)
+            elif isinstance(stmt, PromptDef) and merged_prompts is None:
                 self._prompts.append(stmt)
-            elif isinstance(stmt, ToolDef):
-                self._tools.append(stmt)
-            elif isinstance(stmt, SchemaDef):
-                self._schemas.append(stmt)
-            elif isinstance(stmt, AgentDef):
-                self._agents.append(stmt)
-            elif isinstance(stmt, FlowDef):
-                self._flows.append(stmt)
-            elif isinstance(stmt, EventHandler):
-                self._handlers.append(stmt)
+
+        # Use merged prompts if provided (from semantic analysis)
+        if merged_prompts is not None:
+            self._prompts = list(merged_prompts.values())
 
     def _emit_header(self, source_file: str) -> None:
         """Emit the file header comment.
@@ -165,6 +186,7 @@ class WorkflowVisitor:
         self._emit_prompts()
         self._emit_tools()
         self._emit_agents()
+        self._emit_compaction_policy()
 
         # Emit event handlers
         handler_visitor = HandlerVisitor(self._emitter)
@@ -172,7 +194,8 @@ class WorkflowVisitor:
             handler_visitor.visit(handler)
 
         # Emit flow methods
-        flow_visitor = FlowVisitor(self._emitter)
+        agents_by_name = {a.name: a for a in self._agents if a.name}
+        flow_visitor = FlowVisitor(self._emitter, agents=agents_by_name)
         for flow in self._flows:
             flow_visitor.visit(flow)
 
@@ -277,17 +300,28 @@ class WorkflowVisitor:
             type_expr: DSL type expression.
 
         Returns:
-            Python type annotation as string (e.g., 'str', 'list[str]').
+            Python type annotation as string (e.g., 'str', 'list[str]', 'list[Chunk]').
 
         """
-        # Map DSL types to Python type strings
+        # Map DSL primitive types to Python type strings
         type_map = {
             "string": "str",
             "int": "int",
             "float": "float",
             "bool": "bool",
         }
-        base = type_map.get(type_expr.base_type, "str")
+
+        # Check if it's a primitive type or a custom schema type
+        base_type = type_expr.base_type
+        if base_type in type_map:
+            base = type_map[base_type]
+        else:
+            # Custom type (schema reference) - use the schema name directly
+            # Schema classes are defined in the same scope
+            schema_names = {s.name for s in self._schemas}
+            # Schema reference or unknown type (default to str)
+            base = base_type if base_type in schema_names else "str"
+
         result = f"list[{base}]" if type_expr.is_list else base
 
         if type_expr.is_optional:
@@ -380,12 +414,26 @@ class WorkflowVisitor:
         """
         import re
 
-        # Find all $variable references
-        var_pattern = r"\$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}?"
+        # Match $variable or $variable.prop1.prop2 (dotted property access)
+        var_pattern = (
+            r"\$\{?([a-zA-Z_][a-zA-Z0-9_]*"
+            r"(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\}?"
+        )
 
         def replace_var(match: re.Match[str]) -> str:
-            var_name = match.group(1)
-            return "{ctx.vars['" + var_name + "']}"
+            full_ref = match.group(1)
+            parts = full_ref.split(".")
+            var_name = parts[0]
+
+            if len(parts) == 1:
+                # Simple variable: $name → ctx.resolve('name')
+                return "{ctx.resolve('" + var_name + "')}"
+
+            # Dotted access uses resolve_property for safe traversal
+            prop_args = ", ".join(f"'{p}'" for p in parts[1:])
+            return (
+                "{ctx.resolve_property('" + var_name + "', " + prop_args + ")}"
+            )
 
         # Replace variables with f-string expressions
         processed = re.sub(var_pattern, replace_var, body)
@@ -492,9 +540,21 @@ class WorkflowVisitor:
                 agent_tools_str = ", ".join(f"'{a}'" for a in agent.use)
                 self._emitter.emit(f"'agent_tools': [{agent_tools_str}],")
 
+            # Optional: default prompt for agent invocation
+            if agent.prompt:
+                self._emitter.emit(f"'prompt': '{agent.prompt}',")
+
+            # Optional: default output variable name
+            if agent.produces:
+                self._emitter.emit(f"'produces': '{agent.produces}',")
+
             # Optional: description for agent
             if agent.description:
                 self._emitter.emit(f"'description': {agent.description!r},")
+
+            # Optional: history management strategy
+            if agent.history:
+                self._emitter.emit(f"'history': '{agent.history}',")
 
             self._emitter.dedent()
             self._emitter.emit("},")
@@ -502,3 +562,73 @@ class WorkflowVisitor:
         self._emitter.dedent()
         self._emitter.emit("}")
         self._emitter.emit_blank()
+
+    def _emit_compaction_policy(self) -> None:
+        """Emit the _compaction_policy class attribute.
+
+        Find the compaction policy and emit its configuration as a class
+        attribute that the runtime can use as the default history strategy.
+        """
+        # Find the compaction policy
+        compaction_policy = self._find_compaction_policy()
+
+        if not compaction_policy:
+            self._emitter.emit("_compaction_policy: dict[str, object] | None = None")
+            self._emitter.emit_blank()
+            return
+
+        # Emit the policy as a dict
+        self._emitter.emit("_compaction_policy = {")
+        self._emitter.indent()
+
+        props = compaction_policy.properties
+        self._emit_policy_strategy(props)
+        self._emit_policy_trigger(props)
+        self._emit_policy_preserve(props)
+
+        self._emitter.dedent()
+        self._emitter.emit("}")
+        self._emitter.emit_blank()
+
+    def _find_compaction_policy(self) -> PolicyDef | None:
+        """Find the compaction policy in collected policies."""
+        for policy in self._policies:
+            if policy.name == "compaction":
+                return policy
+        return None
+
+    def _emit_policy_strategy(self, props: dict[str, object]) -> None:
+        """Emit strategy property if present."""
+        if "strategy" in props:
+            strategy = props["strategy"]
+            self._emitter.emit(f"'strategy': '{strategy}',")
+
+    def _emit_policy_trigger(self, props: dict[str, object]) -> None:
+        """Emit trigger property if present."""
+        if "trigger" not in props:
+            return
+        trigger = props["trigger"]
+        if isinstance(trigger, dict):
+            self._emitter.emit(
+                f"'trigger': {{'var': '{trigger['var']}', "
+                f"'op': '{trigger['op']}', 'value': {trigger['value']}}},",
+            )
+
+    def _emit_policy_preserve(self, props: dict[str, object]) -> None:
+        """Emit preserve property if present."""
+        if "preserve" not in props:
+            return
+        preserve = props["preserve"]
+        if not isinstance(preserve, list):
+            return
+        preserve_items = [self._format_preserve_item(item) for item in preserve]
+        self._emitter.emit(f"'preserve': [{', '.join(preserve_items)}],")
+
+    def _format_preserve_item(self, item: object) -> str:
+        """Format a single preserve list item."""
+        if hasattr(item, "name"):
+            # VarRef
+            return f"'${item.name}'"
+        if isinstance(item, str):
+            return f"'{item}'"
+        return repr(item)

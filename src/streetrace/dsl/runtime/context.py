@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from collections.abc import AsyncGenerator, Callable
 
     from google.adk.events import Event
+    from google.adk.sessions import Session
     from pydantic import BaseModel
 
     from streetrace.dsl.runtime.workflow import (
@@ -77,6 +78,42 @@ _JAILBREAK_PATTERNS = [
     re.compile(r"ignore.*(?:ethics|guidelines|policies)", re.IGNORECASE),
 ]
 """Patterns to detect common jailbreak attempts."""
+
+
+def deep_parse_json_strings(data: object) -> object:
+    """Recursively parse JSON strings in nested data structures.
+
+    LLMs sometimes return nested lists/objects as JSON strings instead of
+    actual arrays/objects. Recursively traverse the data and parse any
+    string values that look like JSON arrays or objects.
+
+    Args:
+        data: Data structure to process.
+
+    Returns:
+        Data with JSON strings parsed into native Python types.
+
+    """
+    if isinstance(data, dict):
+        return {key: deep_parse_json_strings(val) for key, val in data.items()}
+
+    if isinstance(data, list):
+        return [deep_parse_json_strings(item) for item in data]
+
+    if isinstance(data, str):
+        text = data.strip()
+        # Only try to parse strings that look like JSON arrays or objects
+        if (text.startswith("[") and text.endswith("]")) or (
+            text.startswith("{") and text.endswith("}")
+        ):
+            try:
+                parsed = json.loads(text)
+                # Recursively parse in case of nested JSON strings
+                return deep_parse_json_strings(parsed)
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    return data
 
 
 class GuardrailProvider:
@@ -203,7 +240,95 @@ class WorkflowContext:
         self._schemas: dict[str, type[BaseModel]] = {}
         """Schema definitions as Pydantic models."""
 
+        self._parent_session: Session | None = None
+        """Parent session for deriving child session identifiers."""
+
+        self._current_flow_name: str | None = None
+        """Current flow name for session ID derivation."""
+
+        self._invocation_counter: int = 0
+        """Counter for generating unique session IDs within a flow."""
+
         logger.debug("Created WorkflowContext")
+
+    def stringify(self, value: object) -> str:
+        """Convert a value to a string for prompt interpolation.
+
+        Serialize dicts and lists as JSON so that structured data appears
+        with double-quoted keys and JSON-standard booleans/nulls.
+        All other types use Python's built-in ``str()``.
+
+        Args:
+            value: The value to convert.
+
+        Returns:
+            A string representation suitable for embedding in prompt text.
+
+        """
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, default=str)
+        return str(value)
+
+    def resolve(self, name: str) -> str:
+        """Resolve a name to its string value.
+
+        Check ctx.vars first, then fall back to prompt definitions.
+        Return empty string if not found (tolerant for prompt composition).
+
+        Args:
+            name: Variable or prompt name to resolve.
+
+        Returns:
+            String value of the resolved name.
+
+        """
+        if name in self.vars:
+            return self.stringify(self.vars[name])
+
+        prompt_spec = self._prompts.get(name)
+        if prompt_spec is not None and hasattr(prompt_spec, "body"):
+            body_fn = prompt_spec.body
+            if callable(body_fn):
+                return str(body_fn(self))
+            return str(body_fn)
+
+        return ""
+
+    def resolve_property(self, name: str, *properties: str) -> str:
+        """Resolve a dotted property path like ``$chunk.title``.
+
+        Look up the base variable, coerce JSON strings to dicts if
+        needed, then walk the property chain.  Return the stringified
+        leaf value, or an empty string on any lookup failure.
+
+        Args:
+            name: Base variable name.
+            *properties: Property names to traverse.
+
+        Returns:
+            String value of the resolved property.
+
+        """
+        value: object = self.vars.get(name)
+        if value is None:
+            return ""
+
+        # Coerce JSON strings to dicts/lists so property access works
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except (json.JSONDecodeError, ValueError):
+                return self.stringify(value)
+
+        for prop in properties:
+            if isinstance(value, dict):
+                value = value.get(prop)
+            else:
+                return ""
+            if value is None:
+                return ""
+
+        return self.stringify(value)
 
     def set_models(self, models: dict[str, str]) -> None:
         """Set the available models.
@@ -271,11 +396,49 @@ class WorkflowContext:
         """
         self._escalation_callback = callback
 
+    def set_parent_session(self, session: Session) -> None:
+        """Set the parent session for deriving child session identifiers.
+
+        Args:
+            session: Parent ADK session to use as reference.
+
+        """
+        self._parent_session = session
+
+    @property
+    def parent_session(self) -> Session | None:
+        """Get the parent session, if set."""
+        return self._parent_session
+
+    def set_current_flow(self, flow_name: str) -> None:
+        """Set the current flow name for session ID derivation.
+
+        Args:
+            flow_name: Name of the currently executing flow.
+
+        """
+        self._current_flow_name = flow_name
+
+    @property
+    def current_flow_name(self) -> str | None:
+        """Get the current flow name."""
+        return self._current_flow_name
+
+    def next_invocation_id(self) -> int:
+        """Get the next invocation ID for session uniqueness.
+
+        Returns:
+            Unique incrementing ID for this context's invocations.
+
+        """
+        self._invocation_counter += 1
+        return self._invocation_counter
+
     async def run_agent(
         self,
         agent_name: str,
         *args: object,
-    ) -> AsyncGenerator[Event, None]:
+    ) -> AsyncGenerator[Event | FlowEvent, None]:
         """Run a named agent with arguments, yielding events.
 
         Always delegates to the parent workflow.
@@ -295,7 +458,7 @@ class WorkflowContext:
         self,
         agent_name: str,
         *args: object,
-    ) -> AsyncGenerator[Event | EscalationEvent, None]:
+    ) -> AsyncGenerator[Event | FlowEvent, None]:
         """Run agent and check for escalation.
 
         Similar to run_agent() but tracks escalation state based on
@@ -450,7 +613,8 @@ class WorkflowContext:
     ) -> AsyncGenerator[Event | FlowEvent, None]:
         """Run a named flow with arguments, yielding events.
 
-        Always delegates to the parent workflow.
+        Delegates to the parent workflow, passing this context so the
+        sub-flow shares the same variable scope as the caller.
 
         Args:
             flow_name: Name of the flow to run.
@@ -460,7 +624,9 @@ class WorkflowContext:
             Events from flow execution.
 
         """
-        async for event in self._workflow.run_flow(flow_name, *args):
+        async for event in self._workflow.run_flow(
+            flow_name, *args, caller_ctx=self,
+        ):
             yield event
 
     def _resolve_agent_model(self, instruction_name: str | None) -> str:
@@ -493,7 +659,36 @@ class WorkflowContext:
         # Last resort: return empty string (will use provider default)
         return ""
 
-    def _parse_json_response(self, content: str) -> dict[str, object]:
+    def _validate_array_schema(
+        self,
+        parsed: object,
+        raw_response: str,
+        schema_model: type[BaseModel],
+    ) -> None:
+        """Validate parsed response as array of schema objects.
+
+        Args:
+            parsed: Parsed JSON response.
+            raw_response: Original response string for error reporting.
+            schema_model: Pydantic model for validation.
+
+        Raises:
+            JSONParseError: If parsed is not a list.
+
+        """
+        if not isinstance(parsed, list):
+            msg = f"Expected JSON array, got {type(parsed).__name__}"
+            raise JSONParseError(
+                raw_response=raw_response,
+                parse_error=msg,
+            )
+        validated_items = []
+        for item in parsed:
+            validated = schema_model.model_validate(item)
+            validated_items.append(validated.model_dump())
+        self._last_call_result = validated_items
+
+    def _parse_json_response(self, content: str) -> dict[str, object] | list[object]:
         """Parse JSON from LLM response, handling markdown code blocks.
 
         Extract JSON content from LLM responses which may include markdown
@@ -533,7 +728,7 @@ class WorkflowContext:
             )
 
         try:
-            result: dict[str, object] = json.loads(json_content)
+            result: dict[str, object] | list[object] = json.loads(json_content)
         except json.JSONDecodeError as e:
             raise JSONParseError(
                 raw_response=content,
@@ -575,6 +770,23 @@ class WorkflowContext:
 
         return blocks
 
+    def _is_array_schema(self, prompt_spec: PromptSpec | None) -> bool:
+        """Check if a prompt spec has an array schema (e.g., Finding[]).
+
+        Args:
+            prompt_spec: Prompt specification to check.
+
+        Returns:
+            True if schema ends with [], False otherwise.
+
+        """
+        if prompt_spec is None:
+            return False
+        schema_name = getattr(prompt_spec, "schema", None)
+        if not schema_name or not isinstance(schema_name, str):
+            return False
+        return bool(schema_name.endswith("[]"))
+
     def _get_schema_model(
         self,
         prompt_spec: PromptSpec | None,
@@ -582,7 +794,8 @@ class WorkflowContext:
         """Get the Pydantic model for a prompt's schema.
 
         Look up the schema name from the prompt spec and resolve it
-        to the corresponding Pydantic model class.
+        to the corresponding Pydantic model class. Strip [] suffix
+        for array types.
 
         Args:
             prompt_spec: Prompt specification, may be None.
@@ -598,12 +811,18 @@ class WorkflowContext:
         if not schema_name:
             return None
 
+        # Strip [] suffix for array types
+        if isinstance(schema_name, str) and schema_name.endswith("[]"):
+            schema_name = schema_name[:-2]
+
         return self._schemas.get(schema_name)
 
     def _enrich_prompt_with_schema(
         self,
         prompt_text: str,
         json_schema: dict[str, object],
+        *,
+        is_array: bool = False,
     ) -> str:
         """Append JSON format instructions to a prompt.
 
@@ -613,12 +832,21 @@ class WorkflowContext:
         Args:
             prompt_text: Original prompt text.
             json_schema: JSON Schema dict from Pydantic model.
+            is_array: If True, instruct LLM to return a JSON array of items.
 
         Returns:
             Enriched prompt with JSON instructions.
 
         """
         schema_str = json.dumps(json_schema, indent=2)
+        if is_array:
+            return (
+                f"{prompt_text}\n\n"
+                f"IMPORTANT: You MUST respond with a JSON array of objects, "
+                f"where each element matches this schema:\n"
+                f"```json\n{schema_str}\n```\n\n"
+                f"Do NOT include any text outside the JSON array."
+            )
         return (
             f"{prompt_text}\n\n"
             f"IMPORTANT: You MUST respond with valid JSON that matches this schema:\n"
@@ -731,9 +959,12 @@ class WorkflowContext:
         schema_model = self._get_schema_model(prompt_spec)
 
         # Enrich prompt with JSON instructions if schema expected
+        is_array = self._is_array_schema(prompt_spec)
         if schema_model:
             json_schema = schema_model.model_json_schema()
-            prompt_text = self._enrich_prompt_with_schema(prompt_text, json_schema)
+            prompt_text = self._enrich_prompt_with_schema(
+                prompt_text, json_schema, is_array=is_array,
+            )
 
         # Resolve model and yield call event
         resolved_model = model or self._resolve_agent_model(prompt_name)
@@ -749,6 +980,7 @@ class WorkflowContext:
             resolved_model=resolved_model,
             prompt_text=prompt_text,
             schema_model=schema_model,
+            is_array=is_array,
         ):
             yield event
 
@@ -759,6 +991,7 @@ class WorkflowContext:
         resolved_model: str,
         prompt_text: str,
         schema_model: type[BaseModel] | None,
+        is_array: bool = False,
     ) -> AsyncGenerator[FlowEvent, None]:
         """Execute LLM call with optional schema validation and retry.
 
@@ -767,6 +1000,7 @@ class WorkflowContext:
             resolved_model: Model identifier to use.
             prompt_text: The prompt text to send.
             schema_model: Pydantic model for validation, or None.
+            is_array: True if expecting an array of schema items.
 
         Yields:
             LlmResponseEvent on success.
@@ -803,8 +1037,19 @@ class WorkflowContext:
 
                 # Parse and validate response
                 parsed = self._parse_json_response(last_content)
-                validated = schema_model.model_validate(parsed)
-                self._last_call_result = validated.model_dump()
+
+                # Pre-process to handle JSON strings in nested fields
+                # Type is preserved (dict stays dict, list stays list)
+                parsed = deep_parse_json_strings(parsed)  # type: ignore[assignment]
+
+                if is_array:
+                    # Array schema: parse as list and validate each element
+                    self._validate_array_schema(
+                        parsed, last_content, schema_model,
+                    )
+                else:
+                    validated = schema_model.model_validate(parsed)
+                    self._last_call_result = validated.model_dump()
                 validation_succeeded = True
 
             except (JSONParseError, PydanticValidationError) as e:

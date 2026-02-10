@@ -184,7 +184,7 @@ agent main_agent:
     description "Main agent with multiple tools"
 
 flow main:
-    $result = run agent main_agent $input_prompt
+    $result = run agent main_agent with $input_prompt
     return $result
 """
         tree = parser.parse(source)

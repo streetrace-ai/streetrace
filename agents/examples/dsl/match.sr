@@ -47,13 +47,13 @@ agent default_agent:
     description "Handles general inquiries"
 
 flow handle_request:
-    $category = run agent classifier $input_prompt
+    $category = run agent classifier with $input_prompt
     match $category
-        when "billing" -> run agent billing_agent $input_prompt
-        when "technical" -> run agent technical_agent $input_prompt
-        when "sales" -> run agent sales_agent $input_prompt
-        when "feedback" -> run agent feedback_agent $input_prompt
-        else -> run agent default_agent $input_prompt
+        when "billing" -> run agent billing_agent with $input_prompt
+        when "technical" -> run agent technical_agent with $input_prompt
+        when "sales" -> run agent sales_agent with $input_prompt
+        when "feedback" -> run agent feedback_agent with $input_prompt
+        else -> run agent default_agent with $input_prompt
     end
 
 agent:
