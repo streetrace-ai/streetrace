@@ -92,3 +92,26 @@ class EscalationEvent(FlowEvent):
     """The escalation condition value that was matched against."""
 
     type: str = field(default="escalation", init=False)
+
+
+@dataclass
+class HistoryCompactionEvent(FlowEvent):
+    """Event emitted when conversation history is compacted.
+
+    Notify the user when history compaction occurs to maintain context
+    window limits. This provides visibility into automatic history management.
+    """
+
+    strategy: str
+    """The compaction strategy used: 'summarize' or 'truncate'."""
+
+    original_tokens: int
+    """Token count before compaction."""
+
+    compacted_tokens: int
+    """Token count after compaction."""
+
+    messages_removed: int
+    """Number of messages removed during compaction."""
+
+    type: str = field(default="history_compaction", init=False)

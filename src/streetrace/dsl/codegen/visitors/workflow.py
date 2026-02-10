@@ -548,6 +548,10 @@ class WorkflowVisitor:
             if agent.description:
                 self._emitter.emit(f"'description': {agent.description!r},")
 
+            # Optional: history management strategy
+            if agent.history:
+                self._emitter.emit(f"'history': '{agent.history}',")
+
             self._emitter.dedent()
             self._emitter.emit("},")
 

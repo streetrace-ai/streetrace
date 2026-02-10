@@ -255,6 +255,7 @@ def _filter_children(items: TransformerItems) -> list:
                 "TOOLS",
                 "INSTRUCTION",
                 "PRODUCES",
+                "HISTORY",
                 "FILTER",
                 "WHERE",
             }:
@@ -534,6 +535,19 @@ class AstTransformer(Transformer):
             if isinstance(item, Token):
                 try:
                     return {"max_tokens": int(item)}
+                except ValueError:
+                    continue
+        return {}
+
+    def model_max_input_tokens(self, items: TransformerItems) -> dict:
+        """Transform model_max_input_tokens rule."""
+        filtered = _filter_children(items)
+        for item in filtered:
+            if isinstance(item, int):
+                return {"max_input_tokens": item}
+            if isinstance(item, Token):
+                try:
+                    return {"max_input_tokens": int(item)}
                 except ValueError:
                     continue
         return {}
@@ -1247,6 +1261,7 @@ class AstTransformer(Transformer):
             prompt=body.get("prompt"),
             prompt_meta=body.get("prompt_meta"),
             produces=body.get("produces"),
+            history=body.get("history"),
             meta=_meta_to_position(meta),
         )
 
@@ -1309,6 +1324,16 @@ class AstTransformer(Transformer):
                 return {"produces": item}
             if isinstance(item, Token):
                 return {"produces": _get_token_value(item)}
+        return {}
+
+    def agent_history(self, items: TransformerItems) -> dict:
+        """Transform agent_history rule."""
+        filtered = _filter_children(items)
+        for item in filtered:
+            if isinstance(item, str):
+                return {"history": item}
+            if isinstance(item, Token):
+                return {"history": _get_token_value(item)}
         return {}
 
     def agent_retry(self, items: TransformerItems) -> dict:
