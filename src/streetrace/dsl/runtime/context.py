@@ -79,6 +79,42 @@ _JAILBREAK_PATTERNS = [
 """Patterns to detect common jailbreak attempts."""
 
 
+def deep_parse_json_strings(data: object) -> object:
+    """Recursively parse JSON strings in nested data structures.
+
+    LLMs sometimes return nested lists/objects as JSON strings instead of
+    actual arrays/objects. Recursively traverse the data and parse any
+    string values that look like JSON arrays or objects.
+
+    Args:
+        data: Data structure to process.
+
+    Returns:
+        Data with JSON strings parsed into native Python types.
+
+    """
+    if isinstance(data, dict):
+        return {key: deep_parse_json_strings(val) for key, val in data.items()}
+
+    if isinstance(data, list):
+        return [deep_parse_json_strings(item) for item in data]
+
+    if isinstance(data, str):
+        text = data.strip()
+        # Only try to parse strings that look like JSON arrays or objects
+        if (text.startswith("[") and text.endswith("]")) or (
+            text.startswith("{") and text.endswith("}")
+        ):
+            try:
+                parsed = json.loads(text)
+                # Recursively parse in case of nested JSON strings
+                return deep_parse_json_strings(parsed)
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+    return data
+
+
 class GuardrailProvider:
     """Provider for guardrail operations.
 
@@ -953,6 +989,10 @@ class WorkflowContext:
 
                 # Parse and validate response
                 parsed = self._parse_json_response(last_content)
+
+                # Pre-process to handle JSON strings in nested fields
+                # Type is preserved (dict stays dict, list stays list)
+                parsed = deep_parse_json_strings(parsed)  # type: ignore[assignment]
 
                 if is_array:
                     # Array schema: parse as list and validate each element

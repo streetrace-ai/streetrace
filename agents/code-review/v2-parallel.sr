@@ -14,6 +14,10 @@ model validator = anthropic/claude-sonnet-4-5
 tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_PERSONAL_ACCESS_TOKEN}"
 tool fs = builtin streetrace.fs
 
+# Default history compaction policy for all agents
+policy compaction:
+    strategy: summarize
+
 # -----------------------------------------------------------------------------
 # SCHEMAS
 # -----------------------------------------------------------------------------

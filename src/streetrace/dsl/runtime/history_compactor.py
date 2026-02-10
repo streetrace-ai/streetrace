@@ -191,10 +191,12 @@ class SummarizeStrategy(CompactionStrategy):
             result.append(first_message)
 
         if summary:
-            result.append({
-                "role": "system",
-                "content": f"[Previous conversation summary: {summary}]",
-            })
+            result.append(
+                {
+                    "role": "system",
+                    "content": f"[Previous conversation summary: {summary}]",
+                },
+            )
 
         result.extend(recent_messages)
 
@@ -382,19 +384,10 @@ def _count_message_tokens(
         Approximate token count.
 
     """
-    try:
-        import litellm
+    import litellm
 
-        result = litellm.token_counter(model=model, messages=messages)
-        return int(result)
-    except (ImportError, ValueError, RuntimeError):
-        # Fall back to rough estimation: ~4 chars per token
-        chars_per_token = 4
-        total_chars = sum(
-            len(str(msg.get("content", "")))
-            for msg in messages
-        )
-        return total_chars // chars_per_token
+    result = litellm.token_counter(model=model, messages=messages)
+    return int(result)
 
 
 def _get_context_window(
@@ -427,10 +420,10 @@ def _get_context_window(
         if max_tokens is not None:
             return int(max_tokens)
     except (ImportError, ValueError, RuntimeError, KeyError):
-        logger.debug("Could not get model info for %s", model)
+        raise
     except Exception:  # noqa: BLE001
         # LiteLLM raises generic Exception for unknown models
-        logger.debug("Could not get model info for %s", model)
+        logger.warning("Could not get model info for %s", model)
 
     return DEFAULT_CONTEXT_WINDOW
 
@@ -462,11 +455,7 @@ def extract_messages_from_events(events: list["Event"]) -> list[dict[str, object
         content: object = ""
         parts = getattr(event.content, "parts", None)
         if parts:
-            texts = [
-                part.text
-                for part in parts
-                if hasattr(part, "text") and part.text
-            ]
+            texts = [part.text for part in parts if hasattr(part, "text") and part.text]
             content = " ".join(texts)
 
         if content:

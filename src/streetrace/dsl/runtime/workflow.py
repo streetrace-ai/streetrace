@@ -8,7 +8,7 @@ from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
-from streetrace.dsl.runtime.context import WorkflowContext
+from streetrace.dsl.runtime.context import WorkflowContext, deep_parse_json_strings
 from streetrace.dsl.runtime.errors import JSONParseError, SchemaValidationError
 from streetrace.dsl.runtime.events import HistoryCompactionEvent
 from streetrace.dsl.runtime.history_compactor import (
@@ -161,6 +161,9 @@ class DslAgentWorkflow:
 
     _agents: ClassVar[dict[str, dict[str, object]]] = {}
     """Agent definitions for this workflow."""
+
+    _compaction_policy: ClassVar[dict[str, object] | None] = None
+    """Default compaction policy for history management."""
 
     def __init__(
         self,
@@ -399,6 +402,10 @@ class DslAgentWorkflow:
 
         # Parse JSON using context's method (let JSONParseError propagate)
         parsed = self._context._parse_json_response(raw_response)  # noqa: SLF001
+
+        # Pre-process to handle JSON strings in nested fields
+        # Type is preserved (dict stays dict, list stays list)
+        parsed = deep_parse_json_strings(parsed)  # type: ignore[assignment]
 
         # Validate against schema
         try:
@@ -950,6 +957,10 @@ class DslAgentWorkflow:
     def _get_agent_history_strategy(self, agent_name: str) -> str | None:
         """Get the history management strategy for an agent.
 
+        Priority:
+        1. Agent's explicit history property
+        2. Compaction policy's strategy (workflow default)
+
         Args:
             agent_name: Name of the agent.
 
@@ -958,11 +969,20 @@ class DslAgentWorkflow:
 
         """
         agent_def = self._agents.get(agent_name)
-        if not agent_def:
-            return None
 
-        history = agent_def.get("history")
-        return str(history) if history else None
+        # First check agent's explicit history property
+        if agent_def:
+            history = agent_def.get("history")
+            if history:
+                return str(history)
+
+        # Fall back to compaction policy if defined
+        if self._compaction_policy:
+            strategy = self._compaction_policy.get("strategy")
+            if strategy:
+                return str(strategy)
+
+        return None
 
     def _get_agent_model(self, agent_name: str) -> str:
         """Resolve the model name for an agent.
