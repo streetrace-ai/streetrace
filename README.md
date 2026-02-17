@@ -1,237 +1,227 @@
 # Streetrace
 
-Run autonomous AI agents anywhere Python runs.
+**Open runtime and DSL for structured multi-agent systems**
 
-Streetrace is an open-source agent runner that executes AI agents on workstations, servers, CI/CD pipelines, and cloud infrastructure. Define agents once, run them everywhere.
+Streetrace is an open-source runtime that lets you define and execute structured multi-agent systems anywhere Python runs — locally, in Docker, or in CI/CD workflows. It is designed for advanced agent workflows where agents behave as explicit systems, with guardrails and execution constraints.
 
-```bash
-pip install streetrace
-streetrace --model=gpt-4o --agent=coder
-```
+## Why Streetrace Exists
 
-## Why Streetrace
+Traditional AI agent tooling treats agents as informal prompt glue. Streetrace treats agents as systems. It enables:
 
-**Infrastructure agnostic.** The same agent definition runs in your terminal during development, in GitHub Actions for automated code review, or on Kubernetes for production workloads.
+* **Explicit agent definitions** via a simple DSL and Python abstractions
+* **Multi-agent orchestration** with controlled interactions
+* **Execution guardrails** via constraint handlers similar to structured safety tooling
+* **Flexible execution environments**: local, cloud, CI/CD (e.g., GitHub Actions)
 
-**Model agnostic.** Use any LLM provider through LiteLLM: OpenAI, Anthropic, Google, AWS Bedrock, Azure, Ollama, or any OpenAI-compatible endpoint.
+This makes Streetrace suitable for developers and platform engineers building structured agent systems, automation workflows, or CI-integrated agent tooling.
 
-**Protocol native.** Built on Google ADK with first-class support for MCP (Model Context Protocol) tools and A2A (Agent-to-Agent) communication.
+---
 
 ## Quick Start
 
 ### Install
 
 ```bash
-# Recommended
-pipx install streetrace
-
-# Or with pip
 pip install streetrace
 ```
 
-### Configure
+> Optional: install via `pipx` for isolated CLI usage.
 
-Set your model provider credentials:
+### Define and Run
+
+**Run an interactive agent:**
 
 ```bash
-# OpenAI
-export OPENAI_API_KEY="sk-..."
-
-# Anthropic
-export ANTHROPIC_API_KEY="sk-ant-..."
-
-# Google
-export GEMINI_API_KEY="..."
-
-# Local models (Ollama)
-export OLLAMA_API_URL="http://localhost:11434"
+streetrace --model=gpt-4o
 ```
 
-### Run
+**Run a named agent:**
 
 ```bash
-# Interactive mode
-streetrace --model=gpt-4o
-
-# Single prompt
-streetrace --model=claude-3-5-sonnet --prompt "Review the authentication module"
-
-# Specific agent
 streetrace --model=gpt-4o --agent=code_reviewer
 ```
 
-## Deployment Scenarios
+---
 
-### Local Development
+## What It Does Today
 
-Run agents interactively with file completion and session persistence:
+### 📌 Core Features
 
-```bash
-cd your-project
-streetrace --model=gpt-4o
-> @src/main.py refactor this module
+* **Python-based runtime** that works locally or in CI/CD
+* **DSL agent definitions** for structured workflows
+* **Multi-agent orchestration** with explicit execution semantics
+* **Constraint handling** for safe executions (work in progress but usable)
+* **Tool integrations** for common tasks (filesystem, CLI, search, etc.)
+
+### 🚫 Not Included (Yet)
+
+This project does *not* yet provide:
+
+* Built-in evaluation frameworks
+* Versioned agent lifecycle management
+* Centralized fleet or policy plane
+
+(*These are future roadmap items.*)
+
+---
+
+## Example Agent Definition
+
+```streetrace
+model main = anthropic/claude-sonnet
+model gpt = openai/gpt-5.2
+
+tool fs = builtin streetrace.fs
+tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_PAT}"
+
+retry default = 3 times, exponential backoff
+timeout default = 2 minutes
+
+on input do
+    mask pii
+    block if jailbreak
+end
+
+on output do
+    mask pii
+end
+
+prompt analyze_code using model gpt: """You are a historical context analysis expert. Analyze the historical context for the provided codebase."""
+
+prompt main_instruction: """You are a code analysis assistant. Help users analyze their codebase for quality issues. Available commands: Analyze a file or directory, Get recommendations for improvement, Explain specific issues."""
+
+agent code_analyzer:
+    tools fs, github
+    instruction analyze_code
+    description "Analyzes code quality"
+
+agent:
+    tools fs
+    instruction main_instruction
+    use code_analyzer
 ```
 
-### CI/CD Pipelines
+This file defines a structured agent with specific tool bindings.
 
-Integrate agents into automated workflows:
+---
 
-```yaml
-# GitHub Actions example
-- name: Code Review
-  run: |
-    pip install streetrace
-    streetrace --model=gpt-4o --agent=code_reviewer --prompt "Review changes in this PR"
-```
+## Usage Scenarios
 
 ### Server Deployment
 
-Run as a service with session management:
+Use Streetrace in server environments with session management:
 
 ```bash
-streetrace --model=gpt-4o \
-  --app-name=review-bot \
-  --session-id=$PR_NUMBER \
-  --prompt "$REVIEW_PROMPT" \
-  --out=review.md
+# Create .env file with required environment variables
+cat > .env << 'EOF'
+${dockerEnvVars}${dockerEnvVars ? '\n' : ''}
+# Configure Streetrace
+STREETRACE_API_KEY=<optional-streetrace.ai-key>
+STREETRACE_AGENT_ID=<agent-path-url-or-streetrace_id>
+# Optional user prompt
+STREETRACE_PROMPT=<your-value-here>
+EOF
+
+docker run --env-file .env streetrace/streetrace:latest
 ```
 
-## Creating Agents
+### CI/CD
 
-### YAML Definition
+Integrate agents into automated workflows such as GitHub Actions.
 
-Create `agents/my_agent.yml`:
+Run with Streetrace Cloud defined agent:
 
 ```yaml
-version: 1
-kind: agent
-name: MyAgent
-description: A specialized agent for your workflow
-
-instruction: |
-  You are a specialized agent that...
-
-tools:
-  - streetrace:
-      module: fs_tool
-      function: read_file
-  - streetrace:
-      module: cli_tool
-      function: execute_cli_command
-  - mcp:
-      name: github
-      server:
-        type: stdio
-        command: npx
-        args: ["-y", "@modelcontextprotocol/server-github"]
+name: Streetrace Agent
+on: [push]
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - id: streetrace
+        uses: streetrace-ai/github-action@main
+        with:
+          claims: |
+            agent_name: "code_analyzer"
+          prompt: YOUR PROMPT TO TRIGGER ANALYSIS.
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          STREETRACE_API_KEY: ${{ secrets.STREETRACE_API_KEY }}
 ```
 
-### Python Definition
-
-Create `agents/my_agent/agent.py`:
-
-```python
-from streetrace.agents.street_race_agent import StreetRaceAgent
-from streetrace.tools.tool_refs import StreetraceToolRef
-
-class MyAgent(StreetRaceAgent):
-    async def get_required_tools(self):
-        return [
-            StreetraceToolRef(module="fs_tool", function="read_file"),
-            StreetraceToolRef(module="cli_tool", function="execute_cli_command"),
-        ]
-
-    async def create_agent(self, model_factory, tool_provider, system_context):
-        return Agent(
-            name="My Agent",
-            model=model_factory.get_default_model(),
-            instruction="Your agent instructions...",
-            tools=tool_provider.get_tools(await self.get_required_tools()),
-        )
-```
-
-## Built-in Tools
-
-| Tool | Description |
-|------|-------------|
-| `read_file` | Read files from the working directory |
-| `write_file` | Create or update files |
-| `list_directory` | List directory contents |
-| `find_in_files` | Search for patterns across files |
-| `execute_cli_command` | Run shell commands with safety analysis |
-
-All tools are sandboxed to the working directory with path traversal prevention.
-
-## MCP Integration
-
-Connect to any MCP-compatible tool server:
+Or run your own agent defined in your repo:
 
 ```yaml
-tools:
-  - mcp:
-      name: filesystem
-      server:
-        type: stdio
-        command: npx
-        args: ["-y", "@modelcontextprotocol/server-filesystem"]
-      tools: ["edit_file", "move_file"]
+name: Streetrace Agent
+on: [push]
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: streetrace
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          STREETRACE_API_KEY: ${{ secrets.STREETRACE_API_KEY }}
+        run: |
+          pip install streetrace
+          streetrace --agent=./agents/code_analyzer.sr --prompt "Check new PR changes"
 ```
 
-Supported transports: STDIO, HTTP, SSE.
+### Local Dev
 
-## Project Context
-
-Add project-specific instructions in `.streetrace/`:
-
-```
-.streetrace/
-├── SYSTEM.md          # System instructions for the agent
-├── coding_guide.md    # Project coding standards
-└── architecture.md    # Architecture documentation
-```
-
-Files are automatically loaded as conversation context.
-
-## CLI Reference
-
-```
-streetrace [OPTIONS]
-
-Options:
-  --model TEXT          LiteLLM model identifier (required)
-  --agent TEXT          Agent to use (default: coder)
-  --path PATH           Working directory
-  --prompt TEXT         Non-interactive single prompt
-  --out PATH            Output file for response
-  --session-id TEXT     Session identifier for persistence
-  --cache               Enable Redis response caching
-  --verbose             Enable debug logging
-  --list-agents         List available agents
-  --list-sessions       List saved sessions
-  --help                Show help message
-```
-
-## Documentation
-
-- [Backend Configuration](docs/user/backend-configuration.md) - Model provider setup
-- [Using Tools](docs/user/using_tools.md) - Tool configuration and usage
-- [Redis Caching](docs/user/redis_caching.md) - Response caching setup
-
-## Development
+Run agents interactively as part of your development workflow:
 
 ```bash
-git clone https://github.com/streetrace-ai/streetrace.git
-cd streetrace
-poetry install
-poetry run streetrace --model=gpt-4o
+cd myproject
+streetrace --model=gpt-4o
 ```
 
-Run checks:
+---
 
-```bash
-make check  # Runs tests, linting, type checking, security scans
-```
+## Tools Included
+
+| Tool                  | Description                           |
+| --------------------- | ------------------------------------- |
+| `read_file`           | Read files from working dir           |
+| `write_file`          | Write/update files                    |
+| `list_directory`      | List contents                         |
+| `find_in_files`       | grep/glob file search                 |
+| `execute_cli_command` | Run shell commands with safety checks |
+
+All tools are sandboxed within the working directory.
+
+---
+
+## Docs and Next Steps
+
+See the `docs/` folder for:
+
+* Backend configuration
+* Model provider setup
+* Tool usage
+* Redis caching setup
+
+Link these pages so users can quickly go deeper.
+
+---
+
+## Contributing
+
+We welcome contributions. Before submitting a PR:
+
+1. Write or update tests
+2. Include documentation for new features
+3. Follow existing styling and patterns
+
+Check the `CONTRIBUTING.md` file for details.
+
+---
 
 ## License
 
-[MIT License](LICENSE)
+Streetrace is released under the **MIT License**.
