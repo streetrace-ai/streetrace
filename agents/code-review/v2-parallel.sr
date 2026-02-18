@@ -107,6 +107,7 @@ agent style_reviewer_agent:
 agent validator:
     tools github, fs
     instruction validator_instruction
+    prompt validator_prompt
     description "Validates findings by verifying code claims with tools"
     produces validated
 
@@ -285,33 +286,22 @@ prompt validator_instruction expecting ValidationResult: """You are a CODE REVIE
 Your job: Determine if this finding should be RETAINED or DISCARDED.
 Use Conclusion-First reasoning: state your decision, then explain why.
 
-## PR Context
-**Purpose**: $pr_description
-**Changes**: $changes_summary
+You have access to GitHub and filesystem tools. Use them to verify findings.
 
-Understanding the PR's intent helps you determine if a "problem" might be intentional.
-
----
-
-## Finding to Validate
-$finding
-
----
-
-## PR Diff (to verify finding is in changed code)
-$diff
-
----
+IMPORTANT: The PR context provided contains the repo owner, repo name, and PR number.
+When fetching diffs or PR information, ALWAYS use these values from the context.
+Do NOT check the latest commit - check the SPECIFIC PR mentioned in the context.
 
 ## Validation Steps (use tools as needed)
 
 ### Step 1: Verify Location Exists
 Use fs tools to read the file at the stated location.
 - Does the file exist?
-- Does the code at line $finding.line_start match the finding's description?
+- Does the code at the stated line match the finding's description?
 - If location is wrong → DISCARD (hallucination)
 
 ### Step 2: Verify In Changed Code
+Fetch the PR diff using the PR number from the context (NOT the latest commit).
 Check the diff to confirm this code was ADDED or MODIFIED in this PR.
 - If the issue is in unchanged code → DISCARD (pre-existing issue)
 - If the issue is in removed code → DISCARD (already fixed)
@@ -348,6 +338,25 @@ After verification, return:
 
 Include your reason for the decision."""
 
+prompt validator_prompt: """Please validate this finding:
+
+## PR Context
+$pr_context
+
+Understanding the PR's intent helps you determine if a "problem" might be intentional.
+
+---
+
+## Finding to Validate
+$finding
+
+---
+
+Use tools to verify:
+1. Read the file at $finding.file around lines $finding.line_start
+2. Fetch the PR diff (use the PR number from the context above)
+3. Verify the finding against actual code in that specific PR"""
+
 # -----------------------------------------------------------------------------
 # UTILITY PROMPTS
 # -----------------------------------------------------------------------------
@@ -363,7 +372,7 @@ Diff:
 
 ---
 
-$diff
+$input_prompt
 
 ---
 
@@ -415,22 +424,7 @@ $finding
 
 prompt patch_generator_instruction expecting Patch: """You are a PATCH GENERATOR for code review fixes.
 
-## Context
-You are working on a PR with the following purpose:
-$pr_description
-
-The PR implements these changes:
-$changes_summary
-
-## Issue to Fix
-You have identified the following issue:
-- **File**: $finding.file
-- **Lines**: $finding.line_start to $finding.line_end
-- **Category**: $finding.category
-- **Title**: $finding.title
-- **Description**: $finding.description
-- **Confidence**: $finding.confidence%
-- **Suggested Fix**: $finding.suggested_fix
+You will receive PR context and a finding to fix via the prompt.
 
 ## Your Task
 
@@ -767,16 +761,6 @@ Review EXCLUSIVELY for security vulnerabilities:
 - Path traversal vulnerabilities
 - Server-Side Request Forgery (SSRF)
 
-**Context:**
-$context
-
----
-
-**Code to Review:**
-$chunk
-
----
-
 $no_inference
 
 Return findings in the 'security' category only.
@@ -803,18 +787,6 @@ Review EXCLUSIVELY for logic bugs and runtime errors:
 - Missing break/return statements
 - Integer overflow/underflow
 
----
-
-**Context:**
-$context
-
----
-
-**Code to Review:**
-$chunk
-
----
-
 $no_inference
 
 Return findings in the 'bug' category only.
@@ -837,18 +809,6 @@ Review for SIGNIFICANT quality issues only:
 - Naming conventions (handled by linters)
 - Comment style or missing comments
 - Subjective preferences
-
----
-
-**Context:**
-$context
-
----
-
-**Code to Review:**
-$chunk
-
----
 
 $no_inference
 
@@ -874,17 +834,13 @@ $patches
 
 ---
 
-Statistics:
-- Total findings: $total
-- By severity: $by_severity
-- By category: $by_category
-
 Create the final review with:
 1. Executive summary (2-3 sentences)
-2. Findings grouped by severity (error > warning > notice)
-3. Inline-applicable patches
-4. Recommendation: approve | request_changes | comment
-5. Overall confidence score (weighted average)
+2. Compute statistics from findings (total, by severity, by category)
+3. Findings grouped by severity (error > warning > notice)
+4. Inline-applicable patches
+5. Recommendation: approve | request_changes | comment
+6. Overall confidence score (weighted average)
 
 $no_inference
 """

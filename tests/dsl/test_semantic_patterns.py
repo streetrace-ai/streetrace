@@ -649,3 +649,364 @@ class TestEdgeCases:
         analyzer = SemanticAnalyzer()
         result = analyzer.analyze(ast)
         assert result.is_valid
+
+
+# =============================================================================
+# Prompt Variable Validation Tests
+# =============================================================================
+
+
+class TestPromptVariableValidation:
+    """Test validation of variable references in prompt bodies."""
+
+    def test_unknown_variable_passes_when_no_similar_match(self) -> None:
+        """Unknown variable without similar match passes (assumed runtime var)."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(
+                    name="test_prompt",
+                    body="Hello $chunk_data!",  # No similar prompt/produces
+                    meta=SourcePosition(line=1, column=1),
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        # Passes because no similar symbol suggests it's a runtime variable
+        assert result.is_valid
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 0
+
+    def test_typo_of_prompt_produces_error(self) -> None:
+        """Typo of a defined prompt produces E0015 error."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(name="helper_prompt", body="Helper"),
+                PromptDef(
+                    name="test_prompt",
+                    body="Use $helpr_prompt here",  # Typo of helper_prompt
+                    meta=SourcePosition(line=2, column=1),
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        assert not result.is_valid
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 1
+        assert "helpr_prompt" in e0015_errors[0].message
+        assert e0015_errors[0].suggestion is not None
+        assert "helper_prompt" in e0015_errors[0].suggestion
+
+    def test_builtin_variable_valid(self) -> None:
+        """Built-in variables are valid in prompt bodies."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(
+                    name="test_prompt",
+                    body="Input: $input_prompt, Session: $session_id",
+                    meta=SourcePosition(line=1, column=1),
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        assert result.is_valid
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 0
+
+    def test_prompt_composition_valid(self) -> None:
+        """Referencing other prompts is valid in prompt bodies."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(
+                    name="helper_prompt",
+                    body="Be helpful and concise.",
+                ),
+                PromptDef(
+                    name="main_prompt",
+                    body="$helper_prompt Now answer the question.",
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        assert result.is_valid
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 0
+
+    def test_produces_variable_valid(self) -> None:
+        """Agent produces names are valid in prompts."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(name="fetcher_prompt", body="Fetch context"),
+                PromptDef(
+                    name="reviewer_prompt",
+                    body="Review using context: $pr_context",
+                ),
+                AgentDef(
+                    name="context_fetcher",
+                    tools=[],
+                    instruction="fetcher_prompt",
+                    produces="pr_context",
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        assert result.is_valid
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 0
+
+    def test_property_access_validates_base(self) -> None:
+        """Property access validates the base variable name."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(name="fetcher_prompt", body="Fetch data"),
+                PromptDef(
+                    name="test_prompt",
+                    body="File: $finding.file, Line: $finding.line_start",
+                ),
+                AgentDef(
+                    name="reviewer",
+                    tools=[],
+                    instruction="fetcher_prompt",
+                    produces="finding",
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        assert result.is_valid
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 0
+
+    def test_unknown_property_access_passes(self) -> None:
+        """Unknown base variable with property access passes (runtime var)."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(
+                    name="test_prompt",
+                    body="Value: $chunk.property",  # chunk is a runtime loop var
+                    meta=SourcePosition(line=1, column=1),
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        # Passes because 'chunk' doesn't match any known symbol closely
+        assert result.is_valid
+
+    def test_typo_property_access_errors(self) -> None:
+        """Typo of a known symbol with property access produces error."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(name="chunk_data", body="Chunk data"),
+                PromptDef(
+                    name="test_prompt",
+                    body="Value: $chunk_dat.property",  # Typo of chunk_data
+                    meta=SourcePosition(line=2, column=1),
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        assert not result.is_valid
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 1
+        assert "chunk_dat" in e0015_errors[0].message
+
+    def test_braced_variable_syntax_passes_when_unknown(self) -> None:
+        """Braced variable syntax ${var} passes for unknown runtime vars."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(
+                    name="test_prompt",
+                    body="Hello ${runtime_var}!",
+                    meta=SourcePosition(line=1, column=1),
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        # Passes because no similar symbol
+        assert result.is_valid
+
+    def test_empty_prompt_body_passes(self) -> None:
+        """Empty prompt body passes validation (no variables to check)."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(
+                    name="empty_prompt",
+                    body="",
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        # Empty body prompt will fail E0013 (prompt missing body) but not E0015
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 0
+
+    def test_typo_of_produces_name_errors(self) -> None:
+        """Typo of an agent produces name produces E0015 error."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(name="fetcher_prompt", body="Fetch"),
+                PromptDef(
+                    name="reviewer_prompt",
+                    body="Use $pr_contxt here",  # Typo of pr_context
+                    meta=SourcePosition(line=2, column=1),
+                ),
+                AgentDef(
+                    name="context_fetcher",
+                    tools=[],
+                    instruction="fetcher_prompt",
+                    produces="pr_context",
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        assert not result.is_valid
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 1
+        assert "pr_contxt" in e0015_errors[0].message
+        assert e0015_errors[0].suggestion is not None
+        assert "pr_context" in e0015_errors[0].suggestion
+
+
+# =============================================================================
+# Instruction Prompt Validation Tests
+# =============================================================================
+
+
+class TestInstructionPromptValidation:
+    """Test validation of variables in instruction prompts."""
+
+    def test_runtime_variable_in_instruction_errors(self) -> None:
+        """Runtime variable in instruction prompt produces E0016 error."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(
+                    name="my_instruction",
+                    body="Process this: $runtime_var",
+                    meta=SourcePosition(line=1, column=1),
+                ),
+                AgentDef(
+                    name="my_agent",
+                    tools=[],
+                    instruction="my_instruction",
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        assert not result.is_valid
+        e0016_errors = [e for e in result.errors if e.code == ErrorCode.E0016]
+        assert len(e0016_errors) == 1
+        assert "runtime_var" in e0016_errors[0].message
+        assert "my_instruction" in e0016_errors[0].message
+        assert "my_agent" in e0016_errors[0].message
+
+    def test_prompt_composition_in_instruction_valid(self) -> None:
+        """Prompt composition in instruction is valid."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(name="shared_rules", body="Follow these rules."),
+                PromptDef(
+                    name="my_instruction",
+                    body="$shared_rules Now do the work.",
+                ),
+                AgentDef(
+                    name="my_agent",
+                    tools=[],
+                    instruction="my_instruction",
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        assert result.is_valid
+        e0016_errors = [e for e in result.errors if e.code == ErrorCode.E0016]
+        assert len(e0016_errors) == 0
+
+    def test_multiple_runtime_vars_in_instruction(self) -> None:
+        """Multiple runtime variables in instruction produce multiple errors."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(
+                    name="my_instruction",
+                    body="Context: $context\nData: $data\nItem: $item.property",
+                    meta=SourcePosition(line=1, column=1),
+                ),
+                AgentDef(
+                    name="my_agent",
+                    tools=[],
+                    instruction="my_instruction",
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        assert not result.is_valid
+        e0016_errors = [e for e in result.errors if e.code == ErrorCode.E0016]
+        assert len(e0016_errors) == 3
+        error_messages = " ".join(e.message for e in e0016_errors)
+        assert "context" in error_messages
+        assert "data" in error_messages
+        assert "item" in error_messages
+
+    def test_non_instruction_prompt_allows_runtime_vars(self) -> None:
+        """Prompts not used as instructions can have runtime variables."""
+        ast = DslFile(
+            version=VersionDecl(version="1.0"),
+            statements=[
+                PromptDef(name="static_instruction", body="Do the work."),
+                PromptDef(
+                    name="runtime_prompt",
+                    body="Process: $data with $context",  # Runtime vars OK here
+                ),
+                AgentDef(
+                    name="my_agent",
+                    tools=[],
+                    instruction="static_instruction",
+                    prompt="runtime_prompt",  # This prompt is resolved at runtime
+                ),
+            ],
+        )
+        analyzer = SemanticAnalyzer()
+        result = analyzer.analyze(ast)
+
+        # Should pass - runtime_prompt is not an instruction
+        assert result.is_valid
+        e0016_errors = [e for e in result.errors if e.code == ErrorCode.E0016]
+        assert len(e0016_errors) == 0

@@ -34,6 +34,16 @@ type AdkTool = Callable[..., Any] | "BaseTool" | "BaseToolset"
 
 logger = get_logger(__name__)
 
+DEFAULT_HTTP_TIMEOUT_SECONDS = 30.0
+"""Default connection timeout for HTTP/SSE MCP transports.
+
+The MCP Streamable HTTP client opens concurrent connections (a GET stream
+for server-pushed messages and POSTs for requests).  When a server does not
+support GET (e.g. GitHub's MCP endpoint returns 405), the retry activity
+can cause subsequent POST connections to contend for the pool.  A 5-second
+default is too tight in that scenario; 30 seconds gives enough headroom.
+"""
+
 _STREETRACE_TOOLS_MODULE = "streetrace.tools"
 
 
@@ -282,20 +292,19 @@ class ToolProvider:
             return stdio_params
 
         if transport.type == "http":
-            # Build kwargs excluding None values for Pydantic validation
             kwargs: dict[str, Any] = {
                 "url": transport.url,
                 "headers": transport.headers or {},
+                "timeout": transport.timeout or DEFAULT_HTTP_TIMEOUT_SECONDS,
             }
-            if transport.timeout is not None:
-                kwargs["timeout"] = transport.timeout
             return StreamableHTTPConnectionParams(**kwargs)
 
         if transport.type == "sse":
-            # Build kwargs excluding None values for Pydantic validation
-            kwargs = {"url": transport.url, "headers": transport.headers or {}}
-            if transport.timeout is not None:
-                kwargs["timeout"] = transport.timeout
+            kwargs = {
+                "url": transport.url,
+                "headers": transport.headers or {},
+                "timeout": transport.timeout or DEFAULT_HTTP_TIMEOUT_SECONDS,
+            }
             return SseConnectionParams(**kwargs)
 
         msg = f"Unknown transport type: {transport.type}"

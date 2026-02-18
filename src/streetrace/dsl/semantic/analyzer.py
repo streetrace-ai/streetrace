@@ -4,6 +4,7 @@ Validate AST nodes for semantic correctness including reference
 resolution, variable scoping, and type checking.
 """
 
+import re
 from dataclasses import dataclass, field
 
 from streetrace.dsl.ast.nodes import (
@@ -30,6 +31,7 @@ from streetrace.dsl.ast.nodes import (
     ReturnStmt,
     RunStmt,
     SchemaDef,
+    SourcePosition,
     TimeoutPolicyDef,
     ToolDef,
     UnaryOp,
@@ -50,6 +52,28 @@ BUILTIN_VARIABLES = frozenset({
     "session_id",
     "turn_count",
 })
+
+# Pattern to match variable references in prompt bodies: $var or ${var} or $var.prop
+PROMPT_VAR_PATTERN = re.compile(
+    r"\$\{?([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\}?",
+)
+
+TYPO_SIMILARITY_THRESHOLD = 0.85
+"""Minimum LCS similarity ratio to consider a variable name a likely typo."""
+
+
+def _extract_prompt_variables(body: str) -> list[tuple[str, int]]:
+    """Extract variable references from prompt body.
+
+    Returns list of (base_variable_name, char_offset) tuples.
+    The base variable name is the root of any property access chain.
+    """
+    results = []
+    for match in PROMPT_VAR_PATTERN.finditer(body):
+        full_ref = match.group(1)
+        base_var = full_ref.split(".")[0]
+        results.append((base_var, match.start()))
+    return results
 
 
 @dataclass
@@ -125,6 +149,9 @@ class SemanticAnalyzer:
 
         # Second pass: validate references and scoping
         self._validate_references(ast)
+
+        # Third pass: validate instruction prompts don't use runtime variables
+        self._validate_instruction_prompts()
 
         # Validation passes if there are no actual errors (warnings don't fail)
         actual_errors = [e for e in self._errors if not e.is_warning]
@@ -509,6 +536,188 @@ class SemanticAnalyzer:
                         position=prompt.meta,
                     ),
                 )
+
+        # Validate variable references in body
+        self._validate_prompt_body_vars(prompt)
+
+    def _validate_prompt_body_vars(self, prompt: PromptDef) -> None:
+        """Validate variable references in prompt body.
+
+        Check for likely typos by comparing $variable references against
+        known symbols. Variables that appear to be typos of known prompts
+        or produces names generate errors. Unknown variables that don't
+        match any known symbol are assumed to be runtime variables.
+        """
+        if not prompt.body:
+            return
+
+        vars_in_body = _extract_prompt_variables(prompt.body)
+
+        for var_name, char_offset in vars_in_body:
+            if self._is_valid_prompt_var(var_name):
+                continue
+
+            # Check if this looks like a typo of a known symbol
+            typo_suggestion = self._find_likely_typo(var_name)
+            if typo_suggestion is not None:
+                self._add_error(
+                    SemanticError.undefined_prompt_variable(
+                        prompt=prompt.name,
+                        name=var_name,
+                        position=self._calc_var_position(prompt, char_offset),
+                        suggestion=typo_suggestion,
+                    ),
+                )
+            # If no similar match found, assume it's a valid runtime variable
+            # (e.g., flow variable, loop variable, or with binding)
+
+    def _is_valid_prompt_var(self, var_name: str) -> bool:
+        """Check if variable is valid in prompt context.
+
+        A variable is valid if it is:
+        - A built-in variable (input_prompt, conversation, etc.)
+        - Another prompt name (for composition)
+        - An agent produces name (becomes variable at runtime)
+        """
+        if var_name in BUILTIN_VARIABLES:
+            return True
+        if var_name in self._symbols.prompts:
+            return True
+        return self._is_known_produces_name(var_name)
+
+    def _find_likely_typo(self, name: str) -> str | None:
+        """Find if a variable name is likely a typo of a known symbol.
+
+        Use string similarity to detect likely typos. Only return a
+        suggestion if there's a very strong match indicating a typo.
+        """
+        candidates = list(BUILTIN_VARIABLES)
+        candidates.extend(self._symbols.prompts.keys())
+        candidates.extend(
+            a.produces for a in self._symbols.agents.values() if a.produces
+        )
+
+        name_lower = name.lower()
+        best_match = None
+        best_score = 0.0
+
+        for candidate in candidates:
+            candidate_lower = candidate.lower()
+            # Compute edit distance for close matches
+            score = self._similarity_score(name_lower, candidate_lower)
+            if score > best_score:
+                best_score = score
+                best_match = candidate
+
+        # Only suggest if very high similarity (likely typo)
+        if best_score >= TYPO_SIMILARITY_THRESHOLD and best_match is not None:
+            return f"did you mean '${best_match}'?"
+
+        return None
+
+    def _similarity_score(self, s1: str, s2: str) -> float:
+        """Compute similarity score between two strings.
+
+        Returns a value between 0 and 1 where 1 means identical.
+        Uses a simple algorithm based on longest common subsequence.
+        """
+        if s1 == s2:
+            return 1.0
+        if not s1 or not s2:
+            return 0.0
+
+        # Use length of longest common subsequence ratio
+        lcs_len = self._lcs_length(s1, s2)
+        max_len = max(len(s1), len(s2))
+        return lcs_len / max_len
+
+    def _lcs_length(self, s1: str, s2: str) -> int:
+        """Compute length of longest common subsequence."""
+        m, n = len(s1), len(s2)
+        # Use 1D DP for space efficiency
+        prev = [0] * (n + 1)
+        curr = [0] * (n + 1)
+
+        for i in range(1, m + 1):
+            for j in range(1, n + 1):
+                if s1[i - 1] == s2[j - 1]:
+                    curr[j] = prev[j - 1] + 1
+                else:
+                    curr[j] = max(prev[j], curr[j - 1])
+            prev, curr = curr, prev
+
+        return prev[n]
+
+    def _calc_var_position(
+        self,
+        prompt: PromptDef,
+        char_offset: int,
+    ) -> SourcePosition | None:
+        """Calculate position of variable within prompt body.
+
+        Walk through the prompt body counting lines and columns to
+        find the position of the variable reference.
+        """
+        if prompt.meta is None or not prompt.body:
+            return prompt.meta
+
+        line = prompt.meta.line
+        col = prompt.meta.column
+        for i, char in enumerate(prompt.body):
+            if i >= char_offset:
+                break
+            if char == "\n":
+                line += 1
+                col = 1
+            else:
+                col += 1
+        return SourcePosition(line=line, column=col)
+
+    def _validate_instruction_prompts(self) -> None:
+        """Validate that instruction prompts don't use runtime variables.
+
+        Instruction prompts are resolved at agent creation time when
+        runtime variables (produces, flow variables, loop variables) are
+        not yet available. Only prompt composition is allowed.
+        """
+        for agent_name, agent in self._symbols.agents.items():
+            if not agent.instruction:
+                continue
+
+            prompt = self._symbols.prompts.get(agent.instruction)
+            if prompt is None or not prompt.body:
+                continue
+
+            self._validate_instruction_body(prompt, agent_name)
+
+    def _validate_instruction_body(
+        self,
+        prompt: PromptDef,
+        agent_name: str,
+    ) -> None:
+        """Validate an instruction prompt body for runtime variables.
+
+        Args:
+            prompt: The instruction prompt definition.
+            agent_name: Name of the agent using this instruction.
+
+        """
+        vars_in_body = _extract_prompt_variables(prompt.body)
+
+        for var_name, char_offset in vars_in_body:
+            # Prompt composition is allowed - referencing other prompts
+            if var_name in self._symbols.prompts:
+                continue
+
+            # Any other variable is a runtime variable (not available at creation)
+            self._add_error(
+                SemanticError.instruction_runtime_variable(
+                    prompt=prompt.name,
+                    name=var_name,
+                    agent=agent_name,
+                    position=self._calc_var_position(prompt, char_offset),
+                ),
+            )
 
     def _validate_agent_refs(self, agent: AgentDef) -> None:
         """Validate references in an agent definition."""
