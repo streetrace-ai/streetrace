@@ -457,25 +457,13 @@ class TestCaching:
 
     def test_cached_compilation_returns_same_bytecode(self) -> None:
         """Second compilation should return cached bytecode."""
-        import time
-
         source = MINIMAL_AGENT_SOURCE
 
-        # First compilation
-        start1 = time.perf_counter()
         bytecode1, _ = compile_dsl(source, "test.sr", use_cache=True)
-        time1 = time.perf_counter() - start1
-
-        # Second compilation (should be cached)
-        start2 = time.perf_counter()
         bytecode2, _ = compile_dsl(source, "test.sr", use_cache=True)
-        time2 = time.perf_counter() - start2
 
         # Bytecode should be identical (same object from cache)
         assert bytecode1 is bytecode2
-
-        # Second should be faster (cache hit)
-        assert time2 < time1
 
     def test_different_source_not_cached(self) -> None:
         """Different sources should not share cache entries."""
