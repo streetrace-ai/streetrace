@@ -190,8 +190,15 @@ class Supervisor(InputHandler):
         )
 
         parts = [genai_types.Part.from_text(text=item) for item in ctx]
+        logger.debug(
+            "Supervisor.handle: created %d parts from ctx (user_input=%r)",
+            len(parts),
+            ctx.user_input[:100] if ctx.user_input else None,
+        )
 
         content = genai_types.Content(role="user", parts=parts) if parts else None
+        if content is None:
+            logger.warning("Supervisor.handle: content is None (no parts created)")
         final_response_text: str | None = DEFAULT_NO_RESPONSE_MSG
 
         session = await self.session_manager.get_or_create_session()

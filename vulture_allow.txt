@@ -473,3 +473,7 @@ _.model_max_input_tokens  # unused method - called by Lark transformer
 _.agent_history  # unused method - called by Lark transformer
 compacted_messages  # unused variable (history_compactor.py) - dataclass field for CompactionResult
 _.count_tokens  # unused method (history_compactor.py) - public API for token counting
+
+# CompactingRunner - mid-run compaction infrastructure
+is_tool_result_event  # unused function (compacting_runner.py) - utility for detecting tool results
+SummarizeCompactionStrategy  # unused class (compacting_runner.py) - strategy for LLM-based summarization
