@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 from streetrace.dsl.runtime.compacting_runner import (
-    CompactingRunner,
     CompactionStrategy,
     SummarizeCompactionStrategy,
     TruncateCompactionStrategy,
@@ -35,6 +34,7 @@ if TYPE_CHECKING:
     from streetrace.llm.model_factory import ModelFactory
     from streetrace.system_context import SystemContext
     from streetrace.tools.tool_provider import ToolProvider
+    from streetrace.workloads.agent_executor import CompactionParams
     from streetrace.workloads.dsl_agent_factory import DslAgentFactory
 
 logger = get_logger(__name__)
@@ -243,11 +243,18 @@ class DslAgentWorkflow:
             agent_factory: DslAgentFactory for agent creation.
 
         """
+        from streetrace.workloads.agent_executor import (
+            AgentExecutor,
+            CompactionParams,
+        )
+
         self._model_factory = model_factory
         self._tool_provider = tool_provider
         self._system_context = system_context
         self._session_service = session_service
         self._agent_factory = agent_factory
+        self._executor = AgentExecutor(session_service=session_service)
+        self._compaction_params_cls = CompactionParams
         self._context: WorkflowContext | None = None
         self._created_agents: list[BaseAgent] = []
 
@@ -399,6 +406,20 @@ class DslAgentWorkflow:
         # Default to truncate strategy
         return TruncateCompactionStrategy(keep_recent=6)
 
+    def _build_compaction_params(
+        self,
+        agent_name: str,
+    ) -> "CompactionParams | None":
+        """Build compaction params for an agent, or None if not configured."""
+        strategy = self._create_compaction_strategy(agent_name)
+        if strategy is None:
+            return None
+        return self._compaction_params_cls(
+            strategy=strategy,
+            max_tokens=self._get_model_max_input_tokens(agent_name),
+            model=self._get_agent_model(agent_name),
+        )
+
     async def _execute_agent(
         self,
         agent_name: str,
@@ -407,8 +428,8 @@ class DslAgentWorkflow:
     ) -> AsyncGenerator["Event", None]:
         """Execute an agent and yield events.
 
-        Uses CompactingRunner for proactive mid-run compaction when a history
-        strategy is configured. Falls back to standard Runner otherwise.
+        Delegate to AgentExecutor which handles Runner creation, optional
+        compaction, and async generator lifecycle.
 
         Args:
             agent_name: Name of the agent to execute.
@@ -419,50 +440,17 @@ class DslAgentWorkflow:
             ADK events from execution.
 
         """
-        from google.adk import Runner
-
         agent = await self._create_agent(agent_name)
 
-        # Use the provided session service
-        if not self._session_service:
-            msg = "Session service not available for agent execution"
-            raise ValueError(msg)
+        compaction = self._build_compaction_params(agent_name)
 
-        # Check if compaction is configured for this agent
-        compaction_strategy = self._create_compaction_strategy(agent_name)
-
-        if compaction_strategy:
-            # Use CompactingRunner for proactive mid-run compaction
-            model = self._get_agent_model(agent_name)
-            max_tokens = self._get_model_max_input_tokens(agent_name)
-
-            compacting_runner = CompactingRunner(
-                session_service=self._session_service,
-                compaction_strategy=compaction_strategy,
-                max_tokens=max_tokens,
-                model=model,
-            )
-
-            async for event in compacting_runner.run(
-                agent=agent,
-                session=session,
-                message=message,
-            ):
-                yield event
-        else:
-            # Use standard Runner for agents without compaction
-            runner = Runner(
-                app_name=session.app_name,
-                session_service=self._session_service,
-                agent=agent,
-            )
-
-            async for event in runner.run_async(
-                user_id=session.user_id,
-                session_id=session.id,
-                new_message=message,
-            ):
-                yield event
+        async for event in self._executor.run(
+            agent=agent,
+            session=session,
+            message=message,
+            compaction=compaction,
+        ):
+            yield event
 
     def _extract_message_text(self, message: "Content | None") -> str:
         """Extract text content from a message.
@@ -748,10 +736,10 @@ class DslAgentWorkflow:
         agent_name: str,
         *args: object,
     ) -> tuple[object, list["Event"]]:
-        """Execute a single agent run and collect events.
+        """Execute an agent from a flow, collecting events and final response.
 
-        Uses CompactingRunner for proactive mid-run compaction when a history
-        strategy is configured. Falls back to standard Runner otherwise.
+        Build a child session and message content from args, then delegate
+        to AgentExecutor for actual execution.
 
         Args:
             agent_name: Name of the agent to run.
@@ -761,7 +749,6 @@ class DslAgentWorkflow:
             Tuple of (final_response, collected_events).
 
         """
-        from google.adk import Runner
         from google.genai import types as genai_types
 
         agent = await self._create_agent(agent_name)
@@ -788,11 +775,6 @@ class DslAgentWorkflow:
         # Derive session identifiers from parent context
         app_name, user_id, session_id = self._derive_session_identifiers(agent_name)
 
-        # Use shared session service for session continuity
-        if not self._session_service:
-            msg = "Session service not available for agent execution"
-            raise ValueError(msg)
-
         # Create child session if it doesn't exist
         existing = await self._session_service.get_session(
             app_name=app_name,
@@ -807,48 +789,22 @@ class DslAgentWorkflow:
                 state={},
             )
 
-        # Check if compaction is configured for this agent
-        compaction_strategy = self._create_compaction_strategy(agent_name)
+        # Resolve compaction parameters
+        compaction = self._build_compaction_params(agent_name)
 
+        # Execute via AgentExecutor and collect events + final response
         final_response: object = None
         collected_events: list[Event] = []
 
-        if compaction_strategy:
-            # Use CompactingRunner for proactive mid-run compaction
-            model = self._get_agent_model(agent_name)
-            max_tokens = self._get_model_max_input_tokens(agent_name)
-
-            compacting_runner = CompactingRunner(
-                session_service=self._session_service,
-                compaction_strategy=compaction_strategy,
-                max_tokens=max_tokens,
-                model=model,
-            )
-
-            async for event in compacting_runner.run(
-                agent=agent,
-                session=existing,
-                message=content,
-            ):
-                collected_events.append(event)
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
-        else:
-            # Use standard Runner for agents without compaction
-            runner = Runner(
-                app_name=app_name,
-                session_service=self._session_service,
-                agent=agent,
-            )
-
-            async for event in runner.run_async(
-                user_id=user_id,
-                session_id=session_id,
-                new_message=content,
-            ):
-                collected_events.append(event)
-                if event.is_final_response() and event.content and event.content.parts:
-                    final_response = event.content.parts[0].text
+        async for event in self._executor.run(
+            agent=agent,
+            session=existing,
+            message=content,
+            compaction=compaction,
+        ):
+            collected_events.append(event)
+            if event.is_final_response() and event.content and event.content.parts:
+                final_response = event.content.parts[0].text
 
         return final_response, collected_events
 
@@ -951,7 +907,7 @@ class DslAgentWorkflow:
         """Execute multiple agents in parallel using ADK ParallelAgent.
 
         Create sub-agents with output_key for result storage in session state,
-        wrap them in a ParallelAgent, and execute using Runner. Events are
+        wrap them in a ParallelAgent, and execute via AgentExecutor. Events are
         yielded as they occur, and results are stored directly in ctx.vars.
 
         The order of events and results from parallel execution is non-deterministic.
@@ -965,7 +921,6 @@ class DslAgentWorkflow:
             ADK events from parallel agent execution.
 
         """
-        from google.adk import Runner
         from google.adk.agents import ParallelAgent
         from google.genai import types as genai_types
 
@@ -1010,11 +965,6 @@ class DslAgentWorkflow:
             parts = [genai_types.Part.from_text(text=prompt_text)]
             content = genai_types.Content(role="user", parts=parts)
 
-        # Use shared session service for session continuity
-        if not self._session_service:
-            msg = "Session service not available for parallel agent execution"
-            raise ValueError(msg)
-
         # Derive session identifiers for the parallel block
         app_name, user_id, base_session_id = self._derive_session_identifiers(
             "parallel_block",
@@ -1029,24 +979,18 @@ class DslAgentWorkflow:
             session_id=session_id,
         )
         if existing is None:
-            await self._session_service.create_session(
+            existing = await self._session_service.create_session(
                 app_name=app_name,
                 user_id=user_id,
                 session_id=session_id,
                 state={},
             )
 
-        runner = Runner(
-            app_name=app_name,
-            session_service=self._session_service,
+        # Execute ParallelAgent via AgentExecutor
+        async for event in self._executor.run(
             agent=parallel_agent,
-        )
-
-        # Execute ParallelAgent and yield events as they occur
-        async for event in runner.run_async(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=content,
+            session=existing,
+            message=content,
         ):
             yield event
 
@@ -1309,10 +1253,15 @@ class DslAgentWorkflow:
         if not messages:
             return
 
-        # Create compactor with strategy
+        # Create compactor with strategy, reusing SummarizeLlm protocol
+        llm_adapter = None
+        if strategy == "summarize" and self._model_factory:
+            model_id = self._get_agent_model(agent_name)
+            llm_adapter = SummarizeLlmAdapter(self._model_factory, model_id)
+
         compactor = HistoryCompactor(
             strategy=strategy,
-            llm_client=None,  # LLM client for summarize strategy (future enhancement)
+            llm=llm_adapter,
         )
 
         # Check if compaction is needed

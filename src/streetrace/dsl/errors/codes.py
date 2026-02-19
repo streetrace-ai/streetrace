@@ -6,10 +6,6 @@ categorizing and identifying specific error conditions.
 
 from enum import Enum
 
-from streetrace.log import get_logger
-
-logger = get_logger(__name__)
-
 # Error code category boundaries
 _REFERENCE_MAX = 3
 """Maximum error code number for reference errors."""
@@ -81,6 +77,15 @@ class ErrorCode(str, Enum):
     E0016 = "E0016"
     """Instruction prompt references runtime variable."""
 
+    E0012 = "E0012"
+    """Escalate continue used outside loop context."""
+
+    E0013 = "E0013"
+    """Prompt has no body after merging all definitions."""
+
+    E0014 = "E0014"
+    """Conflicting prompt modifier values."""
+
     # Warning codes (W0xxx)
     W0002 = "W0002"
     """Agent has both delegate and use properties (unusual pattern)."""
@@ -105,39 +110,3 @@ class ErrorCode(str, Enum):
         return "semantic"
 
 
-# Error message templates for each code
-ERROR_MESSAGES: dict[ErrorCode, str] = {
-    ErrorCode.E0001: "undefined reference to {kind} '{name}'",
-    ErrorCode.E0002: "variable '${name}' used before definition",
-    ErrorCode.E0003: "duplicate definition of {kind} '{name}'",
-    ErrorCode.E0004: "type mismatch: expected {expected}, got {actual}",
-    ErrorCode.E0005: "import file not found: {path}",
-    ErrorCode.E0006: "circular import detected: {cycle}",
-    ErrorCode.E0007: "invalid token or unexpected end of input",
-    ErrorCode.E0008: "mismatched indentation",
-    ErrorCode.E0009: "invalid guardrail action '{action}' in {context} context",
-    ErrorCode.E0010: "missing required property '{field}' in {kind}",
-    ErrorCode.E0011: "circular agent reference detected: {cycle}",
-    ErrorCode.E0015: "prompt '{prompt}' references undefined variable '${name}'",
-    ErrorCode.E0016: "instruction '{prompt}' references runtime variable '${name}'",
-    ErrorCode.W0002: "agent '{name}' has both delegate and use (unusual pattern)",
-}
-
-
-def format_error_message(code: ErrorCode, **kwargs: str) -> str:
-    """Format an error message with the given parameters.
-
-    Args:
-        code: The error code.
-        **kwargs: Parameters to substitute in the message template.
-
-    Returns:
-        Formatted error message string.
-
-    """
-    template = ERROR_MESSAGES.get(code, "unknown error")
-    try:
-        return template.format(**kwargs)
-    except KeyError as e:
-        logger.warning("Missing parameter for error message: %s", e)
-        return template

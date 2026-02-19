@@ -6,7 +6,7 @@ rustc-style error formatting.
 
 import json
 
-from streetrace.dsl.errors.codes import ErrorCode, format_error_message
+from streetrace.dsl.errors.codes import ErrorCode
 from streetrace.dsl.errors.diagnostics import Diagnostic, Severity
 from streetrace.dsl.errors.reporter import (
     DiagnosticReporter,
@@ -43,39 +43,6 @@ class TestErrorCode:
         ]
         for code in expected_codes:
             assert code in [e.value for e in ErrorCode]
-
-
-class TestFormatErrorMessage:
-    """Test error message formatting."""
-
-    def test_format_undefined_reference(self) -> None:
-        """Format undefined reference error."""
-        msg = format_error_message(
-            ErrorCode.E0001,
-            kind="model",
-            name="fast",
-        )
-        assert "model" in msg
-        assert "fast" in msg
-
-    def test_format_variable_before_definition(self) -> None:
-        """Format variable used before definition error."""
-        msg = format_error_message(
-            ErrorCode.E0002,
-            name="result",
-        )
-        assert "$result" in msg
-
-    def test_format_missing_parameter_gracefully(self) -> None:
-        """Handle missing parameters gracefully."""
-        msg = format_error_message(ErrorCode.E0001)
-        # Should return template even with missing params
-        assert "undefined" in msg
-
-
-# =============================================================================
-# Diagnostic Tests
-# =============================================================================
 
 
 class TestDiagnostic:

@@ -282,7 +282,6 @@ _.LOCAL_PATH  # unused method - called by Lark transformer for LOCAL_PATH tokens
 _.PIP_URI  # unused method - called by Lark transformer for PIP_URI tokens
 _.MCP_URI  # unused method - called by Lark transformer for MCP_URI tokens
 _.INTERPOLATED_STRING  # unused method - called by Lark transformer for INTERPOLATED_STRING tokens
-_get_meta  # unused function - helper for extracting source positions from Lark trees
 
 # AST Node dataclass fields - these are used when processing/analyzing AST nodes
 literal_type  # unused variable (nodes.py) - dataclass field for Literal node
@@ -382,7 +381,6 @@ run_dump_python  # unused function (cli.py) - CLI entry point for dump-python co
 _.invalidate  # unused method (cache.py) - public API for cache invalidation
 
 # Error codes and diagnostics - public API
-format_error_message  # unused function (codes.py) - public API for formatting error messages
 _.with_help  # unused method (diagnostics.py) - public API for adding help text
 _.with_note  # unused method (diagnostics.py) - public API for adding related notes
 
@@ -402,7 +400,6 @@ source_path  # unused variable (metadata.py) - dataclass field for WorkloadMetad
 # WorkloadManager - public API methods
 _.create_workload_from_definition  # unused method (manager.py) - public API for definition-based workloads
 _.discover_definitions  # unused method (manager.py) - public API for discovering workload definitions
-_._find_workload_files  # unused method (manager.py) - helper method used for discovery
 
 # DefinitionLoader - public API and implementations
 _.load_from_source  # unused method (loader.py) - public API for loading from identifier
@@ -445,7 +442,6 @@ _.run_agent_with_escalation  # unused method (context.py) - public API for runni
 _.get_last_result_with_escalation  # unused method (context.py) - public API for getting result with escalation flag
 
 # YAML agent loader helper functions - used by tests and YamlDefinitionLoader
-_load_agent_yaml  # unused function (yaml_agent_loader.py) - used by tests and internal loading
 
 # YamlAgentDocument methods - used by tests
 _.get_name  # unused method (yaml_models.py) - public API for getting agent name

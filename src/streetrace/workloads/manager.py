@@ -641,33 +641,6 @@ class WorkloadManager:
             session_service=self.session_service,
         )
 
-    def _find_workload_files(self) -> list[Path]:
-        """Find all loadable workload files in search paths.
-
-        Uses SourceResolver to discover all agents in search locations.
-
-        Returns:
-            List of paths to loadable workload files
-
-        """
-        files: list[Path] = []
-
-        # Flatten search paths for discovery
-        all_paths = []
-        for _, paths in self.search_locations:
-            all_paths.extend(paths)
-
-        # Use SourceResolver to discover all agents
-        resolver = SourceResolver(http_auth=self.http_auth)
-        discovered = resolver.discover(all_paths)
-
-        # Extract file paths from resolutions
-        for resolution in discovered.values():
-            if resolution.file_path and resolution.file_path not in files:
-                files.append(resolution.file_path)
-
-        return files
-
     def _get_loader_for_format(self, fmt: str | None) -> DefinitionLoader | None:
         """Get the appropriate definition loader for a format.
 

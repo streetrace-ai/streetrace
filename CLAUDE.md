@@ -24,6 +24,8 @@ StreetRace🚗💨 is an agentic AI coding partner designed to help engineers le
 - **Find unused code**: `poetry run vulture src vulture_allow.txt` or `make unusedcode`
 - **Run all checks**: `make check` (runs test, lint, typed, security, depcheck, unusedcode)
 
+**vulture_allow.txt policy**: Entries in `vulture_allow.txt` may ONLY be added for structurally rational reasons where code is genuinely used but vulture cannot detect it (e.g., Lark transformer methods called by name, Pydantic validators, dynamically dispatched functions, dataclass fields, public API surface). NEVER add entries to suppress warnings about actually dead code - instead, delete the dead code. Each entry MUST include a comment explaining why the code appears unused to vulture but is actually reachable.
+
 **Important**: Run `make check` frequently during development and address all reported issues immediately before committing.
 
 ### Coverage and Profiling

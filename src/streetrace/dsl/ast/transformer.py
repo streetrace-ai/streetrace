@@ -67,18 +67,6 @@ from streetrace.log import get_logger
 logger = get_logger(__name__)
 
 
-def _get_meta(tree: Tree[Token]) -> SourcePosition | None:
-    """Extract source position from Lark tree metadata."""
-    if tree.meta and tree.meta.line is not None:
-        return SourcePosition(
-            line=tree.meta.line,
-            column=tree.meta.column,
-            end_line=tree.meta.end_line,
-            end_column=tree.meta.end_column,
-        )
-    return None
-
-
 def _meta_to_position(meta: object) -> SourcePosition | None:
     """Convert Lark meta object to SourcePosition.
 

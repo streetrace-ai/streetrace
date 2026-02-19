@@ -56,17 +56,6 @@ def _parse_yaml_string(content: str, source: str) -> dict[str, Any]:
         return data
 
 
-def _load_yaml_file(file_path: Path) -> dict[str, Any]:
-    """Load and parse YAML file."""
-    try:
-        with file_path.open("r", encoding="utf-8") as f:
-            content = f.read()
-        return _parse_yaml_string(content, str(file_path))
-    except OSError as e:
-        msg = f"Failed to read file: {e}"
-        raise AgentValidationError(msg, file_path, e) from e
-
-
 def _load_agent_by_identifier(
     identifier: str,
     resolver: SourceResolver,
@@ -245,54 +234,3 @@ def _resolve_agent_refs(
     )
 
 
-def _load_agent_yaml(
-    file_path: Path,
-    visited: set[Path | str] | None = None,
-    depth: int = 0,
-    resolver: SourceResolver | None = None,
-) -> YamlAgentDocument:
-    """Load an agent from a YAML file.
-
-    Args:
-        file_path: Path to the agent YAML file
-        visited: Set of visited identifiers (paths, URLs, names) for cycle detection
-        depth: Current recursion depth
-        resolver: Source resolver for $ref resolution
-
-    Returns:
-        YamlAgentDocument with resolved references
-
-    Raises:
-        AgentValidationError: If loading or validation fails
-
-    """
-    if visited is None:
-        visited = set()
-
-    if resolver is None:
-        resolver = SourceResolver()
-
-    file_path = file_path.resolve()
-
-    if not file_path.exists():
-        msg = f"Agent file not found: {file_path}"
-        raise AgentValidationError(msg, file_path)
-
-    # Load and parse YAML
-    data = _load_yaml_file(file_path)
-
-    # Validate and parse with Pydantic
-    try:
-        spec = YamlAgentSpec.model_validate(data)
-    except ValidationError as e:
-        msg = f"Agent specification validation failed for {file_path}: {e}"
-        raise AgentValidationError(msg, file_path, e) from e
-
-    # Additional validation
-    _validate_agent_spec(spec, file_path, depth)
-
-    # Resolve references
-    visited.add(file_path)
-    resolved_spec = _resolve_agent_refs(spec, file_path, visited, depth, resolver)
-
-    return YamlAgentDocument(spec=resolved_spec, file_path=file_path)
