@@ -486,8 +486,11 @@ class CompactingRunner:
                     # Track if this event was a tool call
                     last_event_was_tool_call = is_tool_call_event(event)
 
-                    # Check threshold, but don't compact after tool call (wait for result)
-                    if running_token_count >= threshold and not last_event_was_tool_call:
+                    # Check threshold, don't compact after tool call (wait for result)
+                    if (
+                        running_token_count >= threshold
+                        and not last_event_was_tool_call
+                    ):
                         logger.info(
                             "Token threshold reached (%d >= %d), triggering compaction",
                             running_token_count,
