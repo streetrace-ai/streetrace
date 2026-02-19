@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, override
 
 from opentelemetry import trace
 
-from streetrace.dsl.runtime.events import FlowEvent, LlmResponseEvent
+from streetrace.dsl.runtime.events import FlowEvent, FlowResultEvent, LlmResponseEvent
 from streetrace.input_handler import (
     HANDLED_CONT,
     HandlerResult,
@@ -23,6 +23,36 @@ if TYPE_CHECKING:
     from streetrace.workloads import WorkloadManager
 
 logger = get_logger(__name__)
+
+
+def _log_dsl_exception(workload_name: str, exc: BaseException) -> None:
+    """Log a workload exception with source-map-translated line numbers.
+
+    If the traceback passes through generated DSL code, translate the
+    generated Python line numbers back to ``.sr`` source lines so the
+    log is actionable.  Fall back to the raw traceback when no source
+    map is available.
+
+    Args:
+        workload_name: Name of the workload that failed.
+        exc: The inner exception to log.
+
+    """
+    try:
+        from streetrace.dsl.compiler import get_source_map_registry
+        from streetrace.dsl.sourcemap.excepthook import (
+            format_exception_with_source_map,
+        )
+
+        registry = get_source_map_registry()
+        translated = format_exception_with_source_map(
+            type(exc), exc, exc.__traceback__, registry,
+        )
+        logger.error(
+            "Error running workload '%s'\n%s", workload_name, translated,
+        )
+    except ImportError:
+        logger.exception("Error running workload '%s'", workload_name)
 
 
 def _format_exception_message(exc: BaseException) -> str:
@@ -90,6 +120,16 @@ class Supervisor(InputHandler):
             Updated response text if this event provides a final response.
 
         """
+        import json
+
+        # FlowResultEvent takes precedence - it's the explicit return value
+        if isinstance(event, FlowResultEvent):
+            result = event.result
+            if isinstance(result, str):
+                return result
+            # Serialize non-string results to JSON
+            return json.dumps(result, indent=2, default=str)
+
         if (
             isinstance(event, LlmResponseEvent)
             and event.is_final
@@ -150,8 +190,15 @@ class Supervisor(InputHandler):
         )
 
         parts = [genai_types.Part.from_text(text=item) for item in ctx]
+        logger.debug(
+            "Supervisor.handle: created %d parts from ctx (user_input=%r)",
+            len(parts),
+            ctx.user_input[:100] if ctx.user_input else None,
+        )
 
         content = genai_types.Content(role="user", parts=parts) if parts else None
+        if content is None:
+            logger.warning("Supervisor.handle: content is None (no parts created)")
         final_response_text: str | None = DEFAULT_NO_RESPONSE_MSG
 
         session = await self.session_manager.get_or_create_session()
@@ -207,8 +254,9 @@ class Supervisor(InputHandler):
             )
             raise
         except* BaseException as err_group:
-            logger.exception("Error running workload '%s'", workload_name)
-            error_msg = _format_exception_message(err_group.exceptions[0])
+            inner = err_group.exceptions[0]
+            _log_dsl_exception(workload_name, inner)
+            error_msg = _format_exception_message(inner)
             self.ui_bus.dispatch_ui_update(
                 ui_events.Error(f"'{workload_name}': {error_msg}"),
             )

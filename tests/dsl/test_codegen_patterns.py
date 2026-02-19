@@ -304,7 +304,7 @@ class TestLoopBlockCodeGeneration:
                             max_iterations=5,
                             body=[
                                 Assignment(
-                                    target="$counter",
+                                    target="counter",
                                     value=Literal(value=1, literal_type="int"),
                                 ),
                             ],
@@ -367,11 +367,11 @@ class TestLoopBlockCodeGeneration:
                             max_iterations=3,
                             body=[
                                 Assignment(
-                                    target="$x",
+                                    target="x",
                                     value=Literal(value=1, literal_type="int"),
                                 ),
                                 Assignment(
-                                    target="$y",
+                                    target="y",
                                     value=Literal(value=2, literal_type="int"),
                                 ),
                             ],
@@ -534,7 +534,7 @@ class TestGeneratedCodeCompilation:
                             max_iterations=5,
                             body=[
                                 Assignment(
-                                    target="$x",
+                                    target="x",
                                     value=Literal(value=1, literal_type="int"),
                                 ),
                             ],
@@ -610,9 +610,9 @@ class TestGeneratedCodeCompilation:
                             max_iterations=3,
                             body=[
                                 RunStmt(
-                                    target="$result",
+                                    target="result",
                                     agent="coordinator",
-                                    args=[VarRef(name="input")],
+                                    input=VarRef(name="input"),
                                 ),
                                 IfBlock(
                                     condition=VarRef(name="done"),
@@ -810,7 +810,7 @@ class TestLoopBlockInEventHandler:
                             max_iterations=3,
                             body=[
                                 Assignment(
-                                    target="$check",
+                                    target="check",
                                     value=Literal(value=True, literal_type="bool"),
                                 ),
                             ],

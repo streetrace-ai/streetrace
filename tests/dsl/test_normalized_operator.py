@@ -116,7 +116,7 @@ agent checker:
     instruction check_prompt
 
 flow check_response:
-    $response = run agent checker $input_prompt
+    $response = run agent checker with $input_prompt
     $is_drifting = $response ~ "DRIFTING"
     return $is_drifting
 '''
@@ -133,7 +133,10 @@ flow check_response:
         compile(code, "<generated>", "exec")
 
         # Verify normalized_equals is imported and used
-        assert "from streetrace.dsl.runtime.utils import normalized_equals" in code
+        expected_import = (
+            "from streetrace.dsl.runtime.utils import list_concat, normalized_equals"
+        )
+        assert expected_import in code
         assert "normalized_equals" in code
 
     def test_generated_code_contains_correct_imports(self):
@@ -171,7 +174,7 @@ class TestNormalizedOperatorWithLlmOutputs:
         source = """
 flow resolver:
     $current = $input_prompt
-    $new = run agent peer1 $current
+    $new = run agent peer1 with $current
     if $new ~ "DRIFTING":
         return $current
     return $new
@@ -183,7 +186,7 @@ flow resolver:
         """Test parsing ESCALATE check pattern."""
         source = """
 flow process:
-    $result = run agent analyzer $input
+    $result = run agent analyzer with $input_prompt
     if $result ~ "ESCALATE":
         log "Escalating to human"
     return $result
@@ -195,7 +198,7 @@ flow process:
         """Test parsing YES/NO response patterns."""
         source = """
 flow confirm:
-    $answer = call llm confirm_prompt $question
+    $answer = call llm confirm_prompt with $question
     if $answer ~ "YES":
         return { confirmed: true }
     return { confirmed: false }

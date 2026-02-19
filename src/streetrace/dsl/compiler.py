@@ -139,9 +139,13 @@ def compile_dsl(
         msg = "semantic analysis failed"
         raise DslSemanticError(msg, filename=filename, errors=result.errors)
 
-    # Code generation
+    # Code generation - pass merged prompts from semantic analysis
     generator = CodeGenerator()
-    python_source, source_mappings = generator.generate(ast, filename)
+    python_source, source_mappings = generator.generate(
+        ast,
+        filename,
+        merged_prompts=result.symbols.prompts,
+    )
 
     # Compile to bytecode
     # SECURITY: This compile() usage is intentional and safe.

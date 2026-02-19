@@ -160,9 +160,9 @@ class TestRunStatementEscalationCodegen:
                     params=[],
                     body=[
                         RunStmt(
-                            target="$current",
+                            target="current",
                             agent="peer1",
-                            args=[VarRef(name="input")],
+                            input=VarRef(name="input"),
                             escalation_handler=EscalationHandler(
                                 action="return",
                                 value=VarRef(name="current"),
@@ -206,9 +206,9 @@ class TestRunStatementEscalationCodegen:
                             max_iterations=3,
                             body=[
                                 RunStmt(
-                                    target="$result",
+                                    target="result",
                                     agent="validator",
-                                    args=[VarRef(name="item")],
+                                    input=VarRef(name="item"),
                                     escalation_handler=EscalationHandler(
                                         action="continue",
                                     ),
@@ -249,9 +249,9 @@ class TestRunStatementEscalationCodegen:
                     params=[],
                     body=[
                         RunStmt(
-                            target="$result",
+                            target="result",
                             agent="processor",
-                            args=[VarRef(name="input")],
+                            input=VarRef(name="input"),
                             escalation_handler=EscalationHandler(
                                 action="abort",
                             ),
@@ -290,9 +290,9 @@ class TestRunStatementEscalationCodegen:
                     params=[],
                     body=[
                         RunStmt(
-                            target="$result",
+                            target="result",
                             agent="helper",
-                            args=[VarRef(name="input")],
+                            input=VarRef(name="input"),
                         ),
                         ReturnStmt(value=VarRef(name="result")),
                     ],
@@ -331,7 +331,7 @@ class TestRunStatementEscalationCodegen:
                         RunStmt(
                             target=None,
                             agent="checker",
-                            args=[VarRef(name="data")],
+                            input=VarRef(name="data"),
                             escalation_handler=EscalationHandler(
                                 action="abort",
                             ),
@@ -412,18 +412,18 @@ class TestCompleteEscalationCodegen:
                             max_iterations=3,
                             body=[
                                 RunStmt(
-                                    target="$current",
+                                    target="current",
                                     agent="peer1",
-                                    args=[VarRef(name="current")],
+                                    input=VarRef(name="current"),
                                     escalation_handler=EscalationHandler(
                                         action="return",
                                         value=VarRef(name="current"),
                                     ),
                                 ),
                                 RunStmt(
-                                    target="$current",
+                                    target="current",
                                     agent="peer2",
-                                    args=[VarRef(name="current")],
+                                    input=VarRef(name="current"),
                                     escalation_handler=EscalationHandler(
                                         action="return",
                                         value=VarRef(name="current"),

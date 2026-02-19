@@ -1,0 +1,201 @@
+# Minimal test agent to validate V2 patterns
+# No tool calls - all agents complete in one LLM call
+# Patterns: parallel agents, structured I/O, chunking, combining results
+
+streetrace v1
+
+model main = anthropic/claude-sonnet-4-5
+
+# -----------------------------------------------------------------------------
+# SCHEMAS
+# -----------------------------------------------------------------------------
+
+schema TextData:
+    text: string
+
+schema Chunk:
+    chunk_id: int
+    text: string
+
+schema ChunkList:
+    chunks: list[Chunk]
+
+schema ChunkResult:
+    chunk_id: int
+    summary: string
+    word_count: int
+
+schema AnalysisResult:
+    category: string
+    count: int
+
+schema FinalReport:
+    title: string
+    total_chunks: int
+    total_words: int
+    combined_analysis: string
+
+# -----------------------------------------------------------------------------
+# PROMPT DECLARATIONS (metadata at top for quick reference)
+# -----------------------------------------------------------------------------
+
+prompt agent_a_instruction
+prompt agent_a_instruction expecting TextData
+prompt agent_b_instruction expecting TextData
+prompt chunk_splitter_instruction expecting ChunkList
+prompt chunk_processor_instruction expecting ChunkResult
+prompt analyzer_a_instruction expecting AnalysisResult
+prompt analyzer_b_instruction expecting AnalysisResult
+prompt final_instruction expecting FinalReport
+
+# -----------------------------------------------------------------------------
+# SIMPLE AGENTS (no tools, single LLM call each)
+# -----------------------------------------------------------------------------
+
+agent agent_a:
+    instruction agent_a_instruction
+    description "Returns test string A"
+
+agent agent_b:
+    instruction agent_b_instruction
+    description "Returns test string B"
+
+agent chunk_processor:
+    instruction chunk_processor_instruction
+    description "Processes a chunk"
+
+agent analyzer_a:
+    instruction analyzer_a_instruction
+    description "Counts nouns"
+
+agent analyzer_b:
+    instruction analyzer_b_instruction
+    description "Counts verbs"
+
+# -----------------------------------------------------------------------------
+# MAIN FLOW
+# -----------------------------------------------------------------------------
+
+flow main:
+    log "=== TEST START ==="
+
+    # Test 1: Parallel execution
+    log "[TEST 1] Parallel agents..."
+    log "[PARALLEL] Starting: agent_a + agent_b"
+    parallel do
+        $result_a = run agent agent_a with $input_prompt
+        $result_b = run agent agent_b with $input_prompt
+    end
+    log "[PARALLEL] Completed: agent_a + agent_b"
+    log "[CHECK] result_a and result_b should be populated"
+    log $result_a
+    log $result_b
+
+    # Test 2: Get chunks via LLM call
+    log "[TEST 2] Chunking via LLM..."
+    $chunk_data = call llm chunk_splitter_instruction with $result_a
+    log "[LLM] chunk_data received"
+
+    # Test 3: Loop over chunks with agents
+    log "[TEST 3] Loop with parallel agents per chunk..."
+    $all_chunk_results = []
+    $all_analysis_a = []
+    $all_analysis_b = []
+
+    for $chunk in $chunk_data.chunks do
+        log "[LOOP] === Processing chunk ==="
+
+        # Sequential agent in loop
+        log "[LOOP] Running chunk_processor..."
+        $chunk_result = run agent chunk_processor with $chunk
+        log "[LOOP] chunk_processor done"
+        log $chunk_result
+
+        # Parallel agents in loop
+        log "[LOOP] Running parallel analyzers..."
+        parallel do
+            $analysis_a = run agent analyzer_a with $chunk
+            $analysis_b = run agent analyzer_b with $chunk
+        end
+        log "[LOOP] parallel analyzers done"
+
+        # Accumulate results
+        $all_chunk_results = $all_chunk_results + [$chunk_result]
+        $all_analysis_a = $all_analysis_a + [$analysis_a]
+        $all_analysis_b = $all_analysis_b + [$analysis_b]
+        log "[LOOP] === Chunk complete ==="
+    end
+    log "all_chunk_results"
+    log $all_chunk_results
+    log "all_analysis_a"
+    log $all_analysis_a
+    log "all_analysis_b"
+    log $all_analysis_b
+
+    # Test 4: Final compilation
+    log "[TEST 4] Final LLM compilation..."
+    $final = call llm final_instruction with $all_chunk_results
+    log "[LLM] Final result received"
+
+    log "=== TEST COMPLETE ==="
+    return $final
+
+# -----------------------------------------------------------------------------
+# DEFAULT AGENT
+# -----------------------------------------------------------------------------
+
+agent:
+    instruction default_instruction
+    description "Test pattern validator"
+
+# -----------------------------------------------------------------------------
+# PROMPT BODIES (instruction text at bottom for readability)
+# -----------------------------------------------------------------------------
+
+prompt default_instruction: """Test agent. Say run to start."""
+
+prompt agent_a_instruction: """Return test data A.
+Respond with: text set to Hello from agent A"""
+
+prompt agent_b_instruction: """Return test data B.
+Respond with: text set to Hello from agent B"""
+
+prompt chunk_splitter_instruction: """Split the text into exactly 2 chunks.
+Text to split: The quick brown fox jumps over lazy dog
+
+Return chunks list with:
+- chunk 1: chunk_id=1, text=The quick brown fox
+- chunk 2: chunk_id=2, text=jumps over lazy dog"""
+
+prompt chunk_processor_instruction: """Process this chunk.
+Chunk: $chunk
+
+Return:
+- chunk_id: same as input chunk_id
+- summary: 3 word summary
+- word_count: count the words in the text"""
+
+prompt analyzer_a_instruction: """Count nouns in chunk.
+Chunk: $chunk
+
+Return:
+- category: nouns
+- count: number of nouns found"""
+
+prompt analyzer_b_instruction: """Count verbs in chunk.
+Chunk: $chunk
+
+Return:
+- category: verbs
+- count: number of verbs found"""
+
+prompt final_instruction: """Compile final report.
+Chunk Results: $all_chunk_results
+Analysis A Results: $all_analysis_a
+Analysis B Results: $all_analysis_b
+
+Return:
+- title: Pattern Test Complete
+- total_chunks: number of chunk results
+- total_words: sum of word_count from all chunk results
+- combined_analysis: summary of noun and verb counts"""

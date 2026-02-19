@@ -844,7 +844,7 @@ agent peer1:
     instruction analyzer
 
 flow resolver:
-    $result = run agent peer1 $input_prompt, on escalate return "escalated"
+    $result = run agent peer1 with $input_prompt, on escalate return "escalated"
     return $result
 '''
         parser = ParserFactory.create()
@@ -918,7 +918,7 @@ agent critical_agent:
     instruction critical
 
 flow critical_flow:
-    $result = run agent critical_agent $input_prompt, on escalate abort
+    $result = run agent critical_agent with $input_prompt, on escalate abort
     return $result
 '''
         parser = ParserFactory.create()

@@ -223,7 +223,7 @@ flow research:
         $web_results = run agent web_search
         $doc_results = run agent doc_search
     end
-    $combined = run agent synthesize $web_results $doc_results
+    $combined = run agent synthesize with $web_results
     return $combined
 """
 

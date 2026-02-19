@@ -92,6 +92,7 @@ render_warn  # unused function (src/streetrace/ui/ui_events.py:35)
 render_info  # unused function (src/streetrace/ui/ui_events.py:44)
 render_markdown  # unused function (src/streetrace/ui/ui_events.py:53)
 render_user_input  # unused function (src/streetrace/ui/ui_events.py:67)
+render_flow_result  # unused function (flow_event_renderer.py) - called dynamically by renderer registry
 render_llm_call  # unused function (flow_event_renderer.py) - called dynamically by renderer registry
 render_llm_response  # unused function (flow_event_renderer.py) - called dynamically by renderer registry
 render_escalation_event  # unused function (flow_event_renderer.py) - called dynamically by renderer registry
@@ -179,7 +180,6 @@ _.warn_action  # unused method - called by Lark transformer
 _.retry_action  # unused method - called by Lark transformer
 _.flow_def  # unused method - called by Lark transformer
 _.flow_name  # unused method - called by Lark transformer
-_.flow_params  # unused method - called by Lark transformer
 _.flow_body  # unused method - called by Lark transformer
 _.flow_statement  # unused method - called by Lark transformer
 _.expression_stmt  # unused method - called by Lark transformer
@@ -237,6 +237,7 @@ _.neg  # unused method - called by Lark transformer
 _.atom  # unused method - called by Lark transformer
 _.literal  # unused method - called by Lark transformer
 _.string_lit  # unused method - called by Lark transformer
+_.interpolated_string_lit  # unused method - called by Lark transformer
 _.number_lit  # unused method - called by Lark transformer
 _.int_lit  # unused method - called by Lark transformer
 _.true_lit  # unused method - called by Lark transformer
@@ -265,6 +266,8 @@ _.name_ref  # unused method - called by Lark transformer
 _.interpolated_string  # unused method - called by Lark transformer
 _.version_decl  # unused method - called by Lark transformer
 _.start  # unused method - called by Lark transformer
+_.implicit_property  # unused method - called by Lark transformer for filter expressions
+_.filter_expr  # unused method - called by Lark transformer for filter expressions
 
 # AST Transformer terminal methods - called dynamically by Lark for token transformations
 _.NAME  # unused method - called by Lark transformer for NAME tokens
@@ -294,6 +297,7 @@ provider_model  # unused variable (nodes.py) - dataclass field for ModelDef node
 auth_type  # unused variable (nodes.py) - dataclass field for ToolDef node
 auth_value  # unused variable (nodes.py) - dataclass field for ToolDef node
 builtin_ref  # unused variable (nodes.py) - dataclass field for ToolDef node
+params  # unused variable (nodes.py) - dataclass field for FlowDef node
 retry  # unused variable (nodes.py) - dataclass field for AgentDef node
 timeout_value  # unused variable (nodes.py) - dataclass field for AgentDef node
 timeout_unit  # unused variable (nodes.py) - dataclass field for AgentDef node
@@ -312,6 +316,7 @@ _.analyze  # unused method (analyzer.py) - public API entry point
 is_valid  # unused variable (analyzer.py) - dataclass field for AnalysisResult
 symbols  # unused variable (analyzer.py) - dataclass field for AnalysisResult
 _._current_scope  # unused attribute (analyzer.py) - internal state tracking
+PARAMETER  # unused variable (scope.py) - SymbolKind enum value for flow parameters
 defined_at  # unused variable (scope.py) - dataclass field for Symbol
 _.lookup_local  # unused method (scope.py) - public API for local-only lookups
 _.is_defined_locally  # unused method (scope.py) - public API for checking local scope
@@ -417,7 +422,17 @@ _.get_system_prompt  # unused method (street_race_agent.py) - prompt interface
 # DslAgentFactory - public API
 _.create_root_agent  # unused method (dsl_agent_factory.py) - factory method for creating agents
 
+# Parallel execution - called by generated code
+_._execute_parallel_agents  # unused method (workflow.py) - called by generated parallel block code
+
 # Escalation support - methods used by generated code or Lark transformer
+_.agent_prompt  # unused method - called by Lark transformer
+_.agent_produces  # unused method - called by Lark transformer
+_.prompt_decl  # unused method - called by Lark transformer
+_.prompt_full  # unused method - called by Lark transformer
+_.expecting_single  # unused method - called by Lark transformer
+_.expecting_array  # unused method - called by Lark transformer
+_.var_bare  # unused method - called by Lark transformer
 _.escalation_clause  # unused method - called by Lark transformer
 _.normalized_escalation  # unused method - called by Lark transformer
 _.exact_escalation  # unused method - called by Lark transformer
@@ -446,3 +461,19 @@ _._get_definition_loader  # unused method (manager.py) - used by tests for loade
 JSONParseError  # unused class (errors.py) - will be used by call_llm schema validation
 SchemaValidationError  # unused class (errors.py) - will be used by call_llm schema validation
 schema_to_pydantic  # unused function (schema_factory.py) - will be used by code generation
+
+# Runtime utilities - used by generated code
+list_concat  # unused function (utils.py) - called by generated code for list concatenation
+_.resolve_property  # unused method (context.py) - called by generated code for property access
+_.resolve_property  # unused method (prompt_context.py) - called by generated code for property access
+MAX_AGENT_SCHEMA_RETRIES  # unused variable (workflow.py) - documents retry limit for agent validation
+
+# History compaction - Lark transformer methods and dataclass fields
+_.model_max_input_tokens  # unused method - called by Lark transformer
+_.agent_history  # unused method - called by Lark transformer
+compacted_messages  # unused variable (history_compactor.py) - dataclass field for CompactionResult
+_.count_tokens  # unused method (history_compactor.py) - public API for token counting
+
+# CompactingRunner - mid-run compaction infrastructure
+is_tool_result_event  # unused function (compacting_runner.py) - utility for detecting tool results
+SummarizeCompactionStrategy  # unused class (compacting_runner.py) - strategy for LLM-based summarization

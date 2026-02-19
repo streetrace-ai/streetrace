@@ -140,7 +140,7 @@ class TestRunStatementEscalationTransformer:
         """Test transforming run statement with on escalate return handler."""
         source = """
 flow resolver:
-    $current = run agent peer1 $input, on escalate return $input
+    $current = run agent peer1 with $input, on escalate return $input
     return $current
 """
         tree = parser.parse(source)
@@ -155,7 +155,7 @@ flow resolver:
         assert len(run_stmts) == 1
         run_stmt = run_stmts[0]
 
-        assert run_stmt.target == "$current"
+        assert run_stmt.target == "current"
         assert run_stmt.agent == "peer1"
         assert run_stmt.escalation_handler is not None
         assert run_stmt.escalation_handler.action == "return"
@@ -167,7 +167,7 @@ flow resolver:
         source = """
 flow processor:
     for $item in $items do
-        $processed = run agent validator $item, on escalate continue
+        $processed = run agent validator with $item, on escalate continue
     end
     return $items
 """
@@ -192,7 +192,7 @@ flow processor:
         """Test transforming run statement with on escalate abort handler."""
         source = """
 flow critical_flow:
-    $result = run agent processor $input, on escalate abort
+    $result = run agent processor with $input, on escalate abort
     return $result
 """
         tree = parser.parse(source)
@@ -211,7 +211,7 @@ flow critical_flow:
         """Test backward compat - run without escalation has None handler."""
         source = """
 flow simple_flow:
-    $result = run agent processor $input
+    $result = run agent processor with $input
     return $result
 """
         tree = parser.parse(source)
@@ -228,7 +228,7 @@ flow simple_flow:
         """Test transforming run without assignment but with escalation handler."""
         source = """
 flow validator_flow:
-    run agent checker $data, on escalate abort
+    run agent checker with $data, on escalate abort
     return $data
 """
         tree = parser.parse(source)
@@ -268,7 +268,7 @@ agent peer1:
 
 flow default:
     $current = $input_prompt
-    $current = run agent peer1 $current, on escalate return $current
+    $current = run agent peer1 with $current, on escalate return $current
     return $current
 '''
         tree = parser.parse(source)

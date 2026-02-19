@@ -816,3 +816,123 @@ class TestDslAgentFactoryCreateRootAgent:
         )
 
         assert "main agent" in agent.instruction
+
+
+class WorkflowWithSelfReference(DslAgentWorkflow):
+    """Workflow where an agent references itself via use (agent_tools)."""
+
+    _models: ClassVar[dict[str, str]] = {"main": "test-model"}
+    _prompts: ClassVar[dict[str, object]] = {
+        "chunker_prompt": lambda _ctx: "You are a recursive chunker.",
+    }
+    _tools: ClassVar[dict[str, dict[str, object]]] = {}
+    _agents: ClassVar[dict[str, dict[str, object]]] = {
+        "diff_chunker": {
+            "instruction": "chunker_prompt",
+            "tools": [],
+            "description": "Recursively chunks diffs",
+            "agent_tools": ["diff_chunker"],
+        },
+    }
+
+
+@pytest.mark.asyncio
+class TestDslAgentFactorySelfReference:
+    """Test self-referencing agent creation with bounded depth."""
+
+    async def test_self_ref_agent_creates_without_infinite_recursion(
+        self,
+        mock_model_factory: Mock,
+        mock_tool_provider: Mock,
+        mock_system_context: Mock,
+    ) -> None:
+        """Self-referencing agent creation completes without hanging."""
+        from streetrace.workloads.dsl_agent_factory import DslAgentFactory
+
+        factory = DslAgentFactory(
+            workflow_class=WorkflowWithSelfReference,
+            source_file=Path("/test.sr"),
+            source_map=[],
+        )
+
+        agent = await factory.create_agent(
+            agent_name="diff_chunker",
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+        )
+
+        assert isinstance(agent, LlmAgent)
+        assert agent.name == "diff_chunker"
+
+    async def test_top_level_has_self_tool(
+        self,
+        mock_model_factory: Mock,
+        mock_tool_provider: Mock,
+        mock_system_context: Mock,
+    ) -> None:
+        """Top-level agent includes an AgentTool wrapping itself."""
+        from streetrace.workloads.dsl_agent_factory import DslAgentFactory
+
+        factory = DslAgentFactory(
+            workflow_class=WorkflowWithSelfReference,
+            source_file=Path("/test.sr"),
+            source_map=[],
+        )
+
+        agent = await factory.create_agent(
+            agent_name="diff_chunker",
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+        )
+
+        agent_tools = [t for t in agent.tools if isinstance(t, AgentTool)]
+        assert len(agent_tools) == 1
+        assert agent_tools[0].agent.name == "diff_chunker"
+
+    async def test_deepest_agent_lacks_self_tool(
+        self,
+        mock_model_factory: Mock,
+        mock_tool_provider: Mock,
+        mock_system_context: Mock,
+    ) -> None:
+        """Deepest nested agent has no self-tool (depth limit reached)."""
+        from streetrace.workloads.dsl_agent_factory import (
+            _MAX_SELF_REF_DEPTH,
+            DslAgentFactory,
+        )
+
+        factory = DslAgentFactory(
+            workflow_class=WorkflowWithSelfReference,
+            source_file=Path("/test.sr"),
+            source_map=[],
+        )
+
+        agent = await factory.create_agent(
+            agent_name="diff_chunker",
+            model_factory=mock_model_factory,
+            tool_provider=mock_tool_provider,
+            system_context=mock_system_context,
+        )
+
+        # Traverse the AgentTool chain to the deepest level.
+        # With depth limit N, the first create_agent pushes onto the
+        # stack (count=1), so we get N-1 nested AgentTool levels.
+        current = agent
+        depth = 0
+        while True:
+            nested_tools = [
+                t for t in current.tools if isinstance(t, AgentTool)
+            ]
+            if not nested_tools:
+                break
+            current = nested_tools[0].agent
+            depth += 1
+
+        # The deepest agent should have no AgentTool referencing itself
+        deepest_agent_tools = [
+            t for t in current.tools if isinstance(t, AgentTool)
+        ]
+        assert deepest_agent_tools == []
+        assert depth == _MAX_SELF_REF_DEPTH - 1

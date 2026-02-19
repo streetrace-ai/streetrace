@@ -374,16 +374,19 @@ class TestSemanticAnalyzerScoping:
         assert not result.is_valid
         assert any("undefined_var" in e.message for e in result.errors)
 
-    def test_flow_parameters_are_in_scope(self) -> None:
-        """Flow parameters are available as variables."""
+    def test_flow_with_assignment_is_valid(self) -> None:
+        """Flow with assignment and return is valid."""
         ast = DslFile(
             version=VersionDecl(version="1.0"),
             statements=[
                 FlowDef(
                     name="my_flow",
-                    params=["input"],
                     body=[
-                        ReturnStmt(value=VarRef(name="input")),
+                        Assignment(
+                            target="result",
+                            value=Literal(value="hello", literal_type="string"),
+                        ),
+                        ReturnStmt(value=VarRef(name="result")),
                     ],
                 ),
             ],
@@ -531,7 +534,7 @@ class TestSemanticAnalyzerReferences:
                         RunStmt(
                             target="result",
                             agent="file_helper",
-                            args=[VarRef(name="input_prompt")],
+                            input=VarRef(name="input_prompt"),
                         ),
                     ],
                 ),
@@ -553,7 +556,7 @@ class TestSemanticAnalyzerReferences:
                         RunStmt(
                             target="result",
                             agent="undefined_agent",
-                            args=[VarRef(name="input_prompt")],
+                            input=VarRef(name="input_prompt"),
                         ),
                     ],
                 ),
@@ -577,7 +580,7 @@ class TestSemanticAnalyzerReferences:
                         CallStmt(
                             target="result",
                             prompt="analyze_prompt",
-                            args=[VarRef(name="input_prompt")],
+                            input=VarRef(name="input_prompt"),
                         ),
                     ],
                 ),
@@ -599,7 +602,7 @@ class TestSemanticAnalyzerReferences:
                         CallStmt(
                             target="result",
                             prompt="undefined_prompt",
-                            args=[VarRef(name="input_prompt")],
+                            input=VarRef(name="input_prompt"),
                         ),
                     ],
                 ),
@@ -715,13 +718,12 @@ class TestSemanticAnalyzerEscalationHandler:
                 ),
                 FlowDef(
                     name="my_flow",
-                    params=["input"],
                     body=[
                         # on escalate continue outside a loop - should error
                         RunStmt(
                             target="result",
                             agent="my_agent",
-                            args=[VarRef(name="input")],
+                            input=VarRef(name="input_prompt"),
                             escalation_handler=EscalationHandler(
                                 action="continue",
                                 meta=SourcePosition(line=10, column=5),
@@ -755,19 +757,28 @@ class TestSemanticAnalyzerEscalationHandler:
                     tools=["fs"],
                     instruction="my_instruction",
                 ),
+                EventHandler(
+                    timing="on",
+                    event_type="start",
+                    body=[
+                        Assignment(
+                            target="items",
+                            value=Literal(value="data", literal_type="string"),
+                        ),
+                    ],
+                ),
                 FlowDef(
                     name="my_flow",
-                    params=["items"],
                     body=[
                         ForLoop(
-                            variable="$item",
+                            variable="item",
                             iterable=VarRef(name="items"),
                             body=[
                                 # on escalate continue inside for loop - valid
                                 RunStmt(
                                     target="result",
                                     agent="my_agent",
-                                    args=[VarRef(name="item")],
+                                    input=VarRef(name="item"),
                                     escalation_handler=EscalationHandler(
                                         action="continue",
                                     ),
@@ -798,7 +809,6 @@ class TestSemanticAnalyzerEscalationHandler:
                 ),
                 FlowDef(
                     name="my_flow",
-                    params=["input"],
                     body=[
                         LoopBlock(
                             max_iterations=3,
@@ -807,7 +817,7 @@ class TestSemanticAnalyzerEscalationHandler:
                                 RunStmt(
                                     target="result",
                                     agent="my_agent",
-                                    args=[VarRef(name="input")],
+                                    input=VarRef(name="input_prompt"),
                                     escalation_handler=EscalationHandler(
                                         action="continue",
                                     ),
@@ -838,13 +848,12 @@ class TestSemanticAnalyzerEscalationHandler:
                 ),
                 FlowDef(
                     name="my_flow",
-                    params=["input"],
                     body=[
                         # on escalate return outside loop - valid
                         RunStmt(
                             target="result",
                             agent="my_agent",
-                            args=[VarRef(name="input")],
+                            input=VarRef(name="input_prompt"),
                             escalation_handler=EscalationHandler(
                                 action="return",
                                 value=Literal(value="fallback", literal_type="string"),
@@ -875,13 +884,12 @@ class TestSemanticAnalyzerEscalationHandler:
                 ),
                 FlowDef(
                     name="my_flow",
-                    params=["input"],
                     body=[
                         # on escalate abort outside loop - valid
                         RunStmt(
                             target="result",
                             agent="my_agent",
-                            args=[VarRef(name="input")],
+                            input=VarRef(name="input_prompt"),
                             escalation_handler=EscalationHandler(
                                 action="abort",
                             ),
@@ -909,12 +917,21 @@ class TestSemanticAnalyzerEscalationHandler:
                     tools=["fs"],
                     instruction="my_instruction",
                 ),
+                EventHandler(
+                    timing="on",
+                    event_type="start",
+                    body=[
+                        Assignment(
+                            target="items",
+                            value=Literal(value="data", literal_type="string"),
+                        ),
+                    ],
+                ),
                 FlowDef(
                     name="my_flow",
-                    params=["items"],
                     body=[
                         ForLoop(
-                            variable="$item",
+                            variable="item",
                             iterable=VarRef(name="items"),
                             body=[
                                 IfBlock(
@@ -928,7 +945,7 @@ class TestSemanticAnalyzerEscalationHandler:
                                         RunStmt(
                                             target="result",
                                             agent="my_agent",
-                                            args=[VarRef(name="item")],
+                                            input=VarRef(name="item"),
                                             escalation_handler=EscalationHandler(
                                                 action="continue",
                                             ),
@@ -961,12 +978,11 @@ class TestSemanticAnalyzerEscalationHandler:
                 ),
                 FlowDef(
                     name="my_flow",
-                    params=["input"],
                     body=[
                         IfBlock(
                             condition=BinaryOp(
                                 op=">",
-                                left=VarRef(name="input"),
+                                left=VarRef(name="input_prompt"),
                                 right=Literal(value=0, literal_type="int"),
                             ),
                             body=[
@@ -974,7 +990,7 @@ class TestSemanticAnalyzerEscalationHandler:
                                 RunStmt(
                                     target="result",
                                     agent="my_agent",
-                                    args=[VarRef(name="input")],
+                                    input=VarRef(name="input_prompt"),
                                     escalation_handler=EscalationHandler(
                                         action="continue",
                                         meta=SourcePosition(line=15, column=10),

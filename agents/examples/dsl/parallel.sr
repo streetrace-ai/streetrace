@@ -27,10 +27,10 @@ agent synthesizer:
 
 flow research:
     parallel do
-        $code_results = run agent code_searcher $input_prompt
-        $doc_results = run agent doc_searcher $input_prompt
+        $code_results = run agent code_searcher with $input_prompt
+        $doc_results = run agent doc_searcher with $input_prompt
     end
-    $combined = run agent synthesizer $code_results $doc_results
+    $combined = run agent synthesizer with $code_results
     return $combined
 
 agent:

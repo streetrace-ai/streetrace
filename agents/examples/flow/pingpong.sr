@@ -50,8 +50,8 @@ agent peer2:
 flow default:
     $current = $input_prompt
     loop max 3 do
-        $current = run agent peer1 $current, on escalate return $current
-        $current = run agent peer2 $current, on escalate return $current
+        $current = run agent peer1 with $current, on escalate return $current
+        $current = run agent peer2 with $current, on escalate return $current
     end
 
     return $current

@@ -324,7 +324,7 @@ class TestExpressionVisitorTokenHandling:
         assert visitor.visit(unary_op) == "(not ctx.vars['x'])"
 
         name_ref = NameRef(name="some_name")
-        assert visitor.visit(name_ref) == "some_name"
+        assert visitor.visit(name_ref) == "ctx.vars['some_name']"
 
         list_lit = ListLiteral(elements=[Literal(value=1, literal_type="int")])
         assert visitor.visit(list_lit) == "[1]"

@@ -27,6 +27,10 @@ class ErrorCode(Enum):
     E0010 = "missing required property '{property}' in {kind} '{name}'"
     E0011 = "circular agent reference detected: {cycle}"
     E0012 = "'on escalate continue' can only be used inside a loop"
+    E0013 = "prompt '{name}' has no body after merging all definitions"
+    E0014 = "conflicting {modifier} for prompt '{name}': '{first}' vs '{second}'"
+    E0015 = "prompt '{prompt}' references undefined variable '${name}'"
+    E0016 = "instruction '{prompt}' references runtime variable '${name}'"
     W0002 = "agent '{name}' has both delegate and use - this is unusual"
 
 
@@ -231,6 +235,128 @@ class SemanticError:
             code=ErrorCode.E0012,
             message=msg,
             position=position,
+        )
+
+    @classmethod
+    def prompt_missing_body(
+        cls,
+        name: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for prompt with no body after merging all definitions.
+
+        Args:
+            name: Name of the prompt missing a body.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"prompt '{name}' has no body after merging all definitions"
+        suggestion = f'add a body definition: prompt {name}: """..."""'
+        return cls(
+            code=ErrorCode.E0013,
+            message=msg,
+            position=position,
+            suggestion=suggestion,
+        )
+
+    @classmethod
+    def conflicting_prompt_modifier(
+        cls,
+        name: str,
+        modifier: str,
+        first: str,
+        second: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for conflicting prompt modifier values.
+
+        Args:
+            name: Name of the prompt with conflicting modifiers.
+            modifier: Name of the modifier (model, expecting, inherit).
+            first: First value of the modifier.
+            second: Second (conflicting) value.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"conflicting {modifier} for prompt '{name}': '{first}' vs '{second}'"
+        return cls(
+            code=ErrorCode.E0014,
+            message=msg,
+            position=position,
+        )
+
+    @classmethod
+    def undefined_prompt_variable(
+        cls,
+        prompt: str,
+        name: str,
+        position: SourcePosition | None = None,
+        *,
+        suggestion: str | None = None,
+    ) -> "SemanticError":
+        """Create error for undefined variable in prompt body.
+
+        Args:
+            prompt: Name of the prompt containing the undefined variable.
+            name: Variable name that was not found.
+            position: Source position of the error.
+            suggestion: Optional suggestion for valid variable names.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"prompt '{prompt}' references undefined variable '${name}'"
+        return cls(
+            code=ErrorCode.E0015,
+            message=msg,
+            position=position,
+            suggestion=suggestion,
+        )
+
+    @classmethod
+    def instruction_runtime_variable(
+        cls,
+        prompt: str,
+        name: str,
+        agent: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for runtime variable in instruction prompt.
+
+        Instruction prompts are resolved at agent creation time when
+        runtime variables are not yet available. Only prompt composition
+        (referencing other prompts) is allowed in instructions.
+
+        Args:
+            prompt: Name of the instruction prompt.
+            name: Variable name that won't be available.
+            agent: Name of the agent using this instruction.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = (
+            f"instruction '{prompt}' (used by agent '{agent}') "
+            f"references runtime variable '${name}'"
+        )
+        suggestion = (
+            f"move '${name}' to a prompt field, or use prompt composition "
+            f"with other prompts"
+        )
+        return cls(
+            code=ErrorCode.E0016,
+            message=msg,
+            position=position,
+            suggestion=suggestion,
         )
 
     def format(self) -> str:

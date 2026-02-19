@@ -23,10 +23,12 @@ from streetrace.dsl.ast.nodes import (
     EscalationHandler,
     EventHandler,
     FailureBlock,
+    FilterExpr,
     FlowDef,
     ForLoop,
     FunctionCall,
     IfBlock,
+    ImplicitProperty,
     ImportStmt,
     ListLiteral,
     Literal,
@@ -43,6 +45,7 @@ from streetrace.dsl.ast.nodes import (
     PolicyDef,
     PromptDef,
     PropertyAccess,
+    PropertyAssignment,
     PushStmt,
     RetryAction,
     RetryPolicyDef,
@@ -251,6 +254,10 @@ def _filter_children(items: TransformerItems) -> list:
                 "DESCRIPTION",
                 "TOOLS",
                 "INSTRUCTION",
+                "PRODUCES",
+                "HISTORY",
+                "FILTER",
+                "WHERE",
             }:
                 continue
         result.append(item)
@@ -528,6 +535,19 @@ class AstTransformer(Transformer):
             if isinstance(item, Token):
                 try:
                     return {"max_tokens": int(item)}
+                except ValueError:
+                    continue
+        return {}
+
+    def model_max_input_tokens(self, items: TransformerItems) -> dict:
+        """Transform model_max_input_tokens rule."""
+        filtered = _filter_children(items)
+        for item in filtered:
+            if isinstance(item, int):
+                return {"max_input_tokens": item}
+            if isinstance(item, Token):
+                try:
+                    return {"max_input_tokens": int(item)}
                 except ValueError:
                     continue
         return {}
@@ -1165,10 +1185,9 @@ class AstTransformer(Transformer):
     def flow_def(self, meta: object, items: TransformerItems) -> FlowDef:
         """Transform flow_def rule."""
         filtered = _filter_children(items)
-        name, params, body = self._extract_flow_components(filtered)
+        name, body = self._extract_flow_components(filtered)
         return FlowDef(
             name=name or "",
-            params=params,
             body=body,
             meta=_meta_to_position(meta),
         )
@@ -1176,10 +1195,9 @@ class AstTransformer(Transformer):
     def _extract_flow_components(
         self,
         filtered: list,
-    ) -> tuple[str | None, list[str], list]:
-        """Extract name, params, and body from flow_def children."""
+    ) -> tuple[str | None, list]:
+        """Extract name and body from flow_def children."""
         name = None
-        params: list[str] = []
         body: list = []
 
         for item in filtered:
@@ -1187,44 +1205,15 @@ class AstTransformer(Transformer):
                 if name is None:
                     name = _get_token_value(item) if isinstance(item, Token) else item
             elif isinstance(item, list):
-                new_params, new_body = self._categorize_flow_list(item, body)
-                # Only set params if not already set and new_params is not empty
-                if new_params and not params:
-                    params = new_params
-                # Extend body with new body items
-                if new_body:
-                    body = new_body
+                body = item
             elif item not in body:
                 body.append(item)
 
-        return name, params, body
-
-    def _categorize_flow_list(
-        self,
-        item: list,
-        body: list,
-    ) -> tuple[list[str], list]:
-        """Categorize a list as either params or body."""
-        if not body and all(isinstance(x, (str, VarRef)) for x in item):
-            params = [f"${x.name}" if isinstance(x, VarRef) else str(x) for x in item]
-            return params, body
-        return [], item
+        return name, body
 
     def flow_name(self, items: TransformerItems) -> str:
         """Transform flow_name rule."""
         return " ".join(str(item) for item in items)
-
-    def flow_params(self, items: TransformerItems) -> list[str]:
-        """Transform flow_params rule."""
-        result = []
-        for item in items:
-            if isinstance(item, VarRef):
-                result.append(f"${item.name}")
-            elif isinstance(item, str):
-                result.append(item if item.startswith("$") else f"${item}")
-            elif isinstance(item, dict) and "name" in item:
-                result.append(f"${item['name']}")
-        return result
 
     def flow_body(self, items: TransformerItems) -> list:
         """Transform flow_body rule."""
@@ -1269,6 +1258,10 @@ class AstTransformer(Transformer):
             description=body.get("description"),
             delegate=body.get("delegate"),
             use=body.get("use"),
+            prompt=body.get("prompt"),
+            prompt_meta=body.get("prompt_meta"),
+            produces=body.get("produces"),
+            history=body.get("history"),
             meta=_meta_to_position(meta),
         )
 
@@ -1308,6 +1301,40 @@ class AstTransformer(Transformer):
             if isinstance(item, Token):
                 return {"instruction": _get_token_value(item)}
         return {"instruction": ""}
+
+    @v_args(meta=True)
+    def agent_prompt(self, meta: object, items: TransformerItems) -> dict:
+        """Transform agent_prompt rule."""
+        filtered = _filter_children(items)
+        for item in filtered:
+            if isinstance(item, str):
+                return {"prompt": item, "prompt_meta": _meta_to_position(meta)}
+            if isinstance(item, Token):
+                return {
+                    "prompt": _get_token_value(item),
+                    "prompt_meta": _meta_to_position(meta),
+                }
+        return {}
+
+    def agent_produces(self, items: TransformerItems) -> dict:
+        """Transform agent_produces rule."""
+        filtered = _filter_children(items)
+        for item in filtered:
+            if isinstance(item, str):
+                return {"produces": item}
+            if isinstance(item, Token):
+                return {"produces": _get_token_value(item)}
+        return {}
+
+    def agent_history(self, items: TransformerItems) -> dict:
+        """Transform agent_history rule."""
+        filtered = _filter_children(items)
+        for item in filtered:
+            if isinstance(item, str):
+                return {"history": item}
+            if isinstance(item, Token):
+                return {"history": _get_token_value(item)}
+        return {}
 
     def agent_retry(self, items: TransformerItems) -> dict:
         """Transform agent_retry rule."""
@@ -1398,8 +1425,27 @@ class AstTransformer(Transformer):
     # =========================================================================
 
     @v_args(meta=True)
-    def prompt_def(self, meta: object, items: TransformerItems) -> PromptDef:
-        """Transform prompt_def rule."""
+    def prompt_decl(self, meta: object, items: TransformerItems) -> PromptDef:
+        """Transform prompt_decl rule (declaration without body).
+
+        Creates a PromptDef with empty body for forward declarations.
+        Multiple definitions of the same prompt are merged during semantic analysis.
+        """
+        return self._create_prompt_def(meta, items)
+
+    @v_args(meta=True)
+    def prompt_full(self, meta: object, items: TransformerItems) -> PromptDef:
+        """Transform prompt_full rule (full definition with body).
+
+        Creates a PromptDef with body text for complete definitions.
+        """
+        return self._create_prompt_def(meta, items)
+
+    def _create_prompt_def(self, meta: object, items: TransformerItems) -> PromptDef:
+        """Create a PromptDef from parsed items.
+
+        Shared implementation for both prompt_decl and prompt_full rules.
+        """
         filtered = _filter_children(items)
         name, body, modifiers, escalation = self._extract_prompt_components(filtered)
 
@@ -1481,10 +1527,22 @@ class AstTransformer(Transformer):
         """Transform prompt_expecting rule."""
         filtered = _filter_children(items)
         for item in filtered:
+            if isinstance(item, str):
+                return {"expecting": item}
             val = _get_token_value(item) if isinstance(item, Token) else str(item)
             if val:
                 return {"expecting": val}
         return {}
+
+    def expecting_single(self, items: TransformerItems) -> str:
+        """Transform expecting_single rule (e.g., Finding)."""
+        filtered = _filter_children(items)
+        return str(filtered[0])
+
+    def expecting_array(self, items: TransformerItems) -> str:
+        """Transform expecting_array rule (e.g., Finding[])."""
+        filtered = _filter_children(items)
+        return f"{filtered[0]}[]"
 
     def prompt_inherit(self, items: TransformerItems) -> dict:
         """Transform prompt_inherit rule."""
@@ -1641,7 +1699,7 @@ class AstTransformer(Transformer):
         for item in filtered:
             if isinstance(item, VarRef):
                 if var is None:
-                    var = f"${item.name}"
+                    var = item.name
                 elif iterable is None:
                     iterable = item
             elif isinstance(item, list):
@@ -1765,15 +1823,27 @@ class AstTransformer(Transformer):
         return items[-1] if items else None
 
     def if_block(self, items: TransformerItems) -> IfBlock:
-        """Transform if_block rule."""
-        condition = items[0]
-        body = items[1] if len(items) > 1 else []
+        """Transform if_block rule.
+
+        Grammar: if_block: "if" condition ":" _NL _INDENT flow_body _DEDENT _NL?
+        Items received: [Token('IF'), condition, Token(':'), ..., body, ...]
+        """
+        # Filter out tokens to get condition and body
+        filtered = [item for item in items if not isinstance(item, Token)]
+        condition = filtered[0] if filtered else None
+        body = filtered[1] if len(filtered) > 1 else []
         return IfBlock(condition=condition, body=body)
 
     def if_stmt(self, items: TransformerItems) -> IfBlock:
-        """Transform if_stmt rule (inline if)."""
-        condition = items[0]
-        body = [items[1]] if len(items) > 1 else []
+        """Transform if_stmt rule (inline if).
+
+        Grammar: if_stmt: "if" condition ":" statement_body
+        Items received: [Token('IF'), condition, Token(':'), body]
+        """
+        # Filter out tokens to get condition and body
+        filtered = [item for item in items if not isinstance(item, Token)]
+        condition = filtered[0] if filtered else None
+        body = [filtered[1]] if len(filtered) > 1 else []
         return IfBlock(condition=condition, body=body)
 
     def flow_control(self, items: TransformerItems) -> AstNode:
@@ -1797,12 +1867,26 @@ class AstTransformer(Transformer):
     # Statements
     # =========================================================================
 
-    def assignment(self, items: TransformerItems) -> Assignment:
-        """Transform assignment rule."""
+    def assignment(
+        self,
+        items: TransformerItems,
+    ) -> Assignment | PropertyAssignment:
+        """Transform assignment rule.
+
+        Return PropertyAssignment for property access targets like $obj.prop,
+        or Assignment for simple variable targets like $var.
+        """
         filtered = _filter_children(items)
         var = filtered[0]
         value = filtered[1]
-        var_str = f"${var.name}" if isinstance(var, VarRef) else str(var)
+
+        # If target is a PropertyAccess, create PropertyAssignment
+        if isinstance(var, PropertyAccess):
+            return PropertyAssignment(target=var, value=value)
+
+        # Otherwise, create standard Assignment
+        # VarRef.name is already normalized (no $ prefix)
+        var_str = var.name if isinstance(var, VarRef) else str(var)
         return Assignment(target=var_str, value=value)
 
     @v_args(meta=True)
@@ -1810,28 +1894,27 @@ class AstTransformer(Transformer):
         """Transform run_stmt rule.
 
         Handle run statement forms:
-        - variable "=" "run" "agent" identifier expression* escalation_handler?
-        - "run" "agent" identifier expression* escalation_handler?
-        - "run" identifier
+        - variable "=" "run" "agent" identifier ("with" expression)? escalation_handler?
+        - "run" "agent" identifier ("with" expression)? escalation_handler?
         """
         target = None
         agent = None
-        args: list[AstNode] = []
+        input_expr: AstNode | None = None
         escalation: EscalationHandler | None = None
 
         # Keywords to skip (Lark tokens that should not be treated as identifiers)
-        skip_tokens = {"=", "run", "agent"}
+        skip_tokens = {"=", "run", "agent", "with"}
 
         for i, item in enumerate(items):
             if isinstance(item, EscalationHandler):
                 escalation = item
             elif isinstance(item, VarRef) and target is None and i == 0:
-                target = f"${item.name}"
+                target = item.name
             elif isinstance(item, NameRef):
                 if agent is None:
                     agent = item.name
                 else:
-                    args.append(item)
+                    input_expr = item
             elif isinstance(item, Token):
                 # Skip keyword tokens
                 if str(item) in skip_tokens:
@@ -1840,14 +1923,14 @@ class AstTransformer(Transformer):
                 if agent is None:
                     agent = str(item)
                 else:
-                    args.append(NameRef(name=str(item)))
+                    input_expr = NameRef(name=str(item))
             elif isinstance(item, str) and item not in skip_tokens:
                 if agent is None:
                     agent = item
                 else:
-                    args.append(NameRef(name=item))
+                    input_expr = NameRef(name=item)
             elif agent is not None and not isinstance(item, Token):
-                args.append(item)
+                input_expr = item
 
         if agent is None and target:
             # run identifier form
@@ -1857,56 +1940,58 @@ class AstTransformer(Transformer):
         return RunStmt(
             target=target,
             agent=agent or "",
-            args=args,
+            input=input_expr,
             meta=_meta_to_position(meta),
             escalation_handler=escalation,
         )
 
     @v_args(meta=True)
     def run_flow_assign(  # noqa: C901, PLR0912
-        self, meta: object, items: TransformerItems,
+        self,
+        meta: object,
+        items: TransformerItems,
     ) -> RunStmt:
         """Transform run_flow_assign rule.
 
-        Handle: variable "=" "run" identifier expression* escalation_handler?
+        Handle: variable "=" "run" identifier ("with" expression)? escalation_handler?
         This is for calling user-defined flows with assignment.
         """
         target = None
         flow_name = None
-        args: list[AstNode] = []
+        input_expr: AstNode | None = None
         escalation: EscalationHandler | None = None
 
-        skip_tokens = {"=", "run"}
+        skip_tokens = {"=", "run", "with"}
 
         for i, item in enumerate(items):
             if isinstance(item, EscalationHandler):
                 escalation = item
             elif isinstance(item, VarRef) and target is None and i == 0:
-                target = f"${item.name}"
+                target = item.name
             elif isinstance(item, NameRef):
                 if flow_name is None:
                     flow_name = item.name
                 else:
-                    args.append(item)
+                    input_expr = item
             elif isinstance(item, Token):
                 if str(item) in skip_tokens:
                     continue
                 if flow_name is None:
                     flow_name = str(item)
                 else:
-                    args.append(NameRef(name=str(item)))
+                    input_expr = NameRef(name=str(item))
             elif isinstance(item, str) and item not in skip_tokens:
                 if flow_name is None:
                     flow_name = item
                 else:
-                    args.append(NameRef(name=item))
+                    input_expr = NameRef(name=item)
             elif flow_name is not None and not isinstance(item, Token):
-                args.append(item)
+                input_expr = item
 
         return RunStmt(
             target=target,
             agent=flow_name or "",
-            args=args,
+            input=input_expr,
             meta=_meta_to_position(meta),
             is_flow=True,
             escalation_handler=escalation,
@@ -1914,18 +1999,20 @@ class AstTransformer(Transformer):
 
     @v_args(meta=True)
     def run_flow(  # noqa: C901, PLR0912
-        self, meta: object, items: TransformerItems,
+        self,
+        meta: object,
+        items: TransformerItems,
     ) -> RunStmt:
         """Transform run_flow rule.
 
-        Handle: "run" identifier expression* escalation_handler?
+        Handle: "run" identifier ("with" expression)? escalation_handler?
         This is for calling user-defined flows without assignment.
         """
         flow_name = None
-        args: list[AstNode] = []
+        input_expr: AstNode | None = None
         escalation: EscalationHandler | None = None
 
-        skip_tokens = {"run"}
+        skip_tokens = {"run", "with"}
 
         for item in items:
             if isinstance(item, EscalationHandler):
@@ -1934,26 +2021,26 @@ class AstTransformer(Transformer):
                 if flow_name is None:
                     flow_name = item.name
                 else:
-                    args.append(item)
+                    input_expr = item
             elif isinstance(item, Token):
                 if str(item) in skip_tokens:
                     continue
                 if flow_name is None:
                     flow_name = str(item)
                 else:
-                    args.append(NameRef(name=str(item)))
+                    input_expr = NameRef(name=str(item))
             elif isinstance(item, str) and item not in skip_tokens:
                 if flow_name is None:
                     flow_name = item
                 else:
-                    args.append(NameRef(name=item))
+                    input_expr = NameRef(name=item)
             elif flow_name is not None and not isinstance(item, Token):
-                args.append(item)
+                input_expr = item
 
         return RunStmt(
             target=None,
             agent=flow_name or "",
-            args=args,
+            input=input_expr,
             meta=_meta_to_position(meta),
             is_flow=True,
             escalation_handler=escalation,
@@ -1964,25 +2051,25 @@ class AstTransformer(Transformer):
         """Transform call_stmt rule.
 
         Handle call statement forms:
-        - variable "=" "call" "llm" identifier expression* call_modifiers?
-        - "call" "llm" identifier expression* call_modifiers?
+        - variable "=" "call" "llm" identifier ("with" expression)? call_modifiers?
+        - "call" "llm" identifier ("with" expression)? call_modifiers?
         """
         target = None
         prompt = None
-        args: list[AstNode] = []
+        input_expr: AstNode | None = None
         model = None
 
         # Keywords to skip
-        skip_tokens = {"=", "call", "llm"}
+        skip_tokens = {"=", "call", "llm", "with"}
 
         for i, item in enumerate(items):
             if isinstance(item, VarRef) and target is None and i == 0:
-                target = f"${item.name}"
+                target = item.name
             elif isinstance(item, NameRef):
                 if prompt is None:
                     prompt = item.name
                 else:
-                    args.append(item)
+                    input_expr = item
             elif isinstance(item, Token):
                 # Skip keyword tokens
                 if str(item) in skip_tokens:
@@ -1996,12 +2083,12 @@ class AstTransformer(Transformer):
             elif isinstance(item, dict) and "model" in item:
                 model = item["model"]
             elif prompt is not None and not isinstance(item, Token):
-                args.append(item)
+                input_expr = item
 
         return CallStmt(
             target=target,
             prompt=prompt or "",
-            args=args,
+            input=input_expr,
             model=model,
             meta=_meta_to_position(meta),
         )
@@ -2023,11 +2110,16 @@ class AstTransformer(Transformer):
         return ReturnStmt(value=value, meta=_meta_to_position(meta))
 
     def push_stmt(self, items: TransformerItems) -> PushStmt:
-        """Transform push_stmt rule."""
-        value = items[0]
-        target_var = items[1]
+        """Transform push_stmt rule.
+
+        Grammar: push_stmt: "push" expression "to" variable
+        With keep_all_tokens, items include keyword tokens.
+        """
+        filtered = _filter_children(items)
+        value = filtered[0]
+        target_var = filtered[1]
         target_str = (
-            f"${target_var.name}" if isinstance(target_var, VarRef) else str(target_var)
+            target_var.name if isinstance(target_var, VarRef) else str(target_var)
         )
         return PushStmt(value=value, target=target_str)
 
@@ -2036,13 +2128,27 @@ class AstTransformer(Transformer):
         message = items[0] if items else None
         return EscalateStmt(message=message)
 
-    def log_stmt(self, items: TransformerItems) -> LogStmt:
-        """Transform log_stmt rule."""
-        return LogStmt(message=items[0])
+    @v_args(meta=True)
+    def log_stmt(self, meta: object, items: TransformerItems) -> LogStmt:
+        """Transform log_stmt rule.
 
-    def notify_stmt(self, items: TransformerItems) -> NotifyStmt:
-        """Transform notify_stmt rule."""
-        return NotifyStmt(message=items[0])
+        Grammar: log_stmt: "log" expression
+        The first item may be the LOG keyword token due to keep_all_tokens=True.
+        """
+        filtered = _filter_children(items)
+        message = filtered[0] if filtered else Literal(value="", literal_type="string")
+        return LogStmt(message=message, meta=_meta_to_position(meta))
+
+    @v_args(meta=True)
+    def notify_stmt(self, meta: object, items: TransformerItems) -> NotifyStmt:
+        """Transform notify_stmt rule.
+
+        Grammar: notify_stmt: "notify" expression
+        The first item may be the NOTIFY keyword token due to keep_all_tokens=True.
+        """
+        filtered = _filter_children(items)
+        message = filtered[0] if filtered else Literal(value="", literal_type="string")
+        return NotifyStmt(message=message, meta=_meta_to_position(meta))
 
     # =========================================================================
     # Expressions
@@ -2089,7 +2195,7 @@ class AstTransformer(Transformer):
         result = items[0]
         i = 1
         while i < len(items):
-            op = items[i]
+            op = str(items[i])  # Convert Token to string
             right = items[i + 1]
             result = BinaryOp(op=op, left=result, right=right)
             i += TUPLE_PAIR_LENGTH
@@ -2102,7 +2208,7 @@ class AstTransformer(Transformer):
         result = items[0]
         i = 1
         while i < len(items):
-            op = items[i]
+            op = str(items[i])  # Convert Token to string
             right = items[i + 1]
             result = BinaryOp(op=op, left=result, right=right)
             i += TUPLE_PAIR_LENGTH
@@ -2122,6 +2228,14 @@ class AstTransformer(Transformer):
 
     def string_lit(self, items: TransformerItems) -> Literal:
         """Transform string_lit rule."""
+        return Literal(value=items[0], literal_type="string")
+
+    def interpolated_string_lit(self, items: TransformerItems) -> Literal:
+        """Transform interpolated_string_lit rule.
+
+        Interpolated strings contain ${...} patterns that will be
+        processed during code generation.
+        """
         return Literal(value=items[0], literal_type="string")
 
     def number_lit(self, items: TransformerItems) -> Literal:
@@ -2150,7 +2264,8 @@ class AstTransformer(Transformer):
 
     def list_literal(self, items: TransformerItems) -> ListLiteral:
         """Transform list_literal rule."""
-        return ListLiteral(elements=list(items))
+        filtered = _filter_children(items)
+        return ListLiteral(elements=filtered)
 
     def object_literal(self, items: TransformerItems) -> ObjectLiteral:
         """Transform object_literal rule."""
@@ -2190,6 +2305,21 @@ class AstTransformer(Transformer):
         base = VarRef(name=parts[0])
         return PropertyAccess(base=base, properties=parts[1:])
 
+    @v_args(meta=True)
+    def var_bare(self, meta: object, items: TransformerItems) -> VarRef:
+        """Transform var_bare rule (bare name without $ prefix)."""
+        filtered = _filter_children(items)
+        name = None
+        for item in filtered:
+            if isinstance(item, str):
+                name = item
+            elif isinstance(item, Token):
+                name = _get_token_value(item)
+        if name is None:
+            msg = "var_bare has no name"
+            raise ValueError(msg)
+        return VarRef(name=name, meta=_meta_to_position(meta))
+
     def variable(self, items: TransformerItems) -> AstNode:
         """Transform variable rule - pass through."""
         return items[0]
@@ -2211,30 +2341,45 @@ class AstTransformer(Transformer):
         return str(items[0])
 
     def property_access(self, items: TransformerItems) -> PropertyAccess:
-        """Transform property_access rule."""
+        """Transform property_access rule.
+
+        Handles three grammar alternatives:
+        - NAME "." contextual_name ("." contextual_name)*
+        - variable "." contextual_name ("." contextual_name)*
+        - DOTTED_NAME (e.g., "result.valid" lexed as single token)
+        """
         base = items[0]
         props = list(items[1:])
         if isinstance(base, str):
-            # NAME.prop.prop form
-            base = NameRef(name=base)
+            # Could be NAME or DOTTED_NAME token
+            if "." in base:
+                # DOTTED_NAME: split into base + properties
+                parts = base.split(".")
+                base = NameRef(name=parts[0])
+                props = parts[1:] + props
+            else:
+                base = NameRef(name=base)
         return PropertyAccess(base=base, properties=props)
 
     def function_call(self, items: TransformerItems) -> FunctionCall:
         """Transform function_call rule."""
         name = items[0]
-        args = list(items[1:])
+        # Filter out LPAR, RPAR, COMMA tokens from args
+        args = _filter_children(items[1:])
         return FunctionCall(name=name, args=args)
 
     def named_function_call(self, items: TransformerItems) -> FunctionCall:
         """Transform named_function_call rule."""
         name = items[0]
-        args = list(items[1:])
+        # Filter out LPAR, RPAR, COMMA tokens from args
+        args = _filter_children(items[1:])
         return FunctionCall(name=name, args=args)
 
     def bare_function_call(self, items: TransformerItems) -> FunctionCall:
         """Transform bare_function_call rule."""
         name = items[0]
-        args = list(items[1:])
+        # Filter children but bare_function_call has no parentheses
+        args = _filter_children(items[1:])
         return FunctionCall(name=name, args=args)
 
     def process_call(self, items: TransformerItems) -> FunctionCall:
@@ -2252,6 +2397,47 @@ class AstTransformer(Transformer):
     def interpolated_string(self, items: TransformerItems) -> str:
         """Transform interpolated_string rule."""
         return str(items[0])
+
+    # =========================================================================
+    # Filter Expressions
+    # =========================================================================
+
+    def implicit_property(self, items: TransformerItems) -> ImplicitProperty:
+        """Transform implicit_property rule (.prop or .nested.prop).
+
+        Handle two forms:
+        - "." contextual_name ("." contextual_name)* -> list of names
+        - "." DOTTED_NAME -> single dotted name string to split
+        """
+        properties = []
+
+        for item in items:
+            # Skip DOT tokens
+            if isinstance(item, Token):
+                if item.type == "DOT":
+                    continue
+                val = _get_token_value(item)
+                # Check if it's a DOTTED_NAME (contains dots)
+                if "." in val:
+                    properties.extend(val.split("."))
+                elif val:  # Only add non-empty values
+                    properties.append(val)
+            elif isinstance(item, str):
+                # Could be a dotted name string from contextual_name
+                if "." in item:
+                    properties.extend(item.split("."))
+                elif item:  # Only add non-empty values
+                    properties.append(item)
+
+        return ImplicitProperty(properties=properties)
+
+    def filter_expr(self, items: TransformerItems) -> FilterExpr:
+        """Transform filter_expr rule (filter $list where .prop op val)."""
+        filtered = _filter_children(items)
+        # items[0] = list expression, items[1] = condition
+        list_expr = filtered[0] if filtered else None
+        condition = filtered[1] if len(filtered) > 1 else None
+        return FilterExpr(list_expr=list_expr, condition=condition)
 
 
 def transform(tree: Tree[Token]) -> DslFile:

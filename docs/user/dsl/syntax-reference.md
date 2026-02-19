@@ -639,6 +639,39 @@ $a / $b
 $text contains "pattern"
 ```
 
+**List Concatenation**:
+
+```streetrace
+$combined = $list1 + $list2
+$items = $items + [$new_item]
+```
+
+### Filter Expression
+
+Filter lists based on a condition using implicit property access:
+
+```streetrace
+$filtered = filter $list where .property >= 80
+$fixable = filter $items where .suggested_fix != null
+$critical = filter $findings where .severity == "critical"
+```
+
+The leading dot (`.property`) accesses properties on each item in the list.
+Nested properties are supported: `.nested.property`.
+
+See [Expressions](expressions.md) for detailed usage.
+
+### Property Assignment
+
+Assign values to object properties:
+
+```streetrace
+$review.findings = $filtered
+$obj.nested.property = "value"
+```
+
+This modifies the object in place rather than creating a new one.
+
 ### Built-in Function Calls
 
 ```streetrace
@@ -754,6 +787,8 @@ prompt summarize_prompt:
 ## See Also
 
 - [Getting Started](getting-started.md) - Introduction to Streetrace DSL
+- [Flow Control](flow-control.md) - Control flow including parallel blocks
+- [Expressions](expressions.md) - Expressions including filter and list operations
 - [Schema Support](schema-support.md) - Structured outputs with validation
 - [Multi-Agent Patterns](multi-agent-patterns.md) - Coordinator, hierarchical, and iterative patterns
 - [Prompt Escalation](escalation.md) - Normalized comparison and escalation handling

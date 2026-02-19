@@ -6,6 +6,7 @@ depending on the deprecated DslStreetRaceAgent class.
 """
 
 import inspect
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -25,6 +26,9 @@ from streetrace.dsl.sourcemap import SourceMapping
 from streetrace.log import get_logger
 
 logger = get_logger(__name__)
+
+_MAX_SELF_REF_DEPTH = 3
+"""Maximum nesting depth for self-referencing agent tools."""
 
 
 class DslAgentFactory:
@@ -52,6 +56,7 @@ class DslAgentFactory:
         self._workflow_class = workflow_class
         self._source_file = source_file
         self._source_map = source_map
+        self._creation_stack: list[str] = []
 
         logger.debug(
             "Created DslAgentFactory for %s from %s",
@@ -308,6 +313,10 @@ class DslAgentFactory:
         Look up the instruction's PromptSpec and extract the schema name,
         then look up the corresponding Pydantic model from _schemas.
 
+        Array types (e.g., Finding[]) are NOT returned here because ADK's
+        output_schema only supports single objects. Array schemas are
+        handled via instruction enrichment instead.
+
         Args:
             agent_def: Agent definition dict.
 
@@ -315,31 +324,94 @@ class DslAgentFactory:
             Pydantic model class if schema found, None otherwise.
 
         """
+        schema_name, schema_model = self._get_instruction_schema(agent_def)
+        if schema_name is None or schema_model is None:
+            return None
+
+        # Skip array types — ADK output_schema only supports single objects.
+        # Array schemas are handled by enriching the instruction text.
+        if isinstance(schema_name, str) and schema_name.endswith("[]"):
+            return None
+
+        return schema_model
+
+    def _get_instruction_schema(
+        self,
+        agent_def: dict[str, object],
+    ) -> "tuple[str | None, type[BaseModel] | None]":
+        """Get the schema name and model from an agent's instruction prompt.
+
+        Args:
+            agent_def: Agent definition dict.
+
+        Returns:
+            Tuple of (schema_name, schema_model). Both None if no schema.
+
+        """
         from streetrace.dsl.runtime.workflow import PromptSpec
 
-        # Get instruction name from agent definition
         instruction_name = agent_def.get("instruction")
         if not instruction_name or not isinstance(instruction_name, str):
-            return None
+            return None, None
 
-        # Look up prompt from workflow
         if not hasattr(self._workflow_class, "_prompts"):
-            return None
+            return None, None
 
         prompts = self._workflow_class._prompts  # noqa: SLF001
         prompt_spec = prompts.get(instruction_name)
 
-        # Must be a PromptSpec with schema attribute
         if not isinstance(prompt_spec, PromptSpec):
-            return None
+            return None, None
 
         schema_name = prompt_spec.schema
-        if not schema_name:
-            return None
+        if not schema_name or not isinstance(schema_name, str):
+            return None, None
 
-        # Look up schema model
+        # Strip [] suffix for lookup (e.g., Finding[] -> Finding)
+        lookup_name = schema_name.rstrip("[]")
+
         schemas = getattr(self._workflow_class, "_schemas", {})
-        return schemas.get(schema_name)
+        schema_model = schemas.get(lookup_name)
+        return schema_name, schema_model
+
+    def _enrich_instruction_with_schema(
+        self,
+        instruction: str,
+        agent_def: dict[str, object],
+    ) -> str:
+        """Enrich instruction with JSON schema for array-type schemas.
+
+        When an agent's instruction prompt declares an array schema
+        (e.g., expecting Finding[]), append JSON format instructions
+        to the agent's instruction text so the LLM returns a parseable
+        JSON array.
+
+        Args:
+            instruction: The resolved instruction text.
+            agent_def: Agent definition dict.
+
+        Returns:
+            Enriched instruction, or original if no array schema.
+
+        """
+        schema_name, schema_model = self._get_instruction_schema(agent_def)
+        if schema_name is None or schema_model is None:
+            return instruction
+
+        json_schema = schema_model.model_json_schema()
+        schema_str = json.dumps(json_schema, indent=2)
+
+        is_array = isinstance(schema_name, str) and schema_name.endswith("[]")
+        if is_array:
+            return (
+                f"{instruction}\n\n"
+                f"IMPORTANT: You MUST respond with a JSON array of objects, "
+                f"where each element matches this schema:\n"
+                f"```json\n{schema_str}\n```\n\n"
+                f"Do NOT include any text outside the JSON array."
+            )
+
+        return instruction
 
     async def create_agent(
         self,
@@ -347,6 +419,8 @@ class DslAgentFactory:
         model_factory: "ModelFactory",
         tool_provider: "ToolProvider",
         system_context: "SystemContext",
+        *,
+        output_key: str | None = None,
     ) -> "BaseAgent":
         """Create an LlmAgent from an agent definition dict.
 
@@ -359,6 +433,8 @@ class DslAgentFactory:
             model_factory: Factory for creating LLM models.
             tool_provider: Provider for tools.
             system_context: System context.
+            output_key: Optional key for storing agent output in session state.
+                Used by ParallelAgent to collect results from sub-agents.
 
         Returns:
             The created ADK agent.
@@ -380,36 +456,47 @@ class DslAgentFactory:
             msg = f"Agent definition for '{agent_name}' is not a dict"
             raise TypeError(msg)
 
-        instruction = self._resolve_instruction(agent_def)
-        model = self._resolve_model(model_factory, agent_def)
-        tools = self._resolve_tools(tool_provider, agent_def)
-        output_schema = self._resolve_output_schema(agent_def)
+        self._creation_stack.append(agent_name)
+        try:
+            instruction = self._resolve_instruction(agent_def)
+            instruction = self._enrich_instruction_with_schema(
+                instruction, agent_def,
+            )
+            model = self._resolve_model(model_factory, agent_def)
+            tools = self._resolve_tools(tool_provider, agent_def)
+            output_schema = self._resolve_output_schema(agent_def)
 
-        # Recursively resolve nested patterns
-        sub_agents = await self._resolve_sub_agents(
-            agent_def, model_factory, tool_provider, system_context,
-        )
-        agent_tools = await self._resolve_agent_tools(
-            agent_def, model_factory, tool_provider, system_context,
-        )
-        tools.extend(agent_tools)
+            # Recursively resolve nested patterns
+            sub_agents = await self._resolve_sub_agents(
+                agent_def, model_factory, tool_provider, system_context,
+            )
+            agent_tools = await self._resolve_agent_tools(
+                agent_def, model_factory, tool_provider, system_context,
+            )
+            tools.extend(agent_tools)
 
-        # Get description from agent definition or use default
-        description = agent_def.get("description", f"Agent: {agent_name}")
+            # Get description from agent definition or use default
+            description = agent_def.get(
+                "description", f"Agent: {agent_name}",
+            )
 
-        agent_kwargs: dict[str, Any] = {
-            "name": agent_name,
-            "model": model,
-            "instruction": instruction,
-            "tools": tools,
-            "description": description,
-        }
-        if sub_agents:
-            agent_kwargs["sub_agents"] = sub_agents
-        if output_schema is not None:
-            agent_kwargs["output_schema"] = output_schema
+            agent_kwargs: dict[str, Any] = {
+                "name": agent_name,
+                "model": model,
+                "instruction": instruction,
+                "tools": tools,
+                "description": description,
+            }
+            if sub_agents:
+                agent_kwargs["sub_agents"] = sub_agents
+            if output_schema is not None:
+                agent_kwargs["output_schema"] = output_schema
+            if output_key is not None:
+                agent_kwargs["output_key"] = output_key
 
-        return LlmAgent(**agent_kwargs)
+            return LlmAgent(**agent_kwargs)
+        finally:
+            self._creation_stack.pop()
 
     async def create_root_agent(
         self,
@@ -570,6 +657,16 @@ class DslAgentFactory:
                 continue
             if agent_name not in agents:
                 logger.warning("Agent tool '%s' not found in workflow", agent_name)
+                continue
+
+            # Guard against infinite self-referencing recursion
+            self_ref_count = self._creation_stack.count(agent_name)
+            if self_ref_count >= _MAX_SELF_REF_DEPTH:
+                logger.info(
+                    "Self-ref depth limit reached for '%s' (depth=%d)",
+                    agent_name,
+                    self_ref_count,
+                )
                 continue
 
             sub_agent_def = agents[agent_name]

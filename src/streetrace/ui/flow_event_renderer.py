@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from streetrace.dsl.runtime.events import (
     EscalationEvent,
+    FlowResultEvent,
     LlmCallEvent,
     LlmResponseEvent,
 )
@@ -20,11 +21,13 @@ if TYPE_CHECKING:
 
 @register_renderer
 def render_llm_call(obj: LlmCallEvent, console: "Console") -> None:
-    """Render LLM call initiation event."""
-    console.print(
-        f"{obj.prompt_name}: {obj.prompt_text}",
-        style=Styles.RICH_INFO,
-    )
+    """Render LLM call initiation event.
+
+    Only display the prompt name as a status indicator.
+    The full prompt text is internal implementation detail.
+    """
+    # Intentionally minimal - don't show prompt text to user
+    _ = obj, console
 
 
 @register_renderer
@@ -47,3 +50,15 @@ def render_escalation_event(obj: EscalationEvent, console: "Console") -> None:
         f'"{obj.condition_value}")',
         style=Styles.RICH_WARNING,
     )
+
+
+@register_renderer
+def render_flow_result(obj: FlowResultEvent, console: "Console") -> None:
+    """Handle flow result event.
+
+    The result is not displayed here since the content was already shown
+    by the preceding LlmResponseEvent. The FlowResultEvent exists only to
+    capture the return value for the --out file and final_response.
+    """
+    # Intentionally silent - value already displayed by LlmResponseEvent
+    _ = obj, console
