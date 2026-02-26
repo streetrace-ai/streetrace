@@ -13,6 +13,11 @@ from pydantic import BaseModel
 
 from streetrace.dsl.runtime.errors import JSONParseError, SchemaValidationError
 from streetrace.dsl.runtime.events import LlmCallEvent
+from streetrace.dsl.runtime.response_parser import (
+    enrich_prompt_with_schema,
+    get_schema_model,
+    parse_json_response,
+)
 from streetrace.dsl.runtime.workflow import PromptSpec
 
 if TYPE_CHECKING:
@@ -85,47 +90,41 @@ async def collect_events(generator: object) -> list[object]:
 
 
 class TestParseJsonResponse:
-    """Test _parse_json_response method."""
+    """Test parse_json_response function."""
 
-    def test_parse_plain_json(self, workflow_context: "WorkflowContext") -> None:
+    def test_parse_plain_json(self) -> None:
         """Parse plain JSON without code blocks."""
         content = '{"name": "test", "count": 42}'
-        result = workflow_context._parse_json_response(content)  # noqa: SLF001
+        result = parse_json_response(content)
         assert result == {"name": "test", "count": 42}
 
-    def test_parse_json_with_whitespace(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
+    def test_parse_json_with_whitespace(self) -> None:
         """Parse JSON with leading/trailing whitespace."""
         content = '   {"name": "test", "count": 42}   '
-        result = workflow_context._parse_json_response(content)  # noqa: SLF001
+        result = parse_json_response(content)
         assert result == {"name": "test", "count": 42}
 
-    def test_parse_json_code_block(self, workflow_context: "WorkflowContext") -> None:
+    def test_parse_json_code_block(self) -> None:
         """Parse JSON from ```json code block."""
         content = """Here is the result:
 ```json
 {"name": "test", "count": 42}
 ```
 """
-        result = workflow_context._parse_json_response(content)  # noqa: SLF001
+        result = parse_json_response(content)
         assert result == {"name": "test", "count": 42}
 
-    def test_parse_unlabeled_code_block(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
+    def test_parse_unlabeled_code_block(self) -> None:
         """Parse JSON from ``` code block without language."""
         content = """Result:
 ```
 {"name": "test", "count": 42}
 ```
 """
-        result = workflow_context._parse_json_response(content)  # noqa: SLF001
+        result = parse_json_response(content)
         assert result == {"name": "test", "count": 42}
 
-    def test_parse_multiple_code_blocks_raises_error(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
+    def test_parse_multiple_code_blocks_raises_error(self) -> None:
         """Raise JSONParseError when multiple code blocks are present."""
         content = """Multiple results:
 ```json
@@ -137,99 +136,81 @@ And another:
 ```
 """
         with pytest.raises(JSONParseError) as exc_info:
-            workflow_context._parse_json_response(content)  # noqa: SLF001
+            parse_json_response(content)
         assert "multiple code blocks" in exc_info.value.parse_error.lower()
 
-    def test_parse_invalid_json_raises_error(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
+    def test_parse_invalid_json_raises_error(self) -> None:
         """Raise JSONParseError for invalid JSON."""
         content = "{ invalid json }"
         with pytest.raises(JSONParseError) as exc_info:
-            workflow_context._parse_json_response(content)  # noqa: SLF001
+            parse_json_response(content)
         assert exc_info.value.raw_response == content
 
-    def test_parse_empty_content_raises_error(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
+    def test_parse_empty_content_raises_error(self) -> None:
         """Raise JSONParseError for empty content."""
         content = ""
         with pytest.raises(JSONParseError):
-            workflow_context._parse_json_response(content)  # noqa: SLF001
+            parse_json_response(content)
 
-    def test_parse_code_block_with_invalid_json(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
+    def test_parse_code_block_with_invalid_json(self) -> None:
         """Raise JSONParseError for code block containing invalid JSON."""
         content = """```json
 { not valid json
 ```"""
         with pytest.raises(JSONParseError):
-            workflow_context._parse_json_response(content)  # noqa: SLF001
+            parse_json_response(content)
+
+
+_TEST_SCHEMAS: dict[str, type[BaseModel]] = {
+    "SimpleTestModel": SimpleTestModel,
+    "ComplexTestModel": ComplexTestModel,
+}
+"""Schemas dict used by get_schema_model tests."""
 
 
 class TestGetSchemaModel:
-    """Test _get_schema_model method."""
+    """Test get_schema_model function."""
 
-    def test_returns_model_for_valid_schema(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
+    def test_returns_model_for_valid_schema(self) -> None:
         """Return Pydantic model when schema exists."""
-        prompt_spec = PromptSpec(body=lambda _: "test", schema="SimpleTestModel")
-        model = workflow_context._get_schema_model(prompt_spec)  # noqa: SLF001
+        model = get_schema_model("SimpleTestModel", _TEST_SCHEMAS)
         assert model is SimpleTestModel
 
-    def test_returns_none_when_prompt_spec_is_none(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
-        """Return None when prompt_spec is None."""
-        model = workflow_context._get_schema_model(None)  # noqa: SLF001
+    def test_returns_none_when_schema_name_is_none(self) -> None:
+        """Return None when schema_name is None."""
+        model = get_schema_model(None, _TEST_SCHEMAS)
         assert model is None
 
-    def test_returns_none_when_schema_is_none(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
-        """Return None when prompt_spec has no schema."""
-        prompt_spec = PromptSpec(body=lambda _: "test", schema=None)
-        model = workflow_context._get_schema_model(prompt_spec)  # noqa: SLF001
+    def test_returns_none_when_schema_name_is_empty(self) -> None:
+        """Return None when schema_name is empty string."""
+        model = get_schema_model("", _TEST_SCHEMAS)
         assert model is None
 
-    def test_returns_none_for_missing_schema(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
-        """Return None when schema name not in _schemas dict."""
-        prompt_spec = PromptSpec(body=lambda _: "test", schema="NonExistentSchema")
-        model = workflow_context._get_schema_model(prompt_spec)  # noqa: SLF001
+    def test_returns_none_for_missing_schema(self) -> None:
+        """Return None when schema name not in schemas dict."""
+        model = get_schema_model("NonExistentSchema", _TEST_SCHEMAS)
         assert model is None
 
 
 class TestEnrichPromptWithSchema:
-    """Test _enrich_prompt_with_schema method."""
+    """Test enrich_prompt_with_schema function."""
 
-    def test_enriches_prompt_with_json_instructions(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
+    def test_enriches_prompt_with_json_instructions(self) -> None:
         """Append JSON format instructions to prompt."""
         prompt_text = "Original prompt"
         json_schema = {"type": "object", "properties": {"name": {"type": "string"}}}
-        result = workflow_context._enrich_prompt_with_schema(  # noqa: SLF001
-            prompt_text, json_schema,
-        )
+        result = enrich_prompt_with_schema(prompt_text, json_schema)
 
         assert "Original prompt" in result
         assert "IMPORTANT" in result
         assert "JSON" in result
         assert "schema" in result.lower()
 
-    def test_enriched_prompt_includes_schema(
-        self, workflow_context: "WorkflowContext",
-    ) -> None:
+    def test_enriched_prompt_includes_schema(self) -> None:
         """Enriched prompt includes the JSON schema."""
         prompt_text = "Return data"
         json_schema = SimpleTestModel.model_json_schema()
-        result = workflow_context._enrich_prompt_with_schema(  # noqa: SLF001
-            prompt_text, json_schema,
-        )
+        result = enrich_prompt_with_schema(prompt_text, json_schema)
 
         assert "name" in result
         assert "count" in result

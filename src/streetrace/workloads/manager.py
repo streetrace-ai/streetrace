@@ -338,18 +338,7 @@ class WorkloadManager:
         # Set telemetry attributes from workload definition
         _set_workload_telemetry_attributes(definition, identifier)
 
-        # Validate session_service is available
-        if self.session_service is None:
-            msg = "session_service is required to create workloads"
-            raise ValueError(msg)
-
-        # Create workload from definition
-        workload = definition.create_workload(
-            model_factory=self.model_factory,
-            tool_provider=self.tool_provider,
-            system_context=self.system_context,
-            session_service=self.session_service,
-        )
+        workload = self._instantiate_workload(definition)
 
         try:
             yield workload
@@ -630,43 +619,43 @@ class WorkloadManager:
         if definition is None:
             raise WorkloadNotFoundError(name)
 
-        if self.session_service is None:
+        return self._instantiate_workload(definition)
+
+    def _require_session_service(self) -> "BaseSessionService":
+        """Get the session service, raising if unavailable.
+
+        Returns:
+            The session service instance.
+
+        Raises:
+            ValueError: If session service is not configured.
+
+        """
+        service = self.session_service
+        if service is None:
             msg = "session_service is required to create workloads"
             raise ValueError(msg)
+        return service
 
+    def _instantiate_workload(self, definition: WorkloadDefinition) -> Workload:
+        """Create a workload instance from a definition.
+
+        Args:
+            definition: The workload definition to instantiate.
+
+        Returns:
+            A Workload instance ready for execution.
+
+        Raises:
+            ValueError: If session service is not configured.
+
+        """
         return definition.create_workload(
             model_factory=self.model_factory,
             tool_provider=self.tool_provider,
             system_context=self.system_context,
-            session_service=self.session_service,
+            session_service=self._require_session_service(),
         )
-
-    def _find_workload_files(self) -> list[Path]:
-        """Find all loadable workload files in search paths.
-
-        Uses SourceResolver to discover all agents in search locations.
-
-        Returns:
-            List of paths to loadable workload files
-
-        """
-        files: list[Path] = []
-
-        # Flatten search paths for discovery
-        all_paths = []
-        for _, paths in self.search_locations:
-            all_paths.extend(paths)
-
-        # Use SourceResolver to discover all agents
-        resolver = SourceResolver(http_auth=self.http_auth)
-        discovered = resolver.discover(all_paths)
-
-        # Extract file paths from resolutions
-        for resolution in discovered.values():
-            if resolution.file_path and resolution.file_path not in files:
-                files.append(resolution.file_path)
-
-        return files
 
     def _get_loader_for_format(self, fmt: str | None) -> DefinitionLoader | None:
         """Get the appropriate definition loader for a format.

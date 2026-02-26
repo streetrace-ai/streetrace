@@ -8,6 +8,7 @@ from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING
 
 from streetrace.log import get_logger
+from streetrace.workloads.agent_executor import AgentExecutor
 
 if TYPE_CHECKING:
     from google.adk.agents import BaseAgent
@@ -60,6 +61,7 @@ class BasicAgentWorkload:
         self._tool_provider = tool_provider
         self._system_context = system_context
         self._session_service = session_service
+        self._executor = AgentExecutor(session_service=session_service)
         self._agent: BaseAgent | None = None
 
     async def run_async(
@@ -80,8 +82,6 @@ class BasicAgentWorkload:
             ADK events from execution
 
         """
-        from google.adk import Runner
-
         # Create the agent if not already created
         if self._agent is None:
             logger.debug("Creating agent from definition")
@@ -91,18 +91,10 @@ class BasicAgentWorkload:
                 self._system_context,
             )
 
-        # Create Runner with the session's service
-        runner = Runner(
-            app_name=session.app_name,
-            session_service=self._session_service,
+        async for event in self._executor.run(
             agent=self._agent,
-        )
-
-        # Run the agent and yield all events
-        async for event in runner.run_async(
-            user_id=session.user_id,
-            session_id=session.id,
-            new_message=message,
+            session=session,
+            message=message,
         ):
             yield event
 

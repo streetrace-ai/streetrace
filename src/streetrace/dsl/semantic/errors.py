@@ -4,34 +4,12 @@ Provide error classes and error codes for semantic analysis errors.
 """
 
 from dataclasses import dataclass
-from enum import Enum
 
 from streetrace.dsl.ast.nodes import SourcePosition
+from streetrace.dsl.errors.codes import ErrorCode
 from streetrace.log import get_logger
 
 logger = get_logger(__name__)
-
-
-class ErrorCode(Enum):
-    """Semantic error codes following compiler conventions."""
-
-    E0001 = "undefined reference to {kind} '{name}'"
-    E0002 = "variable '{name}' used before definition"
-    E0003 = "duplicate definition of {kind} '{name}'"
-    E0004 = "type mismatch: expected {expected}, got {actual}"
-    E0005 = "circular reference detected in {kind} '{name}'"
-    E0006 = "invalid import: {message}"
-    E0007 = "missing required field '{field}' in {kind}"
-    E0008 = "mismatched indentation"
-    E0009 = "scope error: {message}"
-    E0010 = "missing required property '{property}' in {kind} '{name}'"
-    E0011 = "circular agent reference detected: {cycle}"
-    E0012 = "'on escalate continue' can only be used inside a loop"
-    E0013 = "prompt '{name}' has no body after merging all definitions"
-    E0014 = "conflicting {modifier} for prompt '{name}': '{first}' vs '{second}'"
-    E0015 = "prompt '{prompt}' references undefined variable '${name}'"
-    E0016 = "instruction '{prompt}' references runtime variable '${name}'"
-    W0002 = "agent '{name}' has both delegate and use - this is unusual"
 
 
 @dataclass

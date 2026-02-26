@@ -16,7 +16,6 @@ from streetrace.dsl.codegen.generator import CodeGenerator
 from streetrace.dsl.errors.codes import ErrorCode
 from streetrace.dsl.errors.diagnostics import Diagnostic
 from streetrace.dsl.grammar.parser import ParserFactory
-from streetrace.dsl.semantic import errors as semantic_errors
 from streetrace.dsl.semantic.analyzer import SemanticAnalyzer
 from streetrace.dsl.semantic.errors import SemanticError
 from streetrace.dsl.sourcemap.registry import SourceMapping, SourceMapRegistry
@@ -334,26 +333,6 @@ def _count_definitions(ast: DslFile) -> dict[str, int]:
     return counts
 
 
-def _map_semantic_error_code(
-    semantic_code: semantic_errors.ErrorCode,
-) -> ErrorCode | None:
-    """Map a semantic ErrorCode to the errors.codes ErrorCode.
-
-    Args:
-        semantic_code: The semantic error code.
-
-    Returns:
-        Corresponding ErrorCode or None if no mapping exists.
-
-    """
-    # Map by name since both enums use the same names (E0001, E0002, etc.)
-    try:
-        return ErrorCode(semantic_code.name)
-    except ValueError:
-        logger.warning("No mapping for semantic error code: %s", semantic_code.name)
-        return None
-
-
 def _semantic_error_to_diagnostic(
     error: SemanticError,
     filename: str,
@@ -379,15 +358,12 @@ def _semantic_error_to_diagnostic(
         end_line = error.position.end_line
         end_column = error.position.end_column
 
-    # Map semantic error code to diagnostic error code
-    diagnostic_code = _map_semantic_error_code(error.code)
-
     return Diagnostic.error(
         message=error.message,
         file=filename,
         line=line,
         column=column,
-        code=diagnostic_code,
+        code=error.code,
         end_line=end_line,
         end_column=end_column,
         help_text=error.suggestion,

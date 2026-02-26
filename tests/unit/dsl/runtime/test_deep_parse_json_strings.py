@@ -5,7 +5,7 @@ before schema validation.
 """
 
 
-from streetrace.dsl.runtime.context import deep_parse_json_strings
+from streetrace.dsl.runtime.response_parser import deep_parse_json_strings
 
 
 class TestDeepParseJsonStrings:

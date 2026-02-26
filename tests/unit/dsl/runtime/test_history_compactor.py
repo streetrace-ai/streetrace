@@ -153,7 +153,7 @@ class TestSummarizeStrategy:
     @pytest.fixture
     def strategy_no_llm(self):
         """Create a SummarizeStrategy without LLM client."""
-        return SummarizeStrategy(llm_client=None)
+        return SummarizeStrategy(llm=None)
 
     @pytest.mark.asyncio
     async def test_summarize_falls_back_to_truncate(self, strategy_no_llm):

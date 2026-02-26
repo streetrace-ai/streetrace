@@ -3,6 +3,10 @@
 Provide automatic history management to prevent context window overflow.
 When conversation history reaches 80% of the model's context limit, apply
 either summarize or truncate strategy.
+
+This module provides post-run (message-level) compaction. For mid-run
+(event-level) compaction, see compacting_runner.py. Both modules share
+the SummarizeLlm protocol for LLM-based summarization.
 """
 
 from abc import ABC, abstractmethod
@@ -13,6 +17,8 @@ from streetrace.log import get_logger
 
 if TYPE_CHECKING:
     from google.adk.events import Event
+
+    from streetrace.dsl.runtime.compacting_runner import SummarizeLlm
 
 logger = get_logger(__name__)
 
@@ -126,22 +132,23 @@ class SummarizeStrategy(CompactionStrategy):
     """Summarize strategy that uses LLM to create a summary.
 
     Create a condensed summary of older messages while preserving
-    the goal and recent context.
+    the goal and recent context. Uses the shared SummarizeLlm protocol
+    from compacting_runner for the LLM interface.
     """
 
     def __init__(
         self,
         *,
-        llm_client: object | None = None,
+        llm: "SummarizeLlm | None" = None,
     ) -> None:
         """Initialize the summarize strategy.
 
         Args:
-            llm_client: Optional LLM client for generating summaries.
+            llm: SummarizeLlm implementation for generating summaries.
                 If not provided, falls back to truncation.
 
         """
-        self._llm_client = llm_client
+        self._llm = llm
 
     async def compact(
         self,
@@ -166,9 +173,8 @@ class SummarizeStrategy(CompactionStrategy):
         if len(messages) <= MINIMUM_RECENT_MESSAGES:
             return messages
 
-        if self._llm_client is None:
-            # Fall back to truncation if no LLM client available
-            logger.debug("No LLM client available, falling back to truncation")
+        if self._llm is None:
+            logger.debug("No SummarizeLlm available, falling back to truncation")
             truncate = TruncateStrategy()
             return await truncate.compact(messages, target_tokens, model)
 
@@ -182,8 +188,20 @@ class SummarizeStrategy(CompactionStrategy):
         if not middle_messages:
             return messages
 
-        # Generate summary of middle messages
-        summary = await self._generate_summary(middle_messages, model)
+        # Format messages and summarize via shared SummarizeLlm protocol
+        formatted = []
+        for msg in middle_messages:
+            role = msg.get("role", "unknown")
+            content = msg.get("content", "")
+            formatted.append(f"{role}: {content}")
+
+        conversation_text = "\n".join(formatted)
+
+        try:
+            summary = await self._llm.summarize(conversation_text)
+        except (ValueError, RuntimeError, OSError):
+            logger.exception("Failed to generate summary")
+            summary = ""
 
         # Build result with summary as context
         result = []
@@ -209,52 +227,6 @@ class SummarizeStrategy(CompactionStrategy):
 
         return result
 
-    async def _generate_summary(
-        self,
-        messages: list[dict[str, object]],
-        model: str,
-    ) -> str:
-        """Generate a summary of the given messages.
-
-        Args:
-            messages: Messages to summarize.
-            model: Model to use for summarization.
-
-        Returns:
-            Summary text.
-
-        """
-        # Format messages for summarization
-        formatted = []
-        for msg in messages:
-            role = msg.get("role", "unknown")
-            content = msg.get("content", "")
-            formatted.append(f"{role}: {content}")
-
-        conversation_text = "\n".join(formatted)
-
-        summary_prompt = (
-            "Summarize the following conversation concisely, "
-            "preserving key decisions, context, and any important details:\n\n"
-            f"{conversation_text}\n\n"
-            "Summary:"
-        )
-
-        # Use the LLM client to generate summary
-        if not hasattr(self._llm_client, "complete"):
-            return ""
-
-        try:
-            response = await self._llm_client.complete(
-                model=model,
-                prompt=summary_prompt,
-                max_tokens=500,
-            )
-            return str(response)
-        except (ValueError, RuntimeError, OSError):
-            logger.exception("Failed to generate summary")
-            return ""
-
 
 class HistoryCompactor:
     """Manage conversation history compaction for DSL agents.
@@ -266,22 +238,22 @@ class HistoryCompactor:
         self,
         *,
         strategy: str = "truncate",
-        llm_client: object | None = None,
+        llm: "SummarizeLlm | None" = None,
     ) -> None:
         """Initialize the history compactor.
 
         Args:
             strategy: Compaction strategy name ('summarize' or 'truncate').
-            llm_client: Optional LLM client for summarize strategy.
+            llm: Optional SummarizeLlm for summarize strategy.
 
         """
         self._strategy_name = strategy
-        self._llm_client = llm_client
+        self._llm = llm
 
     def _get_strategy(self) -> CompactionStrategy:
         """Get the compaction strategy instance."""
         if self._strategy_name == "summarize":
-            return SummarizeStrategy(llm_client=self._llm_client)
+            return SummarizeStrategy(llm=self._llm)
         return TruncateStrategy()
 
     def should_compact(

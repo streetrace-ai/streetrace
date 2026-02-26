@@ -1,7 +1,8 @@
 """Tests for workflow context escalation support.
 
-Test coverage for run_agent_with_escalation(), _check_escalation(),
-and get_last_result_with_escalation() methods in WorkflowContext.
+Test coverage for run_agent_with_escalation(),
+EscalationHandler.check(), and get_last_result_with_escalation()
+methods in WorkflowContext.
 """
 
 from collections.abc import AsyncGenerator
@@ -10,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from streetrace.dsl.runtime.context import WorkflowContext
+from streetrace.dsl.runtime.escalation_handler import EscalationHandler
 
 
 @pytest.fixture
@@ -26,191 +28,144 @@ def context(mock_workflow: MagicMock) -> WorkflowContext:
     return WorkflowContext(workflow=mock_workflow)
 
 
-class TestCheckEscalation:
-    """Test _check_escalation helper method."""
+def _make_handler(
+    agents: dict[str, dict[str, object]],
+    prompts: dict[str, object],
+) -> EscalationHandler:
+    """Create an EscalationHandler with given definitions."""
+    return EscalationHandler(agents=agents, prompts=prompts)
 
-    def test_check_escalation_with_normalized_operator_match(
-        self,
-        context: WorkflowContext,
-    ) -> None:
+
+class TestCheckEscalation:
+    """Test EscalationHandler.check method."""
+
+    def test_check_escalation_with_normalized_operator_match(self) -> None:
         """Test escalation check with ~ operator matching."""
-        # Import the spec classes that will be created
         from streetrace.dsl.runtime.workflow import EscalationSpec, PromptSpec
 
-        # Set up agents with prompt that has escalation condition
-        context.set_agents({
-            "test_agent": {"instruction": "test_prompt", "tools": []},
-        })
-        context.set_prompts({
-            "test_prompt": PromptSpec(
-                body=lambda _: "Test prompt",
-                escalation=EscalationSpec(op="~", value="DRIFTING"),
-            ),
-        })
+        handler = _make_handler(
+            agents={"test_agent": {"instruction": "test_prompt", "tools": []}},
+            prompts={
+                "test_prompt": PromptSpec(
+                    body=lambda _: "Test prompt",
+                    escalation=EscalationSpec(op="~", value="DRIFTING"),
+                ),
+            },
+        )
 
-        # Check with matching value (should normalize)
-        result = context._check_escalation("test_agent", "**DRIFTING**")  # noqa: SLF001
+        result = handler.check("test_agent", "**DRIFTING**")
         assert result is True
 
-    def test_check_escalation_with_normalized_operator_no_match(
-        self,
-        context: WorkflowContext,
-    ) -> None:
+    def test_check_escalation_with_normalized_operator_no_match(self) -> None:
         """Test escalation check with ~ operator not matching."""
         from streetrace.dsl.runtime.workflow import EscalationSpec, PromptSpec
 
-        context.set_agents({
-            "test_agent": {"instruction": "test_prompt", "tools": []},
-        })
-        context.set_prompts({
-            "test_prompt": PromptSpec(
-                body=lambda _: "Test prompt",
-                escalation=EscalationSpec(op="~", value="DRIFTING"),
-            ),
-        })
+        handler = _make_handler(
+            agents={"test_agent": {"instruction": "test_prompt", "tools": []}},
+            prompts={
+                "test_prompt": PromptSpec(
+                    body=lambda _: "Test prompt",
+                    escalation=EscalationSpec(op="~", value="DRIFTING"),
+                ),
+            },
+        )
 
-        # Check with non-matching value
-        result = context._check_escalation("test_agent", "Everything is fine")  # noqa: SLF001
+        result = handler.check("test_agent", "Everything is fine")
         assert result is False
 
-    def test_check_escalation_with_exact_match_operator(
-        self,
-        context: WorkflowContext,
-    ) -> None:
+    def test_check_escalation_with_exact_match_operator(self) -> None:
         """Test escalation check with == operator."""
         from streetrace.dsl.runtime.workflow import EscalationSpec, PromptSpec
 
-        context.set_agents({
-            "test_agent": {"instruction": "test_prompt", "tools": []},
-        })
-        context.set_prompts({
-            "test_prompt": PromptSpec(
-                body=lambda _: "Test prompt",
-                escalation=EscalationSpec(op="==", value="NEEDS_HUMAN"),
-            ),
-        })
+        handler = _make_handler(
+            agents={"test_agent": {"instruction": "test_prompt", "tools": []}},
+            prompts={
+                "test_prompt": PromptSpec(
+                    body=lambda _: "Test prompt",
+                    escalation=EscalationSpec(op="==", value="NEEDS_HUMAN"),
+                ),
+            },
+        )
 
-        # Check with exact match
-        result = context._check_escalation("test_agent", "NEEDS_HUMAN")  # noqa: SLF001
-        assert result is True
+        assert handler.check("test_agent", "NEEDS_HUMAN") is True
+        assert handler.check("test_agent", "needs_human") is False
 
-        # Check without exact match (different case)
-        result = context._check_escalation("test_agent", "needs_human")  # noqa: SLF001
-        assert result is False
-
-    def test_check_escalation_with_not_equal_operator(
-        self,
-        context: WorkflowContext,
-    ) -> None:
+    def test_check_escalation_with_not_equal_operator(self) -> None:
         """Test escalation check with != operator."""
         from streetrace.dsl.runtime.workflow import EscalationSpec, PromptSpec
 
-        context.set_agents({
-            "test_agent": {"instruction": "test_prompt", "tools": []},
-        })
-        context.set_prompts({
-            "test_prompt": PromptSpec(
-                body=lambda _: "Test prompt",
-                escalation=EscalationSpec(op="!=", value="SUCCESS"),
-            ),
-        })
+        handler = _make_handler(
+            agents={"test_agent": {"instruction": "test_prompt", "tools": []}},
+            prompts={
+                "test_prompt": PromptSpec(
+                    body=lambda _: "Test prompt",
+                    escalation=EscalationSpec(op="!=", value="SUCCESS"),
+                ),
+            },
+        )
 
-        # Check with different value - should escalate
-        result = context._check_escalation("test_agent", "FAILURE")  # noqa: SLF001
-        assert result is True
+        assert handler.check("test_agent", "FAILURE") is True
+        assert handler.check("test_agent", "SUCCESS") is False
 
-        # Check with same value - should not escalate
-        result = context._check_escalation("test_agent", "SUCCESS")  # noqa: SLF001
-        assert result is False
-
-    def test_check_escalation_with_contains_operator(
-        self,
-        context: WorkflowContext,
-    ) -> None:
+    def test_check_escalation_with_contains_operator(self) -> None:
         """Test escalation check with contains operator."""
         from streetrace.dsl.runtime.workflow import EscalationSpec, PromptSpec
 
-        context.set_agents({
-            "test_agent": {"instruction": "test_prompt", "tools": []},
-        })
-        context.set_prompts({
-            "test_prompt": PromptSpec(
-                body=lambda _: "Test prompt",
-                escalation=EscalationSpec(op="contains", value="ERROR"),
-            ),
-        })
-
-        # Check with containing value
-        result = context._check_escalation(  # noqa: SLF001
-            "test_agent",
-            "There was an ERROR in processing",
+        handler = _make_handler(
+            agents={"test_agent": {"instruction": "test_prompt", "tools": []}},
+            prompts={
+                "test_prompt": PromptSpec(
+                    body=lambda _: "Test prompt",
+                    escalation=EscalationSpec(op="contains", value="ERROR"),
+                ),
+            },
         )
-        assert result is True
 
-        # Check without containing value
-        result = context._check_escalation("test_agent", "All good")  # noqa: SLF001
-        assert result is False
+        assert handler.check(
+            "test_agent", "There was an ERROR in processing",
+        ) is True
+        assert handler.check("test_agent", "All good") is False
 
-    def test_check_escalation_with_unknown_agent(
-        self,
-        context: WorkflowContext,
-    ) -> None:
+    def test_check_escalation_with_unknown_agent(self) -> None:
         """Test escalation check returns False for unknown agent."""
-        context.set_agents({})
-        context.set_prompts({})
+        handler = _make_handler(agents={}, prompts={})
+        assert handler.check("unknown_agent", "any result") is False
 
-        result = context._check_escalation("unknown_agent", "any result")  # noqa: SLF001
-        assert result is False
-
-    def test_check_escalation_with_no_escalation_condition(
-        self,
-        context: WorkflowContext,
-    ) -> None:
+    def test_check_escalation_with_no_escalation_condition(self) -> None:
         """Test escalation check returns False when prompt has no escalation."""
         from streetrace.dsl.runtime.workflow import PromptSpec
 
-        context.set_agents({
-            "test_agent": {"instruction": "test_prompt", "tools": []},
-        })
-        context.set_prompts({
-            "test_prompt": PromptSpec(
-                body=lambda _: "Test prompt",
-                escalation=None,
-            ),
-        })
+        handler = _make_handler(
+            agents={"test_agent": {"instruction": "test_prompt", "tools": []}},
+            prompts={
+                "test_prompt": PromptSpec(
+                    body=lambda _: "Test prompt",
+                    escalation=None,
+                ),
+            },
+        )
 
-        result = context._check_escalation("test_agent", "DRIFTING")  # noqa: SLF001
-        assert result is False
+        assert handler.check("test_agent", "DRIFTING") is False
 
-    def test_check_escalation_with_no_prompt_for_agent(
-        self,
-        context: WorkflowContext,
-    ) -> None:
+    def test_check_escalation_with_no_prompt_for_agent(self) -> None:
         """Test escalation check returns False when agent has no prompt."""
-        context.set_agents({
-            "test_agent": {"instruction": "nonexistent_prompt", "tools": []},
-        })
-        context.set_prompts({})
+        handler = _make_handler(
+            agents={
+                "test_agent": {"instruction": "nonexistent_prompt", "tools": []},
+            },
+            prompts={},
+        )
 
-        result = context._check_escalation("test_agent", "DRIFTING")  # noqa: SLF001
-        assert result is False
+        assert handler.check("test_agent", "DRIFTING") is False
 
-    def test_check_escalation_with_backward_compat_lambda_prompt(
-        self,
-        context: WorkflowContext,
-    ) -> None:
+    def test_check_escalation_with_backward_compat_lambda_prompt(self) -> None:
         """Test escalation check with old-style lambda prompt (no PromptSpec)."""
-        context.set_agents({
-            "test_agent": {"instruction": "test_prompt", "tools": []},
-        })
-        # Old-style prompt without PromptSpec wrapper
-        context.set_prompts({
-            "test_prompt": lambda _: "Test prompt",
-        })
+        handler = _make_handler(
+            agents={"test_agent": {"instruction": "test_prompt", "tools": []}},
+            prompts={"test_prompt": lambda _: "Test prompt"},
+        )
 
-        # Should return False without error (backward compat)
-        result = context._check_escalation("test_agent", "DRIFTING")  # noqa: SLF001
-        assert result is False
+        assert handler.check("test_agent", "DRIFTING") is False
 
 
 class TestRunAgentWithEscalation:
@@ -225,12 +180,11 @@ class TestRunAgentWithEscalation:
         """Test that run_agent_with_escalation returns an async generator."""
         from streetrace.dsl.runtime.workflow import EscalationSpec, PromptSpec
 
-        # Set up mock workflow to return an async generator
         async def mock_run_agent(
             _agent_name: str,
             *_args: object,
         ) -> AsyncGenerator[object, None]:
-            yield MagicMock()  # Yield a mock event
+            yield MagicMock()
 
         mock_workflow.run_agent = mock_run_agent
 
@@ -244,16 +198,10 @@ class TestRunAgentWithEscalation:
             ),
         })
 
-        # Call run_agent_with_escalation
         result_gen = context.run_agent_with_escalation("test_agent", "input")
-
-        # Should be an async generator
         assert hasattr(result_gen, "__anext__")
 
-        # Consume the generator
         events = [event async for event in result_gen]
-
-        # Should have yielded events
         assert len(events) >= 1
 
     @pytest.mark.asyncio
@@ -265,18 +213,14 @@ class TestRunAgentWithEscalation:
         """Test that escalation flag is set correctly after agent run."""
         from streetrace.dsl.runtime.workflow import EscalationSpec, PromptSpec
 
-        # Set up mock workflow to return an async generator
-        # The workflow.run_agent sets _last_call_result on the context
         async def mock_run_agent(
             _agent_name: str,
             *_args: object,
         ) -> AsyncGenerator[object, None]:
-            # Simulate final response event
             event = MagicMock()
             event.is_final_response.return_value = True
             event.content.parts = [MagicMock(text="DRIFTING")]
             yield event
-            # Simulate what the real workflow does - set result on context
             context._last_call_result = "DRIFTING"  # noqa: SLF001
 
         mock_workflow.run_agent = mock_run_agent
@@ -292,11 +236,9 @@ class TestRunAgentWithEscalation:
             ),
         })
 
-        # Consume the generator
         async for _ in context.run_agent_with_escalation("test_agent", "input"):
             pass
 
-        # Check escalation flag
         _result, escalated = context.get_last_result_with_escalation()
         assert escalated is True
 
@@ -309,7 +251,6 @@ class TestGetLastResultWithEscalation:
         context: WorkflowContext,
     ) -> None:
         """Test that get_last_result_with_escalation returns (result, escalated)."""
-        # Set internal state
         context._last_call_result = "test result"  # noqa: SLF001
         context._last_escalated = True  # noqa: SLF001
 
