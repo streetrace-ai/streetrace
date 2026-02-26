@@ -425,55 +425,45 @@ class TestExpectingArrayRuntime:
 
         return ctx
 
-    def test_parse_json_response_with_array(
-        self,
-        workflow_context: "WorkflowContext",
-    ) -> None:
-        """_parse_json_response handles JSON array input."""
+    def test_parse_json_response_with_array(self) -> None:
+        """parse_json_response handles JSON array input."""
         import json
 
-        result = workflow_context._parse_json_response(  # noqa: SLF001
+        from streetrace.dsl.runtime.response_parser import parse_json_response
+
+        result = parse_json_response(
             json.dumps([{"value": "issue1"}, {"value": "issue2"}]),
         )
         assert isinstance(result, list)
         assert len(result) == 2
 
-    def test_parse_json_response_with_object(
-        self,
-        workflow_context: "WorkflowContext",
-    ) -> None:
-        """_parse_json_response handles JSON object input."""
+    def test_parse_json_response_with_object(self) -> None:
+        """parse_json_response handles JSON object input."""
         import json
 
-        result = workflow_context._parse_json_response(  # noqa: SLF001
+        from streetrace.dsl.runtime.response_parser import parse_json_response
+
+        result = parse_json_response(
             json.dumps({"value": "issue1"}),
         )
         assert isinstance(result, dict)
 
-    def test_is_array_schema(
-        self,
-        workflow_context: "WorkflowContext",
-    ) -> None:
-        """_is_array_schema detects array suffix."""
-        from streetrace.dsl.runtime.workflow import PromptSpec
+    def test_is_array_schema(self) -> None:
+        """is_array_schema detects array suffix."""
+        from streetrace.dsl.runtime.response_parser import is_array_schema
 
-        array_spec = PromptSpec(body=lambda _: "", schema="Finding[]")
-        single_spec = PromptSpec(body=lambda _: "", schema="Finding")
-        no_schema_spec = PromptSpec(body=lambda _: "")
-
-        assert workflow_context._is_array_schema(array_spec) is True  # noqa: SLF001
-        assert workflow_context._is_array_schema(single_spec) is False  # noqa: SLF001
-        assert workflow_context._is_array_schema(no_schema_spec) is False  # noqa: SLF001
+        assert is_array_schema("Finding[]") is True
+        assert is_array_schema("Finding") is False
+        assert is_array_schema(None) is False
 
     def test_get_schema_model_strips_array_suffix(
         self,
         workflow_context: "WorkflowContext",
     ) -> None:
-        """_get_schema_model resolves base schema name for array types."""
-        from streetrace.dsl.runtime.workflow import PromptSpec
+        """get_schema_model resolves base schema name for array types."""
+        from streetrace.dsl.runtime.response_parser import get_schema_model
 
-        array_spec = PromptSpec(body=lambda _: "", schema="Finding[]")
-        model = workflow_context._get_schema_model(array_spec)  # noqa: SLF001
+        model = get_schema_model("Finding[]", workflow_context._schemas)  # noqa: SLF001
         assert model is not None
         assert model.__name__ == "Finding"
 
@@ -481,11 +471,10 @@ class TestExpectingArrayRuntime:
         self,
         workflow_context: "WorkflowContext",
     ) -> None:
-        """_get_schema_model resolves schema name for single types."""
-        from streetrace.dsl.runtime.workflow import PromptSpec
+        """get_schema_model resolves schema name for single types."""
+        from streetrace.dsl.runtime.response_parser import get_schema_model
 
-        single_spec = PromptSpec(body=lambda _: "", schema="Finding")
-        model = workflow_context._get_schema_model(single_spec)  # noqa: SLF001
+        model = get_schema_model("Finding", workflow_context._schemas)  # noqa: SLF001
         assert model is not None
         assert model.__name__ == "Finding"
 

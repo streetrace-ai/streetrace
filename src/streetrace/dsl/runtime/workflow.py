@@ -8,17 +8,13 @@ from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
-from streetrace.dsl.runtime.compacting_runner import (
-    CompactionStrategy,
-    SummarizeCompactionStrategy,
-    TruncateCompactionStrategy,
-)
-from streetrace.dsl.runtime.context import WorkflowContext, deep_parse_json_strings
+from streetrace.dsl.runtime.compacting_runner import CompactionStrategy
+from streetrace.dsl.runtime.context import WorkflowContext
 from streetrace.dsl.runtime.errors import JSONParseError, SchemaValidationError
-from streetrace.dsl.runtime.events import HistoryCompactionEvent
-from streetrace.dsl.runtime.history_compactor import (
-    HistoryCompactor,
-    extract_messages_from_events,
+from streetrace.dsl.runtime.schema_validator import (
+    SchemaInfo,
+    resolve_agent_schema,
+    validate_response,
 )
 from streetrace.log import get_logger
 
@@ -30,7 +26,7 @@ if TYPE_CHECKING:
     from google.genai.types import Content
     from pydantic import BaseModel
 
-    from streetrace.dsl.runtime.events import FlowEvent
+    from streetrace.dsl.runtime.events import FlowEvent, HistoryCompactionEvent
     from streetrace.llm.model_factory import ModelFactory
     from streetrace.system_context import SystemContext
     from streetrace.tools.tool_provider import ToolProvider
@@ -176,23 +172,6 @@ class EntryPoint:
     name: str
 
 
-@dataclass
-class SchemaValidationParams:
-    """Parameters for agent result schema validation.
-
-    Bundle validation parameters to reduce argument count in methods.
-    """
-
-    schema_name: str | None
-    """Full schema name (e.g., 'Finding[]')."""
-
-    schema_model: "type[BaseModel]"
-    """Pydantic model class for validation."""
-
-    is_array: bool
-    """True if expecting an array of schema items."""
-
-
 class DslAgentWorkflow:
     """Base class for generated DSL workflows.
 
@@ -243,6 +222,10 @@ class DslAgentWorkflow:
             agent_factory: DslAgentFactory for agent creation.
 
         """
+        from streetrace.dsl.runtime.compaction_orchestrator import (
+            CompactionOrchestrator,
+        )
+        from streetrace.dsl.runtime.session_deriver import SessionDeriver
         from streetrace.workloads.agent_executor import (
             AgentExecutor,
             CompactionParams,
@@ -255,6 +238,13 @@ class DslAgentWorkflow:
         self._agent_factory = agent_factory
         self._executor = AgentExecutor(session_service=session_service)
         self._compaction_params_cls = CompactionParams
+        self._session_deriver = SessionDeriver(session_service=session_service)
+        self._compaction = CompactionOrchestrator(
+            models=self._models,
+            agents=self._agents,
+            compaction_policy=self._compaction_policy,
+            model_factory=model_factory,
+        )
         self._context: WorkflowContext | None = None
         self._created_agents: list[BaseAgent] = []
 
@@ -268,8 +258,7 @@ class DslAgentWorkflow:
     ) -> tuple[str, str, str]:
         """Derive session identifiers for a nested agent run.
 
-        Create child session identifiers based on the parent session context,
-        ensuring session continuity and persistence for nested agent executions.
+        Delegate to SessionDeriver.
 
         Args:
             agent_name: Name of the agent being executed.
@@ -279,38 +268,19 @@ class DslAgentWorkflow:
             Tuple of (app_name, user_id, session_id).
 
         """
-        import uuid
-
-        ctx = self._context
-        parent_session = ctx.parent_session if ctx else None
-
-        if parent_session:
-            app_name = parent_session.app_name
-            user_id = parent_session.user_id
-            flow_part = (
-                ctx.current_flow_name if ctx and ctx.current_flow_name else "agent"
-            )
-            invocation_id = ctx.next_invocation_id() if ctx else 1
-
-            if parallel_index is not None:
-                session_id = (
-                    f"{parent_session.id}:{flow_part}:p{parallel_index}:{agent_name}"
-                )
-            else:
-                session_id = (
-                    f"{parent_session.id}:{flow_part}:{agent_name}:{invocation_id}"
-                )
+        # Compute fallback app name from agent factory or class name
+        if self._agent_factory and hasattr(self._agent_factory, "_source_file"):
+            source_file = self._agent_factory._source_file  # noqa: SLF001
+            fallback = source_file.stem if source_file else self.__class__.__name__
         else:
-            # Fallback when no parent session
-            if self._agent_factory and hasattr(self._agent_factory, "_source_file"):
-                source_file = self._agent_factory._source_file  # noqa: SLF001
-                app_name = source_file.stem if source_file else self.__class__.__name__
-            else:
-                app_name = self.__class__.__name__
-            user_id = "workflow_user"
-            session_id = f"nested_{agent_name}_{uuid.uuid4().hex[:8]}"
+            fallback = self.__class__.__name__
 
-        return app_name, user_id, session_id
+        return self._session_deriver.derive_identifiers(
+            agent_name,
+            self._context,
+            fallback,
+            parallel_index=parallel_index,
+        )
 
     def _determine_entry_point(self) -> EntryPoint:
         """Determine the entry point for workflow execution.
@@ -387,6 +357,8 @@ class DslAgentWorkflow:
     def _create_compaction_strategy(self, agent_name: str) -> CompactionStrategy | None:
         """Create a compaction strategy for the agent if configured.
 
+        Delegate to CompactionOrchestrator.
+
         Args:
             agent_name: Name of the agent.
 
@@ -394,17 +366,7 @@ class DslAgentWorkflow:
             CompactionStrategy instance, or None if compaction not configured.
 
         """
-        strategy_name = self._get_agent_history_strategy(agent_name)
-        if not strategy_name:
-            return None
-
-        if strategy_name == "summarize" and self._model_factory:
-            model = self._get_agent_model(agent_name)
-            llm_adapter = SummarizeLlmAdapter(self._model_factory, model)
-            return SummarizeCompactionStrategy(llm=llm_adapter)
-
-        # Default to truncate strategy
-        return TruncateCompactionStrategy(keep_recent=6)
+        return self._compaction.create_strategy(agent_name)
 
     def _build_compaction_params(
         self,
@@ -416,8 +378,8 @@ class DslAgentWorkflow:
             return None
         return self._compaction_params_cls(
             strategy=strategy,
-            max_tokens=self._get_model_max_input_tokens(agent_name),
-            model=self._get_agent_model(agent_name),
+            max_tokens=self._compaction.get_model_max_input_tokens(agent_name),
+            model=self._compaction.get_agent_model(agent_name),
         )
 
     async def _execute_agent(
@@ -486,108 +448,21 @@ class DslAgentWorkflow:
             )
         return result
 
-    def _resolve_agent_schema(
-        self,
-        agent_name: str,
-    ) -> tuple[str | None, "type[BaseModel] | None", bool]:
+    def _resolve_agent_schema(self, agent_name: str) -> SchemaInfo | None:
         """Resolve the expected schema from an agent's instruction prompt.
 
-        Look up the agent's instruction prompt and extract its schema definition.
-        Return schema metadata for validation.
+        Delegate to schema_validator module.
 
         Args:
             agent_name: Name of the agent to resolve schema for.
 
         Returns:
-            Tuple of (schema_name, schema_model, is_array).
-            Returns (None, None, False) if no schema is defined.
+            SchemaInfo if schema is defined, None otherwise.
 
         """
-        agent_def = self._agents.get(agent_name)
-        if not agent_def:
-            return (None, None, False)
-
-        instruction_name = agent_def.get("instruction")
-        if not instruction_name or not isinstance(instruction_name, str):
-            return (None, None, False)
-
-        prompt_spec = self._prompts.get(instruction_name)
-        if not prompt_spec:
-            return (None, None, False)
-
-        schema_name = getattr(prompt_spec, "schema", None)
-        if not schema_name or not isinstance(schema_name, str):
-            return (None, None, False)
-
-        # Check if array type
-        is_array = schema_name.endswith("[]")
-        base_name = schema_name[:-2] if is_array else schema_name
-
-        schema_model = self._schemas.get(base_name)
-        if not schema_model:
-            return (None, None, False)
-
-        return (schema_name, schema_model, is_array)
-
-    def _validate_agent_result(
-        self,
-        raw_response: str,
-        schema_model: "type[BaseModel]",
-        *,
-        is_array: bool,
-    ) -> object:
-        """Validate an agent's raw response against a schema.
-
-        Parse the response as JSON and validate against the Pydantic model.
-
-        Args:
-            raw_response: The raw text response from the agent.
-            schema_model: Pydantic model class for validation.
-            is_array: True if expecting an array of schema items.
-
-        Returns:
-            Validated result as dict or list of dicts.
-
-        Raises:
-            JSONParseError: If response cannot be parsed as JSON.
-            SchemaValidationError: If parsed response fails validation.
-
-        """
-        from pydantic import ValidationError as PydanticValidationError
-
-        if not self._context:
-            msg = "Context required for validation"
-            raise ValueError(msg)
-
-        # Parse JSON using context's method (let JSONParseError propagate)
-        parsed = self._context._parse_json_response(raw_response)  # noqa: SLF001
-
-        # Pre-process to handle JSON strings in nested fields
-        # Type is preserved (dict stays dict, list stays list)
-        parsed = deep_parse_json_strings(parsed)  # type: ignore[assignment]
-
-        # Validate against schema
-        try:
-            if is_array:
-                if not isinstance(parsed, list):
-                    msg = f"Expected JSON array, got {type(parsed).__name__}"
-                    raise JSONParseError(
-                        raw_response=raw_response,
-                        parse_error=msg,
-                    )
-                validated_items = []
-                for item in parsed:
-                    validated = schema_model.model_validate(item)
-                    validated_items.append(validated.model_dump())
-                return validated_items
-            validated = schema_model.model_validate(parsed)
-            return validated.model_dump()
-        except PydanticValidationError as e:
-            raise SchemaValidationError(
-                schema_name=schema_model.__name__,
-                errors=[str(e)],
-                raw_response=raw_response,
-            ) from e
+        return resolve_agent_schema(
+            agent_name, self._agents, self._prompts, self._schemas,
+        )
 
     async def _execute_flow(
         self,
@@ -692,7 +567,7 @@ class DslAgentWorkflow:
 
         """
         # Resolve schema for validation
-        schema_name, schema_model, is_array = self._resolve_agent_schema(agent_name)
+        schema_info = self._resolve_agent_schema(agent_name)
 
         # Execute agent and collect response
         final_response, events = await self._execute_agent_run(agent_name, *args)
@@ -703,22 +578,17 @@ class DslAgentWorkflow:
 
         # Validate and potentially retry
         if self._context:
-            if schema_model is None:
+            if schema_info is None:
                 # No schema - use simple JSON parsing
                 self._context._last_call_result = _try_parse_json(  # noqa: SLF001
                     final_response,
                 )
             else:
                 # Schema validation with retry
-                params = SchemaValidationParams(
-                    schema_name=schema_name,
-                    schema_model=schema_model,
-                    is_array=is_array,
-                )
                 result = await self._validate_with_retry(
                     agent_name=agent_name,
                     raw_response=str(final_response) if final_response else "",
-                    params=params,
+                    schema_info=schema_info,
                     args=args,
                 )
                 self._context._last_call_result = result  # noqa: SLF001
@@ -772,22 +642,11 @@ class DslAgentWorkflow:
                 agent_name,
             )
 
-        # Derive session identifiers from parent context
+        # Derive session identifiers and get-or-create child session
         app_name, user_id, session_id = self._derive_session_identifiers(agent_name)
-
-        # Create child session if it doesn't exist
-        existing = await self._session_service.get_session(
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
+        existing = await self._session_deriver.get_or_create(
+            app_name, user_id, session_id,
         )
-        if existing is None:
-            existing = await self._session_service.create_session(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                state={},
-            )
 
         # Resolve compaction parameters
         compaction = self._build_compaction_params(agent_name)
@@ -812,7 +671,7 @@ class DslAgentWorkflow:
         self,
         agent_name: str,
         raw_response: str,
-        params: SchemaValidationParams,
+        schema_info: SchemaInfo,
         args: tuple[object, ...],
     ) -> object:
         """Validate agent result with one retry on failure.
@@ -820,7 +679,7 @@ class DslAgentWorkflow:
         Args:
             agent_name: Name of the agent (for retry).
             raw_response: The raw response text to validate.
-            params: Schema validation parameters.
+            schema_info: Resolved schema information.
             args: Original args for retry.
 
         Returns:
@@ -830,8 +689,10 @@ class DslAgentWorkflow:
         # First attempt
         first_error = ""
         try:
-            return self._validate_agent_result(
-                raw_response, params.schema_model, is_array=params.is_array,
+            return validate_response(
+                raw_response,
+                schema_info.schema_model,
+                is_array=schema_info.is_array,
             )
         except (JSONParseError, SchemaValidationError) as e:
             first_error = str(e)
@@ -852,19 +713,19 @@ class DslAgentWorkflow:
 
         # Second attempt
         try:
-            return self._validate_agent_result(
+            return validate_response(
                 str(retry_response) if retry_response else "",
-                params.schema_model,
-                is_array=params.is_array,
+                schema_info.schema_model,
+                is_array=schema_info.is_array,
             )
         except (JSONParseError, SchemaValidationError):
             logger.warning(
                 "Agent '%s' expected %s but returned unparseable response after retry",
                 agent_name,
-                params.schema_name,
+                schema_info.schema_name,
             )
             # Fall back to empty result
-            return [] if params.is_array else {}
+            return [] if schema_info.is_array else {}
 
     async def run_flow(
         self,
@@ -899,7 +760,7 @@ class DslAgentWorkflow:
         async for event in flow_method(ctx):
             yield event
 
-    async def _execute_parallel_agents(  # noqa: C901
+    async def _execute_parallel_agents(
         self,
         ctx: WorkflowContext,
         specs: list[tuple[str, list[object], str | None]],
@@ -965,26 +826,15 @@ class DslAgentWorkflow:
             parts = [genai_types.Part.from_text(text=prompt_text)]
             content = genai_types.Content(role="user", parts=parts)
 
-        # Derive session identifiers for the parallel block
+        # Derive session identifiers and get-or-create for parallel block
         app_name, user_id, base_session_id = self._derive_session_identifiers(
             "parallel_block",
             parallel_index=0,
         )
         session_id = f"{base_session_id}_{id(specs)}"
-
-        # Create child session if it doesn't exist
-        existing = await self._session_service.get_session(
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
+        existing = await self._session_deriver.get_or_create(
+            app_name, user_id, session_id,
         )
-        if existing is None:
-            existing = await self._session_service.create_session(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                state={},
-            )
 
         # Execute ParallelAgent via AgentExecutor
         async for event in self._executor.run(
@@ -1047,9 +897,9 @@ class DslAgentWorkflow:
             agent_name, args = target_var_to_spec.get(target_var, (target_var, []))
 
             # Resolve schema for this agent
-            schema_name, schema_model, is_array = self._resolve_agent_schema(agent_name)
+            schema_info = self._resolve_agent_schema(agent_name)
 
-            if schema_model is None:
+            if schema_info is None:
                 # No schema - use simple JSON parsing
                 parsed = _try_parse_json(raw)
                 logger.debug(
@@ -1059,16 +909,11 @@ class DslAgentWorkflow:
                 )
                 ctx.vars[target_var] = parsed
             else:
-                # Validate with retry
-                params = SchemaValidationParams(
-                    schema_name=schema_name,
-                    schema_model=schema_model,
-                    is_array=is_array,
-                )
-                result = await self._validate_parallel_result(
+                # Validate with retry (reuse same method as sequential)
+                result = await self._validate_with_retry(
                     agent_name=agent_name,
                     raw_response=str(raw) if raw else "",
-                    params=params,
+                    schema_info=schema_info,
                     args=tuple(args),
                 )
                 logger.debug(
@@ -1078,154 +923,19 @@ class DslAgentWorkflow:
                 )
                 ctx.vars[target_var] = result
 
-    async def _validate_parallel_result(
-        self,
-        agent_name: str,
-        raw_response: str,
-        params: SchemaValidationParams,
-        args: tuple[object, ...],
-    ) -> object:
-        """Validate parallel agent result with one sequential retry on failure.
-
-        Similar to _validate_with_retry but uses sequential execution for retry
-        since parallel execution already completed.
-
-        Args:
-            agent_name: Name of the agent (for retry).
-            raw_response: The raw response text to validate.
-            params: Schema validation parameters.
-            args: Original args for retry.
-
-        Returns:
-            Validated result, or empty fallback on failure.
-
-        """
-        # First attempt
-        first_error = ""
-        try:
-            return self._validate_agent_result(
-                raw_response, params.schema_model, is_array=params.is_array,
-            )
-        except (JSONParseError, SchemaValidationError) as e:
-            first_error = str(e)
-            logger.debug(
-                "Parallel agent '%s' validation failed, retrying sequentially: %s",
-                agent_name,
-                first_error,
-            )
-
-        # Sequential retry with error feedback
-        error_feedback = (
-            f"Error: Your response could not be parsed. {first_error}\n\n"
-            f"Please respond with valid JSON matching the expected schema."
-        )
-        retry_args = (*args, error_feedback)
-
-        retry_response, _ = await self._execute_agent_run(agent_name, *retry_args)
-
-        # Second attempt
-        try:
-            return self._validate_agent_result(
-                str(retry_response) if retry_response else "",
-                params.schema_model,
-                is_array=params.is_array,
-            )
-        except (JSONParseError, SchemaValidationError):
-            logger.warning(
-                "Parallel agent '%s' expected %s but returned unparseable "
-                "response after retry",
-                agent_name,
-                params.schema_name,
-            )
-            # Fall back to empty result
-            return [] if params.is_array else {}
-
     def _get_agent_history_strategy(self, agent_name: str) -> str | None:
         """Get the history management strategy for an agent.
 
-        Priority:
-        1. Agent's explicit history property
-        2. Compaction policy's strategy (workflow default)
+        Delegate to CompactionOrchestrator.
 
         Args:
             agent_name: Name of the agent.
 
         Returns:
-            Strategy name ('summarize' or 'truncate') or None if not configured.
+            Strategy name or None if not configured.
 
         """
-        agent_def = self._agents.get(agent_name)
-
-        # First check agent's explicit history property
-        if agent_def:
-            history = agent_def.get("history")
-            if history:
-                return str(history)
-
-        # Fall back to compaction policy if defined
-        if self._compaction_policy:
-            strategy = self._compaction_policy.get("strategy")
-            if strategy:
-                return str(strategy)
-
-        return None
-
-    def _get_agent_model(self, agent_name: str) -> str:
-        """Resolve the model name for an agent.
-
-        Look up the agent's model from its definition or use default.
-
-        Args:
-            agent_name: Name of the agent.
-
-        Returns:
-            Model identifier string.
-
-        """
-        # Check if agent has a specific model configured
-        agent_def = self._agents.get(agent_name)
-        if agent_def:
-            # Check for model in agent definition
-            model_name = agent_def.get("model")
-            if model_name and isinstance(model_name, str):
-                # Resolve model reference
-                if model_name in self._models:
-                    return self._models[model_name]
-                return model_name
-
-        # Use first model defined or default
-        if self._models:
-            return next(iter(self._models.values()))
-
-        return "gpt-4"  # Default fallback
-
-    def _get_model_max_input_tokens(self, agent_name: str) -> int | None:
-        """Get max_input_tokens setting for an agent's model.
-
-        Args:
-            agent_name: Name of the agent.
-
-        Returns:
-            Max input tokens or None to use LiteLLM lookup.
-
-        """
-        # Look for max_input_tokens in model properties
-        agent_def = self._agents.get(agent_name)
-        if not agent_def:
-            return None
-
-        model_name = agent_def.get("model")
-        if not model_name or not isinstance(model_name, str):
-            # Use first model
-            model_name = next(iter(self._models.keys()), None) if self._models else None
-
-        if not model_name:
-            return None
-
-        # Get model properties (stored in class during codegen)
-        # For now, max_input_tokens from DSL is stored in model properties
-        # This requires the model definition to include max_input_tokens
-        return None  # Will be enhanced when model properties are fully exposed
+        return self._compaction.get_history_strategy(agent_name)
 
     async def _check_and_compact_history(
         self,
@@ -1234,6 +944,8 @@ class DslAgentWorkflow:
         strategy: str,
     ) -> AsyncGenerator["HistoryCompactionEvent", None]:
         """Check if history needs compaction and perform it if needed.
+
+        Delegate to CompactionOrchestrator.
 
         Args:
             agent_name: Name of the agent for model lookup.
@@ -1244,48 +956,10 @@ class DslAgentWorkflow:
             HistoryCompactionEvent if compaction was performed.
 
         """
-        model = self._get_agent_model(agent_name)
-        max_input_tokens = self._get_model_max_input_tokens(agent_name)
-
-        # Extract messages from events
-        messages = extract_messages_from_events(events)
-
-        if not messages:
-            return
-
-        # Create compactor with strategy, reusing SummarizeLlm protocol
-        llm_adapter = None
-        if strategy == "summarize" and self._model_factory:
-            model_id = self._get_agent_model(agent_name)
-            llm_adapter = SummarizeLlmAdapter(self._model_factory, model_id)
-
-        compactor = HistoryCompactor(
-            strategy=strategy,
-            llm=llm_adapter,
-        )
-
-        # Check if compaction is needed
-        if not compactor.should_compact(messages, model, max_input_tokens):
-            return
-
-        # Perform compaction
-        result = await compactor.compact(messages, model, max_input_tokens)
-
-        logger.info(
-            "Compacted history for agent '%s': %d -> %d tokens, %d messages removed",
-            agent_name,
-            result.original_tokens,
-            result.compacted_tokens,
-            result.messages_removed,
-        )
-
-        # Yield compaction event for visibility
-        yield HistoryCompactionEvent(
-            strategy=strategy,
-            original_tokens=result.original_tokens,
-            compacted_tokens=result.compacted_tokens,
-            messages_removed=result.messages_removed,
-        )
+        async for event in self._compaction.check_and_compact_history(
+            agent_name, events, strategy,
+        ):
+            yield event
 
     async def close(self) -> None:
         """Clean up all created agents.
