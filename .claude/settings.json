@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "FILE=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.file_path // empty') && [ -n \"$FILE\" ] && [[ \"$FILE\" == *.py ]] && cd /home/data/repos/github.com/streetrace-ai/streetrace && poetry run ruff format \"$FILE\" 2>/dev/null && poetry run ruff check --fix \"$FILE\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "COMMAND=$(echo \"$CLAUDE_TOOL_INPUT\" | jq -r '.command // empty') && if echo \"$COMMAND\" | grep -q 'git commit'; then cd /home/data/repos/github.com/streetrace-ai/streetrace && make check; fi"
+          }
+        ]
+      }
+    ]
+  }
+}
