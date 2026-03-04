@@ -1,11 +1,11 @@
-"""Test Supervisor agent interaction and event handling.
+"""Test Supervisor workload interaction and event handling.
 
-This module tests how the Supervisor interacts with agents, processes events from the
-agent execution loop, and handles different types of agent responses including final
+Test how the Supervisor interacts with workloads, processes events from the workload
+execution loop, and handles different types of workload responses including final
 responses, escalations, and error conditions.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -15,86 +15,82 @@ from streetrace.workflow.supervisor import Supervisor
 
 
 class TestSupervisorAgentInteraction:
-    """Test Supervisor agent interaction scenarios."""
+    """Test Supervisor workload interaction scenarios."""
 
     @pytest.mark.asyncio
-    async def test_agent_creation_and_cleanup(
+    async def test_workload_creation_and_cleanup(
         self,
         mock_session_manager,
-        mock_agent_manager,
+        mock_workload_manager,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
+        events_mocker,
     ) -> None:
-        """Test that agent is properly created and cleaned up."""
+        """Test that workload is properly created and cleaned up."""
         # Arrange
         input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
-        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
 
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
-        with patch(
-            "google.adk.Runner",
-            return_value=mock_adk_runner(),
-        ):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        mock_event = events_mocker(content="Final response.")
+        mock_workload.run_async.return_value = self._async_iter([mock_event])
 
-        # Assert agent creation and cleanup
-        shallow_supervisor.agent_manager.create_agent.assert_called_once_with("default")
-        # Context manager methods are called on the returned value
-        create_agent_result = shallow_supervisor.agent_manager.create_agent.return_value
-        create_agent_result.__aenter__.assert_called_once()
-        create_agent_result.__aexit__.assert_called_once()
+        # Act
+        await shallow_supervisor.handle(input_context)
 
-    @pytest.mark.asyncio
-    async def test_runner_initialization_and_execution(
-        self,
-        mock_session_manager,
-        mock_agent_manager,
-        shallow_supervisor: Supervisor,
-        mock_session,
-        mock_adk_runner,
-    ) -> None:
-        """Test that Runner is properly initialized with correct parameters."""
-        # Arrange
-        input_context = InputContext(user_input="Test prompt")
-
-        shallow_supervisor.session_manager = mock_session_manager
-        shallow_supervisor.agent_manager = mock_agent_manager
-
-        shallow_supervisor.session_manager.validate_session.return_value = mock_session
-
-        mock_runner = mock_adk_runner()
-
-        with patch(
-            "google.adk.Runner",
-            return_value=mock_runner,
-        ) as runner_context:
-            # Act
-            await shallow_supervisor.handle(input_context)
-
-        # Assert Runner initialization
-        runner_context.assert_called_once_with(
-            app_name=mock_session.app_name,
-            session_service=shallow_supervisor.session_manager.session_service,
-            agent=shallow_supervisor.agent_manager.create_agent.return_value.__aenter__.return_value,
+        # Assert workload creation and cleanup
+        shallow_supervisor.workload_manager.create_workload.assert_called_once_with(
+            "default",
         )
+        # Context manager methods are called on the returned value
+        ctx_mgr = shallow_supervisor.workload_manager.create_workload.return_value
+        ctx_mgr.__aenter__.assert_called_once()
+        ctx_mgr.__aexit__.assert_called_once()
 
-        # Assert Runner execution
-        mock_runner.run_async.assert_called_once()
+    @pytest.mark.asyncio
+    async def test_workload_run_async_called(
+        self,
+        mock_session_manager,
+        mock_workload_manager,
+        shallow_supervisor: Supervisor,
+        mock_session,
+        mock_workload,
+        events_mocker,
+    ) -> None:
+        """Test that workload.run_async is called with session and content."""
+        # Arrange
+        input_context = InputContext(user_input="Test prompt")
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
+
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
+
+        mock_event = events_mocker(content="Final response.")
+        mock_workload.run_async.return_value = self._async_iter([mock_event])
+
+        # Act
+        await shallow_supervisor.handle(input_context)
+
+        # Assert workload.run_async was called with correct arguments
+        mock_workload.run_async.assert_called_once()
+        call_args = mock_workload.run_async.call_args
+        assert call_args[0][0] is mock_session  # session argument
+        assert call_args[0][1] is not None  # content argument
 
     @pytest.mark.asyncio
     async def test_multiple_events_before_final_response(
         self,
         mock_session_manager,
-        mock_agent_manager,
+        mock_workload_manager,
         mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
         events_mocker,
     ) -> None:
         """Test processing multiple events before reaching final response."""
@@ -102,7 +98,7 @@ class TestSupervisorAgentInteraction:
         input_context = InputContext(user_input="Complex request")
 
         shallow_supervisor.session_manager = mock_session_manager
-        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
         shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
@@ -115,11 +111,10 @@ class TestSupervisorAgentInteraction:
             events_mocker(content="Mock response."),
         ]
 
-        mock_runner = mock_adk_runner(events)
+        mock_workload.run_async.return_value = self._async_iter(events)
 
-        with patch("google.adk.Runner", return_value=mock_runner):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        # Act
+        await shallow_supervisor.handle(input_context)
 
         # Assert all events were dispatched to UI
         assert shallow_supervisor.ui_bus.dispatch_ui_update.call_count == 3
@@ -133,22 +128,22 @@ class TestSupervisorAgentInteraction:
         shallow_supervisor.session_manager.post_process.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_agent_escalation_handling(
+    async def test_workload_escalation_handling(
         self,
         mock_session_manager,
-        mock_agent_manager,
+        mock_workload_manager,
         mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
         events_mocker,
     ) -> None:
-        """Test handling agent escalation responses."""
+        """Test handling workload escalation responses."""
         # Arrange
         input_context = InputContext(user_input="Problematic request")
 
         shallow_supervisor.session_manager = mock_session_manager
-        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
         shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
@@ -158,11 +153,10 @@ class TestSupervisorAgentInteraction:
         # Mock escalation event
         escalation_event = events_mocker(escalate=True, content=[])
 
-        mock_runner = mock_adk_runner([escalation_event])
+        mock_workload.run_async.return_value = self._async_iter([escalation_event])
 
-        with patch("google.adk.Runner", return_value=mock_runner):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        # Act
+        await shallow_supervisor.handle(input_context)
 
         # Assert escalation was handled
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
@@ -171,22 +165,22 @@ class TestSupervisorAgentInteraction:
         shallow_supervisor.session_manager.post_process.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_agent_no_final_response(
+    async def test_workload_no_final_response(
         self,
         mock_session_manager,
-        mock_agent_manager,
+        mock_workload_manager,
         mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
         events_mocker,
     ) -> None:
-        """Test handling when agent produces no final response."""
+        """Test handling when workload produces no final response."""
         # Arrange
         input_context = InputContext(user_input="Request without response")
 
         shallow_supervisor.session_manager = mock_session_manager
-        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
         shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
@@ -199,11 +193,10 @@ class TestSupervisorAgentInteraction:
 
         events = [event1, event2]
 
-        mock_runner = mock_adk_runner(events)
+        mock_workload.run_async.return_value = self._async_iter(events)
 
-        with patch("google.adk.Runner", return_value=mock_runner):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        # Act
+        await shallow_supervisor.handle(input_context)
 
         # Assert all events were dispatched
         assert shallow_supervisor.ui_bus.dispatch_ui_update.call_count == 2
@@ -215,11 +208,11 @@ class TestSupervisorAgentInteraction:
     async def test_final_response_with_no_content_parts(
         self,
         mock_session_manager,
-        mock_agent_manager,
+        mock_workload_manager,
         mock_ui_bus,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
         events_mocker,
     ) -> None:
         """Test handling final response with content but no parts."""
@@ -227,7 +220,7 @@ class TestSupervisorAgentInteraction:
         input_context = InputContext(user_input="Test request")
 
         shallow_supervisor.session_manager = mock_session_manager
-        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
         shallow_supervisor.ui_bus = mock_ui_bus
 
         shallow_supervisor.session_manager.get_or_create_session.return_value = (
@@ -238,14 +231,19 @@ class TestSupervisorAgentInteraction:
         final_event = Mock()
         final_event = events_mocker(content=[])
 
-        mock_runner = mock_adk_runner([final_event])
+        mock_workload.run_async.return_value = self._async_iter([final_event])
 
-        with patch("google.adk.Runner", return_value=mock_runner):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        # Act
+        await shallow_supervisor.handle(input_context)
 
         # Assert event was dispatched and post-processing occurred
         shallow_supervisor.ui_bus.dispatch_ui_update.assert_called_once_with(
             EventWrapper(final_event),
         )
         shallow_supervisor.session_manager.post_process.assert_called_once()
+
+    @staticmethod
+    async def _async_iter(items: list) -> list:
+        """Create an async generator from a list."""
+        for item in items:
+            yield item

@@ -1,3 +1,8 @@
+@../rfc/standards/python-coding.md
+@../rfc/standards/python-testing.md
+@../rfc/standards/architecture.md
+@../rfc/standards/git-conventions.md
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -23,6 +28,8 @@ StreetRace🚗💨 is an agentic AI coding partner designed to help engineers le
 - **Check dependencies**: `poetry run deptry src tests` or `make depcheck`
 - **Find unused code**: `poetry run vulture src vulture_allow.txt` or `make unusedcode`
 - **Run all checks**: `make check` (runs test, lint, typed, security, depcheck, unusedcode)
+
+**vulture_allow.txt policy**: Entries in `vulture_allow.txt` may ONLY be added for structurally rational reasons where code is genuinely used but vulture cannot detect it (e.g., Lark transformer methods called by name, Pydantic validators, dynamically dispatched functions, dataclass fields, public API surface). NEVER add entries to suppress warnings about actually dead code - instead, delete the dead code. Each entry MUST include a comment explaining why the code appears unused to vulture but is actually reachable.
 
 **Important**: Run `make check` frequently during development and address all reported issues immediately before committing.
 
@@ -219,7 +226,7 @@ and production.
   # Good
   with (
       patch.object(obj, "method1"),
-      patch.object(obj, "method2"), 
+      patch.object(obj, "method2"),
       pytest.raises(ValueError),
   ):
       # test code
@@ -237,7 +244,7 @@ and production.
   def test_something(self, used_fixture, unused_fixture):
       assert used_fixture.value == "expected"
 
-  # Good  
+  # Good
   def test_something(self, used_fixture):
       assert used_fixture.value == "expected"
   ```
@@ -306,3 +313,4 @@ Do what has been asked; nothing more, nothing less.
 NEVER create files unless they're absolutely necessary for achieving your goal.
 ALWAYS prefer editing an existing file to creating a new one.
 NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
+In design docs and other technical docs, never add full implementation of code. When a code example is necessary, only provide a snippet reflecting the main point.

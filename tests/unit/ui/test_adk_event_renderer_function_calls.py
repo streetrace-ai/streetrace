@@ -193,11 +193,11 @@ class TestFunctionCallRendering:
 
         render_event(EventWrapper(event), mock_console)
 
-        # Should have 2 print calls: one for text, one for function call
-        assert mock_console.print.call_count == 2
+        # Should have 3 print calls: author line, text content, function call
+        assert mock_console.print.call_count == 3
 
         # Verify both text content and function call are being rendered
-        # We have 2 print calls - that's the important behavior
+        # We have 3 print calls - author, text, function call
         # The exact structure is less important than ensuring both parts get rendered
 
     def test_render_function_call_with_special_characters(

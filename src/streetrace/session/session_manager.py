@@ -362,6 +362,14 @@ class SessionManager:
             if event.is_final_response() and event.content and event.content.parts
         ]
         assistant_final_response = ""
+        if not keep_events:
+            # No final events found (e.g., flow execution without agent calls)
+            await self.session_service.replace_events(
+                session=session,
+                new_events=[],
+            )
+            return assistant_final_response
+
         last_event = keep_events[-1]
         if (
             last_event.author != "user"

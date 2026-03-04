@@ -1,0 +1,62 @@
+# Hierarchical Task Decomposition Pattern Example
+# Demonstrates the 'use' keyword for calling agents as tools
+#
+# This pattern uses ADK's AgentTool wrapper where a parent agent
+# can invoke child agents as tools within its workflow.
+
+streetrace v1
+
+model main = anthropic/claude-sonnet
+model fast = anthropic/haiku
+
+tool fs = builtin streetrace.fs
+
+# Helper agent for extracting code snippets
+prompt extractor_prompt: """You are a code extraction specialist.
+When given a file path and description, locate and extract
+the relevant code snippet. Return the extracted code with
+line numbers and context."""
+
+agent extractor:
+    tools fs
+    instruction extractor_prompt
+    description "Extracts code snippets from files"
+
+# Helper agent for analyzing extracted code
+prompt analyzer_prompt: """You are a code analyzer.
+Analyze the provided code snippet for:
+- Security vulnerabilities
+- Performance issues
+- Code quality problems
+Return a structured analysis."""
+
+agent analyzer:
+    instruction analyzer_prompt
+    description "Analyzes code for issues"
+
+# Helper agent for generating documentation
+prompt documenter_prompt: """You are a documentation writer.
+Given code and its analysis, generate clear documentation
+including:
+- Purpose and usage
+- Parameters and return values
+- Examples"""
+
+agent documenter:
+    instruction documenter_prompt
+    description "Generates documentation from code"
+
+# Parent agent that orchestrates the workflow using helpers as tools
+prompt orchestrator_prompt: """You are a code documentation assistant.
+Help users document their codebase by:
+1. Use the extractor to get code from files
+2. Use the analyzer to understand the code
+3. Use the documenter to generate documentation
+
+Each helper is available as a tool you can call."""
+
+agent:
+    tools fs
+    instruction orchestrator_prompt
+    use extractor, analyzer, documenter
+    description "Orchestrates code documentation workflow"

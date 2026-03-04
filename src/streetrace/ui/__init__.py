@@ -3,3 +3,5 @@
 This package contains user interface components for rendering conversation
 history, command output, and other visual elements in the console UI.
 """
+
+from streetrace.ui import flow_event_renderer  # noqa: F401

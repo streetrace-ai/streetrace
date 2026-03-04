@@ -1,44 +1,71 @@
-from unittest.mock import AsyncMock, Mock
+from collections.abc import AsyncGenerator
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
-from google.adk.agents import Agent
 from google.adk.events import Event
 
-from streetrace.agents.agent_manager import AgentManager
 from streetrace.workflow.supervisor import Supervisor
+from streetrace.workloads import Workload, WorkloadManager
 
 
 @pytest.fixture
-def mock_agent() -> Agent:
-    return Mock(spec=Agent)
+def mock_workload() -> Workload:
+    """Create a mock Workload for testing."""
+    mock = MagicMock(spec=Workload)
+    mock.close = AsyncMock()
+    return mock
 
 
 @pytest.fixture
-def mock_create_agent_context_manager(mock_agent) -> AsyncMock:
+def mock_create_workload_context_manager(mock_workload: Workload) -> AsyncMock:
+    """Create a mock async context manager for create_workload."""
     mock_context_manager = AsyncMock()
-    mock_context_manager.__aenter__.return_value = mock_agent
+    mock_context_manager.__aenter__.return_value = mock_workload
+    mock_context_manager.__aexit__.return_value = None
     return mock_context_manager
 
 
 @pytest.fixture
-def mock_agent_manager(
-    mock_create_agent_context_manager,
-    mock_agent_manager: Mock,
-) -> AgentManager:
-    """Override the base mock_agent_manager with workflow-specific setup."""
-    mock_agent_manager.create_agent.return_value = mock_create_agent_context_manager
-    return mock_agent_manager
+def mock_workload_manager(
+    mock_model_factory,
+    mock_tool_provider,
+    work_dir,
+    mock_create_workload_context_manager,
+) -> WorkloadManager:
+    """Create a mock WorkloadManager for testing."""
+    workload_manager = Mock(spec=WorkloadManager)
+    workload_manager.model_factory = mock_model_factory
+    workload_manager.tool_provider = mock_tool_provider
+    workload_manager.work_dir = work_dir
+    workload_manager.create_workload.return_value = mock_create_workload_context_manager
+    workload_manager.discover_definitions.return_value = []
+    return workload_manager
+
+
+def create_mock_workload_run_async(
+    events: list[Event],
+) -> AsyncGenerator[Event, None]:
+    """Create a mock run_async generator that yields events."""
+
+    async def _gen(
+        session: MagicMock,  # noqa: ARG001
+        message: MagicMock,  # noqa: ARG001
+    ) -> AsyncGenerator[Event, None]:
+        for event in events:
+            yield event
+
+    return _gen
 
 
 @pytest.fixture
 def shallow_supervisor(
-    mock_agent_manager,
+    mock_workload_manager,
     mock_session_manager,
     mock_ui_bus,
 ) -> Supervisor:
-    """Create a Supervisor with properly mocked agent manager for workflow tests."""
+    """Create a Supervisor with WorkloadManager for workflow tests."""
     return Supervisor(
-        agent_manager=mock_agent_manager,
+        workload_manager=mock_workload_manager,
         session_manager=mock_session_manager,
         ui_bus=mock_ui_bus,
     )

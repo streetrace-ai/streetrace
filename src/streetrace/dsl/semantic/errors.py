@@ -1,0 +1,356 @@
+"""Error definitions for Streetrace DSL semantic analysis.
+
+Provide error classes and error codes for semantic analysis errors.
+"""
+
+from dataclasses import dataclass
+
+from streetrace.dsl.ast.nodes import SourcePosition
+from streetrace.dsl.errors.codes import ErrorCode
+from streetrace.log import get_logger
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class SemanticError:
+    """Semantic analysis error with location and context.
+
+    Represents an error discovered during semantic analysis with
+    detailed information for error reporting.
+    """
+
+    code: ErrorCode
+    """Error code for categorization."""
+
+    message: str
+    """Human-readable error message."""
+
+    position: SourcePosition | None = None
+    """Source position where error occurred."""
+
+    suggestion: str | None = None
+    """Optional suggestion for fixing the error."""
+
+    context_lines: list[str] | None = None
+    """Optional source context lines for display."""
+
+    is_warning: bool = False
+    """Whether this is a warning (True) or error (False)."""
+
+    @classmethod
+    def undefined_reference(
+        cls,
+        kind: str,
+        name: str,
+        position: SourcePosition | None = None,
+        *,
+        suggestion: str | None = None,
+    ) -> "SemanticError":
+        """Create an undefined reference error.
+
+        Args:
+            kind: Kind of reference (model, tool, agent, etc.).
+            name: Name that was not found.
+            position: Source position of the error.
+            suggestion: Optional suggestion for valid names.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"undefined reference to {kind} '{name}'"
+        return cls(
+            code=ErrorCode.E0001,
+            message=msg,
+            position=position,
+            suggestion=suggestion,
+        )
+
+    @classmethod
+    def undefined_variable(
+        cls,
+        name: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create an undefined variable error.
+
+        Args:
+            name: Variable name that was not found.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"variable '${name}' used before definition"
+        return cls(
+            code=ErrorCode.E0002,
+            message=msg,
+            position=position,
+        )
+
+    @classmethod
+    def duplicate_definition(
+        cls,
+        kind: str,
+        name: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create a duplicate definition error.
+
+        Args:
+            kind: Kind of definition (model, tool, etc.).
+            name: Name that was duplicated.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"duplicate definition of {kind} '{name}'"
+        return cls(
+            code=ErrorCode.E0003,
+            message=msg,
+            position=position,
+        )
+
+    @classmethod
+    def missing_required_property(
+        cls,
+        kind: str,
+        name: str,
+        prop: str,
+        position: SourcePosition | None = None,
+        *,
+        suggestion: str | None = None,
+    ) -> "SemanticError":
+        """Create a missing required property error.
+
+        Args:
+            kind: Kind of definition (agent, prompt, etc.).
+            name: Name of the definition missing the property.
+            prop: Name of the missing required property.
+            position: Source position of the error.
+            suggestion: Optional suggestion for fixing.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"missing required property '{prop}' in {kind} '{name}'"
+        return cls(
+            code=ErrorCode.E0010,
+            message=msg,
+            position=position,
+            suggestion=suggestion,
+        )
+
+    @classmethod
+    def circular_agent_reference(
+        cls,
+        agents: list[str],
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for circular agent reference.
+
+        Args:
+            agents: List of agent names forming the cycle.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        cycle = " -> ".join(agents)
+        msg = f"circular agent reference detected: {cycle}"
+        return cls(
+            code=ErrorCode.E0011,
+            message=msg,
+            position=position,
+        )
+
+    @classmethod
+    def agent_has_both_delegate_and_use(
+        cls,
+        name: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create warning for agent with both delegate and use.
+
+        Args:
+            name: Name of the agent with both patterns.
+            position: Source position of the warning.
+
+        Returns:
+            SemanticError instance with is_warning=True.
+
+        """
+        msg = f"agent '{name}' has both delegate and use - this is unusual"
+        return cls(
+            code=ErrorCode.W0002,
+            message=msg,
+            position=position,
+            is_warning=True,
+        )
+
+    @classmethod
+    def continue_outside_loop(
+        cls,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for 'on escalate continue' used outside loop context.
+
+        Args:
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = "'on escalate continue' can only be used inside a loop"
+        return cls(
+            code=ErrorCode.E0012,
+            message=msg,
+            position=position,
+        )
+
+    @classmethod
+    def prompt_missing_body(
+        cls,
+        name: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for prompt with no body after merging all definitions.
+
+        Args:
+            name: Name of the prompt missing a body.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"prompt '{name}' has no body after merging all definitions"
+        suggestion = f'add a body definition: prompt {name}: """..."""'
+        return cls(
+            code=ErrorCode.E0013,
+            message=msg,
+            position=position,
+            suggestion=suggestion,
+        )
+
+    @classmethod
+    def conflicting_prompt_modifier(
+        cls,
+        name: str,
+        modifier: str,
+        first: str,
+        second: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for conflicting prompt modifier values.
+
+        Args:
+            name: Name of the prompt with conflicting modifiers.
+            modifier: Name of the modifier (model, expecting, inherit).
+            first: First value of the modifier.
+            second: Second (conflicting) value.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"conflicting {modifier} for prompt '{name}': '{first}' vs '{second}'"
+        return cls(
+            code=ErrorCode.E0014,
+            message=msg,
+            position=position,
+        )
+
+    @classmethod
+    def undefined_prompt_variable(
+        cls,
+        prompt: str,
+        name: str,
+        position: SourcePosition | None = None,
+        *,
+        suggestion: str | None = None,
+    ) -> "SemanticError":
+        """Create error for undefined variable in prompt body.
+
+        Args:
+            prompt: Name of the prompt containing the undefined variable.
+            name: Variable name that was not found.
+            position: Source position of the error.
+            suggestion: Optional suggestion for valid variable names.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = f"prompt '{prompt}' references undefined variable '${name}'"
+        return cls(
+            code=ErrorCode.E0015,
+            message=msg,
+            position=position,
+            suggestion=suggestion,
+        )
+
+    @classmethod
+    def instruction_runtime_variable(
+        cls,
+        prompt: str,
+        name: str,
+        agent: str,
+        position: SourcePosition | None = None,
+    ) -> "SemanticError":
+        """Create error for runtime variable in instruction prompt.
+
+        Instruction prompts are resolved at agent creation time when
+        runtime variables are not yet available. Only prompt composition
+        (referencing other prompts) is allowed in instructions.
+
+        Args:
+            prompt: Name of the instruction prompt.
+            name: Variable name that won't be available.
+            agent: Name of the agent using this instruction.
+            position: Source position of the error.
+
+        Returns:
+            SemanticError instance.
+
+        """
+        msg = (
+            f"instruction '{prompt}' (used by agent '{agent}') "
+            f"references runtime variable '${name}'"
+        )
+        suggestion = (
+            f"move '${name}' to a prompt field, or use prompt composition "
+            f"with other prompts"
+        )
+        return cls(
+            code=ErrorCode.E0016,
+            message=msg,
+            position=position,
+            suggestion=suggestion,
+        )
+
+    def format(self) -> str:
+        """Format the error for display.
+
+        Returns:
+            Formatted error string.
+
+        """
+        prefix = "warning" if self.is_warning else "error"
+        parts = [f"{prefix}[{self.code.name}]: {self.message}"]
+
+        if self.position is not None:
+            parts.append(f"  --> line {self.position.line}:{self.position.column}")
+
+        if self.suggestion is not None:
+            parts.append(f"  = help: {self.suggestion}")
+
+        return "\n".join(parts)

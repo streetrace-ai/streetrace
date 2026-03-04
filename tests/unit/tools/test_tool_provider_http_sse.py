@@ -123,8 +123,8 @@ class TestToolProviderConnectionParsing:
         assert isinstance(params, StreamableHTTPConnectionParams)
         assert params.url == "http://localhost:8000/mcp"
         assert params.headers == {}
-        # StreamableHTTPConnectionParams has default timeout, not None
-        assert params.timeout is not None
+        # Falls back to DEFAULT_HTTP_TIMEOUT_SECONDS when unset
+        assert params.timeout == 30.0
 
     def test_create_connection_params_invalid_json_fallback(
         self,

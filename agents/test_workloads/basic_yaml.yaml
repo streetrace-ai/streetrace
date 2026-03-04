@@ -1,0 +1,7 @@
+version: 1
+kind: agent
+name: yaml_test_agent
+description: Test YAML agent for workload abstraction testing
+model: anthropic/claude-sonnet-4-5
+instruction: |
+  You are a test assistant. Respond briefly with exactly: "YAML agent responding."

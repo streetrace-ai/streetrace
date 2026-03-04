@@ -1,4 +1,8 @@
-"""Tests for YAML agent loader."""
+"""Tests for YAML agent loader helper functions.
+
+Tests for YAML parsing, validation, and reference resolution functions
+used by YamlDefinitionLoader.
+"""
 
 import tempfile
 from pathlib import Path
@@ -6,281 +10,53 @@ from textwrap import dedent
 
 import pytest
 
-from streetrace.agents.yaml_agent_loader import (
-    AgentCycleError,
+from streetrace.agents.base_agent_loader import (
     AgentValidationError,
-    InlineAgentSpec,
-    YamlAgentLoader,
-    _load_agent_yaml,
 )
-from streetrace.agents.yaml_models import ToolSpec, YamlAgentDocument
+from streetrace.workloads.yaml_loader import YamlDefinitionLoader
 
 
-class TestAgentLoading:
-    """Test agent loading functionality."""
+class TestYamlDefinitionLoaderWithSourceResolution:
+    """Test YAML definition loader with SourceResolution API.
 
-    def test_load_agent_minimal(self):
-        """Test loading minimal valid agent."""
+    Note: Discovery is handled by SourceResolver, not by loaders.
+    These tests verify the loader's load(resolution) method.
+    """
+
+    def test_load_yaml_from_resolution(self):
+        """Test loading from SourceResolution."""
+        from streetrace.agents.resolver import SourceResolution, SourceType
+
         agent_yaml = dedent("""
-            version: 1
-            kind: agent
-            name: test_agent
-            description: A test agent for unit tests
-        """)
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-            f.write(agent_yaml)
-            f.flush()
-
-            try:
-                doc = _load_agent_yaml(Path(f.name))
-                assert isinstance(doc, YamlAgentDocument)
-                assert doc.get_name() == "test_agent"
-                assert doc.get_description() == "A test agent for unit tests"
-                assert doc.file_path == Path(f.name).resolve()
-                assert doc.spec.prompt is None  # No prompt in minimal spec
-            finally:
-                Path(f.name).unlink()
-
-    def test_load_agent_with_tools(self):
-        """Test loading agent with tools."""
-        agent_yaml = dedent("""
-            version: 1
-            kind: agent
-            name: tool_agent
-            description: An agent with tools
-            tools:
-              - streetrace:
-                  module: fs_tool
-                  function: read_file
-              - mcp:
-                  name: filesystem
-                  server:
-                    type: stdio
-                    command: npx
-                    args: ["-y", "@mcp/filesystem"]
-                  tools: ["read_file", "write_file"]
-        """)
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-            f.write(agent_yaml)
-            f.flush()
-
-            try:
-                doc = _load_agent_yaml(Path(f.name))
-                assert len(doc.spec.tools) == 2
-                assert isinstance(doc.spec.tools[0], ToolSpec)
-                assert doc.spec.tools[0].streetrace is not None
-                assert isinstance(doc.spec.tools[1], ToolSpec)
-                assert doc.spec.tools[1].mcp is not None
-            finally:
-                Path(f.name).unlink()
-
-    def test_load_agent_with_prompt(self):
-        """Test loading agent with prompt field."""
-        agent_yaml = dedent("""
-            version: 1
-            kind: agent
-            name: prompt_agent
-            description: An agent with a default prompt
-            instruction: You are a helpful assistant
-            prompt: Analyze the provided code for best practices
-        """)
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-            f.write(agent_yaml)
-            f.flush()
-
-            try:
-                doc = _load_agent_yaml(Path(f.name))
-                assert doc.get_name() == "prompt_agent"
-                assert doc.spec.instruction == "You are a helpful assistant"
-                assert doc.spec.prompt == "Analyze the provided code for best practices"
-            finally:
-                Path(f.name).unlink()
-
-    def test_load_agent_invalid_yaml(self):
-        """Test loading agent with invalid YAML."""
-        invalid_yaml = "invalid: yaml: content: ["
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-            f.write(invalid_yaml)
-            f.flush()
-
-            try:
-                with pytest.raises(AgentValidationError, match="Invalid YAML"):
-                    _load_agent_yaml(Path(f.name))
-            finally:
-                Path(f.name).unlink()
-
-    def test_load_agent_invalid_spec(self):
-        """Test loading agent with invalid specification."""
-        invalid_spec = dedent("""
-            version: 1
-            kind: agent
-            name: 123invalid
-            description: Invalid agent name
-        """)
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-            f.write(invalid_spec)
-            f.flush()
-
-            try:
-                with pytest.raises(AgentValidationError, match="validation failed"):
-                    _load_agent_yaml(Path(f.name))
-            finally:
-                Path(f.name).unlink()
-
-    def test_load_agent_file_not_found(self):
-        """Test loading non-existent agent file."""
-        with pytest.raises(AgentValidationError, match="not found"):
-            _load_agent_yaml(Path("/nonexistent/agent.yml"))
-
-
-class TestReferenceResolution:
-    """Test $ref reference resolution."""
-
-    def test_load_agent_with_ref(self):
-        """Test loading agent with $ref to another agent."""
-        # Create sub-agent
-        sub_agent_yaml = dedent("""
-            version: 1
-            kind: agent
-            name: sub_agent
-            description: A sub agent
-        """)
-
-        # Create main agent with reference
-        main_agent_yaml = dedent("""
-            version: 1
-            kind: agent
-            name: main_agent
-            description: Main agent with sub-agent
-            sub_agents:
-              - $ref: ./sub_agent.yml
-        """)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmppath = Path(tmpdir)
-
-            # Write files
-            sub_file = tmppath / "sub_agent.yml"
-            main_file = tmppath / "main_agent.yml"
-
-            sub_file.write_text(sub_agent_yaml)
-            main_file.write_text(main_agent_yaml)
-
-            # Load main agent
-            doc = _load_agent_yaml(main_file)
-
-            assert len(doc.spec.sub_agents) == 1
-            assert isinstance(doc.spec.sub_agents[0], InlineAgentSpec)
-            sub_agent_spec = doc.spec.sub_agents[0].agent
-            assert sub_agent_spec.name == "sub_agent"
-
-    def test_load_agent_ref_not_found(self):
-        """Test loading agent with $ref to non-existent file."""
-        main_agent_yaml = dedent("""
-            version: 1
-            kind: agent
-            name: main_agent
-            description: Main agent with missing reference
-            sub_agents:
-              - $ref: ./nonexistent.yml
-        """)
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
-            f.write(main_agent_yaml)
-            f.flush()
-
-            try:
-                with pytest.raises(
-                    AgentValidationError,
-                    match="Could not resolve identifier",
-                ):
-                    _load_agent_yaml(Path(f.name))
-            finally:
-                Path(f.name).unlink()
-
-    def test_load_agent_circular_ref(self):
-        """Test loading agent with circular references."""
-        # Create two agents that reference each other
-        agent1_yaml = dedent("""
             version: 1
             kind: agent
             name: agent1
-            description: Agent 1
-            sub_agents:
-              - $ref: ./agent2.yml
-        """)
-
-        agent2_yaml = dedent("""
-            version: 1
-            kind: agent
-            name: agent2
-            description: Agent 2
-            sub_agents:
-              - $ref: ./agent1.yml
+            description: First agent
         """)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
+            file_path = tmppath / "agent1.yml"
+            file_path.write_text(agent_yaml)
 
-            agent1_file = tmppath / "agent1.yml"
-            agent2_file = tmppath / "agent2.yml"
+            resolution = SourceResolution(
+                content=agent_yaml,
+                source=str(file_path),
+                source_type=SourceType.FILE_PATH,
+                file_path=file_path,
+                format="yaml",
+            )
 
-            agent1_file.write_text(agent1_yaml)
-            agent2_file.write_text(agent2_yaml)
+            loader = YamlDefinitionLoader()
+            definition = loader.load(resolution)
 
-            with pytest.raises(AgentCycleError, match="Circular reference"):
-                _load_agent_yaml(agent1_file)
+            assert definition.metadata.name == "agent1"
+            assert definition.metadata.description == "First agent"
 
-    def test_load_agent_max_depth(self):
-        """Test maximum reference depth limit."""
-        # Create a chain of agents longer than MAX_REF_DEPTH
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmppath = Path(tmpdir)
+    def test_load_multiple_agents_from_resolutions(self):
+        """Test loading multiple agents via SourceResolver discovery."""
+        from streetrace.agents.resolver import SourceResolver
 
-            # Create a deep chain of references
-            for i in range(10):  # Assuming MAX_REF_DEPTH is 5
-                if i == 9:
-                    # Final agent with no references
-                    agent_yaml = dedent(f"""
-                        version: 1
-                        kind: agent
-                        name: agent{i}
-                        description: Agent {i}
-                    """)
-                else:
-                    # Agent with reference to next
-                    agent_yaml = dedent(f"""
-                        version: 1
-                        kind: agent
-                        name: agent{i}
-                        description: Agent {i}
-                        sub_agents:
-                          - $ref: ./agent{i + 1}.yml
-                    """)
-
-                (tmppath / f"agent{i}.yml").write_text(agent_yaml)
-
-            with pytest.raises(AgentValidationError, match="Maximum reference depth"):
-                _load_agent_yaml(tmppath / "agent0.yml")
-
-
-class TestAgentDiscovery:
-    """Test agent discovery functionality."""
-
-    def test_discover_agents_empty(self):
-        """Test discovering agents in empty environment."""
-        # Override search paths to return empty list
-        loader = YamlAgentLoader([])
-        agents = loader.discover()
-        assert agents == []
-
-    def test_discover_agents_with_valid_agents(self):
-        """Test discovering valid agents."""
         agent1_yaml = dedent("""
             version: 1
             kind: agent
@@ -301,18 +77,25 @@ class TestAgentDiscovery:
             (tmppath / "agent1.yml").write_text(agent1_yaml)
             (tmppath / "agent2.yml").write_text(agent2_yaml)
 
-            loader = YamlAgentLoader([tmppath])
-            agents = loader.discover()
-            assert len(agents) == 2
-            names = {agent.name for agent in agents}
+            # Use SourceResolver for discovery
+            resolver = SourceResolver()
+            discovered = resolver.discover([tmppath])
+            assert len(discovered) == 2
+
+            # Load the discovered resolutions
+            loader = YamlDefinitionLoader()
+            definitions = [loader.load(r) for r in discovered.values()]
+            names = {d.metadata.name for d in definitions}
             assert names == {"agent1", "agent2"}
 
 
-class TestAgentFinding:
-    """Test agent finding by name."""
+class TestYamlDefinitionLoaderLoading:
+    """Test YAML definition loader loading functionality."""
 
-    def test_find_agent_by_name_exists(self):
-        """Test finding existing agent by name."""
+    def test_load_agent_from_resolution(self):
+        """Test loading existing agent via SourceResolution."""
+        from streetrace.agents.resolver import SourceResolution, SourceType
+
         agent_yaml = dedent("""
             version: 1
             kind: agent
@@ -322,32 +105,35 @@ class TestAgentFinding:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tmppath = Path(tmpdir)
-            (tmppath / "agent.yml").write_text(agent_yaml)
+            file_path = tmppath / "agent.yml"
+            file_path.write_text(agent_yaml)
 
-            loader = YamlAgentLoader([tmppath])
-            agents = loader.discover()
-            assert len(agents) == 1
-            assert agents[0].name == "findable_agent"
+            resolution = SourceResolution(
+                content=agent_yaml,
+                source=str(file_path),
+                source_type=SourceType.FILE_PATH,
+                file_path=file_path,
+                format="yaml",
+            )
 
-            # Load using the discovered AgentInfo
-            agent = loader.load_agent(agents[0])
-            assert agent is not None
-            assert agent.get_agent_card().name == "findable_agent"
+            loader = YamlDefinitionLoader()
+            definition = loader.load(resolution)
 
-    def test_find_agent_by_name_not_exists(self):
-        """Test finding non-existent agent by name."""
-        # Override search paths to return empty
+            assert definition is not None
+            assert definition.metadata.name == "findable_agent"
 
-        agents = YamlAgentLoader([]).discover()
-        assert len(agents) == 0
+    def test_load_agent_invalid_yaml_in_resolution(self):
+        """Test loading invalid YAML content via SourceResolution."""
+        from streetrace.agents.resolver import SourceResolution, SourceType
 
-        # Try to load from a non-existent path
-        from streetrace.agents.base_agent_loader import AgentInfo
-        fake_agent_info = AgentInfo(
-            name="nonexistent_agent",
-            description="Fake agent",
-            file_path=Path("/nonexistent/path.yaml"),
+        resolution = SourceResolution(
+            content="invalid: yaml: [",
+            source="/test/path.yaml",
+            source_type=SourceType.FILE_PATH,
+            file_path=None,
+            format="yaml",
         )
 
-        with pytest.raises(ValueError, match="AgentInfo .* is not a YAML agent"):
-            YamlAgentLoader([]).load_agent(fake_agent_info)
+        loader = YamlDefinitionLoader()
+        with pytest.raises(AgentValidationError, match="Invalid YAML"):
+            loader.load(resolution)

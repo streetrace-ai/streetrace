@@ -1,10 +1,10 @@
 """Test Supervisor session management functionality.
 
 This module tests how the Supervisor handles session creation, retrieval, and
-post-processing of completed agent interactions.
+post-processing of completed workload interactions.
 """
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -19,26 +19,28 @@ class TestSupervisorSessionManagement:
     async def test_get_or_create_session_called_once(
         self,
         mock_session_manager,
+        mock_workload_manager,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
+        events_mocker,
     ) -> None:
         """Test that get_or_create_session is properly called."""
         # Arrange
         input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
 
         shallow_supervisor.session_manager.get_or_create_session = AsyncMock(
             return_value=mock_session,
         )
 
-        with patch(
-            "google.adk.Runner",
-            return_value=mock_adk_runner(),
-        ):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        mock_event = events_mocker(content="Response")
+        mock_workload.run_async.return_value = self._async_iter([mock_event])
+
+        # Act
+        await shallow_supervisor.handle(input_context)
 
         # Assert
         shallow_supervisor.session_manager.get_or_create_session.assert_called_once()
@@ -47,45 +49,47 @@ class TestSupervisorSessionManagement:
     async def test_validate_session_called_once(
         self,
         mock_session_manager,
+        mock_workload_manager,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
+        events_mocker,
     ) -> None:
-        """Test that get_or_create_session is properly called."""
+        """Test that validate_session is properly called."""
         # Arrange
         input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
 
         shallow_supervisor.session_manager.validate_session = AsyncMock(
             return_value=mock_session,
         )
 
-        with patch(
-            "google.adk.Runner",
-            return_value=mock_adk_runner(),
-        ):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        mock_event = events_mocker(content="Response")
+        mock_workload.run_async.return_value = self._async_iter([mock_event])
+
+        # Act
+        await shallow_supervisor.handle(input_context)
 
         # Assert
         shallow_supervisor.session_manager.validate_session.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_session_properties_used_in_runner(
+    async def test_session_properties_passed_to_workload(
         self,
         mock_session_manager,
-        mock_agent_manager,
+        mock_workload_manager,
         shallow_supervisor: Supervisor,
-        mock_adk_runner,
+        mock_workload,
         events_mocker,
     ) -> None:
-        """Test that session properties are correctly passed to Runner."""
+        """Test that session properties are correctly passed to workload."""
         # Arrange
         input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
-        shallow_supervisor.agent_manager = mock_agent_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
 
         # Create custom session with specific properties
         custom_session = Mock()
@@ -99,51 +103,40 @@ class TestSupervisorSessionManagement:
 
         # Create custom event
         events = [events_mocker(content="Final response.")]
+        mock_workload.run_async.return_value = self._async_iter(events)
 
-        mock_runner = mock_adk_runner(events)
+        # Act
+        await shallow_supervisor.handle(input_context)
 
-        with patch(
-            "google.adk.Runner",
-            return_value=mock_runner,
-        ) as mock_runner_patch:
-            # Act
-            await shallow_supervisor.handle(input_context)
-
-        # Assert Runner was initialized with correct session properties
-        mock_runner_patch.assert_called_once_with(
-            app_name="custom_app",
-            session_service=shallow_supervisor.session_manager.session_service,
-            agent=shallow_supervisor.agent_manager.create_agent.return_value.__aenter__.return_value,
-        )
-
-        # Assert Runner.run_async was called with correct session properties
-        mock_runner.run_async.assert_called_once()
-        call_kwargs = mock_runner.run_async.call_args.kwargs
-        assert call_kwargs["user_id"] == "custom_user"
-        assert call_kwargs["session_id"] == "custom_session_123"
+        # Assert workload.run_async was called with the session
+        mock_workload.run_async.assert_called_once()
+        call_args = mock_workload.run_async.call_args
+        assert call_args[0][0] is custom_session
 
     @pytest.mark.asyncio
     async def test_post_process_called_with_correct_parameters(
         self,
         mock_session_manager,
+        mock_workload_manager,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
+        events_mocker,
     ) -> None:
         """Test that post_process is called with correct parameters."""
         # Arrange
         input_context = InputContext(user_input="Test prompt")
 
         shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
 
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
-        with patch(
-            "google.adk.Runner",
-            return_value=mock_adk_runner(),
-        ):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        mock_event = events_mocker(content="Response")
+        mock_workload.run_async.return_value = self._async_iter([mock_event])
+
+        # Act
+        await shallow_supervisor.handle(input_context)
 
         # Assert post_process was called with correct parameters
         shallow_supervisor.session_manager.post_process.assert_called_once_with(
@@ -155,27 +148,27 @@ class TestSupervisorSessionManagement:
     async def test_post_process_called_even_with_escalation(
         self,
         mock_session_manager,
+        mock_workload_manager,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
         events_mocker,
     ) -> None:
-        """Test that post_process is called even when agent escalates."""
+        """Test that post_process is called even when workload escalates."""
         # Arrange
         input_context = InputContext(user_input="Problematic request")
 
         shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
 
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         # Mock escalation event
         events = [events_mocker(escalate=True, content="Escalation needed")]
+        mock_workload.run_async.return_value = self._async_iter(events)
 
-        mock_runner = mock_adk_runner(events)
-
-        with patch("google.adk.Runner", return_value=mock_runner):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        # Act
+        await shallow_supervisor.handle(input_context)
 
         # Assert post_process was still called
         shallow_supervisor.session_manager.post_process.assert_called_once_with(
@@ -187,9 +180,10 @@ class TestSupervisorSessionManagement:
     async def test_post_process_called_with_no_final_response(
         self,
         mock_session_manager,
+        mock_workload_manager,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
         events_mocker,
     ) -> None:
         """Test that post_process is called even when no final response is received."""
@@ -197,17 +191,16 @@ class TestSupervisorSessionManagement:
         input_context = InputContext(user_input="Request without response")
 
         shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
 
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
         # Mock only non-final events
         events = [events_mocker(is_final_response=False)]
+        mock_workload.run_async.return_value = self._async_iter(events)
 
-        mock_runner = mock_adk_runner(events)
-
-        with patch("google.adk.Runner", return_value=mock_runner):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        # Act
+        await shallow_supervisor.handle(input_context)
 
         # Assert post_process was still called
         shallow_supervisor.session_manager.post_process.assert_called_once_with(
@@ -216,60 +209,72 @@ class TestSupervisorSessionManagement:
         )
 
     @pytest.mark.asyncio
-    async def test_session_service_passed_to_runner(
-        self,
-        mock_session_manager,
-        mock_agent_manager,
-        shallow_supervisor: Supervisor,
-        mock_session,
-        mock_adk_runner,
-    ) -> None:
-        """Test that session service from session manager is passed to Runner."""
-        # Arrange
-        input_context = InputContext(user_input="Test prompt")
-
-        shallow_supervisor.session_manager = mock_session_manager
-        shallow_supervisor.agent_manager = mock_agent_manager
-
-        shallow_supervisor.session_manager.validate_session.return_value = mock_session
-
-        with patch(
-            "google.adk.Runner",
-            return_value=mock_adk_runner(),
-        ) as mock_runner_patch:
-            # Act
-            await shallow_supervisor.handle(input_context)
-
-        # Assert Runner was initialized with the session service
-        mock_runner_patch.assert_called_once_with(
-            app_name=mock_session.app_name,
-            session_service=shallow_supervisor.session_manager.session_service,
-            agent=shallow_supervisor.agent_manager.create_agent.return_value.__aenter__.return_value,
-        )
-
-    @pytest.mark.asyncio
     async def test_post_process_with_none_payload(
         self,
         mock_session_manager,
+        mock_workload_manager,
         shallow_supervisor: Supervisor,
         mock_session,
-        mock_adk_runner,
+        mock_workload,
+        events_mocker,
     ) -> None:
         """Test that post_process handles None payload correctly."""
         input_context = InputContext()
         shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
+
         # Arrange
         shallow_supervisor.session_manager.validate_session.return_value = mock_session
 
-        with patch(
-            "google.adk.Runner",
-            return_value=mock_adk_runner(),
-        ):
-            # Act
-            await shallow_supervisor.handle(input_context)
+        mock_event = events_mocker(content="Response")
+        mock_workload.run_async.return_value = self._async_iter([mock_event])
+
+        # Act
+        await shallow_supervisor.handle(input_context)
 
         # Assert post_process was called with None payload
         shallow_supervisor.session_manager.post_process.assert_called_once_with(
             user_input=None,
             original_session=mock_session,
         )
+
+    @pytest.mark.asyncio
+    async def test_manage_current_session_called_per_event(
+        self,
+        mock_session_manager,
+        mock_workload_manager,
+        shallow_supervisor: Supervisor,
+        mock_session,
+        mock_workload,
+        events_mocker,
+    ) -> None:
+        """Test that manage_current_session is called for each event."""
+        # Arrange
+        input_context = InputContext(user_input="Test prompt")
+
+        shallow_supervisor.session_manager = mock_session_manager
+        shallow_supervisor.workload_manager = mock_workload_manager
+
+        shallow_supervisor.session_manager.validate_session.return_value = mock_session
+
+        # Create multiple events
+        events = [
+            events_mocker(is_final_response=False),
+            events_mocker(is_final_response=False),
+            events_mocker(content="Final response."),
+        ]
+        mock_workload.run_async.return_value = self._async_iter(events)
+
+        # Act
+        await shallow_supervisor.handle(input_context)
+
+        # Assert manage_current_session was called for each event
+        assert (
+            shallow_supervisor.session_manager.manage_current_session.call_count == 3
+        )
+
+    @staticmethod
+    async def _async_iter(items: list) -> list:
+        """Create an async generator from a list."""
+        for item in items:
+            yield item

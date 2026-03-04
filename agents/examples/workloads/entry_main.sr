@@ -1,0 +1,13 @@
+# Entry Point Test - Main Flow
+# Tests that flow main: is selected as entry point
+
+model main = anthropic/claude-sonnet-4-5
+
+flow main:
+    log "Main flow executed"
+    return "Flow completed successfully"
+
+agent other:
+    instruction other_prompt
+
+prompt other_prompt: """You should NOT be called. If you see this, the entry point selection failed."""

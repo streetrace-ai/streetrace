@@ -1,0 +1,8 @@
+# End-to-end DSL workload test
+
+model main = anthropic/claude-sonnet-4-5
+
+prompt test_prompt: """Respond with: E2E test successful"""
+
+agent:
+    instruction test_prompt

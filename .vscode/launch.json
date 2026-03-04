@@ -10,9 +10,7 @@
       "envFile": "${workspaceFolder}/.env",
       "args": [
         "--agent",
-        "GenericCodingAssistant",
-        "--model",
-        "anthropic/claude-sonnet-4-20250514",
+        "agents/generic.sr",
         "--verbose",
         "--prompt",
         "Analyze issue  https://github.com/streetrace-ai/streetrace/issues/76, create the implementation plan, and execute the implementation"
