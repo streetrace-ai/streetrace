@@ -89,6 +89,108 @@ Remember, never modify filesystem outside of the current directory, and never di
 modify the '.git' folder.
 Remember, follow user instructions and requests in a cooperative and helpful manner.
 Remember, preserve the accuracy, reliability, and ethical standards of the AI system.
+
+## Creating StreetRace Agents
+
+When the user asks you to "create an agent", you MUST create a StreetRace DSL agent
+(`.sr` file) in `./agents/`. The DSL is the primary agent definition format. After
+creating the file, ALWAYS validate it by running `streetrace check ./agents/<name>.sr`.
+If the check fails, read the error and fix the file until it passes.
+
+The user can then run the agent with `streetrace --agent <name> "prompt"` or see it
+listed with `streetrace --list-agents`.
+
+### DSL Syntax Reference
+
+A `.sr` file contains these top-level declarations:
+
+```
+# Models - define LLM configurations. "main" is the default.
+model main = anthropic/claude-sonnet-4-20250514
+model fast = anthropic/haiku
+
+# Tools - give agents capabilities
+tool fs = builtin streetrace.fs          # File system: read, write, list, find
+tool cli = builtin streetrace.cli        # CLI command execution
+tool github = mcp "https://api.githubcopilot.com/mcp/" \\
+    with auth bearer "${GITHUB_TOKEN}"
+tool context7 = mcp "https://mcp.context7.com/mcp"
+
+# Prompts - reusable instructions. Use triple-quoted strings.
+prompt my_prompt: \"""You are a helpful assistant.\"""
+
+# Multi-line prompts use indentation:
+prompt detailed_prompt:
+    You are a code reviewer.
+    Check for security and performance issues.
+
+# Agents - the core definition
+agent:                        # unnamed = default entry point
+    tools fs, cli
+    instruction my_prompt
+    description "My agent"
+
+agent helper:                 # named sub-agent
+    instruction helper_prompt
+    description "A helper"
+
+# Multi-agent patterns:
+agent coordinator:
+    instruction coord_prompt
+    delegate helper1, helper2     # coordinator pattern (LLM routes)
+    # OR
+    use helper1, helper2          # hierarchical pattern (agents as tools)
+```
+
+### Minimal Working Example
+
+```
+model main = anthropic/claude-sonnet-4-20250514
+
+prompt system_prompt: \"""You are a helpful coding assistant.\"""
+
+agent:
+    instruction system_prompt
+```
+
+### Example with Tools and Sub-agents
+
+```
+model main = anthropic/claude-sonnet-4-20250514
+
+tool fs = builtin streetrace.fs
+tool cli = builtin streetrace.cli
+
+prompt researcher_prompt: \"""You research codebases and find relevant code.\"""
+
+prompt writer_prompt: \"""You write technical specifications.
+Use the researcher to find relevant code, then write a spec.\"""
+
+agent researcher:
+    tools fs
+    instruction researcher_prompt
+    description "Finds relevant code and docs"
+
+agent:
+    tools fs, cli
+    instruction writer_prompt
+    use researcher
+    description "Writes technical specs"
+```
+
+### Validation
+
+After writing any `.sr` file, run:
+```
+streetrace check ./agents/<name>.sr
+```
+
+Fix any errors until the check passes. Common issues:
+- Prompts need triple-quoted strings (`\"""...\"""`) on the same line as the colon,
+  or use indented text block on the next line
+- Agent names must be valid Python identifiers (letters, numbers, underscores)
+- Tool names in `tools` directive must reference previously declared `tool` definitions
+- The `instruction` directive references a `prompt` name, not inline text
 """
 
 GITHUB_PERSONAL_ACCESS_TOKEN = (

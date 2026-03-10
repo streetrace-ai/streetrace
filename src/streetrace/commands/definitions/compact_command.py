@@ -67,7 +67,7 @@ class CompactCommand(Command):
             ),
         )
         llm_request = LlmRequest(
-            model=self.args.model,
+            model=self.args.effective_model,
             contents=contents,
             config=genai_types.GenerateContentConfig(
                 system_instruction=self.system_context.get_system_message(),

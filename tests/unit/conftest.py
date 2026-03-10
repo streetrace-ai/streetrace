@@ -41,7 +41,9 @@ FAKE_MODEL_NAME = "fake-model"
 
 @pytest.fixture
 def mock_args() -> Args:
-    return Mock(spec=Args)
+    args = Mock(spec=Args)
+    args.effective_model = FAKE_MODEL_NAME
+    return args
 
 
 @pytest.fixture

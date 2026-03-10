@@ -1,7 +1,4 @@
-"""Test ConsoleUI display methods.
-
-This module tests display() and confirm_with_user().
-"""
+"""Test ConsoleUI display methods."""
 
 from unittest.mock import Mock, patch
 
@@ -31,36 +28,6 @@ class TestConsoleUIDisplayMethods:
         console_ui.display(test_obj)
 
         mock_render.assert_called_once_with(test_obj, console_ui.console)
-
-    def test_confirm_with_user(self, console_ui):
-        """Test confirm_with_user method."""
-        test_message = "Please confirm"
-        test_input = "user input response"
-
-        with patch.object(
-            console_ui.console,
-            "input",
-            return_value=f"  {test_input}  ",
-        ) as mock_input:
-            result = console_ui.confirm_with_user(test_message)
-
-            mock_input.assert_called_once_with(f"[green]{test_message}[/green]")
-            assert result == test_input  # Should be stripped
-
-    def test_confirm_with_user_strips_whitespace(self, console_ui):
-        """Test that confirm_with_user strips whitespace from user input."""
-        test_message = "Enter something"
-        user_input_with_whitespace = "   response with spaces   "
-        expected_result = "response with spaces"
-
-        with patch.object(
-            console_ui.console,
-            "input",
-            return_value=user_input_with_whitespace,
-        ):
-            result = console_ui.confirm_with_user(test_message)
-
-            assert result == expected_result
 
     def test_display_with_various_object_types(self, console_ui):
         """Test display method with different object types."""

@@ -291,7 +291,3 @@ class ConsoleUI:
             self._update_rprompt(None)
             # Clear the session to ensure a fresh one is created next time
             self._prompt_session = None
-
-    def confirm_with_user(self, message: str) -> str:
-        """Ask the user to type something and return the typed string."""
-        return self.console.input(f"[green]{message}[/green]").strip()

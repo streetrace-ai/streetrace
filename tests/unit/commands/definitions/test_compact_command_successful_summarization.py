@@ -27,6 +27,7 @@ class TestCompactCommandSuccessfulSummarization:
         """Create mock dependencies for CompactCommand."""
         mock_args = Mock(spec=Args)
         mock_args.model = "test-model"
+        mock_args.effective_model = "test-model"
 
         mock_system_context = Mock(spec=SystemContext)
         mock_system_context.get_system_message.return_value = "system message"
