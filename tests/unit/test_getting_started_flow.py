@@ -47,7 +47,7 @@ class TestListAgentsWithoutModel:
         assert isinstance(definitions, list)
         # Should find bundled agents at minimum
         names = [d.name.lower() for d in definitions]
-        assert "streetrace_coding_agent" in names
+        assert "streetrace" in names
 
     def test_list_available_agents_dispatches_to_ui(
         self,

@@ -83,7 +83,7 @@ from streetrace.workloads.yaml_loader import YamlDefinitionLoader
 
 logger = get_logger(__name__)
 
-_DEFAULT_AGENT = "Streetrace_Coding_Agent"
+_DEFAULT_AGENT = "Streetrace"
 """Default agent name used when 'default' is specified."""
 
 

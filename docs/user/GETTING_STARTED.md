@@ -30,6 +30,7 @@ Create a `.env` file with your model and API keys:
 
 ```bash
 cat > .env << 'EOF'
+DEFAULT_MODEL_NAME=anthropic/claude-sonnet-4-20250514
 ANTHROPIC_API_KEY=your_anthropic_api_key
 EOF
 ```

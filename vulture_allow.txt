@@ -409,6 +409,7 @@ YamlAgentLoader  # unused class (yaml_agent_loader.py) - deprecated, use YamlDef
 _.load_from_path  # unused method - deprecated method on AgentLoader classes
 
 # StreetRaceAgent interface methods - used by agent implementations
+_.get_required_tools  # unused method (street_race_agent.py, yaml_agent.py) - public API for external agent implementations
 _.get_attributes  # unused method (street_race_agent.py) - telemetry attribute interface
 _.get_version  # unused method (street_race_agent.py) - version interface
 _.get_system_prompt  # unused method (street_race_agent.py) - prompt interface

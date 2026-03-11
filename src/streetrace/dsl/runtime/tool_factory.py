@@ -145,7 +145,6 @@ def create_builtin_tool_refs(
         List of StreetraceToolRef objects.
 
     """
-    # Default fs tools to provide
     fs_tool_functions = [
         "read_file",
         "create_directory",
@@ -155,6 +154,13 @@ def create_builtin_tool_refs(
         "find_in_files",
     ]
 
+    fs_readonly_functions = [
+        "read_file",
+        "list_directory",
+        "find_in_files",
+    ]
+    """Read-only subset of fs tools for research-oriented agents."""
+
     cli_tool_functions = [
         "execute_cli_command",
     ]
@@ -163,43 +169,60 @@ def create_builtin_tool_refs(
         "kendra_query",
     ]
 
-    refs: list[StreetraceToolRef] = []
-
-    # Check for specific builtin ref patterns
     builtin_ref = tool_def.get("builtin_ref") or tool_def.get("url")
-    if builtin_ref:
-        # Handle patterns like "streetrace.fs", "streetrace.cli", "streetrace.kendra"
-        ref_lower = str(builtin_ref).lower()
-        if "fs" in ref_lower:
-            refs.extend(
-                StreetraceToolRef(module="fs_tool", function=func)
-                for func in fs_tool_functions
-            )
-        elif "cli" in ref_lower:
-            refs.extend(
-                StreetraceToolRef(module="cli_tool", function=func)
-                for func in cli_tool_functions
-            )
-        elif "kendra" in ref_lower:
-            refs.extend(
-                StreetraceToolRef(module="kendra_tool", function=func)
-                for func in kendra_tool_functions
-            )
-    elif "fs" in tool_name.lower():
-        # Infer from tool name
-        refs.extend(
+    ref_key = str(builtin_ref).lower() if builtin_ref else tool_name.lower()
+
+    return _resolve_builtin_refs(
+        ref_key,
+        fs_tool_functions=fs_tool_functions,
+        fs_readonly_functions=fs_readonly_functions,
+        cli_tool_functions=cli_tool_functions,
+        kendra_tool_functions=kendra_tool_functions,
+    )
+
+
+def _resolve_builtin_refs(
+    ref_key: str,
+    *,
+    fs_tool_functions: list[str],
+    fs_readonly_functions: list[str],
+    cli_tool_functions: list[str],
+    kendra_tool_functions: list[str],
+) -> list[StreetraceToolRef]:
+    """Resolve a builtin reference key to tool refs.
+
+    Match order matters: check more specific patterns (fs_readonly)
+    before general ones (fs) to avoid false matches.
+
+    Args:
+        ref_key: Lowercased builtin reference or tool name.
+        fs_tool_functions: Full fs tool function list.
+        fs_readonly_functions: Read-only fs tool function list.
+        cli_tool_functions: CLI tool function list.
+        kendra_tool_functions: Kendra tool function list.
+
+    Returns:
+        List of StreetraceToolRef objects.
+
+    """
+    if "fs_readonly" in ref_key:
+        return [
+            StreetraceToolRef(module="fs_tool", function=func)
+            for func in fs_readonly_functions
+        ]
+    if "fs" in ref_key:
+        return [
             StreetraceToolRef(module="fs_tool", function=func)
             for func in fs_tool_functions
-        )
-    elif "cli" in tool_name.lower():
-        refs.extend(
+        ]
+    if "cli" in ref_key:
+        return [
             StreetraceToolRef(module="cli_tool", function=func)
             for func in cli_tool_functions
-        )
-    elif "kendra" in tool_name.lower():
-        refs.extend(
+        ]
+    if "kendra" in ref_key:
+        return [
             StreetraceToolRef(module="kendra_tool", function=func)
             for func in kendra_tool_functions
-        )
-
-    return refs
+        ]
+    return []

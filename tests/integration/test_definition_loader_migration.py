@@ -172,8 +172,8 @@ class TestWorkloadDiscovery:
 
         # Should find the default coding agent as DSL
         all_names = {d.name for d in definitions}
-        assert "streetrace_coding_agent" in all_names, (
-            f"Expected streetrace_coding_agent, found: {all_names}"
+        assert "streetrace" in all_names, (
+            f"Expected streetrace, found: {all_names}"
         )
 
     def test_discovers_all_formats_together(
@@ -250,7 +250,7 @@ class TestLoadFromPath:
         bundled_agents_dir: Path,
     ) -> None:
         """Test loading the bundled DSL coding agent directly from its path."""
-        dsl_path = bundled_agents_dir / "streetrace_coding_agent.sr"
+        dsl_path = bundled_agents_dir / "streetrace.sr"
         assert dsl_path.exists(), f"Test fixture not found: {dsl_path}"
 
         # Load via identifier (path)
@@ -260,7 +260,7 @@ class TestLoadFromPath:
 
         assert definition is not None
         assert isinstance(definition, DslWorkloadDefinition)
-        assert definition.name == "streetrace_coding_agent"
+        assert definition.name == "streetrace"
         assert definition.metadata.format == "dsl"
 
 
@@ -314,7 +314,7 @@ class TestLoadByName:
         workload_manager.discover_definitions()
 
         # Then load by name (case-insensitive)
-        definition = workload_manager._load_by_name("Streetrace_Coding_Agent")  # noqa: SLF001
+        definition = workload_manager._load_by_name("Streetrace")  # noqa: SLF001
 
         assert definition is not None
         assert isinstance(definition, DslWorkloadDefinition)
@@ -387,7 +387,7 @@ class TestCreateWorkload:
         workload_manager.discover_definitions()
 
         workload = workload_manager.create_workload_from_definition(
-            "Streetrace_Coding_Agent",
+            "Streetrace",
         )
 
         assert workload is not None
@@ -433,11 +433,11 @@ class TestMetadataConsistency:
         bundled_agents_dir: Path,
     ) -> None:
         """Test that bundled DSL agent metadata is fully populated."""
-        dsl_path = bundled_agents_dir / "streetrace_coding_agent.sr"
+        dsl_path = bundled_agents_dir / "streetrace.sr"
         definition = workload_manager._load_from_path(dsl_path)  # noqa: SLF001
 
         assert definition is not None
-        assert definition.metadata.name == "streetrace_coding_agent"
+        assert definition.metadata.name == "streetrace"
         assert definition.metadata.format == "dsl"
         assert definition.metadata.source_path is not None
         assert definition.metadata.description is not None

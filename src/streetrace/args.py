@@ -24,7 +24,7 @@ class Args(tap.TypedArgs):
         ),
     )
     agent: str | None = tap.arg(
-        help="Specific agent to use (default: Streetrace_Coding_Agent)",
+        help="Specific agent to use (default: Streetrace)",
         default=None,
     )
     agent_uri_auth_var: str | None = tap.arg(
