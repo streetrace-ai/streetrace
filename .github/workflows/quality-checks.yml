@@ -20,7 +20,7 @@ jobs:
           python-version: "3.12" # Or your target Python version
 
       - name: Run image
-        uses: abatilo/actions-poetry@v3
+        uses: abatilo/actions-poetry@v4
         with:
           poetry-version: "latest"
 
