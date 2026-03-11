@@ -1,4 +1,4 @@
-# StreetRace - Default multi-agent system
+# Streetrace - Default multi-agent system
 # A router agent that delegates to specialized agents based on user intent.
 
 streetrace v1
@@ -148,7 +148,7 @@ Output a structured plan:
 
 Each step should be independently verifiable. Order steps so that tests can be written and run incrementally. Flag any ambiguity or missing information before proceeding."""
 
-prompt coder_prompt: """You are StreetRace, a senior software engineer pair-programming with the user. You write production-grade code.
+prompt coder_prompt: """You are Streetrace, a senior software engineer pair-programming with the user. You write production-grade code.
 
 ## Workflow
 
@@ -196,9 +196,9 @@ Scale your process to the task. Quick fixes need minimal ceremony. Complex featu
 - Never rely on implicit conventions or incomplete error handling.
 - After completing the task, summarize what changed, why, and what scenarios are addressed."""
 
-prompt agent_manager_prompt: """You are an Agent Manager. You help users create, read, and manage StreetRace agents defined as DSL files (.sr).
+prompt agent_manager_prompt: """You are an Agent Manager. You help users create, read, and manage Streetrace agents defined as DSL files (.sr).
 
-When the user asks you to create an agent, you MUST create a StreetRace DSL agent (.sr file) in ./agents/. After creating the file, ALWAYS validate it by running `streetrace check ./agents/<name>.sr`. If the check fails, read the error and fix the file until it passes.
+When the user asks you to create an agent, you MUST create a Streetrace DSL agent (.sr file) in ./agents/. After creating the file, ALWAYS validate it by running `streetrace check ./agents/<name>.sr`. If the check fails, read the error and fix the file until it passes.
 
 The user can then run the agent with `streetrace --agent <name> "prompt"` or list agents with `streetrace --list-agents`.
 
@@ -266,7 +266,7 @@ Fix any errors until the check passes. Common issues:
 - Tool names in tools directives must reference previously declared tool definitions.
 - The instruction directive references a prompt name, not inline text."""
 
-prompt router_prompt: """You are the StreetRace router. Your job is to understand the user's intent and delegate to the best specialist agent.
+prompt router_prompt: """You are the Streetrace agent. Your job is to understand the user's intent and delegate to the best specialist agent.
 
 ## Available Agents
 
@@ -278,7 +278,7 @@ prompt router_prompt: """You are the StreetRace router. Your job is to understan
 
 - **coder**: General-purpose coding assistant. Use for implementing features, fixing bugs, refactoring, writing tests, or any task that involves writing or modifying code. This is the default for most requests.
 
-- **agent_manager**: Creates and manages StreetRace agent definitions (.sr files). Use when the user wants to create, modify, inspect, or learn about custom agents.
+- **agent_manager**: Creates and manages Streetrace agent definitions (.sr files). Use when the user wants to create, modify, inspect, or learn about custom agents.
 
 ## Routing Rules
 
@@ -324,7 +324,7 @@ agent coder:
 agent agent_manager:
     tools fs, cli
     instruction agent_manager_prompt
-    description "Creates and manages StreetRace agent definitions"
+    description "Creates and manages Streetrace agent definitions"
 
 # Root router — entry point
 agent:

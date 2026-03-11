@@ -451,28 +451,42 @@ flow test:
         assert "ctx.vars['results'].append(" in code
 
 
-class TestPromptInterpolationUnchanged:
-    """Verify that prompt bodies still use $var for interpolation."""
+class TestPromptInterpolationSyntax:
+    """Verify prompt body interpolation uses ${var} syntax."""
 
     @pytest.fixture
     def parser(self):
         return ParserFactory.create()
 
-    def test_prompt_body_keeps_dollar_interpolation(self, parser):
-        """Prompt body text with $var is preserved as-is for runtime interpolation."""
+    def test_prompt_body_preserves_interpolation_syntax(self, parser):
+        """Prompt body with ${var} preserves references for runtime."""
         source = """
 prompt review_prompt: '''
-Review the following code: $code_snippet
-Provide feedback based on $guidelines
+Review the following code: ${code_snippet}
+Provide feedback based on ${guidelines}
 '''
 """
         tree = parser.parse(source)
         ast = transform(tree)
 
         prompt = ast.statements[0]
-        # Prompt body should contain $var references as raw text
-        assert "$code_snippet" in prompt.body
-        assert "$guidelines" in prompt.body
+        assert "${code_snippet}" in prompt.body
+        assert "${guidelines}" in prompt.body
+
+    def test_bare_dollar_var_is_literal_text(self, parser):
+        """Bare $var in prompt body is preserved as literal text."""
+        source = """
+prompt pricing: '''
+The item costs $100 and ships to $ADDRESS.
+'''
+"""
+        tree = parser.parse(source)
+        ast = transform(tree)
+
+        prompt = ast.statements[0]
+        # Bare $100 and $ADDRESS should be kept as-is (literal text)
+        assert "$100" in prompt.body
+        assert "$ADDRESS" in prompt.body
 
 
 class TestBareVariableEndToEnd:

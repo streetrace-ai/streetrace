@@ -714,6 +714,9 @@ class FlowVisitor:
     def _build_interpolated_fstring(self, text: str) -> str:
         """Build an f-string expression from interpolated text.
 
+        Escape literal braces so they survive the f-string wrapper,
+        then replace ``${expr}`` patterns with Python expressions.
+
         Args:
             text: String containing ${...} interpolation patterns.
 
@@ -721,15 +724,32 @@ class FlowVisitor:
             Python f-string expression.
 
         """
-        # Pattern for ${...} interpolation
-        # Captures the content inside ${}
+        # Sentinel-based approach: protect ${expr} before escaping braces
+        sentinel_prefix = "\x00SR_EXPR:"
+        sentinel_suffix = "\x00"
+        placeholders: list[str] = []
+
         pattern = r"\$\{([^}]+)\}"
 
-        def replace_interpolation(match: re.Match[str]) -> str:
+        def capture_expr(match: re.Match[str]) -> str:
             expr = match.group(1).strip()
-            return "{" + self._convert_dsl_expr_to_python(expr) + "}"
+            replacement = "{" + self._convert_dsl_expr_to_python(expr) + "}"
+            idx = len(placeholders)
+            placeholders.append(replacement)
+            return f"{sentinel_prefix}{idx}{sentinel_suffix}"
 
-        processed = re.sub(pattern, replace_interpolation, text)
+        processed = re.sub(pattern, capture_expr, text)
+
+        # Escape literal braces
+        processed = processed.replace("{", "{{")
+        processed = processed.replace("}", "}}")
+
+        # Restore sentinels
+        for idx, replacement in enumerate(placeholders):
+            processed = processed.replace(
+                f"{sentinel_prefix}{idx}{sentinel_suffix}",
+                replacement,
+            )
 
         # Escape backslashes and quotes for f-string
         processed = processed.replace("\\", "\\\\")

@@ -53,9 +53,10 @@ BUILTIN_VARIABLES = frozenset({
     "turn_count",
 })
 
-# Pattern to match variable references in prompt bodies: $var or ${var} or $var.prop
+# Pattern to match variable references in prompt bodies: ${var} or ${var.prop}
+# Bare $var is literal text and not matched.
 PROMPT_VAR_PATTERN = re.compile(
-    r"\$\{?([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\}?",
+    r"\$\{([a-zA-Z_][a-zA-Z0-9_]*(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\}",
 )
 
 TYPO_SIMILARITY_THRESHOLD = 0.85
@@ -543,10 +544,10 @@ class SemanticAnalyzer:
     def _validate_prompt_body_vars(self, prompt: PromptDef) -> None:
         """Validate variable references in prompt body.
 
-        Check for likely typos by comparing $variable references against
-        known symbols. Variables that appear to be typos of known prompts
-        or produces names generate errors. Unknown variables that don't
-        match any known symbol are assumed to be runtime variables.
+        Every ``${var}`` must resolve to a known symbol: a builtin
+        variable, another prompt name, an agent ``produces`` name, or
+        a variable assigned anywhere in a flow.  Unknown references
+        are errors.
         """
         if not prompt.body:
             return
@@ -559,17 +560,14 @@ class SemanticAnalyzer:
 
             # Check if this looks like a typo of a known symbol
             typo_suggestion = self._find_likely_typo(var_name)
-            if typo_suggestion is not None:
-                self._add_error(
-                    SemanticError.undefined_prompt_variable(
-                        prompt=prompt.name,
-                        name=var_name,
-                        position=self._calc_var_position(prompt, char_offset),
-                        suggestion=typo_suggestion,
-                    ),
-                )
-            # If no similar match found, assume it's a valid runtime variable
-            # (e.g., flow variable, loop variable, or with binding)
+            self._add_error(
+                SemanticError.undefined_prompt_variable(
+                    prompt=prompt.name,
+                    name=var_name,
+                    position=self._calc_var_position(prompt, char_offset),
+                    suggestion=typo_suggestion,
+                ),
+            )
 
     def _is_valid_prompt_var(self, var_name: str) -> bool:
         """Check if variable is valid in prompt context.
@@ -578,12 +576,15 @@ class SemanticAnalyzer:
         - A built-in variable (input_prompt, conversation, etc.)
         - Another prompt name (for composition)
         - An agent produces name (becomes variable at runtime)
+        - A variable assigned in any flow (set, for, run target)
         """
         if var_name in BUILTIN_VARIABLES:
             return True
         if var_name in self._symbols.prompts:
             return True
-        return self._is_known_produces_name(var_name)
+        if self._is_known_produces_name(var_name):
+            return True
+        return self._is_known_flow_var(var_name)
 
     def _find_likely_typo(self, name: str) -> str | None:
         """Find if a variable name is likely a typo of a known symbol.
@@ -596,6 +597,7 @@ class SemanticAnalyzer:
         candidates.extend(
             a.produces for a in self._symbols.agents.values() if a.produces
         )
+        candidates.extend(self._collect_all_flow_var_names())
 
         name_lower = name.lower()
         best_match = None
@@ -603,7 +605,6 @@ class SemanticAnalyzer:
 
         for candidate in candidates:
             candidate_lower = candidate.lower()
-            # Compute edit distance for close matches
             score = self._similarity_score(name_lower, candidate_lower)
             if score > best_score:
                 best_score = score
@@ -611,9 +612,47 @@ class SemanticAnalyzer:
 
         # Only suggest if very high similarity (likely typo)
         if best_score >= TYPO_SIMILARITY_THRESHOLD and best_match is not None:
-            return f"did you mean '${best_match}'?"
+            return f"did you mean '${{{best_match}}}'?"
 
         return None
+
+    def _collect_all_flow_var_names(self) -> list[str]:
+        """Collect all variable names assigned in any flow.
+
+        Returns:
+            List of variable names from assignments, run targets, etc.
+
+        """
+        from streetrace.dsl.ast.nodes import (
+            Assignment,
+            CallStmt,
+            ForLoop,
+            IfBlock,
+            LoopBlock,
+            ParallelBlock,
+            RunStmt,
+        )
+
+        names: list[str] = []
+
+        def _walk(stmts: list[object]) -> None:
+            for stmt in stmts:
+                if isinstance(stmt, Assignment):
+                    names.append(stmt.target)
+                elif isinstance(stmt, (RunStmt, CallStmt)):
+                    if stmt.target is not None:
+                        names.append(stmt.target)
+                elif isinstance(stmt, ForLoop):
+                    names.append(stmt.variable)
+                    _walk(stmt.body)
+                if isinstance(stmt, (ParallelBlock, LoopBlock, IfBlock)):
+                    _walk(stmt.body)
+
+        for flow in self._symbols.flows.values():
+            names.extend(flow.params)
+            _walk(flow.body)
+
+        return names
 
     def _similarity_score(self, s1: str, s2: str) -> float:
         """Compute similarity score between two strings.
@@ -1312,6 +1351,71 @@ class SemanticAnalyzer:
             a.produces == name
             for a in self._symbols.agents.values()
         )
+
+    def _is_known_flow_var(self, name: str) -> bool:
+        """Check if a name is assigned in any flow.
+
+        Collect variables from assignments, run targets, call targets,
+        and for-loop iterators across all flows.
+
+        Args:
+            name: Variable name to check.
+
+        Returns:
+            True if the name is defined in any flow scope.
+
+        """
+        for flow in self._symbols.flows.values():
+            if name in flow.params:
+                return True
+            if self._flow_body_defines_var(flow.body, name):
+                return True
+        return False
+
+    def _flow_body_defines_var(
+        self,
+        stmts: list[object],
+        name: str,
+    ) -> bool:
+        """Recursively check if a statement list defines a variable.
+
+        Walk into nested blocks (parallel, if, loop, for) to find
+        assignments at any depth.
+
+        Args:
+            stmts: List of AST statement nodes.
+            name: Variable name to search for.
+
+        Returns:
+            True if any statement defines the variable.
+
+        """
+        from streetrace.dsl.ast.nodes import (
+            Assignment,
+            CallStmt,
+            ForLoop,
+            IfBlock,
+            LoopBlock,
+            ParallelBlock,
+            RunStmt,
+        )
+
+        for stmt in stmts:
+            if (
+                isinstance(stmt, (Assignment, RunStmt, CallStmt))
+                and stmt.target == name
+            ):
+                return True
+            if isinstance(stmt, ForLoop) and (
+                stmt.variable == name
+                or self._flow_body_defines_var(stmt.body, name)
+            ):
+                return True
+            if isinstance(
+                stmt, (ParallelBlock, LoopBlock, IfBlock),
+            ) and self._flow_body_defines_var(stmt.body, name):
+                return True
+        return False
 
     def _suggest_prompt_or_variable(self, name: str) -> str | None:
         """Suggest similar prompts or variable names.

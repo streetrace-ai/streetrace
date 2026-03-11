@@ -168,7 +168,7 @@ Return chunks list with:
 - chunk 2: chunk_id=2, text=jumps over lazy dog"""
 
 prompt chunk_processor_instruction: """Process this chunk.
-Chunk: $chunk
+Chunk: ${chunk}
 
 Return:
 - chunk_id: same as input chunk_id
@@ -176,23 +176,23 @@ Return:
 - word_count: count the words in the text"""
 
 prompt analyzer_a_instruction: """Count nouns in chunk.
-Chunk: $chunk
+Chunk: ${chunk}
 
 Return:
 - category: nouns
 - count: number of nouns found"""
 
 prompt analyzer_b_instruction: """Count verbs in chunk.
-Chunk: $chunk
+Chunk: ${chunk}
 
 Return:
 - category: verbs
 - count: number of verbs found"""
 
 prompt final_instruction: """Compile final report.
-Chunk Results: $all_chunk_results
-Analysis A Results: $all_analysis_a
-Analysis B Results: $all_analysis_b
+Chunk Results: ${all_chunk_results}
+Analysis A Results: ${all_analysis_a}
+Analysis B Results: ${all_analysis_b}
 
 Return:
 - title: Pattern Test Complete
