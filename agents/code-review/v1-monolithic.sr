@@ -123,7 +123,7 @@ agent:
 
 prompt reviewer_instruction: """You are an expert code reviewer.
 
-$scoring_rubric
+${scoring_rubric}
 
 Review the PR for:
 1. **Security vulnerabilities**: Injection, auth flaws, secrets exposure
@@ -137,10 +137,10 @@ IMPORTANT:
 - Include suggested fixes where possible
 
 PR Context:
-$context
+${context}
 
 Changed Files (diff):
-$diff
+${diff}
 
 Provide a structured review with findings sorted by severity."""
 

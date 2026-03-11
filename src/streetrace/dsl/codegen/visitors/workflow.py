@@ -405,6 +405,10 @@ class WorkflowVisitor:
     def _process_prompt_body(self, body: str) -> str:
         """Process prompt body for variable interpolation.
 
+        Only ``${var}`` and ``${var.prop}`` trigger interpolation.
+        Bare ``$var`` is preserved as literal text. Literal curly
+        braces are escaped so they survive the f-string wrapper.
+
         Args:
             body: Original prompt body.
 
@@ -414,31 +418,55 @@ class WorkflowVisitor:
         """
         import re
 
-        # Match $variable or $variable.prop1.prop2 (dotted property access)
+        # Step 1: Use sentinels to protect ${var} references before
+        # escaping all braces.  This avoids double-escaping the
+        # braces we intentionally insert for ctx.resolve() calls.
+        sentinel_prefix = "\x00SR_VAR:"
+        sentinel_suffix = "\x00"
+        placeholders: list[str] = []
+
+        # Match ${variable} or ${variable.prop1.prop2}
         var_pattern = (
-            r"\$\{?([a-zA-Z_][a-zA-Z0-9_]*"
-            r"(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\}?"
+            r"\$\{([a-zA-Z_][a-zA-Z0-9_]*"
+            r"(?:\.[a-zA-Z_][a-zA-Z0-9_]*)*)\}"
         )
 
-        def replace_var(match: re.Match[str]) -> str:
+        def capture_var(match: re.Match[str]) -> str:
             full_ref = match.group(1)
             parts = full_ref.split(".")
             var_name = parts[0]
 
             if len(parts) == 1:
-                # Simple variable: $name → ctx.resolve('name')
-                return "{ctx.resolve('" + var_name + "')}"
+                replacement = "{ctx.resolve('" + var_name + "')}"
+            else:
+                prop_args = ", ".join(f"'{p}'" for p in parts[1:])
+                replacement = (
+                    "{ctx.resolve_property('"
+                    + var_name
+                    + "', "
+                    + prop_args
+                    + ")}"
+                )
 
-            # Dotted access uses resolve_property for safe traversal
-            prop_args = ", ".join(f"'{p}'" for p in parts[1:])
-            return (
-                "{ctx.resolve_property('" + var_name + "', " + prop_args + ")}"
+            idx = len(placeholders)
+            placeholders.append(replacement)
+            return f"{sentinel_prefix}{idx}{sentinel_suffix}"
+
+        processed = re.sub(var_pattern, capture_var, body)
+
+        # Step 2: Escape all literal braces (safe now — ${var}
+        # references are replaced with sentinels).
+        processed = processed.replace("{", "{{")
+        processed = processed.replace("}", "}}")
+
+        # Step 3: Restore sentinels with the real f-string expressions.
+        for idx, replacement in enumerate(placeholders):
+            processed = processed.replace(
+                f"{sentinel_prefix}{idx}{sentinel_suffix}",
+                replacement,
             )
 
-        # Replace variables with f-string expressions
-        processed = re.sub(var_pattern, replace_var, body)
-
-        # Escape quotes for the f-string
+        # Escape backslashes and quotes for the f-string
         processed = processed.replace("\\", "\\\\")
 
         # Use triple-quoted f-string for multiline

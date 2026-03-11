@@ -274,7 +274,7 @@ class TestCodeGeneratorPrompts:
             statements=[
                 PromptDef(
                     name="analyze",
-                    body="Analyze: $input_prompt",
+                    body="Analyze: ${input_prompt}",
                 ),
             ],
         )

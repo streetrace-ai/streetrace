@@ -234,13 +234,16 @@ class WorkflowContext:
         """Resolve a name to its string value.
 
         Check ctx.vars first, then fall back to prompt definitions.
-        Return empty string if not found (tolerant for prompt composition).
+        Raise ``UndefinedVariableError`` if the name cannot be found.
 
         Args:
             name: Variable or prompt name to resolve.
 
         Returns:
             String value of the resolved name.
+
+        Raises:
+            UndefinedVariableError: If the name is not in vars or prompts.
 
         """
         if name in self.vars:
@@ -253,14 +256,15 @@ class WorkflowContext:
                 return str(body_fn(self))
             return str(body_fn)
 
-        return ""
+        from streetrace.dsl.runtime.errors import UndefinedVariableError
+
+        raise UndefinedVariableError(name)
 
     def resolve_property(self, name: str, *properties: str) -> str:
-        """Resolve a dotted property path like ``$chunk.title``.
+        """Resolve a dotted property path like ``${chunk.title}``.
 
         Look up the base variable, coerce JSON strings to dicts if
-        needed, then walk the property chain.  Return the stringified
-        leaf value, or an empty string on any lookup failure.
+        needed, then walk the property chain.
 
         Args:
             name: Base variable name.
@@ -269,10 +273,16 @@ class WorkflowContext:
         Returns:
             String value of the resolved property.
 
+        Raises:
+            UndefinedVariableError: If the base variable is not in vars.
+
         """
-        value: object = self.vars.get(name)
-        if value is None:
-            return ""
+        if name not in self.vars:
+            from streetrace.dsl.runtime.errors import UndefinedVariableError
+
+            raise UndefinedVariableError(name)
+
+        value: object = self.vars[name]
 
         # Coerce JSON strings to dicts/lists so property access works
         if isinstance(value, str):

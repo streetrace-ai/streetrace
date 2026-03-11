@@ -18,6 +18,7 @@ from streetrace.dsl import (
     compile_dsl,
     validate_dsl,
 )
+from streetrace.dsl.runtime.errors import UndefinedVariableError
 
 if TYPE_CHECKING:
     from google.adk.sessions.base_session_service import BaseSessionService
@@ -101,8 +102,8 @@ streetrace v1
 model main = anthropic/claude-sonnet
 
 prompt my_instruction: \"\"\"
-Process this context: $context
-And this data: $data
+Process this context: ${context}
+And this data: ${data}
 \"\"\"
 
 agent my_agent:
@@ -127,7 +128,7 @@ streetrace v1
 model main = anthropic/claude-sonnet
 
 prompt validator_instruction: \"\"\"
-Validate finding at $finding.file line $finding.line_start
+Validate finding at ${finding.file} line ${finding.line_start}
 \"\"\"
 
 agent validator:
@@ -152,7 +153,7 @@ prompt shared_rules: \"\"\"Always be concise and accurate.\"\"\"
 
 prompt my_instruction: \"\"\"
 You are a helpful assistant.
-$shared_rules
+${shared_rules}
 \"\"\"
 
 agent my_agent:
@@ -170,10 +171,10 @@ streetrace v1
 model main = anthropic/claude-sonnet
 
 prompt complex_instruction: \"\"\"
-Context: $pr_context
-Chunk: $chunk
-Finding: $finding
-Item: $item.property
+Context: ${pr_context}
+Chunk: ${chunk}
+Finding: ${finding}
+Item: ${item.property}
 \"\"\"
 
 agent reviewer:
@@ -205,8 +206,8 @@ class TestPromptGlobalVariableInterpolation:
     These are resolved at runtime via ctx.resolve().
     """
 
-    def test_prompt_with_runtime_vars_compiles(self) -> None:
-        """Prompt field can have runtime variables (resolved at runtime)."""
+    def test_prompt_with_undefined_vars_fails_compilation(self) -> None:
+        """Prompt field with undefined variables fails compilation with E0015."""
         source = """\
 streetrace v1
 
@@ -216,19 +217,22 @@ prompt static_instruction: \"\"\"You are a reviewer.\"\"\"
 
 prompt review_prompt: \"\"\"
 Review this PR:
-$pr_context
+${pr_context}
 
 Changes:
-$changes
+${changes}
 \"\"\"
 
 agent reviewer:
     instruction static_instruction
     prompt review_prompt
 """
-        # Should compile without errors
-        bytecode, _ = compile_dsl(source, "test.sr", use_cache=False)
-        assert bytecode is not None
+        with pytest.raises(DslSemanticError) as exc_info:
+            compile_dsl(source, "test.sr", use_cache=False)
+
+        errors = exc_info.value.errors
+        e0015_errors = [e for e in errors if e.code.name == "E0015"]
+        assert len(e0015_errors) >= 2
 
     def test_prompt_interpolation_at_runtime(
         self,
@@ -243,9 +247,21 @@ streetrace v1
 
 model main = anthropic/claude-sonnet
 
-prompt greet: \"\"\"Hello $name, welcome to $place!\"\"\"
+prompt greet: \"\"\"Hello ${greeting_name}, welcome to ${greeting_place}!\"\"\"
+
+prompt setup_instruction: \"\"\"Set up name and place.\"\"\"
+
+agent name_producer:
+    instruction setup_instruction
+    produces greeting_name
+
+agent place_producer:
+    instruction setup_instruction
+    produces greeting_place
 
 flow main:
+    run agent name_producer
+    run agent place_producer
     return $input_prompt
 """
         bytecode, _ = compile_dsl(source, "test.sr", use_cache=False)
@@ -260,8 +276,8 @@ flow main:
         ctx = instance.create_context()
 
         # Set runtime variables
-        ctx.vars["name"] = "Alice"
-        ctx.vars["place"] = "Wonderland"
+        ctx.vars["greeting_name"] = "Alice"
+        ctx.vars["greeting_place"] = "Wonderland"
 
         # Resolve the prompt
         result = ctx.resolve("greet")
@@ -281,7 +297,7 @@ streetrace v1
 
 model main = anthropic/claude-sonnet
 
-prompt echo: \"\"\"You said: $input_prompt\"\"\"
+prompt echo: \"\"\"You said: ${input_prompt}\"\"\"
 
 flow main:
     return $input_prompt
@@ -326,7 +342,7 @@ prompt fetcher_instruction: \"\"\"Fetch context data.\"\"\"
 
 prompt reviewer_prompt: \"\"\"
 Review with context:
-$pr_context
+${pr_context}
 \"\"\"
 
 agent context_fetcher:
@@ -375,20 +391,25 @@ streetrace v1
 model main = anthropic/claude-sonnet
 
 prompt chunk_prompt: \"\"\"
-Process chunk: $chunk_data
+Process chunk: ${chunk_data}
 \"\"\"
 
 prompt static_instruction: \"\"\"Process chunks.\"\"\"
+
+agent data_producer:
+    instruction static_instruction
+    produces chunk_data
 
 agent chunk_processor:
     instruction static_instruction
     prompt chunk_prompt
 
 flow main:
+    run agent data_producer
     run agent chunk_processor
     return $input_prompt
 """
-        # Should compile - $chunk_data in prompt field is runtime variable
+        # Should compile - chunk_data is produced by data_producer
         bytecode, _ = compile_dsl(source, "test.sr", use_cache=False)
         workflow_class = _execute_bytecode(bytecode)
 
@@ -419,25 +440,25 @@ class TestContextVariablesAfterAgentRun:
     that will only exist after a later agent runs.
     """
 
-    def test_forward_reference_resolves_to_empty_at_runtime(
+    def test_forward_reference_raises_at_runtime(
         self,
         mock_model_factory: "ModelFactory",
         mock_tool_provider: "ToolProvider",
         mock_system_context: "SystemContext",
         mock_session_service: "BaseSessionService",
     ) -> None:
-        """Forward reference to unpopulated variable resolves to empty string.
+        """Forward reference to unpopulated variable raises at runtime.
 
-        This is current runtime behavior - ctx.resolve() returns ""
-        for unknown variables. The semantic analyzer doesn't track
-        flow execution order, so this compiles but produces empty output.
+        The variable is defined via produces so it compiles, but at
+        runtime if the variable hasn't been set yet, resolve raises
+        UndefinedVariableError.
         """
         source = """\
 streetrace v1
 
 model main = anthropic/claude-sonnet
 
-prompt use_future: \"\"\"Data: $future_data\"\"\"
+prompt use_future: \"\"\"Data: ${future_data}\"\"\"
 
 prompt producer_instruction: \"\"\"Produce data.\"\"\"
 
@@ -462,10 +483,9 @@ flow main:
         )
         ctx = instance.create_context()
 
-        # Before producer runs, future_data doesn't exist
-        result = ctx.resolve("use_future")
-        # Should resolve to empty string for undefined variable
-        assert result == "Data: "
+        # Before producer runs, future_data doesn't exist - should raise
+        with pytest.raises(UndefinedVariableError):
+            ctx.resolve("use_future")
 
 
 # =============================================================================
@@ -491,7 +511,7 @@ prompt helper_rules: \"\"\"Be helpful and concise.\"\"\"
 
 prompt main_prompt: \"\"\"
 Follow these rules:
-$helpr_rules
+${helpr_rules}
 \"\"\"
 """
         with pytest.raises(DslSemanticError) as exc_info:
@@ -514,7 +534,7 @@ model main = anthropic/claude-sonnet
 
 prompt fetcher_instruction: \"\"\"Fetch data.\"\"\"
 
-prompt use_context: \"\"\"Context: $pr_contex\"\"\"
+prompt use_context: \"\"\"Context: ${pr_contex}\"\"\"
 
 agent fetcher:
     instruction fetcher_instruction
@@ -537,7 +557,7 @@ streetrace v1
 
 model main = anthropic/claude-sonnet
 
-prompt echo: \"\"\"You said: $input_promt\"\"\"
+prompt echo: \"\"\"You said: ${input_promt}\"\"\"
 """
         with pytest.raises(DslSemanticError) as exc_info:
             compile_dsl(source, "test.sr", use_cache=False)
@@ -549,21 +569,24 @@ prompt echo: \"\"\"You said: $input_promt\"\"\"
         assert e0015_errors[0].suggestion is not None
         assert "input_prompt" in e0015_errors[0].suggestion
 
-    def test_unknown_variable_without_typo_passes(self) -> None:
-        """Unknown variable without similar match passes (runtime var)."""
+    def test_unknown_variable_without_typo_fails(self) -> None:
+        """Unknown variable without similar match fails with E0015."""
         source = """\
 streetrace v1
 
 model main = anthropic/claude-sonnet
 
 prompt dynamic: \"\"\"
-Process: $completely_different_name
-With: $another_runtime_var
+Process: ${completely_different_name}
+With: ${another_runtime_var}
 \"\"\"
 """
-        # Should compile - these don't match any known symbols
-        bytecode, _ = compile_dsl(source, "test.sr", use_cache=False)
-        assert bytecode is not None
+        with pytest.raises(DslSemanticError) as exc_info:
+            compile_dsl(source, "test.sr", use_cache=False)
+
+        errors = exc_info.value.errors
+        e0015_errors = [e for e in errors if e.code.name == "E0015"]
+        assert len(e0015_errors) >= 2
 
 
 # =============================================================================
@@ -590,8 +613,8 @@ prompt security_guidelines: \"\"\"Follow security guidelines.\"\"\"
 prompt review_instructions: \"\"\"Review instructions.\"\"\"
 
 prompt main_prompt: \"\"\"
-$security_guideline
-$review_instruction
+${security_guideline}
+${review_instruction}
 \"\"\"
 """
         diagnostics = validate_dsl(source, "test.sr")
@@ -614,7 +637,7 @@ model main = anthropic/claude-sonnet
 
 prompt MyPrompt: \"\"\"Content.\"\"\"
 
-prompt user_prompt: \"\"\"Use: $mypromt\"\"\"
+prompt user_prompt: \"\"\"Use: ${mypromt}\"\"\"
 """
         # 'mypromt' is similar to 'MyPrompt' (case difference + typo)
         diagnostics = validate_dsl(source, "test.sr")
@@ -633,8 +656,8 @@ model main = anthropic/claude-sonnet
 prompt fetcher_instruction: \"\"\"Fetch.\"\"\"
 
 prompt use_finding: \"\"\"
-File: $findin.file
-Line: $findin.line_start
+File: ${findin.file}
+Line: ${findin.line_start}
 \"\"\"
 
 agent reviewer:
@@ -687,7 +710,7 @@ streetrace v1
 
 model main = anthropic/claude-sonnet
 
-prompt bad_instruction: \"\"\"Process: $runtime_var\"\"\"
+prompt bad_instruction: \"\"\"Process: ${runtime_var}\"\"\"
 
 agent my_agent:
     instruction bad_instruction
@@ -707,7 +730,7 @@ model main = anthropic/claude-sonnet
 
 prompt helper_prompt: \"\"\"Help.\"\"\"
 
-prompt main_prompt: \"\"\"$helpr_prompt\"\"\"
+prompt main_prompt: \"\"\"${helpr_prompt}\"\"\"
 """
         diagnostics = validate_dsl(source, "test.sr")
 
@@ -722,7 +745,7 @@ streetrace v1
 
 model main = anthropic/claude-sonnet
 
-prompt my_instruction: \"\"\"Process: $context\"\"\"
+prompt my_instruction: \"\"\"Process: ${context}\"\"\"
 
 agent my_agent:
     instruction my_instruction
@@ -755,25 +778,29 @@ prompt no_inference: \"\"\"Do not infer or assume.\"\"\"
 
 prompt fetcher_instruction: \"\"\"
 Fetch PR context from GitHub.
-$no_inference
+${no_inference}
 \"\"\"
 
 prompt reviewer_instruction: \"\"\"
 You are a security reviewer.
-$no_inference
+${no_inference}
 \"\"\"
 
 prompt reviewer_prompt: \"\"\"
 Review this PR:
-$pr_context
+${pr_context}
 
 Changes:
-$chunk
+${chunk}
 \"\"\"
 
 agent context_fetcher:
     instruction fetcher_instruction
     produces pr_context
+
+agent chunk_fetcher:
+    instruction fetcher_instruction
+    produces chunk
 
 agent security_reviewer:
     instruction reviewer_instruction
@@ -781,6 +808,7 @@ agent security_reviewer:
 
 flow main:
     run agent context_fetcher
+    run agent chunk_fetcher
     run agent security_reviewer
     return $input_prompt
 """
@@ -802,8 +830,8 @@ model main = anthropic/claude-sonnet
 prompt helper_prompt: \"\"\"Help.\"\"\"
 
 prompt bad_instruction: \"\"\"
-Process: $runtime_var
-With: $helpr_prompt
+Process: ${runtime_var}
+With: ${helpr_prompt}
 \"\"\"
 
 agent my_agent:

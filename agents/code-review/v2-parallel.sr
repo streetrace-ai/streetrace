@@ -341,19 +341,19 @@ Include your reason for the decision."""
 prompt validator_prompt: """Please validate this finding:
 
 ## PR Context
-$pr_context
+${pr_context}
 
 Understanding the PR's intent helps you determine if a "problem" might be intentional.
 
 ---
 
 ## Finding to Validate
-$finding
+${finding}
 
 ---
 
 Use tools to verify:
-1. Read the file at $finding.file around lines $finding.line_start
+1. Read the file at ${finding.file} around lines ${finding.line_start}
 2. Fetch the PR diff (use the PR number from the context above)
 3. Verify the finding against actual code in that specific PR"""
 
@@ -372,7 +372,7 @@ Diff:
 
 ---
 
-$input_prompt
+${input_prompt}
 
 ---
 
@@ -395,7 +395,7 @@ Rules:
 
 Findings:
 
-$validated_findings
+${validated_findings}
 
 ---
 
@@ -407,19 +407,19 @@ prompt patch_generator_prompt: """
 
 We are working on the following PR:
 
-$pr_context
+${pr_context}
 
 ---
 
 Full requirements:
 
-$requirements
+${requirements}
 
 ---
 
 Please analyze this comment received during PR review and see if you can create a patch to address it:
 
-$finding
+${finding}
 """
 
 prompt patch_generator_instruction expecting Patch: """You are a PATCH GENERATOR for code review fixes.
@@ -521,7 +521,7 @@ Provide your output in the format:
 
 ---
 
-$no_inference
+${no_inference}
 """
 
 prompt requirements_fetcher_instruction: """You are a system analyst.
@@ -558,7 +558,7 @@ Provide your output in the format:
 
 ---
 
-$no_inference
+${no_inference}
 """
 
 prompt context_builder_instruction: """Build the repository context narrowed down focused on information relevant to THIS SPECIFIC PR.
@@ -582,7 +582,7 @@ Identify with this PR in mind:
 
 Your role is to provide context summary of this respository, while keeping only details relevant to this PR. Do not describe this PR itself.
 
-$no_inference
+${no_inference}
 """
 
 prompt diff_chunker_instruction expecting DiffChunk[]: """You are a PR diff chunker that recursively splits large diffs into reviewable pieces.
@@ -621,7 +621,7 @@ Break the diff into minimal logical chunks:
 - DO NOT infer or assume, use only the provided facts.
 - Ensure every changed file appears in exactly one chunk.
 
-$no_inference
+${no_inference}
 """
 
 # -----------------------------------------------------------------------------
@@ -658,28 +658,28 @@ Keep the summary focused and relevant for review categories:
 - Bugs: What bugs have affected this area before?
 - Quality: Has this area been refactored recently?
 
-$no_inference
+${no_inference}
 """
 
 prompt chunk_context_prompt: """Please gather historical context for these changes:
 
-# $chunk.title
+# ${chunk.title}
 
-$chunk.description
+${chunk.description}
 
 # Changes
 
 ```
-$chunk.git_diff_patch
+${chunk.git_diff_patch}
 ```
 
 # Context
 
-$pr_context
+${pr_context}
 
 ---
 
-$no_inference
+${no_inference}
 
 ---
 
@@ -713,27 +713,27 @@ Provide the PR number, URL, or describe what to review."""
 
 prompt reviewer_prompt_template: """Please analyze the following chage that's implemented as a part of a larger scope addressed by this PR:
 
-# $chunk.title
+# ${chunk.title}
 
-$chunk.description
+${chunk.description}
 
 # Changes
 
 ```
-$chunk.git_diff_patch
+${chunk.git_diff_patch}
 ```
 
 # Prior knowlege
 
-$chunk_context
+${chunk_context}
 
 # New requirements
 
-$requirements
+${requirements}
 
 # PR Context
 
-$pr_context
+${pr_context}
 
 ---
 
@@ -742,7 +742,7 @@ You can investigate the code and the diff but focus your review on the changes m
 
 prompt security_reviewer: """You are a SECURITY SPECIALIST code reviewer.
 
-$scoring_rubric
+${scoring_rubric}
 
 Review EXCLUSIVELY for security vulnerabilities:
 
@@ -761,14 +761,14 @@ Review EXCLUSIVELY for security vulnerabilities:
 - Path traversal vulnerabilities
 - Server-Side Request Forgery (SSRF)
 
-$no_inference
+${no_inference}
 
 Return findings in the 'security' category only.
 Include exploit scenarios in reasoning."""
 
 prompt bug_reviewer: """You are a BUG DETECTION SPECIALIST code reviewer.
 
-$scoring_rubric
+${scoring_rubric}
 
 Review EXCLUSIVELY for logic bugs and runtime errors:
 
@@ -787,14 +787,14 @@ Review EXCLUSIVELY for logic bugs and runtime errors:
 - Missing break/return statements
 - Integer overflow/underflow
 
-$no_inference
+${no_inference}
 
 Return findings in the 'bug' category only.
 Include reproduction scenario in reasoning."""
 
 prompt style_reviewer: """You are a CODE QUALITY SPECIALIST reviewer.
 
-$scoring_rubric
+${scoring_rubric}
 
 Review for SIGNIFICANT quality issues only:
 
@@ -810,7 +810,7 @@ Review for SIGNIFICANT quality issues only:
 - Comment style or missing comments
 - Subjective preferences
 
-$no_inference
+${no_inference}
 
 Return findings in the 'style' category only.
 Only report issues with clear negative impact."""
@@ -820,17 +820,17 @@ prompt final_compiler: """Compile the final code review.
 ---
 
 PR Information:
-$pr_context
+${pr_context}
 
 ---
 
 Validated Findings (sorted by severity):
-$findings
+${findings}
 
 ---
 
 Generated Patches:
-$patches
+${patches}
 
 ---
 
@@ -842,7 +842,7 @@ Create the final review with:
 5. Recommendation: approve | request_changes | comment
 6. Overall confidence score (weighted average)
 
-$no_inference
+${no_inference}
 """
 
 

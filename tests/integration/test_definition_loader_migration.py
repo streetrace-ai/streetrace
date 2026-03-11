@@ -30,7 +30,6 @@ from streetrace.workloads.definition import WorkloadDefinition
 from streetrace.workloads.dsl_definition import DslWorkloadDefinition
 from streetrace.workloads.dsl_workload import DslWorkload
 from streetrace.workloads.manager import WorkloadManager
-from streetrace.workloads.python_definition import PythonWorkloadDefinition
 from streetrace.workloads.yaml_definition import YamlWorkloadDefinition
 
 
@@ -161,26 +160,20 @@ class TestWorkloadDiscovery:
         dsl_names = {d.name for d in dsl_defs}
         assert "reviewer" in dsl_names, f"Expected reviewer, found: {dsl_names}"
 
-    def test_discovers_python_agents(
+    def test_discovers_bundled_dsl_agents(
         self,
         workload_manager: WorkloadManager,
         bundled_agents_dir: Path,
     ) -> None:
-        """Test that Python agents are discovered from the bundled agents directory."""
+        """Test that bundled DSL agents are discovered from the agents directory."""
         workload_manager.search_locations = [("bundled", [bundled_agents_dir])]
 
         definitions = workload_manager.discover_definitions()
 
-        # Should find at least one Python agent
-        python_defs = [
-            d for d in definitions if isinstance(d, PythonWorkloadDefinition)
-        ]
-        assert len(python_defs) >= 1, "Expected at least one Python agent"
-
-        # Verify coder agent is found
-        python_names = {d.name for d in python_defs}
-        assert "Streetrace_Coding_Agent" in python_names, (
-            f"Expected Streetrace_Coding_Agent, found: {python_names}"
+        # Should find the default coding agent as DSL
+        all_names = {d.name for d in definitions}
+        assert "streetrace" in all_names, (
+            f"Expected streetrace, found: {all_names}"
         )
 
     def test_discovers_all_formats_together(
@@ -197,11 +190,10 @@ class TestWorkloadDiscovery:
 
         definitions = workload_manager.discover_definitions()
 
-        # Should find agents of all three types
+        # Should find agents of multiple types
         formats = {d.metadata.format for d in definitions}
         assert "yaml" in formats, "Expected YAML agents"
         assert "dsl" in formats, "Expected DSL agents"
-        assert "python" in formats, "Expected Python agents"
 
         # Verify at least 3 total agents
         min_expected = 3
@@ -252,25 +244,24 @@ class TestLoadFromPath:
         assert definition.name == "reviewer"
         assert definition.metadata.format == "dsl"
 
-    def test_load_python_agent_from_path(
+    def test_load_bundled_dsl_agent_from_path(
         self,
         workload_manager: WorkloadManager,
         bundled_agents_dir: Path,
     ) -> None:
-        """Test loading a Python agent directly from its directory path."""
-        python_path = bundled_agents_dir / "coder"
-        assert python_path.exists(), f"Test fixture not found: {python_path}"
-        assert (python_path / "agent.py").exists(), "agent.py not found"
+        """Test loading the bundled DSL coding agent directly from its path."""
+        dsl_path = bundled_agents_dir / "streetrace.sr"
+        assert dsl_path.exists(), f"Test fixture not found: {dsl_path}"
 
         # Load via identifier (path)
         definition = workload_manager._load_definition_from_identifier(  # noqa: SLF001
-            str(python_path),
+            str(dsl_path),
         )
 
         assert definition is not None
-        assert isinstance(definition, PythonWorkloadDefinition)
-        assert definition.name == "Streetrace_Coding_Agent"
-        assert definition.metadata.format == "python"
+        assert isinstance(definition, DslWorkloadDefinition)
+        assert definition.name == "streetrace"
+        assert definition.metadata.format == "dsl"
 
 
 class TestLoadByName:
@@ -311,22 +302,22 @@ class TestLoadByName:
         assert definition is not None
         assert isinstance(definition, DslWorkloadDefinition)
 
-    def test_load_python_agent_by_name(
+    def test_load_bundled_dsl_agent_by_name(
         self,
         workload_manager: WorkloadManager,
         bundled_agents_dir: Path,
     ) -> None:
-        """Test loading a Python agent by its name."""
+        """Test loading the bundled DSL coding agent by its name."""
         workload_manager.search_locations = [("bundled", [bundled_agents_dir])]
 
         # First discover
         workload_manager.discover_definitions()
 
         # Then load by name (case-insensitive)
-        definition = workload_manager._load_by_name("Streetrace_Coding_Agent")  # noqa: SLF001
+        definition = workload_manager._load_by_name("Streetrace")  # noqa: SLF001
 
         assert definition is not None
-        assert isinstance(definition, PythonWorkloadDefinition)
+        assert isinstance(definition, DslWorkloadDefinition)
 
     def test_load_by_name_case_insensitive(
         self,
@@ -386,23 +377,21 @@ class TestCreateWorkload:
         assert workload is not None
         assert isinstance(workload, DslWorkload)
 
-    def test_python_definition_creates_workload(
+    def test_bundled_dsl_definition_creates_workload(
         self,
         workload_manager: WorkloadManager,
         bundled_agents_dir: Path,
     ) -> None:
-        """Test that a Python definition can create a BasicAgentWorkload."""
-        from streetrace.workloads.basic_workload import BasicAgentWorkload
-
+        """Test that the bundled DSL definition can create a DslWorkload."""
         workload_manager.search_locations = [("bundled", [bundled_agents_dir])]
         workload_manager.discover_definitions()
 
         workload = workload_manager.create_workload_from_definition(
-            "Streetrace_Coding_Agent",
+            "Streetrace",
         )
 
         assert workload is not None
-        assert isinstance(workload, BasicAgentWorkload)
+        assert isinstance(workload, DslWorkload)
 
 
 class TestMetadataConsistency:
@@ -438,18 +427,18 @@ class TestMetadataConsistency:
         assert definition.metadata.format == "dsl"
         assert definition.metadata.source_path is not None
 
-    def test_python_metadata_populated(
+    def test_bundled_dsl_metadata_populated(
         self,
         workload_manager: WorkloadManager,
         bundled_agents_dir: Path,
     ) -> None:
-        """Test that Python agent metadata is fully populated."""
-        python_path = bundled_agents_dir / "coder"
-        definition = workload_manager._load_from_path(python_path)  # noqa: SLF001
+        """Test that bundled DSL agent metadata is fully populated."""
+        dsl_path = bundled_agents_dir / "streetrace.sr"
+        definition = workload_manager._load_from_path(dsl_path)  # noqa: SLF001
 
         assert definition is not None
-        assert definition.metadata.name == "Streetrace_Coding_Agent"
-        assert definition.metadata.format == "python"
+        assert definition.metadata.name == "streetrace"
+        assert definition.metadata.format == "dsl"
         assert definition.metadata.source_path is not None
         assert definition.metadata.description is not None
 
@@ -517,7 +506,6 @@ class TestDefinitionLoaderProtocol:
         self,
         workload_manager: WorkloadManager,
         agents_dir: Path,
-        bundled_agents_dir: Path,
     ) -> None:
         """Test that all loaders return WorkloadDefinition instances."""
         # Test YAML loader with SourceResolution
@@ -546,16 +534,35 @@ class TestDefinitionLoaderProtocol:
         dsl_def = dsl_loader.load(dsl_resolution)
         assert isinstance(dsl_def, WorkloadDefinition)
 
-        # Test Python loader with SourceResolution
-        python_path = bundled_agents_dir / "coder"
-        agent_py_path = python_path / "agent.py"
-        python_resolution = SourceResolution(
-            content=agent_py_path.read_text(),
-            source=str(python_path),
-            source_type=SourceType.FILE_PATH,
-            file_path=python_path,
-            format="python",
+        # Test Python loader with a temporary Python agent
+        python_agent_code = (
+            "from streetrace.agents.street_race_agent import StreetRaceAgent\n"
+            "from streetrace.agents.street_race_agent_card import StreetRaceAgentCard\n"
+            "from a2a.types import AgentCapabilities\n"
+            "class TestAgent(StreetRaceAgent):\n"
+            "    def get_agent_card(self):\n"
+            "        return StreetRaceAgentCard(\n"
+            "            name='test', description='test',\n"
+            "            version='0.1.0',\n"
+            "            defaultInputModes=['text'],\n"
+            "            defaultOutputModes=['text'],\n"
+            "            skills=[],\n"
+            "            capabilities=AgentCapabilities(streaming=True))\n"
+            "    async def create_agent(self, mf, tp, sc):\n"
+            "        pass\n"
         )
-        python_loader = workload_manager._definition_loaders["python"]  # noqa: SLF001
-        python_def = python_loader.load(python_resolution)
-        assert isinstance(python_def, WorkloadDefinition)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            py_dir = Path(tmpdir) / "test_agent"
+            py_dir.mkdir()
+            agent_file = py_dir / "agent.py"
+            agent_file.write_text(python_agent_code)
+            python_resolution = SourceResolution(
+                content=python_agent_code,
+                source=str(py_dir),
+                source_type=SourceType.FILE_PATH,
+                file_path=py_dir,
+                format="python",
+            )
+            python_loader = workload_manager._definition_loaders["python"]  # noqa: SLF001
+            python_def = python_loader.load(python_resolution)
+            assert isinstance(python_def, WorkloadDefinition)

@@ -466,7 +466,7 @@ class TestWorkloadManagerCreateWorkload:
     ) -> None:
         """Test create_workload handles 'default' alias."""
         # Create agent with default name
-        dsl_file = work_dir / "Streetrace_Coding_Agent.sr"
+        dsl_file = work_dir / "Streetrace.sr"
         dsl_file.write_text(VALID_DSL_SOURCE)
 
         workload_manager.search_locations = [("cwd", [work_dir])]

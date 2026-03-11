@@ -192,6 +192,40 @@ class TestCreateBuiltinToolRefs:
         assert len(result) > 0
         assert all(ref.module == "fs_tool" for ref in result)
 
+    def test_fs_readonly_by_builtin_ref(self) -> None:
+        """Test fs_readonly via builtin_ref provides only read-only tools."""
+        result = create_builtin_tool_refs(
+            "fs_readonly", {"builtin_ref": "streetrace.fs_readonly"},
+        )
+        assert len(result) == 3
+        assert all(ref.module == "fs_tool" for ref in result)
+        function_names = {ref.function for ref in result}
+        assert function_names == {"read_file", "list_directory", "find_in_files"}
+
+    def test_fs_readonly_excludes_write_tools(self) -> None:
+        """Test fs_readonly does not include write or create tools."""
+        result = create_builtin_tool_refs(
+            "fs_readonly", {"builtin_ref": "streetrace.fs_readonly"},
+        )
+        function_names = {ref.function for ref in result}
+        assert "write_file" not in function_names
+        assert "append_to_file" not in function_names
+        assert "create_directory" not in function_names
+
+    def test_fs_readonly_by_name(self) -> None:
+        """Test inferring fs_readonly from tool name."""
+        result = create_builtin_tool_refs("fs_readonly", {})
+        assert len(result) == 3
+        assert all(ref.module == "fs_tool" for ref in result)
+
+    def test_fs_full_not_affected_by_readonly(self) -> None:
+        """Test that full fs tool still returns all functions."""
+        result = create_builtin_tool_refs("fs", {"builtin_ref": "streetrace.fs"})
+        function_names = {ref.function for ref in result}
+        assert "write_file" in function_names
+        assert "read_file" in function_names
+        assert len(result) == 6
+
     def test_unknown_tool_returns_empty(self) -> None:
         """Test that unknown tool returns empty list."""
         result = create_builtin_tool_refs("unknown", {})

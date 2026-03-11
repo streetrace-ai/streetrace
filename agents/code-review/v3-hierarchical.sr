@@ -150,7 +150,7 @@ Return a summary of:
 
 prompt security_specialist_instruction: """You are a SECURITY SPECIALIST.
 
-$scoring_rubric
+${scoring_rubric}
 
 When asked to review code, analyze EXCLUSIVELY for security vulnerabilities:
 - Injection attacks (SQL, command, XSS)
@@ -170,7 +170,7 @@ Return findings in structured format with confidence scores."""
 
 prompt bug_specialist_instruction: """You are a BUG DETECTION SPECIALIST.
 
-$scoring_rubric
+${scoring_rubric}
 
 When asked to review code, analyze EXCLUSIVELY for logic bugs:
 - Null/undefined references
@@ -191,7 +191,7 @@ Return findings in structured format with confidence scores."""
 
 prompt quality_specialist_instruction: """You are a CODE QUALITY SPECIALIST.
 
-$scoring_rubric
+${scoring_rubric}
 
 When asked to review code, analyze for SIGNIFICANT quality issues only:
 - Architectural violations

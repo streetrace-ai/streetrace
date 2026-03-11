@@ -128,11 +128,9 @@ class Application:
 
     async def _run_non_interactive(self) -> None:
         """Handle non-interactive mode (single prompt execution)."""
-        # According to coding guide, core components should be fail-fast.
-        # Raise if non_interactive_prompt is unexpectedly None.
         return_code = 0
         try:
-            user_input, confirm_with_user = self.args.non_interactive_prompt
+            user_input = self.args.non_interactive_prompt
             if not user_input or not user_input.strip():
                 error_msg = (
                     "Non-interactive mode requires a prompt, but none was provided."
@@ -143,18 +141,12 @@ class Application:
                 return
 
             self.ui_bus.dispatch_ui_update(ui_events.UserInput(user_input))
-            if confirm_with_user:
-                confirmation = self.ui.confirm_with_user(
-                    ":stop_sign: continue? ([underline]YES[/underline]/no) ",
-                )
-                if confirmation.lower() not in ["yes", "y"]:
-                    return
-
             await self._process_input(user_input)
+        except SystemExit:
+            raise
         except Exception as err:
-            # in non-interactive we always leave the app when done or err.
-            # we don't update the UI state with error message, the handlers should
-            # do that properly.
+            logger.exception("Non-interactive execution failed.")
+            self.ui_bus.dispatch_ui_update(ui_events.Error(str(err)))
             raise SystemExit(1) from err
         finally:
             raise SystemExit(return_code)
@@ -199,7 +191,7 @@ Enjoy the ride! 🏁
 
 def create_app(args: Args) -> Application:
     """Run StreetRace🚗💨."""
-    state = AppState(current_model=args.model)
+    state = AppState(current_model=args.effective_model)
 
     ui_bus = UiBus()
 
@@ -240,7 +232,7 @@ def create_app(args: Args) -> Application:
     )
 
     # Create model factory
-    model_factory = ModelFactory(args.model, ui_bus, args)
+    model_factory = ModelFactory(args.effective_model, ui_bus, args)
 
     # Create workload manager
     workload_manager = WorkloadManager(

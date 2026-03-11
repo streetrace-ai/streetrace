@@ -131,18 +131,19 @@ class TestResolveVariablePrecedence:
 
 
 class TestResolveUnknownName:
-    """Unknown names return empty string (tolerant behavior)."""
+    """Unknown names raise UndefinedVariableError."""
 
-    def test_unknown_name_returns_empty_string(
+    def test_unknown_name_raises_undefined_variable_error(
         self,
         mock_workflow: "DslAgentWorkflow",
     ) -> None:
-        """Resolving an unknown name returns empty string."""
+        """Resolving an unknown name raises UndefinedVariableError."""
         from streetrace.dsl.runtime.context import WorkflowContext
+        from streetrace.dsl.runtime.errors import UndefinedVariableError
 
         ctx = WorkflowContext(workflow=mock_workflow)
-        result = ctx.resolve("nonexistent")
-        assert result == ""
+        with pytest.raises(UndefinedVariableError):
+            ctx.resolve("nonexistent")
 
 
 class TestResolveWithDictVariable:
@@ -180,7 +181,7 @@ class TestCodegenPromptBody:
         visitor = WorkflowVisitor(emitter)
 
         result = visitor._process_prompt_body(  # noqa: SLF001
-            "Hello $user_name",
+            "Hello ${user_name}",
         )
 
         assert "ctx.resolve('user_name')" in result
@@ -194,7 +195,7 @@ class TestCodegenPromptBody:
         visitor = WorkflowVisitor(emitter)
 
         result = visitor._process_prompt_body(  # noqa: SLF001
-            "Analyze $input_prompt",
+            "Analyze ${input_prompt}",
         )
 
         assert "ctx.vars[" not in result
@@ -209,11 +210,102 @@ class TestCodegenPromptBody:
         visitor = WorkflowVisitor(emitter)
 
         result = visitor._process_prompt_body(  # noqa: SLF001
-            "Review $pr_desc for $changes",
+            "Review ${pr_desc} for ${changes}",
         )
 
         assert "ctx.resolve('pr_desc')" in result
         assert "ctx.resolve('changes')" in result
+
+
+# =============================================================================
+# Literal braces, bare dollar signs, and interpolation syntax
+# =============================================================================
+
+
+class TestPromptBodyEscaping:
+    """Verify literal braces and dollar signs survive codegen."""
+
+    def _make_visitor(self):
+        from streetrace.dsl.codegen.emitter import CodeEmitter
+        from streetrace.dsl.codegen.visitors.workflow import WorkflowVisitor
+
+        emitter = CodeEmitter("test.sr")
+        return WorkflowVisitor(emitter)
+
+    def test_literal_single_braces_are_preserved(self) -> None:
+        """Single curly braces become escaped {{ }} in the f-string."""
+        visitor = self._make_visitor()
+        result = visitor._process_prompt_body(  # noqa: SLF001
+            "Output JSON: {key: value}",
+        )
+        # Braces must be doubled in the f-string to be literal
+        assert "{{key: value}}" in result
+        assert result.startswith("f")
+
+    def test_literal_braces_with_interpolation(self) -> None:
+        """Mix of literal braces and ${var} interpolation."""
+        visitor = self._make_visitor()
+        result = visitor._process_prompt_body(  # noqa: SLF001
+            'Format: {"name": ${user_name}}',
+        )
+        assert "ctx.resolve('user_name')" in result
+        # The JSON braces should be escaped
+        assert "{{" in result
+
+    def test_bare_dollar_sign_is_literal(self) -> None:
+        """Bare $var (no braces) is literal text, not interpolated."""
+        visitor = self._make_visitor()
+        result = visitor._process_prompt_body(  # noqa: SLF001
+            "The cost is $100 per item",
+        )
+        assert "ctx.resolve" not in result
+        assert "$100" in result
+
+    def test_bare_dollar_word_is_literal(self) -> None:
+        """Bare $variable_name (no braces) is literal text."""
+        visitor = self._make_visitor()
+        result = visitor._process_prompt_body(  # noqa: SLF001
+            "Use $PATH and $HOME",
+        )
+        assert "ctx.resolve" not in result
+        assert "$PATH" in result
+        assert "$HOME" in result
+
+    def test_only_braced_syntax_triggers_interpolation(self) -> None:
+        """Only ${var} triggers interpolation, not $var."""
+        visitor = self._make_visitor()
+        result = visitor._process_prompt_body(  # noqa: SLF001
+            "Hello $name, your id is ${user_id}",
+        )
+        # $name should be literal
+        assert "$name" in result
+        # ${user_id} should be interpolated
+        assert "ctx.resolve('user_id')" in result
+
+    def test_dotted_property_access(self) -> None:
+        """${var.prop} triggers resolve_property."""
+        visitor = self._make_visitor()
+        result = visitor._process_prompt_body(  # noqa: SLF001
+            "File: ${finding.file}",
+        )
+        assert "ctx.resolve_property('finding', 'file')" in result
+
+    def test_markdown_template_braces_preserved(self) -> None:
+        """Markdown code block with braces is not broken."""
+        visitor = self._make_visitor()
+        body = '```json\n{"status": "ok"}\n```'
+        result = visitor._process_prompt_body(body)  # noqa: SLF001
+        # Should compile without error (braces escaped)
+        assert "{{" in result
+        assert "}}" in result
+
+    def test_empty_braces_preserved(self) -> None:
+        """Empty braces {} are preserved as literal text."""
+        visitor = self._make_visitor()
+        result = visitor._process_prompt_body(  # noqa: SLF001
+            "Initialize dict: {}",
+        )
+        assert "{{}}" in result
 
 
 # =============================================================================
@@ -247,7 +339,7 @@ class TestEndToEndPromptComposition:
                 ),
                 PromptDef(
                     name="reviewer",
-                    body="You are a reviewer.\n$no_inference",
+                    body="You are a reviewer.\n${no_inference}",
                 ),
                 FlowDef(
                     name="main",

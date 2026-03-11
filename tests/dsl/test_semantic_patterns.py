@@ -659,14 +659,14 @@ class TestEdgeCases:
 class TestPromptVariableValidation:
     """Test validation of variable references in prompt bodies."""
 
-    def test_unknown_variable_passes_when_no_similar_match(self) -> None:
-        """Unknown variable without similar match passes (assumed runtime var)."""
+    def test_unknown_variable_errors(self) -> None:
+        """Unknown variable produces E0015 error."""
         ast = DslFile(
             version=VersionDecl(version="1.0"),
             statements=[
                 PromptDef(
                     name="test_prompt",
-                    body="Hello $chunk_data!",  # No similar prompt/produces
+                    body="Hello ${chunk_data}!",  # No similar prompt/produces
                     meta=SourcePosition(line=1, column=1),
                 ),
             ],
@@ -674,10 +674,11 @@ class TestPromptVariableValidation:
         analyzer = SemanticAnalyzer()
         result = analyzer.analyze(ast)
 
-        # Passes because no similar symbol suggests it's a runtime variable
-        assert result.is_valid
+        # Fails because chunk_data is not defined anywhere
+        assert not result.is_valid
         e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
-        assert len(e0015_errors) == 0
+        assert len(e0015_errors) == 1
+        assert "chunk_data" in e0015_errors[0].message
 
     def test_typo_of_prompt_produces_error(self) -> None:
         """Typo of a defined prompt produces E0015 error."""
@@ -687,7 +688,7 @@ class TestPromptVariableValidation:
                 PromptDef(name="helper_prompt", body="Helper"),
                 PromptDef(
                     name="test_prompt",
-                    body="Use $helpr_prompt here",  # Typo of helper_prompt
+                    body="Use ${helpr_prompt} here",  # Typo of helper_prompt
                     meta=SourcePosition(line=2, column=1),
                 ),
             ],
@@ -709,7 +710,7 @@ class TestPromptVariableValidation:
             statements=[
                 PromptDef(
                     name="test_prompt",
-                    body="Input: $input_prompt, Session: $session_id",
+                    body="Input: ${input_prompt}, Session: ${session_id}",
                     meta=SourcePosition(line=1, column=1),
                 ),
             ],
@@ -732,7 +733,7 @@ class TestPromptVariableValidation:
                 ),
                 PromptDef(
                     name="main_prompt",
-                    body="$helper_prompt Now answer the question.",
+                    body="${helper_prompt} Now answer the question.",
                 ),
             ],
         )
@@ -751,7 +752,7 @@ class TestPromptVariableValidation:
                 PromptDef(name="fetcher_prompt", body="Fetch context"),
                 PromptDef(
                     name="reviewer_prompt",
-                    body="Review using context: $pr_context",
+                    body="Review using context: ${pr_context}",
                 ),
                 AgentDef(
                     name="context_fetcher",
@@ -776,7 +777,7 @@ class TestPromptVariableValidation:
                 PromptDef(name="fetcher_prompt", body="Fetch data"),
                 PromptDef(
                     name="test_prompt",
-                    body="File: $finding.file, Line: $finding.line_start",
+                    body="File: ${finding.file}, Line: ${finding.line_start}",
                 ),
                 AgentDef(
                     name="reviewer",
@@ -793,14 +794,14 @@ class TestPromptVariableValidation:
         e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
         assert len(e0015_errors) == 0
 
-    def test_unknown_property_access_passes(self) -> None:
-        """Unknown base variable with property access passes (runtime var)."""
+    def test_unknown_property_access_errors(self) -> None:
+        """Unknown base variable with property access produces E0015 error."""
         ast = DslFile(
             version=VersionDecl(version="1.0"),
             statements=[
                 PromptDef(
                     name="test_prompt",
-                    body="Value: $chunk.property",  # chunk is a runtime loop var
+                    body="Value: ${chunk.property}",  # chunk is not defined
                     meta=SourcePosition(line=1, column=1),
                 ),
             ],
@@ -808,8 +809,11 @@ class TestPromptVariableValidation:
         analyzer = SemanticAnalyzer()
         result = analyzer.analyze(ast)
 
-        # Passes because 'chunk' doesn't match any known symbol closely
-        assert result.is_valid
+        # Fails because chunk is not defined anywhere
+        assert not result.is_valid
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 1
+        assert "chunk" in e0015_errors[0].message
 
     def test_typo_property_access_errors(self) -> None:
         """Typo of a known symbol with property access produces error."""
@@ -819,7 +823,7 @@ class TestPromptVariableValidation:
                 PromptDef(name="chunk_data", body="Chunk data"),
                 PromptDef(
                     name="test_prompt",
-                    body="Value: $chunk_dat.property",  # Typo of chunk_data
+                    body="Value: ${chunk_dat.property}",  # Typo of chunk_data
                     meta=SourcePosition(line=2, column=1),
                 ),
             ],
@@ -832,8 +836,8 @@ class TestPromptVariableValidation:
         assert len(e0015_errors) == 1
         assert "chunk_dat" in e0015_errors[0].message
 
-    def test_braced_variable_syntax_passes_when_unknown(self) -> None:
-        """Braced variable syntax ${var} passes for unknown runtime vars."""
+    def test_braced_variable_syntax_errors_when_unknown(self) -> None:
+        """Braced variable syntax ${var} errors for undefined variables."""
         ast = DslFile(
             version=VersionDecl(version="1.0"),
             statements=[
@@ -847,8 +851,11 @@ class TestPromptVariableValidation:
         analyzer = SemanticAnalyzer()
         result = analyzer.analyze(ast)
 
-        # Passes because no similar symbol
-        assert result.is_valid
+        # Fails because runtime_var is not defined anywhere
+        assert not result.is_valid
+        e0015_errors = [e for e in result.errors if e.code == ErrorCode.E0015]
+        assert len(e0015_errors) == 1
+        assert "runtime_var" in e0015_errors[0].message
 
     def test_empty_prompt_body_passes(self) -> None:
         """Empty prompt body passes validation (no variables to check)."""
@@ -876,7 +883,7 @@ class TestPromptVariableValidation:
                 PromptDef(name="fetcher_prompt", body="Fetch"),
                 PromptDef(
                     name="reviewer_prompt",
-                    body="Use $pr_contxt here",  # Typo of pr_context
+                    body="Use ${pr_contxt} here",  # Typo of pr_context
                     meta=SourcePosition(line=2, column=1),
                 ),
                 AgentDef(
@@ -913,7 +920,7 @@ class TestInstructionPromptValidation:
             statements=[
                 PromptDef(
                     name="my_instruction",
-                    body="Process this: $runtime_var",
+                    body="Process this: ${runtime_var}",
                     meta=SourcePosition(line=1, column=1),
                 ),
                 AgentDef(
@@ -941,7 +948,7 @@ class TestInstructionPromptValidation:
                 PromptDef(name="shared_rules", body="Follow these rules."),
                 PromptDef(
                     name="my_instruction",
-                    body="$shared_rules Now do the work.",
+                    body="${shared_rules} Now do the work.",
                 ),
                 AgentDef(
                     name="my_agent",
@@ -964,7 +971,7 @@ class TestInstructionPromptValidation:
             statements=[
                 PromptDef(
                     name="my_instruction",
-                    body="Context: $context\nData: $data\nItem: $item.property",
+                    body="Context: ${context}\nData: ${data}\nItem: ${item.property}",
                     meta=SourcePosition(line=1, column=1),
                 ),
                 AgentDef(
@@ -985,28 +992,30 @@ class TestInstructionPromptValidation:
         assert "data" in error_messages
         assert "item" in error_messages
 
-    def test_non_instruction_prompt_allows_runtime_vars(self) -> None:
-        """Prompts not used as instructions can have runtime variables."""
+    def test_non_instruction_prompt_with_defined_vars_valid(self) -> None:
+        """Prompts not used as instructions can reference defined variables."""
         ast = DslFile(
             version=VersionDecl(version="1.0"),
             statements=[
                 PromptDef(name="static_instruction", body="Do the work."),
+                PromptDef(name="data", body="Some data content."),
+                PromptDef(name="context", body="Some context content."),
                 PromptDef(
                     name="runtime_prompt",
-                    body="Process: $data with $context",  # Runtime vars OK here
+                    body="Process: ${data} with ${context}",
                 ),
                 AgentDef(
                     name="my_agent",
                     tools=[],
                     instruction="static_instruction",
-                    prompt="runtime_prompt",  # This prompt is resolved at runtime
+                    prompt="runtime_prompt",
                 ),
             ],
         )
         analyzer = SemanticAnalyzer()
         result = analyzer.analyze(ast)
 
-        # Should pass - runtime_prompt is not an instruction
+        # Should pass - data and context are defined prompts
         assert result.is_valid
         e0016_errors = [e for e in result.errors if e.code == ErrorCode.E0016]
         assert len(e0016_errors) == 0

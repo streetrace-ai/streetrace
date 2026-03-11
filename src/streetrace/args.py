@@ -24,7 +24,7 @@ class Args(tap.TypedArgs):
         ),
     )
     agent: str | None = tap.arg(
-        help="Specific agent to use (default: Streetrace_Coding_Agent)",
+        help="Specific agent to use (default: Streetrace)",
         default=None,
     )
     agent_uri_auth_var: str | None = tap.arg(
@@ -58,24 +58,22 @@ class Args(tap.TypedArgs):
     )
 
     @property
-    def non_interactive_prompt(self) -> tuple[str | None, bool]:
+    def non_interactive_prompt(self) -> str | None:
         """Get non-interactive prompt provided in arguments.
 
         If --prompt argument was provided, returns that.
-
-        If there were positional arguments, returns them as a prompt.
+        If there were positional arguments, returns them joined as a prompt.
+        Positional arguments behave identically to --prompt.
 
         Returns:
-            tuple[str | None, bool]:
-                str | None: prompt, or None
-                bool: If the prompt was provided as positional arguments
+            str | None: The prompt string, or None if not provided.
 
         """
         if self.prompt:
-            return self.prompt, False
+            return self.prompt
         if self.arbitrary_prompt:
-            return " ".join(self.arbitrary_prompt), True
-        return None, False
+            return " ".join(self.arbitrary_prompt)
+        return None
 
     @property
     def working_dir(self) -> Path:
@@ -127,6 +125,21 @@ class Args(tap.TypedArgs):
         if self.user_id:
             return self.user_id
         return get_user_identity()
+
+    @property
+    def effective_model(self) -> str | None:
+        """Get the model to use for LLM operations.
+
+        If --model argument was provided, use that.
+        Otherwise, fall back to DEFAULT_MODEL_NAME environment variable.
+
+        Returns:
+            str | None: The model name, or None if not configured.
+
+        """
+        if self.model:
+            return self.model
+        return os.environ.get("DEFAULT_MODEL_NAME")
 
     @property
     def effective_agent_uri_auth(self) -> str | None:

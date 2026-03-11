@@ -38,21 +38,23 @@ jobs:
       - name: Run Code Review
         timeout-minutes: 10
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_BASE: ${{ secrets.ANTHROPIC_API_BASE }}
+          MODEL: ${{ vars.MODEL || 'anthropic/claude-sonnet-4-5' }}
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
-          STREETRACE_MODEL: ${{ vars.STREETRACE_MODEL || 'openai/gpt-4o' }}
         run: |
-          if [ -z "$OPENAI_API_KEY" ]; then
-            echo "ERROR: No OpenAI API key found. Set OPENAI_API_KEY secret"
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "ERROR: No Anthropic API key found. Set ANTHROPIC_API_KEY secret"
             exit 1
           fi
           poetry run streetrace \
-            --model="$STREETRACE_MODEL" \
-            --agent=StreetRace_Code_Reviewer_Agent \
-            --prompt="CRITICAL: You MUST create the file code-review-result.md using write_file tool. This is mandatory - the workflow will fail without it. Conduct a code review and save ALL results to this file. Verify file creation with read_file. Do not print to console." \
+            --model="$MODEL" \
+            --agent=./agents/code-review/v2-parallel.sr \
+            --prompt="Please review the code changes in this pull request and provide feedback on potential issues, improvements, and overall code quality. Focus on areas such as correctness, readability, maintainability, security, and performance. Provide specific suggestions for improvement where applicable." \
+            --out=code-review-result.md \
             || echo "StreetRace completed with exit code $?"
 
       - name: Format review

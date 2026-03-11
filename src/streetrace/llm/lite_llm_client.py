@@ -31,9 +31,6 @@ from streetrace.log import get_logger
 from streetrace.ui import ui_events
 from streetrace.ui.ui_bus import UiBus
 
-# Initialize Langfuse callbacks globally
-litellm.callbacks = ["otel"]
-
 logger = get_logger(__name__)
 
 _MAX_RETRIES = 7

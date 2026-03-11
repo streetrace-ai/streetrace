@@ -60,6 +60,27 @@ class JSONParseError(DslRuntimeError):
         super().__init__(f"Failed to parse JSON from response: {parse_error}")
 
 
+class UndefinedVariableError(DslRuntimeError):
+    """Raised when a prompt references an undefined variable at runtime.
+
+    The ``${var}`` interpolation could not resolve the variable name
+    from context variables or prompt definitions.
+    """
+
+    def __init__(self, name: str) -> None:
+        """Initialize with the undefined variable name.
+
+        Args:
+            name: Variable name that could not be resolved.
+
+        """
+        self.name = name
+        super().__init__(
+            f"Undefined variable '${{{name}}}' in prompt interpolation. "
+            f"Set ctx.vars['{name}'] before resolving the prompt.",
+        )
+
+
 class SchemaValidationError(DslRuntimeError):
     """Raised when LLM response fails schema validation after retries.
 

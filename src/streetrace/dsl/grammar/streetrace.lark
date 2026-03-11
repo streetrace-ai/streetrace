@@ -538,8 +538,8 @@ function_call: DOTTED_NAME LPAR [expression ("," expression)*] RPAR
 interpolated_string: STRING
                    | INTERPOLATED_STRING
 
-// Interpolation patterns: ${env:VAR}, $variable, ${variable}
-INTERPOLATED_STRING: /"[^"]*(\$\{[^}]+\}|\$[a-zA-Z_][a-zA-Z0-9_]*)[^"]*"/
+// Interpolation pattern: ${variable} or ${env:VAR} (bare $var is literal text)
+INTERPOLATED_STRING: /"[^"]*\$\{[^}]+\}[^"]*"/
 
 // ----------------------------------------------------------------------------
 // TERMINALS
