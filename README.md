@@ -19,27 +19,10 @@ This makes Streetrace suitable for developers and platform engineers building st
 
 ## Quick Start
 
-### Install
+Install StreetRace, create a custom AI agent, and run it on a real task — all in
+5 minutes.
 
-```bash
-pip install streetrace
-```
-
-> Optional: install via `pipx` for isolated CLI usage.
-
-### Define and Run
-
-**Run an interactive agent:**
-
-```bash
-streetrace --model=gpt-4o
-```
-
-**Run a named agent:**
-
-```bash
-streetrace --model=gpt-4o --agent=code_reviewer
-```
+**[Get Started →](docs/user/GETTING_STARTED.md)**
 
 ---
 

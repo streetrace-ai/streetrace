@@ -53,31 +53,32 @@ can use any supported provider. Here are common configurations:
 streetrace --list-agents
 ```
 
-Output:
+Example Output:
 
 ```
-Name                                Type    Description                                Location
-Streetrace_Coding_Agent             yaml    A peer engineer agent...                   Built-in
-StreetRace_Code_Reviewer_Agent      python  Specialized code reviewer...               Built-in
-generic                             python  A helpful assistant...                     Built-in
+Name             Type  Description                                                                Location
+researcher       dsl   Explores and analyzes codebases with read-only access                      Built-in
+spec_writer      dsl   Creates detailed change request specifications from codebase analysis ...   Built-in
+planner          dsl   Designs step-by-step implementation plans for coding tasks                  Built-in
+coder            dsl   General-purpose coding assistant that implements features, fixes bugs ...   Built-in
+agent_manager    dsl   Creates and manages Streetrace agent definitions                            Built-in
 ```
-
-These are the bundled agents. You can override them or add your own.
 
 ### 5. Create a custom agent
 
-Use the default coding agent to generate a new agent definition. The coding agent knows
+Use the default agent to generate a new agent definition. The coding agent knows
 the StreetRace DSL and will create a validated `.sr` file:
 
 ```bash
-streetrace "Create an agent called spec_writer that writes change request specs based \
-  on user requests. It should explore the codebase, find relevant docs and code, then \
-  research the web for the latest relevant whitepapers, community discussions, and \
-  articles. Store specs in ./docs/spec/ with a new spec ID. The spec should contain \
-  only findings and the spec itself, not actual code."
+streetrace "Create an agent called test_writer that analyzes code and writes pytest \
+  tests. It should have read-write filesystem access and CLI access. When the user \
+  doesn't specify a scope, the agent should: first check for uncommitted or staged \
+  changes and write tests for those; if no uncommitted changes exist, diff the current \
+  branch against main and test the diff; if there is no diff, run coverage analysis \
+  and suggest ways to improve coverage, asking the user what to focus on."
 ```
 
-The coding agent creates `./agents/spec_writer.sr`, validates it with `streetrace check`,
+The coding agent creates `./agents/test_writer.sr`, validates it with `streetrace check`,
 and confirms it passes.
 
 Verify it was created:
@@ -86,38 +87,53 @@ Verify it was created:
 streetrace --list-agents
 ```
 
-You should now see `spec_writer` in the list alongside the bundled agents.
+You should now see `test_writer` in the list alongside the bundled agents.
 
 ### 6. Run your custom agent
 
 ```bash
-streetrace --agent spec_writer "We need to add task planning tools to the built-in tools"
+streetrace --agent test_writer "Write tests for the new validation module"
 ```
 
-The `spec_writer` agent explores the codebase, researches the topic, and creates a spec
-file in `./docs/spec/`.
+Or let it figure out what needs testing based on your recent changes:
+
+```bash
+streetrace --agent test_writer "Implement tests"
+```
+
+The `test_writer` agent examines your workspace, identifies what changed, and generates
+targeted tests with good coverage.
 
 ## Understanding the Agent Definition
 
-Open `./agents/spec_writer.sr` to see what was created:
+Open `./agents/test_writer.sr` to see what was created:
 
 ```streetrace
 model main = anthropic/claude-sonnet-4-20250514
 
 tool fs = builtin streetrace.fs
 tool cli = builtin streetrace.cli
-tool context7 = mcp "https://mcp.context7.com/mcp"
 
-prompt spec_writer_prompt: """You are a spec writer agent. When given a feature request:
-1. Explore the codebase to understand the current architecture
-2. Research the web for relevant whitepapers and discussions
-3. Write a detailed change request spec
-4. Save the spec to ./docs/spec/ with a unique ID"""
+prompt test_writer_prompt: """You are a test writer agent. You analyze code and write
+comprehensive pytest tests.
+
+When the user specifies files or modules, write tests for those directly.
+
+When no specific scope is given:
+1. Check for uncommitted or staged changes (git status / git diff). Write tests
+   covering those changes.
+2. If the worktree is clean, diff the current branch against main. Identify changed
+   files and ensure test coverage for the diff.
+3. If there is no diff (e.g. on main with a clean worktree), run the existing test
+   suite with coverage, identify the largest coverage gaps, and suggest areas to
+   improve — then ask the user what to focus on.
+
+Always follow the project's existing test conventions and patterns."""
 
 agent:
-    tools fs, cli, context7
-    instruction spec_writer_prompt
-    description "Writes change request specs based on user requests"
+    tools fs, cli
+    instruction test_writer_prompt
+    description "Analyzes code changes and writes targeted pytest tests"
 ```
 
 Key elements:
@@ -128,7 +144,7 @@ Key elements:
 - **agent**: The agent definition referencing tools and prompts
 - **description**: How the agent appears in `--list-agents`
 
-You can validate any `.sr` file with `streetrace check ./agents/spec_writer.sr`.
+You can validate any `.sr` file with `streetrace check ./agents/test_writer.sr`.
 
 For the full DSL reference, see [DSL Syntax Reference](dsl/syntax-reference.md).
 Agents can also be defined in [YAML or Python](workloads/getting-started.md).
@@ -136,25 +152,28 @@ Agents can also be defined in [YAML or Python](workloads/getting-started.md).
 ## Running in GitHub Actions
 
 StreetRace agents can run as part of your CI/CD pipeline. Here is a workflow that
-triggers on issue comments and runs the `spec_writer` agent:
+runs the `test_writer` agent on every pull request, commits the generated tests to a
+new branch, and opens a PR:
 
 ```yaml
-name: Spec Writer
+name: Test Writer
 
 on:
-  issue_comment:
-    types: [created]
+  pull_request:
+    types: [opened, synchronize]
 
 jobs:
-  write-spec:
+  write-tests:
     runs-on: ubuntu-latest
-    if: contains(github.event.comment.body, '/spec')
     permissions:
       contents: write
-      issues: write
+      pull-requests: write
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -163,22 +182,44 @@ jobs:
       - name: Install StreetRace
         run: pip install streetrace
 
-      - name: Run spec_writer agent
+      - name: Run test_writer agent
         env:
           DEFAULT_MODEL_NAME: ${{ vars.DEFAULT_MODEL_NAME || 'anthropic/claude-sonnet-4-20250514' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           streetrace \
-            --agent=./agents/spec_writer.yaml \
-            --prompt="${{ github.event.comment.body }}" \
-            --out=spec-result.md
+            --agent=./agents/test_writer.sr \
+            --prompt="Implement tests" \
+            --out=test-report.md
 
-      - name: Post spec as comment
+      - name: Create PR with generated tests
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet; then
+            echo "No test files generated."
+            exit 0
+          fi
+
+          BRANCH="streetrace/tests/pr-${{ github.event.pull_request.number }}"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "Add tests generated by StreetRace test_writer"
+          git push -u origin "$BRANCH"
+
+          gh pr create \
+            --base "${{ github.head_ref }}" \
+            --head "$BRANCH" \
+            --title "Tests for #${{ github.event.pull_request.number }}" \
+            --body "$(cat test-report.md)"
+
+      - name: Post summary on triggering PR
+        if: hashFiles('test-report.md') != ''
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          number: ${{ github.event.issue.number }}
-          header: streetrace-spec
-          path: spec-result.md
+          number: ${{ github.event.pull_request.number }}
+          header: streetrace-tests
+          path: test-report.md
 ```
 
 Add your `ANTHROPIC_API_KEY` to your repository secrets and optionally set
@@ -186,7 +227,8 @@ Add your `ANTHROPIC_API_KEY` to your repository secrets and optionally set
 
 ## Running in Docker
 
-For isolated execution, run StreetRace in a container:
+Run StreetRace in a container with your project mounted. Generated files (tests,
+reports) are written to the mounted volume and persist on the host:
 
 ```bash
 docker run --rm \
@@ -195,9 +237,12 @@ docker run --rm \
   -v $(pwd):/workspace \
   -w /workspace \
   ghcr.io/streetrace-ai/streetrace:latest \
-  streetrace --agent=./agents/spec_writer.yaml \
-    --prompt="We need to add task planning tools"
+  streetrace --agent=./agents/test_writer.sr \
+    --prompt="Implement tests"
 ```
+
+Any test files the agent creates will appear in your local working directory after
+the container exits.
 
 ## Agent Discovery
 
