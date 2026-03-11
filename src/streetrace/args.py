@@ -131,7 +131,7 @@ class Args(tap.TypedArgs):
         """Get the model to use for LLM operations.
 
         If --model argument was provided, use that.
-        Otherwise, fall back to STREETRACE_MODEL environment variable.
+        Otherwise, fall back to DEFAULT_MODEL_NAME environment variable.
 
         Returns:
             str | None: The model name, or None if not configured.
@@ -139,7 +139,7 @@ class Args(tap.TypedArgs):
         """
         if self.model:
             return self.model
-        return os.environ.get("STREETRACE_MODEL")
+        return os.environ.get("DEFAULT_MODEL_NAME")
 
     @property
     def effective_agent_uri_auth(self) -> str | None:

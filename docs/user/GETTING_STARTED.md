@@ -30,7 +30,6 @@ Create a `.env` file with your model and API keys:
 
 ```bash
 cat > .env << 'EOF'
-STREETRACE_MODEL=anthropic/claude-sonnet-4-20250514
 ANTHROPIC_API_KEY=your_anthropic_api_key
 EOF
 ```
@@ -38,14 +37,14 @@ EOF
 StreetRace uses [LiteLLM](https://docs.litellm.ai/docs/set_keys) for model routing. You
 can use any supported provider. Here are common configurations:
 
-| Provider | STREETRACE_MODEL | API Key Variable |
+| Provider | DEFAULT_MODEL_NAME | API Key Variable |
 |----------|-----------------|------------------|
 | Anthropic | `anthropic/claude-sonnet-4-20250514` | `ANTHROPIC_API_KEY` |
 | OpenAI | `openai/gpt-4o` | `OPENAI_API_KEY` |
 | Google | `gemini/gemini-2.0-flash` | `GEMINI_API_KEY` |
 
 > **Tip**: You can also pass the model on the command line with `--model` instead of
-> setting `STREETRACE_MODEL` in `.env`.
+> setting `DEFAULT_MODEL_NAME` in `.env`.
 
 ### 4. See available agents
 
@@ -165,7 +164,7 @@ jobs:
 
       - name: Run spec_writer agent
         env:
-          STREETRACE_MODEL: ${{ vars.STREETRACE_MODEL || 'anthropic/claude-sonnet-4-20250514' }}
+          DEFAULT_MODEL_NAME: ${{ vars.DEFAULT_MODEL_NAME || 'anthropic/claude-sonnet-4-20250514' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           streetrace \
@@ -182,7 +181,7 @@ jobs:
 ```
 
 Add your `ANTHROPIC_API_KEY` to your repository secrets and optionally set
-`STREETRACE_MODEL` as a repository variable.
+`DEFAULT_MODEL_NAME` as a repository variable.
 
 ## Running in Docker
 
@@ -190,7 +189,7 @@ For isolated execution, run StreetRace in a container:
 
 ```bash
 docker run --rm \
-  -e STREETRACE_MODEL=anthropic/claude-sonnet-4-20250514 \
+  -e DEFAULT_MODEL_NAME=anthropic/claude-sonnet-4-20250514 \
   -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
   -v $(pwd):/workspace \
   -w /workspace \
