@@ -1,5 +1,3 @@
-ConfigInspectorAgent  # unused class (src/streetrace/agents/config_inspector/agent.py:104)
-GenericAgent  # unused class (src/streetrace/agents/example/agent.py:42)
 DISCOVERED_NAME  # unused variable (src/streetrace/agents/resolver.py:21)
 source_type  # unused variable (src/streetrace/agents/resolver.py:41)
 AgentCard  # unused import (src/streetrace/agents/street_race_agent.py:8)

@@ -159,21 +159,31 @@ def create_builtin_tool_refs(
         "execute_cli_command",
     ]
 
+    kendra_tool_functions = [
+        "kendra_query",
+    ]
+
     refs: list[StreetraceToolRef] = []
 
     # Check for specific builtin ref patterns
     builtin_ref = tool_def.get("builtin_ref") or tool_def.get("url")
     if builtin_ref:
-        # Handle patterns like "streetrace.fs", "streetrace.cli"
-        if "fs" in str(builtin_ref).lower():
+        # Handle patterns like "streetrace.fs", "streetrace.cli", "streetrace.kendra"
+        ref_lower = str(builtin_ref).lower()
+        if "fs" in ref_lower:
             refs.extend(
                 StreetraceToolRef(module="fs_tool", function=func)
                 for func in fs_tool_functions
             )
-        elif "cli" in str(builtin_ref).lower():
+        elif "cli" in ref_lower:
             refs.extend(
                 StreetraceToolRef(module="cli_tool", function=func)
                 for func in cli_tool_functions
+            )
+        elif "kendra" in ref_lower:
+            refs.extend(
+                StreetraceToolRef(module="kendra_tool", function=func)
+                for func in kendra_tool_functions
             )
     elif "fs" in tool_name.lower():
         # Infer from tool name
@@ -185,6 +195,11 @@ def create_builtin_tool_refs(
         refs.extend(
             StreetraceToolRef(module="cli_tool", function=func)
             for func in cli_tool_functions
+        )
+    elif "kendra" in tool_name.lower():
+        refs.extend(
+            StreetraceToolRef(module="kendra_tool", function=func)
+            for func in kendra_tool_functions
         )
 
     return refs

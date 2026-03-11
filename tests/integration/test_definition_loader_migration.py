@@ -190,11 +190,10 @@ class TestWorkloadDiscovery:
 
         definitions = workload_manager.discover_definitions()
 
-        # Should find agents of all three types
+        # Should find agents of multiple types
         formats = {d.metadata.format for d in definitions}
         assert "yaml" in formats, "Expected YAML agents"
         assert "dsl" in formats, "Expected DSL agents"
-        assert "python" in formats, "Expected Python agents"
 
         # Verify at least 3 total agents
         min_expected = 3
@@ -507,7 +506,6 @@ class TestDefinitionLoaderProtocol:
         self,
         workload_manager: WorkloadManager,
         agents_dir: Path,
-        bundled_agents_dir: Path,
     ) -> None:
         """Test that all loaders return WorkloadDefinition instances."""
         # Test YAML loader with SourceResolution
@@ -536,16 +534,35 @@ class TestDefinitionLoaderProtocol:
         dsl_def = dsl_loader.load(dsl_resolution)
         assert isinstance(dsl_def, WorkloadDefinition)
 
-        # Test Python loader with SourceResolution
-        python_path = bundled_agents_dir / "example"
-        agent_py_path = python_path / "agent.py"
-        python_resolution = SourceResolution(
-            content=agent_py_path.read_text(),
-            source=str(python_path),
-            source_type=SourceType.FILE_PATH,
-            file_path=python_path,
-            format="python",
+        # Test Python loader with a temporary Python agent
+        python_agent_code = (
+            "from streetrace.agents.street_race_agent import StreetRaceAgent\n"
+            "from streetrace.agents.street_race_agent_card import StreetRaceAgentCard\n"
+            "from a2a.types import AgentCapabilities\n"
+            "class TestAgent(StreetRaceAgent):\n"
+            "    def get_agent_card(self):\n"
+            "        return StreetRaceAgentCard(\n"
+            "            name='test', description='test',\n"
+            "            version='0.1.0',\n"
+            "            defaultInputModes=['text'],\n"
+            "            defaultOutputModes=['text'],\n"
+            "            skills=[],\n"
+            "            capabilities=AgentCapabilities(streaming=True))\n"
+            "    async def create_agent(self, mf, tp, sc):\n"
+            "        pass\n"
         )
-        python_loader = workload_manager._definition_loaders["python"]  # noqa: SLF001
-        python_def = python_loader.load(python_resolution)
-        assert isinstance(python_def, WorkloadDefinition)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            py_dir = Path(tmpdir) / "test_agent"
+            py_dir.mkdir()
+            agent_file = py_dir / "agent.py"
+            agent_file.write_text(python_agent_code)
+            python_resolution = SourceResolution(
+                content=python_agent_code,
+                source=str(py_dir),
+                source_type=SourceType.FILE_PATH,
+                file_path=py_dir,
+                format="python",
+            )
+            python_loader = workload_manager._definition_loaders["python"]  # noqa: SLF001
+            python_def = python_loader.load(python_resolution)
+            assert isinstance(python_def, WorkloadDefinition)
