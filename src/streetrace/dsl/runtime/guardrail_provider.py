@@ -111,7 +111,7 @@ class _PresidioBackend:
                 "DEFAULT": OperatorConfig("replace", {"new_value": "[PII]"}),
             },
         )
-        return anonymized.text
+        return str(anonymized.text)
 
 
 # ---------------------------------------------------------------------------
