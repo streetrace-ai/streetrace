@@ -34,8 +34,8 @@ class TestRunAgentDelegation:
         mock_event = MagicMock()
 
         async def mock_run_agent_gen(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             yield mock_event
 
@@ -101,8 +101,8 @@ class TestRunAgentDelegation:
         mock_event2 = MagicMock()
 
         async def mock_run_agent_gen(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             yield mock_event1
             yield mock_event2

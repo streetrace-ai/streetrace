@@ -62,6 +62,7 @@ allow-star-arg-any = true
     "PLR0913", # Too many arguments in function definition
     "EM101",   # Allow inline exception messages
     "TRY003",  # Allow inline exception messages
+    "ARG001",  # allow unused function arguments (handler overrides in tests)
 ]
 
 # If using pytest
@@ -173,3 +174,9 @@ orjson = "^3.11.4"
 apscheduler = "^3.11.1"
 fastapi-sso = "^0.19.0"
 lark = "^1.2.0"
+presidio-analyzer = { version = "*", optional = true }
+presidio-anonymizer = { version = "*", optional = true }
+spacy = { version = "*", optional = true }
+
+[tool.poetry.extras]
+guardrails = ["presidio-analyzer", "presidio-anonymizer", "spacy"]

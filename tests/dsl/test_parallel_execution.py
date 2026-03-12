@@ -99,9 +99,9 @@ class TestParallelBlockExecution:
 
         async def mock_create_agent(
             agent_name: str,
-            model_factory: object,  # noqa: ARG001
-            tool_provider: object,  # noqa: ARG001
-            system_context: object,  # noqa: ARG001
+            model_factory: object,
+            tool_provider: object,
+            system_context: object,
             *,
             output_key: str | None = None,
         ) -> MagicMock:
@@ -135,7 +135,7 @@ class TestParallelBlockExecution:
         ctx = WorkflowContext(workflow=workflow)
 
         # Create mock runner that populates session state and yields events
-        async def mock_run_async_gen(*args: object, **kwargs: object):  # noqa: ARG001
+        async def mock_run_async_gen(*args: object, **kwargs: object):
             # Simulate ParallelAgent storing results in session state
             for agent_name, output_key in created_agents:
                 if output_key:
@@ -205,9 +205,9 @@ class TestParallelBlockExecution:
 
         async def mock_create_agent(
             agent_name: str,
-            model_factory: object,  # noqa: ARG001
-            tool_provider: object,  # noqa: ARG001
-            system_context: object,  # noqa: ARG001
+            model_factory: object,
+            tool_provider: object,
+            system_context: object,
             *,
             output_key: str | None = None,
         ) -> MagicMock:
@@ -238,7 +238,7 @@ class TestParallelBlockExecution:
 
         ctx = WorkflowContext(workflow=workflow)
 
-        async def mock_run_async_gen(*args: object, **kwargs: object):  # noqa: ARG001
+        async def mock_run_async_gen(*args: object, **kwargs: object):
             # Store results for agents with output_keys
             for agent_name, output_key in created_agents:
                 if output_key:
@@ -329,9 +329,9 @@ class TestParallelBlockExecution:
 
         async def mock_create_agent(
             agent_name: str,
-            model_factory: object,  # noqa: ARG001
-            tool_provider: object,  # noqa: ARG001
-            system_context: object,  # noqa: ARG001
+            model_factory: object,
+            tool_provider: object,
+            system_context: object,
             *,
             output_key: str | None = None,
         ) -> MagicMock:
@@ -362,7 +362,7 @@ class TestParallelBlockExecution:
 
         ctx = WorkflowContext(workflow=workflow)
 
-        async def mock_run_async_gen(*args: object, **kwargs: object):  # noqa: ARG001
+        async def mock_run_async_gen(*args: object, **kwargs: object):
             yield MagicMock()
 
         mock_runner_instance = MagicMock()

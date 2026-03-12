@@ -482,9 +482,9 @@ class TestDslAgentWorkflowRunAsync:
 
         # Mock the internal _execute_agent method
         async def mock_execute_agent(
-            name: str,  # noqa: ARG001
-            session: "Session",  # noqa: ARG001
-            message: "Content | None",  # noqa: ARG001
+            name: str,
+            session: "Session",
+            message: "Content | None",
         ) -> AsyncGenerator["Event", None]:
             yield mock_event1
             yield mock_event2
@@ -704,8 +704,8 @@ class TestWorkflowContextDelegation:
         mock_event = MagicMock()
 
         async def mock_run_agent_gen(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             yield mock_event
 
@@ -741,8 +741,8 @@ class TestWorkflowContextDelegation:
         mock_event = MagicMock()
 
         async def mock_run_agent_gen(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             yield mock_event
 

@@ -97,8 +97,8 @@ class TestEscalationEventYielding:
         mock_adk_event.author = "test_agent"
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator[Event, None]:
             context._last_call_result = "**Drifting.**"  # noqa: SLF001
             yield mock_adk_event
@@ -152,8 +152,8 @@ class TestEscalationEventYielding:
         mock_adk_event = MagicMock(spec=Event)
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator[Event, None]:
             context._last_call_result = "SUCCESS"  # noqa: SLF001
             yield mock_adk_event
@@ -193,8 +193,8 @@ class TestEscalationEventYielding:
         mock_adk_event = MagicMock(spec=Event)
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator[Event, None]:
             context._last_call_result = "DRIFTING"  # noqa: SLF001
             yield mock_adk_event
@@ -239,8 +239,8 @@ class TestEscalationEventYielding:
         mock_event3.author = "test_agent"
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator[Event, None]:
             yield mock_event1
             yield mock_event2
@@ -296,8 +296,8 @@ class TestEscalationEventYielding:
             mock_adk_event.author = "test_agent"
 
             async def mock_run_agent(
-                agent_name: str,  # noqa: ARG001
-                *args: object,  # noqa: ARG001
+                agent_name: str,
+                *args: object,
                 result_value: str = result,
                 event: MagicMock = mock_adk_event,
             ) -> AsyncGenerator[Event, None]:

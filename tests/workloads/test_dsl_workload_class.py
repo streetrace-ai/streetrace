@@ -347,8 +347,8 @@ class TestDslWorkloadRunAsync:
 
         # Create async generator that yields the mock event
         async def mock_run_async(
-            session: object,  # noqa: ARG001
-            message: object,  # noqa: ARG001
+            session: object,
+            message: object,
         ) -> None:
             yield mock_event
 

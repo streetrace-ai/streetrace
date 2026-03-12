@@ -105,8 +105,8 @@ class TestRunAgentDelegation:
 
         # Mock run_agent as async generator
         async def mock_run_agent_gen(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             yield mock_event
 
@@ -161,8 +161,8 @@ class TestRunAgentDelegation:
 
         # Mock run_agent as async generator that yields multiple events
         async def mock_run_agent_gen(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             yield mock_event1
             yield mock_event2

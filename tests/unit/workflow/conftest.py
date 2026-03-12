@@ -48,8 +48,8 @@ def create_mock_workload_run_async(
     """Create a mock run_async generator that yields events."""
 
     async def _gen(
-        session: MagicMock,  # noqa: ARG001
-        message: MagicMock,  # noqa: ARG001
+        session: MagicMock,
+        message: MagicMock,
     ) -> AsyncGenerator[Event, None]:
         for event in events:
             yield event

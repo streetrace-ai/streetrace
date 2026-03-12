@@ -544,7 +544,7 @@ class TestCompactingRunner:
         messages_received: list = []
         run_count = [0]
 
-        async def mock_run_async(user_id, session_id, new_message=None):  # noqa: ARG001
+        async def mock_run_async(user_id, session_id, new_message=None):
             run_count[0] += 1
             messages_received.append(new_message)
             if run_count[0] == 1:

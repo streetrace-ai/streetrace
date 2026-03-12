@@ -100,8 +100,8 @@ class TestSupervisorErrorHandling:
 
         # Mock workload execution failure
         async def _failing_async_iter(
-            session: Mock,  # noqa: ARG001
-            content: Mock,  # noqa: ARG001
+            session: Mock,
+            content: Mock,
         ) -> AsyncGenerator[Mock, None]:
             if False:  # Make this an async generator
                 yield

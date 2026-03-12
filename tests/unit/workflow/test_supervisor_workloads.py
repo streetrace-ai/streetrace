@@ -372,8 +372,8 @@ class TestSupervisorWorkloadErrorHandling:
         error = ToolsetLifecycleError("test_toolset", "Test lifecycle error")
 
         async def raise_error(
-            *args,  # noqa: ARG001
-            **kwargs,  # noqa: ARG001
+            *args,
+            **kwargs,
         ):
             raise error
             yield  # Unreachable - makes this an async generator
@@ -414,8 +414,8 @@ class TestSupervisorWorkloadErrorHandling:
 
         # Make workload.run_async raise a generic exception
         async def raise_error(
-            *args,  # noqa: ARG001
-            **kwargs,  # noqa: ARG001
+            *args,
+            **kwargs,
         ):
             raise RuntimeError("Test runtime error")
             yield  # Unreachable - makes this an async generator

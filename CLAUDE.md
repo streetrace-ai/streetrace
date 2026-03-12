@@ -264,6 +264,7 @@ and production.
 - **Core/Internal**: Be fail-fast - assert assumptions, crash on invalid state
 - **Natural Language Parsing**: Be selectively tolerant - enforce critical fields
 - **Third-Party APIs**: Balance carefully - fail-fast for reliable APIs, tolerate loose schemas
+- **No implicit fallbacks**: Never silently degrade behavior. An error means an error, an unmet expectation means an exception. If a feature requires a dependency (e.g. Presidio for PII masking), either install it at runtime or raise with clear instructions — never silently fall back to a weaker implementation. Only support explicit, configuration-level fallbacks where the user makes a conscious choice.
 
 ### Testing
 
