@@ -89,7 +89,7 @@ class _PresidioBackend:
         import presidio_anonymizer
 
         self._analyzer = presidio_analyzer.AnalyzerEngine()
-        self._anonymizer = presidio_anonymizer.AnonymizerEngine()  # type: ignore[no-untyped-call]
+        self._anonymizer = presidio_anonymizer.AnonymizerEngine()
 
     def mask_pii(self, text: str) -> str:
         """Detect and anonymize PII in *text*.
@@ -106,7 +106,7 @@ class _PresidioBackend:
         results = self._analyzer.analyze(text=text, language="en")
         anonymized = self._anonymizer.anonymize(
             text=text,
-            analyzer_results=results,  # type: ignore[arg-type]
+            analyzer_results=results,
             operators={
                 "DEFAULT": OperatorConfig("replace", {"new_value": "[PII]"}),
             },
@@ -387,7 +387,7 @@ class GuardrailProvider:
             spacy.load(model_name)
         except OSError:
             logger.info("Downloading spaCy model %s ...", model_name)
-            from spacy.cli import download  # type: ignore[attr-defined]
+            from spacy.cli import download
 
             download(model_name)
 
