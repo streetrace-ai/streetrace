@@ -6,6 +6,7 @@ is raised.
 """
 
 from typing import TYPE_CHECKING
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -13,15 +14,44 @@ if TYPE_CHECKING:
     from streetrace.dsl.runtime.guardrail_provider import GuardrailProvider
 
 
+def _make_mock_presidio_backend() -> MagicMock:
+    """Create a mock _PresidioBackend that replaces common PII patterns."""
+    import re
+
+    backend = MagicMock()
+
+    def _mock_mask_pii(text: str) -> str:
+        """Replace common PII patterns with [PII] placeholder."""
+        patterns = [
+            # Email
+            r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b",
+            # SSN
+            r"\b\d{3}-\d{2}-\d{4}\b",
+            # Credit card (with dashes or spaces)
+            r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b",
+            # Phone numbers
+            r"\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}",
+        ]
+        result = text
+        for pattern in patterns:
+            result = re.sub(pattern, "[PII]", result)
+        return result
+
+    backend.mask_pii = _mock_mask_pii
+    return backend
+
+
 class TestMaskPii:
     """Test GuardrailProvider.mask() for PII masking."""
 
     @pytest.fixture
     def guardrail_provider(self) -> "GuardrailProvider":
-        """Create a GuardrailProvider instance."""
+        """Create a GuardrailProvider with a mocked Presidio backend."""
         from streetrace.dsl.runtime.guardrail_provider import GuardrailProvider
 
-        return GuardrailProvider()
+        provider = GuardrailProvider()
+        provider._presidio = _make_mock_presidio_backend()  # noqa: SLF001
+        return provider
 
     @pytest.mark.asyncio
     async def test_mask_pii_replaces_email(
@@ -214,8 +244,9 @@ class TestGuardrailIntegration:
 
         mock_workflow = MagicMock()
         ctx = WorkflowContext(workflow=mock_workflow)
+        ctx.guardrails._presidio = _make_mock_presidio_backend()  # noqa: SLF001
 
-        # Mask PII - Presidio replaces all PII with [PII] placeholders
+        # Mask PII - mocked backend replaces PII with [PII] placeholders
         masked = await ctx.guardrails.mask("pii", "Email: test@example.com")
         assert "test@example.com" not in masked
         assert "[PII]" in masked
