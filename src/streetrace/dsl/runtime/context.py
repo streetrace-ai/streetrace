@@ -54,8 +54,13 @@ class WorkflowContext:
         self.message: str = ""
         """Current message being processed."""
 
+        self.event_phase: str = ""
+        """Current event phase for OTEL span attribution."""
+
         self.guardrails = GuardrailProvider()
         """Guardrail provider for security operations."""
+
+        self.guardrails._parent_ctx = self  # noqa: SLF001
 
         self._workflow = workflow
         """Reference to parent workflow for delegation."""

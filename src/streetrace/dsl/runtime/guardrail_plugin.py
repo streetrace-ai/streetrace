@@ -129,6 +129,7 @@ class GuardrailPlugin(BasePlugin):
             return None
 
         ctx = self._get_or_create_context()
+        ctx.event_phase = "input"
         ctx.message = text
 
         try:
@@ -166,6 +167,7 @@ class GuardrailPlugin(BasePlugin):
             return None
 
         ctx = self._get_or_create_context()
+        ctx.event_phase = "input"
         ctx.message = text
 
         try:
@@ -205,6 +207,7 @@ class GuardrailPlugin(BasePlugin):
             return None
 
         ctx = self._get_or_create_context()
+        ctx.event_phase = "output"
         ctx.message = text
 
         if has_on:
@@ -242,6 +245,7 @@ class GuardrailPlugin(BasePlugin):
 
         text = json.dumps(tool_args, default=str)
         ctx = self._get_or_create_context()
+        ctx.event_phase = "tool_call"
         ctx.message = text
 
         try:
@@ -282,6 +286,7 @@ class GuardrailPlugin(BasePlugin):
 
         text = json.dumps(result, default=str)
         ctx = self._get_or_create_context()
+        ctx.event_phase = "tool_result"
         ctx.message = text
 
         if has_on:

@@ -343,9 +343,11 @@ _.add_mapping  # unused method (registry.py) - public API for adding source mapp
 _.get_mappings  # unused method (registry.py) - public API for getting all mappings
 
 # DSL Runtime - base class methods for generated workflows to override
+_._parent_ctx  # unused attribute (guardrail_provider.py) - set by WorkflowContext for event phase propagation
 _.mask  # unused method (guardrail_provider.py) - public API for guardrail masking
 _.check  # unused method (guardrail_provider.py) - public API for guardrail checking
 _.register_custom  # unused method (guardrail_provider.py) - public API for custom guardrail registration
+event_phase  # unused attribute (context.py) - set by guardrail plugin, read by provider for OTEL spans
 guardrails  # unused attribute (context.py) - public attribute for guardrail provider
 _.run_agent  # unused method (context.py) - public API for running agents
 _.call_llm  # unused method (context.py) - public API for LLM calls

@@ -358,6 +358,105 @@ class TestAfterTool:
         assert result is None
 
 
+class TestEventPhase:
+    """Test that callbacks set ctx.event_phase correctly."""
+
+    @pytest.mark.asyncio
+    async def test_on_user_message_sets_input_phase(self):
+        """on_user_message_callback sets event_phase to 'input'."""
+        phases = []
+
+        async def on_input(self, ctx):
+            phases.append(ctx.event_phase)
+
+        workflow = _make_workflow_subclass(on_input=on_input)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        content = _make_content("Hello")
+        await plugin.on_user_message_callback(
+            invocation_context=MagicMock(),
+            user_message=content,
+        )
+        assert phases == ["input"]
+
+    @pytest.mark.asyncio
+    async def test_before_model_sets_input_phase(self):
+        """before_model_callback sets event_phase to 'input'."""
+        phases = []
+
+        async def after_input(self, ctx):
+            phases.append(ctx.event_phase)
+
+        workflow = _make_workflow_subclass(after_input=after_input)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        llm_request = MagicMock()
+        llm_request.contents = [_make_content("Test")]
+
+        await plugin.before_model_callback(
+            callback_context=MagicMock(),
+            llm_request=llm_request,
+        )
+        assert phases == ["input"]
+
+    @pytest.mark.asyncio
+    async def test_after_model_sets_output_phase(self):
+        """after_model_callback sets event_phase to 'output'."""
+        phases = []
+
+        async def on_output(self, ctx):
+            phases.append(ctx.event_phase)
+
+        workflow = _make_workflow_subclass(on_output=on_output)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        llm_response = MagicMock()
+        llm_response.content = _make_content("Response", role="model")
+
+        await plugin.after_model_callback(
+            callback_context=MagicMock(),
+            llm_response=llm_response,
+        )
+        assert phases == ["output"]
+
+    @pytest.mark.asyncio
+    async def test_before_tool_sets_tool_call_phase(self):
+        """before_tool_callback sets event_phase to 'tool_call'."""
+        phases = []
+
+        async def on_tool_call(self, ctx):
+            phases.append(ctx.event_phase)
+
+        workflow = _make_workflow_subclass(on_tool_call=on_tool_call)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        await plugin.before_tool_callback(
+            tool=MagicMock(),
+            tool_args={"q": "test"},
+            tool_context=MagicMock(),
+        )
+        assert phases == ["tool_call"]
+
+    @pytest.mark.asyncio
+    async def test_after_tool_sets_tool_result_phase(self):
+        """after_tool_callback sets event_phase to 'tool_result'."""
+        phases = []
+
+        async def on_tool_result(self, ctx):
+            phases.append(ctx.event_phase)
+
+        workflow = _make_workflow_subclass(on_tool_result=on_tool_result)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        await plugin.after_tool_callback(
+            tool=MagicMock(),
+            tool_args={},
+            tool_context=MagicMock(),
+            result={"data": "value"},
+        )
+        assert phases == ["tool_result"]
+
+
 class TestPluginIsBasePlugin:
     """Test that GuardrailPlugin is a proper BasePlugin."""
 

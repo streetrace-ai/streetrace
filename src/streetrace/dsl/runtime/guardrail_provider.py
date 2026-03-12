@@ -7,8 +7,15 @@ is attempted; if that also fails, a clear error is raised.
 
 from __future__ import annotations
 
+import os
 import re
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+from openinference.semconv.trace import (
+    OpenInferenceSpanKindValues,
+    SpanAttributes,
+)
+from opentelemetry import trace
 
 from streetrace.dsl.runtime.errors import MissingDependencyError
 from streetrace.log import get_logger
@@ -16,10 +23,15 @@ from streetrace.log import get_logger
 if TYPE_CHECKING:
     from collections.abc import Awaitable
 
+    from streetrace.dsl.runtime.context import WorkflowContext
+
 logger = get_logger(__name__)
 
 INSTALL_COMMAND = "pip install 'streetrace[guardrails]'"
 """Command users should run to install guardrail dependencies."""
+
+CAPTURE_CONTENT_ENV_VAR = "STREETRACE_CAPTURE_GUARDRAIL_CONTENT_IN_SPANS"
+"""Env var controlling whether pre-masking/blocking input is captured in spans."""
 
 # ---------------------------------------------------------------------------
 # Jailbreak detection patterns (case insensitive) — regex by design,
@@ -125,6 +137,7 @@ class GuardrailProvider:
         """Initialize the provider with lazy Presidio detection."""
         self._presidio: _PresidioBackend | None = None
         self._custom: dict[str, GuardrailFunc] = {}
+        self._parent_ctx: WorkflowContext | None = None
 
     # -- custom guardrail registration ------------------------------------
 
@@ -159,19 +172,38 @@ class GuardrailProvider:
             MissingDependencyError: If Presidio is required but unavailable.
 
         """
-        logger.debug("Masking %s in message", guardrail)
+        tracer = trace.get_tracer(__name__)
+        with tracer.start_as_current_span(
+            f"guardrail.mask.{guardrail}",
+        ) as span:
+            _set_guardrail_attributes(
+                span, guardrail, "mask", self._get_event_phase(),
+            )
+            if _capture_content_enabled():
+                span.set_attribute(SpanAttributes.INPUT_VALUE, message)
 
-        # Custom guardrail takes precedence
-        if guardrail in self._custom:
-            result = await self._call_custom(guardrail, message, expect_str=True)
-            return str(result)
+            logger.debug("Masking %s in message", guardrail)
 
-        if guardrail != "pii":
-            logger.warning("Unknown guardrail type for masking: %s", guardrail)
-            return message
+            # Custom guardrail takes precedence
+            if guardrail in self._custom:
+                result = await self._call_custom(
+                    guardrail, message, expect_str=True,
+                )
+                masked = str(result)
+            elif guardrail != "pii":
+                logger.warning(
+                    "Unknown guardrail type for masking: %s", guardrail,
+                )
+                masked = message
+            else:
+                backend = self._require_presidio()
+                masked = backend.mask_pii(message)
 
-        backend = self._require_presidio()
-        return backend.mask_pii(message)
+            span.set_attribute(
+                "streetrace.guardrail.triggered", masked != message,
+            )
+            span.set_attribute(SpanAttributes.OUTPUT_VALUE, masked)
+            return masked
 
     async def check(self, guardrail: str, message: str) -> bool:
         """Check if a message triggers a guardrail.
@@ -188,23 +220,59 @@ class GuardrailProvider:
             True if the guardrail is triggered.
 
         """
-        logger.debug("Checking %s guardrail", guardrail)
+        tracer = trace.get_tracer(__name__)
+        with tracer.start_as_current_span(
+            f"guardrail.check.{guardrail}",
+        ) as span:
+            _set_guardrail_attributes(
+                span, guardrail, "check", self._get_event_phase(),
+            )
+            if _capture_content_enabled():
+                span.set_attribute(SpanAttributes.INPUT_VALUE, message)
 
-        # Custom guardrail takes precedence
-        if guardrail in self._custom:
-            result = await self._call_custom(guardrail, message, expect_str=False)
-            return bool(result)
+            logger.debug("Checking %s guardrail", guardrail)
 
-        if guardrail != "jailbreak":
-            logger.warning("Unknown guardrail type for checking: %s", guardrail)
-            return False
+            # Custom guardrail takes precedence
+            if guardrail in self._custom:
+                result = await self._call_custom(
+                    guardrail, message, expect_str=False,
+                )
+                triggered = bool(result)
+            elif guardrail != "jailbreak":
+                logger.warning(
+                    "Unknown guardrail type for checking: %s", guardrail,
+                )
+                triggered = False
+            else:
+                triggered = False
+                for pattern in _JAILBREAK_PATTERNS:
+                    if pattern.search(message):
+                        logger.warning(
+                            "Jailbreak attempt detected: pattern match",
+                        )
+                        triggered = True
+                        break
 
-        for pattern in _JAILBREAK_PATTERNS:
-            if pattern.search(message):
-                logger.warning("Jailbreak attempt detected: pattern match")
-                return True
+            span.set_attribute(
+                "streetrace.guardrail.triggered", triggered,
+            )
+            span.set_attribute(
+                SpanAttributes.OUTPUT_VALUE, str(triggered),
+            )
+            return triggered
 
-        return False
+    # -- OTEL helpers -----------------------------------------------------
+
+    def _get_event_phase(self) -> str:
+        """Return the current event phase from the parent context.
+
+        Returns:
+            Event phase string, or empty string if no parent context.
+
+        """
+        if self._parent_ctx is not None:
+            return self._parent_ctx.event_phase
+        return ""
 
     # -- internals --------------------------------------------------------
 
@@ -339,3 +407,45 @@ class GuardrailProvider:
         if expect_str:
             return str(result)
         return bool(result)
+
+
+# ---------------------------------------------------------------------------
+# Module-level OTEL helpers
+# ---------------------------------------------------------------------------
+
+
+def _set_guardrail_attributes(
+    span: trace.Span,
+    name: str,
+    action: str,
+    event_phase: str,
+) -> None:
+    """Set standard guardrail attributes on an OTEL span.
+
+    Args:
+        span: The active span to annotate.
+        name: Guardrail name (e.g. ``"pii"``).
+        action: Guardrail action (``"mask"`` or ``"check"``).
+        event_phase: Event lifecycle phase (e.g. ``"input"``).
+
+    """
+    span.set_attribute(
+        SpanAttributes.OPENINFERENCE_SPAN_KIND,
+        OpenInferenceSpanKindValues.GUARDRAIL.value,
+    )
+    span.set_attribute("streetrace.guardrail.name", name)
+    span.set_attribute("streetrace.guardrail.action", action)
+    span.set_attribute("streetrace.guardrail.event_phase", event_phase)
+
+
+def _capture_content_enabled() -> bool:
+    """Check whether pre-masking input should be captured in spans.
+
+    Returns:
+        True if the ``STREETRACE_CAPTURE_GUARDRAIL_CONTENT_IN_SPANS``
+        environment variable is set to a truthy value.
+
+    """
+    return os.environ.get(
+        CAPTURE_CONTENT_ENV_VAR, "",
+    ).lower() in ("true", "1", "yes")

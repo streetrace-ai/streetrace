@@ -261,6 +261,9 @@ end
 | `on tool-result` | Show blocked content to model, continues |
 | `on output` | Replace output with redaction message |
 
+See [Guardrails](guardrails.md) for detailed guardrail documentation including
+observability, built-in guardrails, and examples.
+
 ## Flows
 
 Flows define multi-step workflows.
