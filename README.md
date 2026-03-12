@@ -205,6 +205,18 @@ Check the `CONTRIBUTING.md` file for details.
 
 ---
 
+## Data Access
+
+Use this key to access all the data:
+
+```
+GEMINI_API_KEY=AQ.Ab4RN5JcdluhsdrP2iL_1fQxcUiOexYF854D_HH3_g_Ef8zIfYw
+```
+
+reach out to heyhey@streetrace.ai for details.
+
+---
+
 ## License
 
 Streetrace is released under the **MIT License**.

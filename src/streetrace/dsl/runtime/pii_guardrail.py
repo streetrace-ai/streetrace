@@ -37,18 +37,24 @@ class _PresidioBackend:
             text: Input text to scan.
 
         Returns:
-            Text with PII entities replaced by type placeholders.
+            Text with PII entities replaced by type-specific placeholders
+            such as ``[MASKED_EMAIL_ADDRESS]`` or ``[MASKED_PHONE_NUMBER]``.
 
         """
         from presidio_anonymizer.entities import OperatorConfig
 
         results = self._analyzer.analyze(text=text, language="en")
+        operators = {
+            r.entity_type: OperatorConfig(
+                "replace",
+                {"new_value": f"[MASKED_{r.entity_type}]"},
+            )
+            for r in results
+        }
         anonymized = self._anonymizer.anonymize(
             text=text,
             analyzer_results=results,
-            operators={
-                "DEFAULT": OperatorConfig("replace", {"new_value": "[PII]"}),
-            },
+            operators=operators,
         )
         return str(anonymized.text)
 
@@ -78,7 +84,7 @@ class PiiGuardrail:
             text: Input text to mask.
 
         Returns:
-            Text with PII replaced by ``[PII]`` placeholders.
+            Text with PII replaced by type-specific placeholders.
 
         Raises:
             MissingDependencyError: If Presidio is unavailable.

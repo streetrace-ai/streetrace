@@ -40,6 +40,66 @@ class TestPiiMasking:
         mock_backend.mask_pii.assert_called_once_with("Hello John")
 
 
+class TestPresidioBackendMasking:
+    """Test _PresidioBackend builds per-entity-type operators."""
+
+    def test_operators_use_entity_type_placeholders(self):
+        """Each detected entity type gets a [MASKED_<TYPE>] placeholder."""
+        from streetrace.dsl.runtime.pii_guardrail import _PresidioBackend
+
+        backend = object.__new__(_PresidioBackend)
+
+        mock_result_email = MagicMock()
+        mock_result_email.entity_type = "EMAIL_ADDRESS"
+        mock_result_person = MagicMock()
+        mock_result_person.entity_type = "PERSON"
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze.return_value = [
+            mock_result_email,
+            mock_result_person,
+        ]
+        backend._analyzer = mock_analyzer  # noqa: SLF001
+
+        mock_anonymized = MagicMock()
+        mock_anonymized.text = "Hi [MASKED_PERSON] at [MASKED_EMAIL_ADDRESS]"
+        mock_anonymizer = MagicMock()
+        mock_anonymizer.anonymize.return_value = mock_anonymized
+        backend._anonymizer = mock_anonymizer  # noqa: SLF001
+
+        result = backend.mask_pii("Hi John at john@example.com")
+
+        assert result == "Hi [MASKED_PERSON] at [MASKED_EMAIL_ADDRESS]"
+
+        call_kwargs = mock_anonymizer.anonymize.call_args[1]
+        operators = call_kwargs["operators"]
+        assert "EMAIL_ADDRESS" in operators
+        assert "PERSON" in operators
+        assert "DEFAULT" not in operators
+
+    def test_no_entities_produces_empty_operators(self):
+        """When no PII is detected, operators dict is empty."""
+        from streetrace.dsl.runtime.pii_guardrail import _PresidioBackend
+
+        backend = object.__new__(_PresidioBackend)
+
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze.return_value = []
+        backend._analyzer = mock_analyzer  # noqa: SLF001
+
+        mock_anonymized = MagicMock()
+        mock_anonymized.text = "No PII here"
+        mock_anonymizer = MagicMock()
+        mock_anonymizer.anonymize.return_value = mock_anonymized
+        backend._anonymizer = mock_anonymizer  # noqa: SLF001
+
+        result = backend.mask_pii("No PII here")
+
+        assert result == "No PII here"
+        call_kwargs = mock_anonymizer.anonymize.call_args[1]
+        assert call_kwargs["operators"] == {}
+
+
 class TestPresidioLazyInit:
     """Test lazy initialization of Presidio backend."""
 
