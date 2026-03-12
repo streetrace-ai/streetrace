@@ -199,10 +199,16 @@ class GuardrailProvider:
                 backend = self._require_presidio()
                 masked = backend.mask_pii(message)
 
+            triggered = masked != message
             span.set_attribute(
-                "streetrace.guardrail.triggered", masked != message,
+                "streetrace.guardrail.triggered", triggered,
             )
-            span.set_attribute(SpanAttributes.OUTPUT_VALUE, masked)
+            if triggered:
+                span.set_attribute(SpanAttributes.OUTPUT_VALUE, masked)
+            else:
+                span.set_attribute(
+                    SpanAttributes.OUTPUT_VALUE, "not triggered",
+                )
             return masked
 
     async def check(self, guardrail: str, message: str) -> bool:
@@ -232,23 +238,31 @@ class GuardrailProvider:
 
             logger.debug("Checking %s guardrail", guardrail)
 
+            triggered = False
+            detail = ""
+
             # Custom guardrail takes precedence
             if guardrail in self._custom:
                 result = await self._call_custom(
                     guardrail, message, expect_str=False,
                 )
                 triggered = bool(result)
+                if triggered:
+                    detail = f"custom guardrail '{guardrail}' triggered"
             elif guardrail != "jailbreak":
                 logger.warning(
                     "Unknown guardrail type for checking: %s", guardrail,
                 )
-                triggered = False
             else:
-                triggered = False
                 for pattern in _JAILBREAK_PATTERNS:
                     if pattern.search(message):
                         logger.warning(
-                            "Jailbreak attempt detected: pattern match",
+                            "Jailbreak attempt detected: pattern=%s",
+                            pattern.pattern,
+                        )
+                        detail = (
+                            f"triggered: pattern match "
+                            f"({pattern.pattern})"
                         )
                         triggered = True
                         break
@@ -257,7 +271,8 @@ class GuardrailProvider:
                 "streetrace.guardrail.triggered", triggered,
             )
             span.set_attribute(
-                SpanAttributes.OUTPUT_VALUE, str(triggered),
+                SpanAttributes.OUTPUT_VALUE,
+                detail if triggered else "not triggered",
             )
             return triggered
 

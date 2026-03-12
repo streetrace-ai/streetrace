@@ -10,6 +10,20 @@ tool cli = builtin streetrace.cli
 tool github = mcp "https://api.githubcopilot.com/mcp/" with auth bearer "${GITHUB_TOKEN}"
 tool context7 = mcp "https://mcp.context7.com/mcp"
 
+on input do
+    mask pii
+    block if jailbreak
+end
+
+on tool-result do
+    mask pii
+    block if jailbreak
+end
+
+on output do
+    mask pii
+end
+
 # ── Prompts ──────────────────────────────────────────────────────────────────
 
 prompt researcher_prompt: """You are a Codebase Researcher. Your purpose is to explore, analyze, and report on codebases.
