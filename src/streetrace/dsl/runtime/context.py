@@ -12,7 +12,10 @@ from streetrace.dsl.runtime.events import (
     EscalationEvent,
     FlowEvent,
 )
-from streetrace.dsl.runtime.guardrail_provider import GuardrailProvider
+from streetrace.dsl.runtime.guardrail_provider import (
+    GuardrailContent,
+    GuardrailProvider,
+)
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
@@ -51,7 +54,7 @@ class WorkflowContext:
         self.vars: dict[str, object] = {}
         """Variable storage for workflow execution."""
 
-        self.message: str = ""
+        self.message: GuardrailContent = ""
         """Current message being processed."""
 
         self.event_phase: str = ""

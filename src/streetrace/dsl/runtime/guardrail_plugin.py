@@ -7,12 +7,15 @@ ADK plugin callback system so guardrail logic actually executes.
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING
 
 from google.adk.plugins import BasePlugin
 
 from streetrace.dsl.runtime.errors import BlockedInputError
+from streetrace.dsl.runtime.guardrail_provider import (
+    ToolCallContent,
+    ToolResultContent,
+)
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
@@ -243,10 +246,9 @@ class GuardrailPlugin(BasePlugin):
         if not has_on and not has_after:
             return None
 
-        text = json.dumps(tool_args, default=str)
         ctx = self._get_or_create_context()
         ctx.event_phase = "tool_call"
-        ctx.message = text
+        ctx.message = ToolCallContent(data=tool_args)
 
         try:
             if has_on:
@@ -284,23 +286,25 @@ class GuardrailPlugin(BasePlugin):
         if not has_on and not has_after:
             return None
 
-        text = json.dumps(result, default=str)
+        if result is None:
+            # Side-effect tools like transfer_to_agent return None
+            return None
+
+        original = ToolResultContent(data=dict(result))
         ctx = self._get_or_create_context()
         ctx.event_phase = "tool_result"
-        ctx.message = text
+        ctx.message = original
 
         if has_on:
             await self._workflow.on_tool_result(ctx)
         if has_after:
             await self._workflow.after_tool_result(ctx)
 
-        if ctx.message != text:
-            try:
-                parsed: dict[str, object] = json.loads(ctx.message)
-            except (json.JSONDecodeError, ValueError):
+        if ctx.message is not original and ctx.message != original:
+            if isinstance(ctx.message, ToolResultContent):
+                return ctx.message.data
+            if isinstance(ctx.message, str):
                 return {"result": ctx.message}
-            else:
-                return parsed
 
         return None
 

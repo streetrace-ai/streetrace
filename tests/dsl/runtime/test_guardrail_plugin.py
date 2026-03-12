@@ -6,6 +6,10 @@ import pytest
 
 from streetrace.dsl.runtime.errors import BlockedInputError
 from streetrace.dsl.runtime.guardrail_plugin import BLOCKED_MESSAGE, GuardrailPlugin
+from streetrace.dsl.runtime.guardrail_provider import (
+    ToolCallContent,
+    ToolResultContent,
+)
 from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
 
@@ -277,6 +281,27 @@ class TestBeforeTool:
         assert result is None
 
     @pytest.mark.asyncio
+    async def test_handler_receives_tool_call_content(self):
+        """Handler receives ToolCallContent, not JSON string."""
+        received = []
+
+        async def on_tool_call(self, ctx):
+            received.append(ctx.message)
+
+        workflow = _make_workflow_subclass(on_tool_call=on_tool_call)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        await plugin.before_tool_callback(
+            tool=MagicMock(),
+            tool_args={"query": "test"},
+            tool_context=MagicMock(),
+        )
+
+        assert len(received) == 1
+        assert isinstance(received[0], ToolCallContent)
+        assert received[0].data["query"] == "test"
+
+    @pytest.mark.asyncio
     async def test_blocked_returns_error_dict(self):
         """BlockedInputError returns error dict."""
 
@@ -320,14 +345,35 @@ class TestAfterTool:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_modified_result_returned(self):
-        """Modified ctx.message returns parsed dict."""
-        import json
+    async def test_handler_receives_tool_result_content(self):
+        """Handler receives ToolResultContent, not JSON string."""
+        received = []
 
         async def on_tool_result(self, ctx):
-            data = json.loads(ctx.message)
-            data["filtered"] = True
-            ctx.message = json.dumps(data)
+            received.append(ctx.message)
+
+        workflow = _make_workflow_subclass(on_tool_result=on_tool_result)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        await plugin.after_tool_callback(
+            tool=MagicMock(),
+            tool_args={},
+            tool_context=MagicMock(),
+            result={"data": "value"},
+        )
+
+        assert len(received) == 1
+        assert isinstance(received[0], ToolResultContent)
+        assert received[0].data["data"] == "value"
+
+    @pytest.mark.asyncio
+    async def test_modified_result_returned(self):
+        """Modified ctx.message returns dict from ToolResultContent."""
+
+        async def on_tool_result(self, ctx):
+            new_data = dict(ctx.message.data)
+            new_data["filtered"] = True
+            ctx.message = ToolResultContent(data=new_data)
 
         workflow = _make_workflow_subclass(on_tool_result=on_tool_result)
         plugin = GuardrailPlugin(workflow=workflow)
@@ -344,6 +390,64 @@ class TestAfterTool:
         assert result["filtered"] is True
 
     @pytest.mark.asyncio
+    async def test_tool_result_no_json_roundtrip(self):
+        """Tool result is passed as ToolResultContent, not JSON."""
+        received_types = []
+
+        async def on_tool_result(self, ctx):
+            received_types.append(type(ctx.message).__name__)
+
+        workflow = _make_workflow_subclass(on_tool_result=on_tool_result)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        await plugin.after_tool_callback(
+            tool=MagicMock(),
+            tool_args={},
+            tool_context=MagicMock(),
+            result={"output": "hello"},
+        )
+
+        assert received_types == ["ToolResultContent"]
+
+    @pytest.mark.asyncio
+    async def test_unchanged_tool_result_returns_none(self):
+        """Unchanged ToolResultContent returns None (no modification)."""
+
+        async def on_tool_result(self, ctx):
+            pass  # No changes
+
+        workflow = _make_workflow_subclass(on_tool_result=on_tool_result)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        result = await plugin.after_tool_callback(
+            tool=MagicMock(),
+            tool_args={},
+            tool_context=MagicMock(),
+            result={"data": "value"},
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_str_fallback_when_handler_sets_string(self):
+        """String ctx.message falls back to wrapped dict."""
+
+        async def on_tool_result(self, ctx):
+            ctx.message = "plain text result"
+
+        workflow = _make_workflow_subclass(on_tool_result=on_tool_result)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        result = await plugin.after_tool_callback(
+            tool=MagicMock(),
+            tool_args={},
+            tool_context=MagicMock(),
+            result={"data": "value"},
+        )
+
+        assert result == {"result": "plain text result"}
+
+    @pytest.mark.asyncio
     async def test_no_op_when_handler_not_overridden(self):
         """No dispatch when tool result handlers not overridden."""
         workflow = _make_workflow_subclass()
@@ -354,6 +458,24 @@ class TestAfterTool:
             tool_args={},
             tool_context=MagicMock(),
             result={"data": "value"},
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_none_result_returns_none(self):
+        """None tool result is handled gracefully."""
+
+        async def on_tool_result(self, ctx):
+            pass
+
+        workflow = _make_workflow_subclass(on_tool_result=on_tool_result)
+        plugin = GuardrailPlugin(workflow=workflow)
+
+        result = await plugin.after_tool_callback(
+            tool=MagicMock(),
+            tool_args={},
+            tool_context=MagicMock(),
+            result=None,
         )
         assert result is None
 

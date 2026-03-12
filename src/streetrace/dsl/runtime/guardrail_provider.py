@@ -7,8 +7,10 @@ is attempted; if that also fails, a clear error is raised.
 
 from __future__ import annotations
 
+import json
 import os
 import re
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from openinference.semconv.trace import (
@@ -21,11 +23,44 @@ from streetrace.dsl.runtime.errors import MissingDependencyError
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable
+    from collections.abc import Awaitable, Callable
 
     from streetrace.dsl.runtime.context import WorkflowContext
 
 logger = get_logger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Structured content types for guardrail dispatch
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ToolResultContent:
+    """Tool result for guardrail inspection.
+
+    Wrap the full result dict (OpResult/CliResult shape) so guardrails
+    can inspect content fields while preserving metadata.
+    """
+
+    data: dict[str, object]
+
+
+@dataclass(frozen=True)
+class ToolCallContent:
+    """Tool call arguments for guardrail inspection."""
+
+    data: dict[str, object]
+
+
+GuardrailContent = str | ToolResultContent | ToolCallContent
+"""Union type for content passed to guardrail operations."""
+
+INSPECTABLE_FIELDS_MASK = ("output", "stdout", "error", "stderr")
+"""Content fields to inspect during masking — PII can leak anywhere."""
+
+INSPECTABLE_FIELDS_CHECK = ("output", "stdout")
+"""Content fields to inspect during checking — only user-facing content."""
 
 INSTALL_COMMAND = "pip install 'streetrace[guardrails]'"
 """Command users should run to install guardrail dependencies."""
@@ -66,8 +101,10 @@ class GuardrailFunc(Protocol):
     indicate whether the guardrail was triggered (checking).
     """
 
-    def __call__(self, message: str) -> str | bool | Awaitable[str | bool]:
-        """Execute the guardrail on *message*."""
+    def __call__(
+        self, content: GuardrailContent,
+    ) -> str | bool | Awaitable[str | bool]:
+        """Execute the guardrail on *content*."""
         ...
 
 
@@ -154,8 +191,10 @@ class GuardrailProvider:
 
     # -- public API -------------------------------------------------------
 
-    async def mask(self, guardrail: str, message: str) -> str:
-        """Mask sensitive content in a message.
+    async def mask(
+        self, guardrail: str, content: GuardrailContent,
+    ) -> GuardrailContent:
+        """Mask sensitive content in a message or structured result.
 
         Custom guardrails are tried first. The built-in ``pii``
         guardrail requires Presidio — a ``MissingDependencyError`` is
@@ -163,10 +202,10 @@ class GuardrailProvider:
 
         Args:
             guardrail: Name of the guardrail (e.g., 'pii').
-            message: Message to mask.
+            content: Content to mask — string, tool result, or tool call.
 
         Returns:
-            Message with sensitive content masked.
+            Content with sensitive data masked (same type as input).
 
         Raises:
             MissingDependencyError: If Presidio is required but unavailable.
@@ -180,39 +219,102 @@ class GuardrailProvider:
                 span, guardrail, "mask", self._get_event_phase(),
             )
             if _capture_content_enabled():
-                span.set_attribute(SpanAttributes.INPUT_VALUE, message)
+                span.set_attribute(
+                    SpanAttributes.INPUT_VALUE,
+                    _serialize_content(content),
+                )
 
             logger.debug("Masking %s in message", guardrail)
 
-            # Custom guardrail takes precedence
+            # Custom guardrail takes precedence — receives full content
             if guardrail in self._custom:
                 result = await self._call_custom(
-                    guardrail, message, expect_str=True,
+                    guardrail, content, expect_str=True,
                 )
-                masked = str(result)
-            elif guardrail != "pii":
-                logger.warning(
-                    "Unknown guardrail type for masking: %s", guardrail,
+                masked: GuardrailContent = str(result)
+                triggered = masked != _serialize_content(content)
+                _set_triggered_output(
+                    span, triggered=triggered, output_value=str(masked),
                 )
-                masked = message
-            else:
-                backend = self._require_presidio()
-                masked = backend.mask_pii(message)
+                return masked
 
-            triggered = masked != message
-            span.set_attribute(
-                "streetrace.guardrail.triggered", triggered,
+            if isinstance(content, ToolCallContent):
+                # Tool call args rarely need masking — pass through
+                _set_triggered_output(span, triggered=False)
+                return content
+
+            if isinstance(content, ToolResultContent):
+                masked_result = self._mask_tool_result(
+                    guardrail, content,
+                )
+                triggered = masked_result.data != content.data
+                _set_triggered_output(
+                    span,
+                    triggered=triggered,
+                    output_value=json.dumps(masked_result.data, default=str)
+                    if triggered else None,
+                )
+                return masked_result
+
+            # str path
+            masked_str = self._mask_str(guardrail, content)
+            triggered = masked_str != content
+            _set_triggered_output(
+                span,
+                triggered=triggered,
+                output_value=masked_str if triggered else None,
             )
-            if triggered:
-                span.set_attribute(SpanAttributes.OUTPUT_VALUE, masked)
-            else:
-                span.set_attribute(
-                    SpanAttributes.OUTPUT_VALUE, "not triggered",
-                )
-            return masked
+            return masked_str
 
-    async def check(self, guardrail: str, message: str) -> bool:
-        """Check if a message triggers a guardrail.
+    def _mask_str(self, guardrail: str, message: str) -> str:
+        """Apply masking to a plain string.
+
+        Args:
+            guardrail: Name of the guardrail.
+            message: Text to mask.
+
+        Returns:
+            Masked text.
+
+        """
+        if guardrail != "pii":
+            logger.warning(
+                "Unknown guardrail type for masking: %s", guardrail,
+            )
+            return message
+        backend = self._require_presidio()
+        return backend.mask_pii(message)
+
+    def _mask_tool_result(
+        self,
+        guardrail: str,
+        content: ToolResultContent,
+    ) -> ToolResultContent:
+        """Apply masking to inspectable fields in a tool result.
+
+        Args:
+            guardrail: Name of the guardrail.
+            content: Tool result content to mask.
+
+        Returns:
+            New ToolResultContent with masked fields.
+
+        """
+        if guardrail != "pii":
+            logger.warning(
+                "Unknown guardrail type for masking: %s", guardrail,
+            )
+            return content
+        backend = self._require_presidio()
+        masked_data = _mask_fields(
+            content.data, backend.mask_pii,
+        )
+        return ToolResultContent(data=masked_data)
+
+    async def check(
+        self, guardrail: str, content: GuardrailContent,
+    ) -> bool:
+        """Check if content triggers a guardrail.
 
         Custom guardrails are tried first. The built-in ``jailbreak``
         guardrail uses regex patterns by design (Presidio has no
@@ -220,7 +322,7 @@ class GuardrailProvider:
 
         Args:
             guardrail: Name of the guardrail (e.g., 'jailbreak').
-            message: Message to check.
+            content: Content to check — string, tool result, or tool call.
 
         Returns:
             True if the guardrail is triggered.
@@ -234,7 +336,10 @@ class GuardrailProvider:
                 span, guardrail, "check", self._get_event_phase(),
             )
             if _capture_content_enabled():
-                span.set_attribute(SpanAttributes.INPUT_VALUE, message)
+                span.set_attribute(
+                    SpanAttributes.INPUT_VALUE,
+                    _serialize_content(content),
+                )
 
             logger.debug("Checking %s guardrail", guardrail)
 
@@ -244,28 +349,21 @@ class GuardrailProvider:
             # Custom guardrail takes precedence
             if guardrail in self._custom:
                 result = await self._call_custom(
-                    guardrail, message, expect_str=False,
+                    guardrail, content, expect_str=False,
                 )
                 triggered = bool(result)
                 if triggered:
                     detail = f"custom guardrail '{guardrail}' triggered"
-            elif guardrail != "jailbreak":
-                logger.warning(
-                    "Unknown guardrail type for checking: %s", guardrail,
+            elif isinstance(content, ToolResultContent):
+                triggered, detail = self._check_tool_result(
+                    guardrail, content,
                 )
+            elif isinstance(content, ToolCallContent):
+                # Check tool call args as JSON string
+                text = json.dumps(content.data, default=str)
+                triggered, detail = self._check_str(guardrail, text)
             else:
-                for pattern in _JAILBREAK_PATTERNS:
-                    if pattern.search(message):
-                        logger.warning(
-                            "Jailbreak attempt detected: pattern=%s",
-                            pattern.pattern,
-                        )
-                        detail = (
-                            f"triggered: pattern match "
-                            f"({pattern.pattern})"
-                        )
-                        triggered = True
-                        break
+                triggered, detail = self._check_str(guardrail, content)
 
             span.set_attribute(
                 "streetrace.guardrail.triggered", triggered,
@@ -275,6 +373,60 @@ class GuardrailProvider:
                 detail if triggered else "not triggered",
             )
             return triggered
+
+    def _check_str(
+        self, guardrail: str, text: str,
+    ) -> tuple[bool, str]:
+        """Check a plain string against a guardrail.
+
+        Args:
+            guardrail: Name of the guardrail.
+            text: Text to check.
+
+        Returns:
+            Tuple of (triggered, detail).
+
+        """
+        if guardrail != "jailbreak":
+            logger.warning(
+                "Unknown guardrail type for checking: %s", guardrail,
+            )
+            return False, ""
+        for pattern in _JAILBREAK_PATTERNS:
+            if pattern.search(text):
+                logger.warning(
+                    "Jailbreak attempt detected: pattern=%s",
+                    pattern.pattern,
+                )
+                return True, (
+                    f"triggered: pattern match "
+                    f"({pattern.pattern})"
+                )
+        return False, ""
+
+    def _check_tool_result(
+        self,
+        guardrail: str,
+        content: ToolResultContent,
+    ) -> tuple[bool, str]:
+        """Check inspectable fields in a tool result.
+
+        Only inspect user-facing fields (``output``, ``stdout``) —
+        error messages are system-generated and would cause false
+        positives.
+
+        Args:
+            guardrail: Name of the guardrail.
+            content: Tool result content to check.
+
+        Returns:
+            Tuple of (triggered, detail).
+
+        """
+        return _check_fields(
+            content.data,
+            lambda text: self._check_str(guardrail, text)[0],
+        )
 
     # -- OTEL helpers -----------------------------------------------------
 
@@ -394,7 +546,7 @@ class GuardrailProvider:
     async def _call_custom(
         self,
         name: str,
-        message: str,
+        content: GuardrailContent,
         *,
         expect_str: bool,
     ) -> str | bool:
@@ -404,7 +556,7 @@ class GuardrailProvider:
 
         Args:
             name: Guardrail name.
-            message: Input message.
+            content: Input content (str or structured).
             expect_str: When True, coerce result to str for masking.
 
         Returns:
@@ -415,7 +567,7 @@ class GuardrailProvider:
         import inspect
 
         func = self._custom[name]
-        result = func(message)
+        result = func(content)
         if inspect.isawaitable(result) or asyncio.iscoroutine(result):
             result = await result
 
@@ -427,6 +579,90 @@ class GuardrailProvider:
 # ---------------------------------------------------------------------------
 # Module-level OTEL helpers
 # ---------------------------------------------------------------------------
+
+
+def _mask_fields(
+    data: dict[str, object],
+    mask_fn: Callable[[str], str],
+) -> dict[str, object]:
+    """Apply a mask function to inspectable content fields.
+
+    Iterate ``INSPECTABLE_FIELDS_MASK`` and apply *mask_fn* to each
+    string-valued field. Return a shallow copy with replaced fields.
+
+    Args:
+        data: Original tool result dict.
+        mask_fn: Function to mask a single string value.
+
+    Returns:
+        New dict with masked field values.
+
+    """
+    result = dict(data)
+    for field in INSPECTABLE_FIELDS_MASK:
+        value = result.get(field)
+        if isinstance(value, str) and value:
+            result[field] = mask_fn(value)
+    return result
+
+
+def _check_fields(
+    data: dict[str, object],
+    check_fn: Callable[[str], bool],
+) -> tuple[bool, str]:
+    """Check inspectable content fields for guardrail triggers.
+
+    Iterate ``INSPECTABLE_FIELDS_CHECK`` and return on first trigger.
+
+    Args:
+        data: Tool result dict.
+        check_fn: Function that returns True if content triggers.
+
+    Returns:
+        Tuple of (triggered, detail).
+
+    """
+    for field in INSPECTABLE_FIELDS_CHECK:
+        value = data.get(field)
+        if isinstance(value, str) and value and check_fn(value):
+            return True, f"triggered in field '{field}'"
+    return False, ""
+
+
+def _serialize_content(content: GuardrailContent) -> str:
+    """Serialize guardrail content to a string for OTEL attributes.
+
+    Args:
+        content: Content to serialize.
+
+    Returns:
+        String representation.
+
+    """
+    if isinstance(content, (ToolResultContent, ToolCallContent)):
+        return json.dumps(content.data, default=str)
+    return content
+
+
+def _set_triggered_output(
+    span: trace.Span,
+    *,
+    triggered: bool,
+    output_value: str | None = None,
+) -> None:
+    """Set triggered and output.value attributes on a span.
+
+    Args:
+        span: The active span to annotate.
+        triggered: Whether the guardrail was triggered.
+        output_value: Value to set as output; defaults to "not triggered".
+
+    """
+    span.set_attribute("streetrace.guardrail.triggered", triggered)
+    span.set_attribute(
+        SpanAttributes.OUTPUT_VALUE,
+        output_value if output_value is not None else "not triggered",
+    )
 
 
 def _set_guardrail_attributes(
