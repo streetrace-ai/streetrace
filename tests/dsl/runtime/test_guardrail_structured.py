@@ -41,7 +41,7 @@ class TestMaskOnToolResult:
         mock_backend.mask_pii.side_effect = (
             lambda text: text.replace("123-45-6789", "[PII]")
         )
-        provider._presidio = mock_backend  # noqa: SLF001
+        provider._registry["pii"]._presidio = mock_backend  # noqa: SLF001
 
         content = ToolResultContent(data={
             "tool_name": "read_file",
@@ -63,7 +63,7 @@ class TestMaskOnToolResult:
         mock_backend.mask_pii.side_effect = (
             lambda text: text.replace("John", "[PII]")
         )
-        provider._presidio = mock_backend  # noqa: SLF001
+        provider._registry["pii"]._presidio = mock_backend  # noqa: SLF001
 
         content = ToolResultContent(data={
             "tool_name": "write_file",
@@ -83,7 +83,7 @@ class TestMaskOnToolResult:
 
         mock_backend = MagicMock()
         mock_backend.mask_pii.side_effect = lambda text: text
-        provider._presidio = mock_backend  # noqa: SLF001
+        provider._registry["pii"]._presidio = mock_backend  # noqa: SLF001
 
         content = ToolResultContent(data={
             "tool_name": "read_file",
@@ -104,7 +104,7 @@ class TestMaskOnToolResult:
 
         mock_backend = MagicMock()
         mock_backend.mask_pii.side_effect = lambda text: text
-        provider._presidio = mock_backend  # noqa: SLF001
+        provider._registry["pii"]._presidio = mock_backend  # noqa: SLF001
 
         content = ToolResultContent(data={"output": "hello"})
 

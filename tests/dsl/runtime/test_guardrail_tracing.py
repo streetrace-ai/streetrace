@@ -308,7 +308,7 @@ class TestStructuredContentSpans:
         mock_backend.mask_pii.side_effect = (
             lambda text: text.replace("secret", "[PII]")
         )
-        provider._presidio = mock_backend  # noqa: SLF001
+        provider._registry["pii"]._presidio = mock_backend  # noqa: SLF001
 
         content = ToolResultContent(data={
             "output": "secret data",

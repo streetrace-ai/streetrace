@@ -347,10 +347,25 @@ _._parent_ctx  # unused attribute (guardrail_provider.py) - set by WorkflowConte
 _.mask  # unused method (guardrail_provider.py) - public API for guardrail masking
 _.check  # unused method (guardrail_provider.py) - public API for guardrail checking
 _.register_custom  # unused method (guardrail_provider.py) - public API for custom guardrail registration
-ToolResultContent  # unused class (guardrail_provider.py) - public API for structured guardrail content
-ToolCallContent  # unused class (guardrail_provider.py) - public API for structured guardrail content
-INSPECTABLE_FIELDS_MASK  # unused variable (guardrail_provider.py) - used by _mask_fields helper
-INSPECTABLE_FIELDS_CHECK  # unused variable (guardrail_provider.py) - used by _check_fields helper
+
+# guardrail_types.py - re-exported from guardrail_provider for backward compatibility
+ToolResultContent  # unused class (guardrail_types.py) - public API for structured guardrail content
+ToolCallContent  # unused class (guardrail_types.py) - public API for structured guardrail content
+INSPECTABLE_FIELDS_MASK  # unused variable (guardrail_types.py) - used by mask_fields helper
+INSPECTABLE_FIELDS_CHECK  # unused variable (guardrail_types.py) - used by check_fields helper
+mask_fields  # unused function (guardrail_types.py) - called by GuardrailProvider for tool result masking
+check_fields  # unused function (guardrail_types.py) - called by GuardrailProvider for tool result checking
+
+# guardrail.py - Guardrail protocol and adapter
+_.mask_str  # unused method (guardrail.py) - Guardrail protocol method called by GuardrailProvider
+_.check_str  # unused method (guardrail.py) - Guardrail protocol method called by GuardrailProvider
+_.func  # unused property (guardrail.py) - CustomGuardrailAdapter property used by provider for async dispatch
+
+# jailbreak_guardrail.py - JailbreakGuardrail implementation
+JailbreakGuardrail  # unused class (jailbreak_guardrail.py) - registered in GuardrailProvider.__init__
+
+# pii_guardrail.py - PiiGuardrail implementation
+PiiGuardrail  # unused class (pii_guardrail.py) - registered in GuardrailProvider.__init__
 event_phase  # unused attribute (context.py) - set by guardrail plugin, read by provider for OTEL spans
 guardrails  # unused attribute (context.py) - public attribute for guardrail provider
 _.run_agent  # unused method (context.py) - public API for running agents

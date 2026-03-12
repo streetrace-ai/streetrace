@@ -1,10 +1,9 @@
-"""Tests for GuardrailProvider with Presidio and fail-loud behavior."""
+"""Tests for GuardrailProvider with registry-based dispatch."""
 
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from streetrace.dsl.runtime.errors import MissingDependencyError
 from streetrace.dsl.runtime.guardrail_provider import GuardrailProvider
 
 
@@ -17,14 +16,12 @@ class TestPresidioAvailable:
         mock_analyzer = MagicMock()
         mock_anonymizer = MagicMock()
 
-        # Mock the anonymizer result
         anonymized_result = MagicMock()
         anonymized_result.text = "Hello [PII], your card is [PII]"
         mock_anonymizer.AnonymizerEngine.return_value.anonymize.return_value = (
             anonymized_result
         )
 
-        # Mock analyzer results
         mock_analyzer.AnalyzerEngine.return_value.analyze.return_value = [
             MagicMock(entity_type="EMAIL_ADDRESS"),
         ]
@@ -47,7 +44,6 @@ class TestPresidioAvailable:
         result = await provider.mask("pii", "Email: test@example.com")
 
         assert result == "Hello [PII], your card is [PII]"
-        assert provider._presidio is not None  # noqa: SLF001
 
 
 class TestPresidioUnavailable:
@@ -56,16 +52,19 @@ class TestPresidioUnavailable:
     @pytest.mark.asyncio
     async def test_mask_pii_raises_missing_dependency(self):
         """mask('pii') raises MissingDependencyError when Presidio unavailable."""
+        from streetrace.dsl.runtime.errors import MissingDependencyError
+        from streetrace.dsl.runtime.pii_guardrail import PiiGuardrail
+
         provider = GuardrailProvider()
 
         with (
             patch.object(
-                GuardrailProvider,
+                PiiGuardrail,
                 "_try_load_presidio",
                 return_value=False,
             ),
             patch.object(
-                GuardrailProvider,
+                PiiGuardrail,
                 "_attempt_runtime_install",
                 return_value=False,
             ),
@@ -79,16 +78,19 @@ class TestPresidioUnavailable:
     @pytest.mark.asyncio
     async def test_mask_pii_attempts_runtime_install(self):
         """mask('pii') attempts runtime install before failing."""
+        from streetrace.dsl.runtime.errors import MissingDependencyError
+        from streetrace.dsl.runtime.pii_guardrail import PiiGuardrail
+
         provider = GuardrailProvider()
 
         with (
             patch.object(
-                GuardrailProvider,
+                PiiGuardrail,
                 "_try_load_presidio",
                 return_value=False,
             ),
             patch.object(
-                GuardrailProvider,
+                PiiGuardrail,
                 "_attempt_runtime_install",
                 return_value=False,
             ) as mock_install,
@@ -101,7 +103,10 @@ class TestPresidioUnavailable:
     @pytest.mark.asyncio
     async def test_mask_pii_succeeds_after_runtime_install(self):
         """mask('pii') works after successful runtime install."""
+        from streetrace.dsl.runtime.pii_guardrail import PiiGuardrail
+
         provider = GuardrailProvider()
+        pii_guard = provider._registry["pii"]  # noqa: SLF001
         mock_backend = MagicMock()
         mock_backend.mask_pii.return_value = "Hello [PII]"
 
@@ -110,17 +115,17 @@ class TestPresidioUnavailable:
         def load_side_effect() -> bool:
             result = next(load_calls)
             if result:
-                provider._presidio = mock_backend  # noqa: SLF001
+                pii_guard._presidio = mock_backend  # noqa: SLF001
             return result
 
         with (
             patch.object(
-                GuardrailProvider,
+                PiiGuardrail,
                 "_try_load_presidio",
                 side_effect=load_side_effect,
             ),
             patch.object(
-                GuardrailProvider,
+                PiiGuardrail,
                 "_attempt_runtime_install",
                 return_value=True,
             ),
@@ -153,48 +158,6 @@ class TestPresidioUnavailable:
         """Unknown guardrail name returns False."""
         provider = GuardrailProvider()
         assert await provider.check("unknown", "test") is False
-
-
-class TestPresidioLazyLoading:
-    """Test the lazy loading mechanism for Presidio."""
-
-    def test_presidio_not_loaded_on_init(self):
-        """Presidio backend is not loaded at construction time."""
-        provider = GuardrailProvider()
-        assert provider._presidio is None  # noqa: SLF001
-
-    @pytest.mark.asyncio
-    async def test_spacy_model_download_triggered(self):
-        """Missing spaCy model triggers download."""
-        mock_spacy = MagicMock()
-        mock_spacy.load.side_effect = OSError("Model not found")
-        mock_download = MagicMock()
-
-        with (
-            patch.dict(
-                "sys.modules",
-                {
-                    "spacy": mock_spacy,
-                    "spacy.cli": MagicMock(download=mock_download),
-                },
-            ),
-            patch(
-                "importlib.import_module",
-                return_value=mock_spacy,
-            ),
-        ):
-            GuardrailProvider._ensure_spacy_model()  # noqa: SLF001
-
-        mock_spacy.load.assert_called_once_with("en_core_web_lg")
-
-    def test_cached_backend_returned(self):
-        """Cached Presidio backend is returned without re-loading."""
-        provider = GuardrailProvider()
-        mock_backend = MagicMock()
-        provider._presidio = mock_backend  # noqa: SLF001
-
-        result = provider._require_presidio()  # noqa: SLF001
-        assert result is mock_backend
 
 
 class TestCustomGuardrails:

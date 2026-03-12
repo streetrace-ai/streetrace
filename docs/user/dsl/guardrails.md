@@ -192,6 +192,27 @@ prompt main_prompt:
     You are a helpful coding assistant.
 ```
 
+## Custom Guardrails
+
+Register custom guardrail functions programmatically via the `GuardrailProvider` API.
+Custom guardrails receive `GuardrailContent` (a string, `ToolResultContent`, or
+`ToolCallContent`) and return `str` for masking or `bool` for checking. Both sync and
+async functions are supported.
+
+```python
+from streetrace.dsl.runtime.guardrail_provider import GuardrailProvider
+
+provider = GuardrailProvider()
+
+def redact_names(content):
+    return str(content).replace("Alice", "[NAME]")
+
+provider.register_custom("names", redact_names)
+```
+
+Custom guardrails registered with the same name as a built-in guardrail override the
+built-in behavior.
+
 ## See Also
 
 - [Syntax Reference](syntax-reference.md) - Complete DSL grammar reference
