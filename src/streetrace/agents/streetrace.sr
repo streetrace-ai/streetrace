@@ -15,13 +15,21 @@ on input do
     block if jailbreak
 end
 
+on output do
+    mask pii
+end
+
+on tool-call do
+    block if mcp_guard
+end
+
 on tool-result do
     mask pii
     block if jailbreak
 end
 
-on output do
-    mask pii
+after output do
+    warn if cognitive_drift
 end
 
 # ── Prompts ──────────────────────────────────────────────────────────────────
