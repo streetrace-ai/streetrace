@@ -564,3 +564,25 @@ INJECTION_BLOCK_THRESHOLD  # unused variable (pipeline.py) - public constant for
 _._config  # unused attribute (pipeline.py) - stored for async pipeline use in Stage 2/3
 _._semantic_detector  # unused attribute (pipeline.py) - lazy-initialized for Stage 2
 _._content_classifier  # unused attribute (pipeline.py) - lazy-initialized for Stage 3
+
+# MCP-Guard - public API used by GuardrailProvider and tests (Phase 3)
+McpGuardOrchestrator  # unused class (orchestrator.py) - registered in GuardrailProvider.__init__
+_.name  # unused property (orchestrator.py) - Guardrail protocol property used by GuardrailProvider
+_._inference_pipeline  # unused attribute (orchestrator.py) - stored for async neural inspector
+_._trust  # unused attribute (orchestrator.py) - trust evaluator used in async pipeline
+NeuralInspector  # unused class (neural_inspector.py) - used by McpGuardOrchestrator for async inspection
+_.inspect  # unused method (neural_inspector.py) - public API called by orchestrator in async mode
+anomaly_score  # unused variable (neural_inspector.py) - dataclass field for InspectorResult
+trust_score  # unused variable (trust_evaluator.py) - dataclass field for TrustResult
+_.set_trust_score  # unused method (trust_evaluator.py) - public API for setting server trust
+_.check_manifest  # unused method (trust_evaluator.py) - public API for rug-pull detection
+
+# Cognitive Monitor - public API and dataclass fields (Phase 4)
+CognitiveMonitor  # unused class (monitor.py) - registered in GuardrailProvider.__init__
+_._anomaly_detector  # unused attribute (monitor.py) - stored for sequence anomaly detection
+_.intervention_turn  # unused property (mttr_calculator.py) - public API for intervention reporting
+_.recovery_turns  # unused property (mttr_calculator.py) - public API for MTTR-A metric
+_.recovery_time_ms  # unused property (mttr_calculator.py) - public API for MTTR-A metric
+detected  # unused variable (sequence_anomaly.py) - dataclass field for SequenceResult
+_.record_tool_call  # unused method (sequence_anomaly.py) - public API called by CognitiveMonitor
+_.embed  # unused method (turn_embedder.py) - public async API called by CognitiveMonitor

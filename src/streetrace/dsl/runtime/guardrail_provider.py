@@ -30,6 +30,7 @@ from streetrace.dsl.runtime.guardrail_types import (
     mask_fields,
 )
 from streetrace.dsl.runtime.pii_guardrail import PiiGuardrail
+from streetrace.guardrails.mcp_guard.orchestrator import McpGuardOrchestrator
 from streetrace.guardrails.prompt_proxy.pipeline import PromptProxyPipeline
 from streetrace.log import get_logger
 
@@ -82,8 +83,19 @@ class GuardrailProvider:
         # Register built-in guardrails
         jailbreak = PromptProxyPipeline(inference_pipeline=None)
         pii = PiiGuardrail()
+        mcp_guard = McpGuardOrchestrator()
         self._registry[jailbreak.name] = jailbreak
         self._registry[pii.name] = pii
+        self._registry[mcp_guard.name] = mcp_guard
+
+        # Deferred import to avoid circular dependency:
+        # monitor -> turn_embedder -> errors -> dsl -> guardrail_provider
+        from streetrace.guardrails.cognitive.monitor import (
+            CognitiveMonitor,
+        )
+
+        cognitive = CognitiveMonitor(provider=self)
+        self._registry[cognitive.name] = cognitive
 
     # -- invocation context ---------------------------------------------------
 
