@@ -114,6 +114,11 @@ DEP002 = [
     "apscheduler",
     "fastapi-sso",
 ]
+DEP003 = [
+    # Optional ML dependencies for guardrails inference pipeline
+    "onnxruntime",
+    "tokenizers",
+]
 
 [tool.poetry.group.dev.dependencies]
 deptry = "^0.23.0"

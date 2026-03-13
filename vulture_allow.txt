@@ -523,3 +523,20 @@ stage  # unused variable (types.py) - dataclass field for result provenance
 proxy  # unused variable (types.py) - dataclass field for result provenance
 WARN  # unused variable (types.py) - GuardrailAction enum value
 _.is_triggered  # unused property (types.py) - public API for checking if guardrail was triggered
+
+# ONNX Inference Pipeline - public API used by guardrail proxies (Phase 2-4)
+BatchInferenceQueue  # unused class (batch.py) - public API for batched inference
+_.size  # unused property (embedding_cache.py) - public API for cache size inspection
+_.register_model  # unused method (model_registry.py) - public API for model registration
+_.inter_op_num_threads  # unused attribute (model_registry.py) - ONNX session option
+_.intra_op_num_threads  # unused attribute (model_registry.py) - ONNX session option
+_.graph_optimization_level  # unused attribute (model_registry.py) - ONNX session option
+InferencePipeline  # unused class (pipeline.py) - public API facade for inference
+_.classify  # unused method (pipeline.py) - public API for classification inference
+_.batch_embed  # unused method (pipeline.py) - public API for batch embedding
+_.is_model_ready  # unused method (pipeline.py) - public API for model readiness check
+_.warm_up  # unused method (pipeline.py) - public API for model pre-loading
+_.add_session  # unused method (session_pool.py) - public API for adding sessions
+_.has_model  # unused method (session_pool.py) - public API for model presence check
+_.available_count  # unused method (session_pool.py) - public API for pool availability
+_.has_tokenizer  # unused method (tokenizer_manager.py) - public API for tokenizer check
