@@ -152,10 +152,10 @@ threading to `GuardrailProvider`. No behavioral change to existing guardrails.
 
 ### Definition of Done
 
-- [ ] All tests pass
-- [ ] `make check` passes
-- [ ] Existing guardrail tests still pass (no regressions)
-- [ ] Coverage ≥ 95% on new files
+- [x] All tests pass
+- [x] `make check` passes
+- [x] Existing guardrail tests still pass (no regressions)
+- [x] Coverage ≥ 95% on new files
 
 ---
 
@@ -226,11 +226,11 @@ batch inference. Fail-fast on model load failures.
 
 ### Definition of Done
 
-- [ ] All tests pass (with mock ONNX sessions — real models tested in
+- [x] All tests pass (with mock ONNX sessions — real models tested in
       integration)
-- [ ] `make check` passes
-- [ ] Coverage ≥ 95% on new files
-- [ ] OTEL metrics emitted for cache and inference
+- [x] `make check` passes
+- [x] Coverage ≥ 95% on new files
+- [x] OTEL metrics emitted for cache and inference
 
 ---
 
@@ -303,11 +303,11 @@ detection engine behind it upgrades.
 
 ### Definition of Done
 
-- [ ] All tests pass
-- [ ] `make check` passes
-- [ ] Existing `test_guardrail_provider.py` passes with new jailbreak impl
-- [ ] Coverage ≥ 95% on new files
-- [ ] OTEL spans include confidence scores
+- [x] All tests pass
+- [x] `make check` passes
+- [x] Existing `test_guardrail_provider.py` passes with new jailbreak impl
+- [x] Coverage ≥ 95% on new files
+- [x] OTEL spans include confidence scores
 
 ---
 
@@ -379,9 +379,9 @@ not implicitly route results to the Prompt Proxy.
 
 ### Definition of Done
 
-- [ ] All tests pass
-- [ ] `make check` passes
-- [ ] Coverage ≥ 95% on new files
+- [x] All tests pass
+- [x] `make check` passes
+- [x] Coverage ≥ 95% on new files
 
 ---
 
@@ -461,10 +461,10 @@ end
 
 ### Definition of Done
 
-- [ ] All tests pass
-- [ ] `make check` passes
-- [ ] Session state correctly scoped and reset
-- [ ] Coverage ≥ 95% on new files
+- [x] All tests pass
+- [x] `make check` passes
+- [x] Session state correctly scoped and reset
+- [x] Coverage ≥ 95% on new files
 
 ---
 
@@ -515,11 +515,11 @@ infrastructure, and retention policy support.
 
 ### Definition of Done
 
-- [ ] All tests pass
-- [ ] `make check` passes
-- [ ] All 4 EU AI Act articles mapped
-- [ ] Coverage ≥ 95% on new files
-- [ ] OTEL violation attributes documented
+- [x] All tests pass
+- [x] `make check` passes
+- [x] All 4 EU AI Act articles mapped
+- [x] Coverage ≥ 95% on new files
+- [x] OTEL violation attributes documented
 
 ---
 
@@ -564,10 +564,10 @@ collection, and GitHub Action configuration.
 
 ### Definition of Done
 
-- [ ] All tests pass
-- [ ] `make check` passes
-- [ ] Default probe configuration ships with package
-- [ ] Coverage ≥ 95% on new files
+- [x] All tests pass
+- [x] `make check` passes
+- [x] Default probe configuration ships with package
+- [x] Coverage ≥ 95% on new files
 
 ---
 
