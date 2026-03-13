@@ -187,13 +187,13 @@ class GuardrailPlugin(BasePlugin):
     async def after_model_callback(
         self,
         *,
-        callback_context: CallbackContext,  # noqa: ARG002
+        callback_context: CallbackContext,
         llm_response: LlmResponse,
     ) -> LlmResponse | None:
         """Dispatch to on_output and after_output after model call.
 
         Args:
-            callback_context: ADK callback context (unused).
+            callback_context: ADK callback context with session info.
             llm_response: The LLM response received.
 
         Returns:
@@ -210,6 +210,7 @@ class GuardrailPlugin(BasePlugin):
             return None
 
         ctx = self._get_or_create_context()
+        _thread_session_context(ctx, callback_context)
         ctx.event_phase = "output"
         ctx.message = text
 
@@ -228,14 +229,14 @@ class GuardrailPlugin(BasePlugin):
         *,
         tool: BaseTool,  # noqa: ARG002
         tool_args: dict[str, object],
-        tool_context: ToolContext,  # noqa: ARG002
+        tool_context: ToolContext,
     ) -> dict[str, object] | None:
         """Dispatch to on_tool_call and after_tool_call before tool execution.
 
         Args:
             tool: The tool about to be called (unused).
             tool_args: Arguments about to be passed to the tool.
-            tool_context: ADK tool context (unused).
+            tool_context: ADK tool context with session info.
 
         Returns:
             Dict with error key if blocked, None otherwise.
@@ -247,6 +248,7 @@ class GuardrailPlugin(BasePlugin):
             return None
 
         ctx = self._get_or_create_context()
+        _thread_session_context(ctx, tool_context)
         ctx.event_phase = "tool_call"
         ctx.message = ToolCallContent(data=tool_args)
 
@@ -266,7 +268,7 @@ class GuardrailPlugin(BasePlugin):
         *,
         tool: BaseTool,  # noqa: ARG002
         tool_args: dict[str, object],  # noqa: ARG002
-        tool_context: ToolContext,  # noqa: ARG002
+        tool_context: ToolContext,
         result: dict[str, object],
     ) -> dict[str, object] | None:
         """Dispatch to on_tool_result and after_tool_result after tool.
@@ -274,7 +276,7 @@ class GuardrailPlugin(BasePlugin):
         Args:
             tool: The tool that was called (unused).
             tool_args: Arguments passed to the tool (unused).
-            tool_context: ADK tool context (unused).
+            tool_context: ADK tool context with session info.
             result: The tool's return value.
 
         Returns:
@@ -292,6 +294,7 @@ class GuardrailPlugin(BasePlugin):
 
         original = ToolResultContent(data=dict(result))
         ctx = self._get_or_create_context()
+        _thread_session_context(ctx, tool_context)
         ctx.event_phase = "tool_result"
         ctx.message = original
 
@@ -438,3 +441,30 @@ def _make_llm_response(text: str) -> LlmResponse:
         parts=[genai_types.Part.from_text(text=text)],
     )
     return LlmResponse(content=content)
+
+
+def _thread_session_context(
+    ctx: WorkflowContext,
+    callback_ctx: CallbackContext | ToolContext,
+) -> None:
+    """Thread ADK session info to the guardrail provider.
+
+    Extract session ID and state from the ADK callback/tool context
+    and pass them to the ``GuardrailProvider`` so session-aware
+    guardrails (e.g. Cognitive Monitor) can access session state.
+
+    Args:
+        ctx: Workflow context holding the guardrail provider.
+        callback_ctx: ADK context with ``session`` attribute.
+
+    """
+    session = getattr(callback_ctx, "session", None)
+    if session is None:
+        return
+    session_id = getattr(session, "id", None)
+    state = getattr(callback_ctx, "state", None)
+    if session_id is not None and state is not None:
+        ctx.guardrails.set_invocation_context(
+            session_id=session_id,
+            session_state=state,
+        )

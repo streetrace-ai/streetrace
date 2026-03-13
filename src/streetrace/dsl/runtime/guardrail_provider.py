@@ -76,12 +76,50 @@ class GuardrailProvider:
         """Initialize with built-in guardrails."""
         self._registry: dict[str, Guardrail] = {}
         self._parent_ctx: WorkflowContext | None = None
+        self._session_id: str | None = None
+        self._session_state: dict[str, object] | None = None
 
         # Register built-in guardrails
         jailbreak = JailbreakGuardrail()
         pii = PiiGuardrail()
         self._registry[jailbreak.name] = jailbreak
         self._registry[pii.name] = pii
+
+    # -- invocation context ---------------------------------------------------
+
+    def set_invocation_context(
+        self,
+        *,
+        session_id: str,
+        session_state: dict[str, object],
+    ) -> None:
+        """Set per-callback session context for session-aware guardrails.
+
+        Called by ``GuardrailPlugin`` before each handler invocation with
+        the session information from ADK's ``CallbackContext``.
+
+        Args:
+            session_id: ADK session identifier.
+            session_state: Mutable session state dict from ADK.
+
+        """
+        self._session_id = session_id
+        self._session_state = session_state
+
+    def clear_invocation_context(self) -> None:
+        """Reset session context to None."""
+        self._session_id = None
+        self._session_state = None
+
+    @property
+    def session_id(self) -> str | None:
+        """Return the current ADK session ID, or None."""
+        return self._session_id
+
+    @property
+    def session_state(self) -> dict[str, object] | None:
+        """Return the current ADK session state, or None."""
+        return self._session_state
 
     # -- custom guardrail registration ------------------------------------
 

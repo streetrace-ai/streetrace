@@ -504,3 +504,22 @@ _.count_tokens  # unused method (history_compactor.py) - public API for token co
 # CompactingRunner - mid-run compaction infrastructure
 is_tool_result_event  # unused function (compacting_runner.py) - utility for detecting tool results
 SummarizeCompactionStrategy  # unused class (compacting_runner.py) - strategy for LLM-based summarization
+
+# GuardrailProvider - invocation context API
+_.clear_invocation_context  # unused method (guardrail_provider.py) - public API for clearing session context
+
+# GuardrailsConfig - Pydantic model fields and validators
+enabled  # unused variable (config.py) - Pydantic model field used by consumers
+trust_threshold  # unused variable (config.py) - Pydantic model field for MCP-Guard trust scoring
+server_allowlist  # unused variable (config.py) - Pydantic model field for MCP-Guard allowlist
+server_denylist  # unused variable (config.py) - Pydantic model field for MCP-Guard denylist
+prompt_proxy  # unused variable (config.py) - Pydantic model field for top-level GuardrailsConfig
+mcp_guard  # unused variable (config.py) - Pydantic model field for top-level GuardrailsConfig
+cognitive_monitor  # unused variable (config.py) - Pydantic model field for top-level GuardrailsConfig
+_._validate_thresholds  # unused method (config.py) - Pydantic model_validator called automatically
+
+# GuardrailResult - dataclass fields and property
+stage  # unused variable (types.py) - dataclass field for result provenance
+proxy  # unused variable (types.py) - dataclass field for result provenance
+WARN  # unused variable (types.py) - GuardrailAction enum value
+_.is_triggered  # unused property (types.py) - public API for checking if guardrail was triggered
