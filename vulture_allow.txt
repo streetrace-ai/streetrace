@@ -586,3 +586,58 @@ _.recovery_time_ms  # unused property (mttr_calculator.py) - public API for MTTR
 detected  # unused variable (sequence_anomaly.py) - dataclass field for SequenceResult
 _.record_tool_call  # unused method (sequence_anomaly.py) - public API called by CognitiveMonitor
 _.embed  # unused method (turn_embedder.py) - public async API called by CognitiveMonitor
+
+# Audit & Compliance - Pydantic models and public API (Phase 5)
+ViolationSeverity  # unused class (violation_events.py) - StrEnum used by ViolationEvent models
+ViolationEvent  # unused class (violation_events.py) - base violation event model used by guardrail_provider
+PromptViolation  # unused class (violation_events.py) - prompt proxy violation event
+ToolViolation  # unused class (violation_events.py) - MCP-Guard violation event
+DriftViolation  # unused class (violation_events.py) - cognitive drift violation event
+RecoveryEvent  # unused class (violation_events.py) - recovery event after intervention
+_.to_otel_attributes  # unused method (violation_events.py) - public API for OTEL attribute mapping
+violation_id  # unused variable (violation_events.py) - Pydantic model field auto-generated UUID
+timestamp  # unused variable (violation_events.py) - Pydantic model field auto-generated datetime
+agent_id  # unused variable (violation_events.py) - Pydantic model field set by EventEnricher
+org_id  # unused variable (violation_events.py) - Pydantic model field set by EventEnricher
+run_id  # unused variable (violation_events.py) - Pydantic model field set by EventEnricher
+pattern_matched  # unused variable (violation_events.py) - Pydantic model field for PromptViolation
+embedding_score  # unused variable (violation_events.py) - Pydantic model field for PromptViolation
+server_id  # unused variable (violation_events.py) - Pydantic model field for ToolViolation
+risk_score  # unused variable (violation_events.py) - Pydantic model field for DriftViolation
+turn_number  # unused variable (violation_events.py) - Pydantic model field for DriftViolation
+recovery_turns  # unused variable (violation_events.py) - Pydantic model field for RecoveryEvent
+recovery_time_ms  # unused variable (violation_events.py) - Pydantic model field for RecoveryEvent
+EventEnricher  # unused class (event_enricher.py) - public API for violation event enrichment
+_.enrich  # unused method (event_enricher.py) - public API called before OTEL export
+ComplianceMapper  # unused class (compliance_mapper.py) - public API for EU AI Act mapping
+ComplianceMapping  # unused class (compliance_mapper.py) - dataclass for article-capability mapping
+_.get_mapping  # unused method (compliance_mapper.py) - public API for single article lookup
+_.all_mappings  # unused method (compliance_mapper.py) - public API for listing all mappings
+article_number  # unused variable (compliance_mapper.py) - dataclass field for ComplianceMapping
+article_title  # unused variable (compliance_mapper.py) - dataclass field for ComplianceMapping
+capability_description  # unused variable (compliance_mapper.py) - dataclass field for ComplianceMapping
+evidence_query  # unused variable (compliance_mapper.py) - dataclass field for ComplianceMapping
+RetentionPolicy  # unused class (retention.py) - Pydantic model for data retention configuration
+min_retention_days  # unused variable (retention.py) - Pydantic model field
+max_retention_days  # unused variable (retention.py) - Pydantic model field
+content_redaction_enabled  # unused variable (retention.py) - Pydantic model field
+redact_after_days  # unused variable (retention.py) - Pydantic model field
+_._validate_retention_bounds  # unused method (retention.py) - Pydantic model_validator called automatically
+model_config  # unused variable (violation_events.py, retention.py) - Pydantic model configuration dict
+
+# Red Team CI - public API and Pydantic model fields (Phase 6)
+GarakRunner  # unused class (garak_runner.py) - public API for Garak CLI integration
+PromptfooRunner  # unused class (promptfoo_runner.py) - public API for Promptfoo CLI integration
+RedTeamOrchestrator  # unused class (orchestrator.py) - public API for coordinating red team runs
+_.run_suite  # unused method (orchestrator.py) - public API for running red team suite
+INJECTION  # unused variable (probe_library.py) - ProbeCategory enum value
+DRIFT  # unused variable (probe_library.py) - ProbeCategory enum value
+TOOL_ABUSE  # unused variable (probe_library.py) - ProbeCategory enum value
+description  # unused variable (probe_library.py) - Pydantic model field for ProbeDefinition
+_._validate_fields  # unused method (probe_library.py) - Pydantic model_validator called automatically
+ProbeLibrary  # unused class (probe_library.py) - public API for loading probe definitions
+_.load_directory  # unused method (probe_library.py) - public API for loading probes from directory
+_.get_probes  # unused method (probe_library.py) - public API for retrieving probes
+ReportGenerator  # unused class (report.py) - public API for generating red team reports
+_.generate_pr_comment  # unused method (report.py) - public API for PR comment generation
+_.generate_detailed_report  # unused method (report.py) - public API for detailed report generation

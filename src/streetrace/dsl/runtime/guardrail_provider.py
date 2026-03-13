@@ -30,8 +30,13 @@ from streetrace.dsl.runtime.guardrail_types import (
     mask_fields,
 )
 from streetrace.dsl.runtime.pii_guardrail import PiiGuardrail
+from streetrace.guardrails.audit.violation_events import (
+    ViolationEvent,
+    ViolationSeverity,
+)
 from streetrace.guardrails.mcp_guard.orchestrator import McpGuardOrchestrator
 from streetrace.guardrails.prompt_proxy.pipeline import PromptProxyPipeline
+from streetrace.guardrails.types import GuardrailAction
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
@@ -55,6 +60,12 @@ __all__ = [
 
 CAPTURE_CONTENT_ENV_VAR = "STREETRACE_CAPTURE_GUARDRAIL_CONTENT_IN_SPANS"
 """Env var controlling whether pre-masking/blocking input is captured in spans."""
+
+_BUILTIN_CHECK_CONFIDENCE = 1.0
+"""Confidence score for built-in guardrail checks."""
+
+_CUSTOM_CHECK_CONFIDENCE = 0.0
+"""Confidence score for custom guardrail checks."""
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +333,17 @@ class GuardrailProvider:
                     impl, guardrail, content,
                 )
 
+            # Confidence: 0.0 for custom, 1.0 for built-in checks
+            is_custom = isinstance(impl, CustomGuardrailAdapter)
+            confidence = (
+                _CUSTOM_CHECK_CONFIDENCE
+                if is_custom
+                else _BUILTIN_CHECK_CONFIDENCE
+            )
+            span.set_attribute(
+                "streetrace.guardrail.check.confidence", confidence,
+            )
+
             span.set_attribute(
                 "streetrace.guardrail.triggered", triggered,
             )
@@ -329,6 +351,15 @@ class GuardrailProvider:
                 SpanAttributes.OUTPUT_VALUE,
                 detail if triggered else "not triggered",
             )
+
+            if triggered:
+                _emit_violation_event(
+                    span,
+                    guardrail_name=guardrail,
+                    detail=detail,
+                    confidence=confidence,
+                )
+
             return triggered
 
     def _check_str(
@@ -522,3 +553,36 @@ def _capture_content_enabled() -> bool:
     return os.environ.get(
         CAPTURE_CONTENT_ENV_VAR, "",
     ).lower() in ("true", "1", "yes")
+
+
+def _emit_violation_event(
+    span: trace.Span,
+    *,
+    guardrail_name: str,
+    detail: str,
+    confidence: float,
+) -> None:
+    """Attach a structured ViolationEvent as an OTEL span event.
+
+    Map the guardrail action to a severity level and emit the
+    violation as a span event with ``streetrace.guardrail.violation.*``
+    attributes.
+
+    Args:
+        span: The active span to attach the event to.
+        guardrail_name: Name of the guardrail that triggered.
+        detail: Human-readable description of the violation.
+        confidence: Detection confidence score.
+
+    """
+    event = ViolationEvent(
+        severity=ViolationSeverity.CRITICAL,
+        action=GuardrailAction.BLOCK,
+        guardrail_name=guardrail_name,
+        detail=detail,
+        confidence=confidence,
+    )
+    span.add_event(
+        "guardrail.violation",
+        attributes=event.to_otel_attributes(),
+    )
