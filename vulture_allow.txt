@@ -540,3 +540,27 @@ _.add_session  # unused method (session_pool.py) - public API for adding session
 _.has_model  # unused method (session_pool.py) - public API for model presence check
 _.available_count  # unused method (session_pool.py) - public API for pool availability
 _.has_tokenizer  # unused method (tokenizer_manager.py) - public API for tokenizer check
+
+# Prompt Proxy Pipeline - public API used by GuardrailProvider and tests
+PromptProxyPipeline  # unused class (pipeline.py) - registered in GuardrailProvider.__init__
+_.check_str_output  # unused method (pipeline.py) - public API for output screening
+_.check_with_result  # unused method (pipeline.py) - public API for structured result
+_.run_stage2  # unused method (pipeline.py) - public API for explicit Stage 2 invocation
+_.run_stage3  # unused method (pipeline.py) - public API for explicit Stage 3 invocation
+CLASSIFICATION_LABELS  # unused variable (content_classifier.py) - public constant for label names
+ContentClassifier  # unused class (content_classifier.py) - used by PromptProxyPipeline
+SemanticDetector  # unused class (semantic_detector.py) - used by PromptProxyPipeline
+SemanticResult  # unused class (semantic_detector.py) - public result type
+EMBEDDING_MODEL_ID  # unused variable (semantic_detector.py) - model constant used by detector
+SyntacticFilter  # unused class (syntactic_filter.py) - used by PromptProxyPipeline
+PatternMatch  # unused class (patterns.py) - public result type used by SyntacticFilter
+PatternEntry  # unused class (patterns.py) - public type for pattern definitions
+PATTERN_REGISTRY  # unused variable (patterns.py) - public registry of patterns
+matched_text  # unused variable (patterns.py) - dataclass field for PatternMatch
+matched_pattern  # unused variable (semantic_detector.py) - dataclass field for SemanticResult
+_.detect  # unused method (semantic_detector.py) - public API called by PromptProxyPipeline
+INJECTION_LABEL  # unused variable (pipeline.py) - public constant for classification label
+INJECTION_BLOCK_THRESHOLD  # unused variable (pipeline.py) - public constant for block threshold
+_._config  # unused attribute (pipeline.py) - stored for async pipeline use in Stage 2/3
+_._semantic_detector  # unused attribute (pipeline.py) - lazy-initialized for Stage 2
+_._content_classifier  # unused attribute (pipeline.py) - lazy-initialized for Stage 3

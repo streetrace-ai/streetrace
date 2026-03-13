@@ -129,7 +129,7 @@ class TestCheckSpanAttributes:
 
         await provider.check("jailbreak", "hello friend")
 
-        mock_tracer.start_as_current_span.assert_called_once_with(
+        mock_tracer.start_as_current_span.assert_any_call(
             "guardrail.check.jailbreak",
         )
         attrs = _get_span_attrs(mock_span)

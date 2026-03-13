@@ -29,8 +29,8 @@ from streetrace.dsl.runtime.guardrail_types import (
     check_fields,
     mask_fields,
 )
-from streetrace.dsl.runtime.jailbreak_guardrail import JailbreakGuardrail
 from streetrace.dsl.runtime.pii_guardrail import PiiGuardrail
+from streetrace.guardrails.prompt_proxy.pipeline import PromptProxyPipeline
 from streetrace.log import get_logger
 
 if TYPE_CHECKING:
@@ -80,7 +80,7 @@ class GuardrailProvider:
         self._session_state: dict[str, object] | None = None
 
         # Register built-in guardrails
-        jailbreak = JailbreakGuardrail()
+        jailbreak = PromptProxyPipeline(inference_pipeline=None)
         pii = PiiGuardrail()
         self._registry[jailbreak.name] = jailbreak
         self._registry[pii.name] = pii
