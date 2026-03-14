@@ -3,7 +3,7 @@
 .gitignore
 
 # Python
-__pycache__
+**/__pycache__
 *.pyc
 *.pyo
 *.pyd
@@ -69,6 +69,4 @@ CONV.md
 # CI/CD
 .github/
 .vulture_allow.txt
-mypy.ini
 .coveragerc
-Makefile

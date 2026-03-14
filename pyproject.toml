@@ -116,7 +116,6 @@ DEP002 = [
 ]
 DEP003 = [
     # Optional ML dependencies for guardrails inference pipeline
-    "onnxruntime",
     "tokenizers",
 ]
 
@@ -183,6 +182,7 @@ lark = "^1.2.0"
 presidio-analyzer = { version = "*", optional = true }
 presidio-anonymizer = { version = "*", optional = true }
 spacy = { version = "*", optional = true }
+onnxruntime = { version = "*", optional = true }
 
 [tool.poetry.extras]
-guardrails = ["presidio-analyzer", "presidio-anonymizer", "spacy"]
+guardrails = ["presidio-analyzer", "presidio-anonymizer", "spacy", "onnxruntime"]

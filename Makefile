@@ -1,4 +1,4 @@
-.PHONY: lint typed security depcheck unusedcode test coverage check publishpatch
+.PHONY: lint typed security depcheck unusedcode test coverage check check_ci publishpatch
 
 lint:
 	poetry run ruff check src tests --ignore=FIX002
@@ -24,6 +24,10 @@ coverage:
 	poetry run coverage html
 
 check: test lint typed security depcheck unusedcode
+
+check_ci:
+	docker build -f ci.Dockerfile -t streetrace-ci .
+	docker run --rm streetrace-ci
 
 publishpatch:
 	@if [ "$$(git rev-parse --abbrev-ref HEAD)" != "main" ]; then \
