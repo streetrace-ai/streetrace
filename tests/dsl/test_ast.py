@@ -780,7 +780,27 @@ end
         assert handler.event_type == "input"
         assert len(handler.body) == 2
         assert isinstance(handler.body[0], MaskAction)
+        assert handler.body[0].guardrail == "pii"
         assert isinstance(handler.body[1], BlockAction)
+
+    def test_mask_action_captures_guardrail_name_not_keyword(self, parser):
+        """Verify mask_action extracts the guardrail name, not the 'mask' keyword."""
+        from streetrace.dsl.ast.nodes import DslFile, EventHandler, MaskAction
+        from streetrace.dsl.ast.transformer import transform
+
+        source = """
+on input do
+    mask pii
+end
+"""
+        tree = parser.parse(source)
+        ast = transform(tree)
+
+        assert isinstance(ast, DslFile)
+        handlers = [s for s in ast.statements if isinstance(s, EventHandler)]
+        mask_action = handlers[0].body[0]
+        assert isinstance(mask_action, MaskAction)
+        assert mask_action.guardrail == "pii"
 
     def test_transforms_flow_with_control_structures(self, parser):
         from streetrace.dsl.ast.nodes import (

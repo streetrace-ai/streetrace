@@ -222,9 +222,10 @@ class TestAgentResultValidation:
 
         def make_runner(
             *,
-            app_name: str,  # noqa: ARG001
-            session_service: object,  # noqa: ARG001
-            agent: object,  # noqa: ARG001
+            app_name: str,
+            session_service: object,
+            agent: object,
+            plugins: object,
         ) -> MagicMock:
             nonlocal call_count
             mock_runner = MagicMock()
@@ -304,9 +305,10 @@ class TestAgentResultValidation:
         # Always return prose
         def make_runner(
             *,
-            app_name: str,  # noqa: ARG001
-            session_service: object,  # noqa: ARG001
-            agent: object,  # noqa: ARG001
+            app_name: str,
+            session_service: object,
+            agent: object,
+            plugins: object,
         ) -> MagicMock:
             mock_runner = MagicMock()
             event = create_mock_event(
@@ -519,9 +521,9 @@ class TestParallelAgentValidation:
         }
 
         async def mock_get_session(
-            app_name: str,  # noqa: ARG001
-            user_id: str,  # noqa: ARG001
-            session_id: str,  # noqa: ARG001
+            app_name: str,
+            user_id: str,
+            session_id: str,
         ) -> MagicMock:
             return mock_session
 
@@ -532,9 +534,9 @@ class TestParallelAgentValidation:
         # For sequential retry of agent_a
         def make_retry_runner(
             *,
-            app_name: str,  # noqa: ARG001
-            session_service: object,  # noqa: ARG001
-            agent: object,  # noqa: ARG001
+            app_name: str,
+            session_service: object,
+            agent: object,
         ) -> MagicMock:
             nonlocal retry_call_count
             mock_runner = MagicMock()
@@ -551,8 +553,8 @@ class TestParallelAgentValidation:
         parallel_events: list[MagicMock] = []
 
         async def mock_parallel_run_async(
-            *args: object,  # noqa: ARG001
-            **kwargs: object,  # noqa: ARG001
+            *args: object,
+            **kwargs: object,
         ) -> AsyncGenerator[MagicMock, None]:
             for event in parallel_events:
                 yield event
@@ -593,7 +595,7 @@ class TestParallelAgentValidation:
                 # Simulate the behavior where agent_a needs retry
                 async def execute_with_validation(
                     ctx: object,
-                    specs: list[tuple[str, list[object], str | None]],  # noqa: ARG001
+                    specs: list[tuple[str, list[object], str | None]],
                 ) -> AsyncGenerator[MagicMock, None]:
                     # Simulate parallel execution storing results
                     # agent_a result is prose -> needs retry

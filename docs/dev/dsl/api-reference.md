@@ -557,53 +557,110 @@ Normalized text suitable for comparison.
 
 **Location**: `src/streetrace/dsl/runtime/utils.py:19`
 
+### Guardrail Protocol
+
+```python
+class Guardrail(Protocol):
+    @property
+    def name(self) -> str: ...
+    def mask_str(self, text: str) -> str: ...
+    def check_str(self, text: str) -> tuple[bool, str]: ...
+```
+
+Protocol for guardrail implementations. Each guardrail has a name, can mask text, and can
+check text. Guardrails that only support one operation return a no-op for the other.
+
+**Location**: `src/streetrace/dsl/runtime/guardrail.py`
+
+### JailbreakGuardrail
+
+```python
+class JailbreakGuardrail:
+    name = "jailbreak"
+    def mask_str(self, text: str) -> str  # identity (check-only)
+    def check_str(self, text: str) -> tuple[bool, str]
+```
+
+Detect jailbreak attempts using regex patterns. Check-only guardrail — `mask_str` returns
+text unchanged.
+
+**Location**: `src/streetrace/dsl/runtime/jailbreak_guardrail.py`
+
+### PiiGuardrail
+
+```python
+class PiiGuardrail:
+    name = "pii"
+    def mask_str(self, text: str) -> str
+    def check_str(self, text: str) -> tuple[bool, str]  # always (False, "")
+```
+
+Mask PII using Microsoft Presidio. Mask-only guardrail — `check_str` always returns not
+triggered.
+
+**Location**: `src/streetrace/dsl/runtime/pii_guardrail.py`
+
 ### GuardrailProvider
 
 ```python
 class GuardrailProvider:
-    async def mask(self, guardrail: str, message: str) -> str
-    async def check(self, guardrail: str, message: str) -> bool
+    async def mask(self, guardrail: str, content: GuardrailContent) -> GuardrailContent
+    async def check(self, guardrail: str, content: GuardrailContent) -> bool
+    def register_custom(self, name: str, func: GuardrailFunc) -> None
 ```
 
-Provider for guardrail operations.
+Dispatch guardrail operations through a registry of `Guardrail` implementations. Built-in
+guardrails (`pii`, `jailbreak`) are registered at construction. Custom guardrails
+registered via `register_custom` take precedence over built-in handling for the same name.
 
-**Location**: `src/streetrace/dsl/runtime/context.py:58`
+**Location**: `src/streetrace/dsl/runtime/guardrail_provider.py`
 
 #### mask
 
 ```python
-async def mask(self, guardrail: str, message: str) -> str
+async def mask(
+    self, guardrail: str, content: GuardrailContent,
+) -> GuardrailContent
 ```
 
-Mask sensitive content in a message.
-
-Apply regex-based masking for common PII types including emails, phone numbers, SSNs, and
-credit card numbers.
+Mask sensitive content in a message or structured result.
 
 **Parameters**:
-- `guardrail`: Name of the guardrail (currently only "pii" is supported).
-- `message`: Message to mask.
+- `guardrail`: Name of the guardrail (e.g., `"pii"`).
+- `content`: Content to mask — string, `ToolResultContent`, or `ToolCallContent`.
 
 **Returns**:
-Message with sensitive content replaced by placeholders like `[EMAIL]`, `[PHONE]`,
-`[SSN]`, `[CREDIT_CARD]`.
+Content with sensitive data masked (same type as input).
 
 #### check
 
 ```python
-async def check(self, guardrail: str, message: str) -> bool
+async def check(
+    self, guardrail: str, content: GuardrailContent,
+) -> bool
 ```
 
-Check if a message triggers a guardrail.
-
-Use pattern-based detection to identify common jailbreak attempts.
+Check if content triggers a guardrail.
 
 **Parameters**:
-- `guardrail`: Name of the guardrail (currently only "jailbreak" is supported).
-- `message`: Message to check.
+- `guardrail`: Name of the guardrail (e.g., `"jailbreak"`).
+- `content`: Content to check — string, `ToolResultContent`, or `ToolCallContent`.
 
 **Returns**:
 True if the guardrail is triggered.
+
+#### register_custom
+
+```python
+def register_custom(self, name: str, func: GuardrailFunc) -> None
+```
+
+Register a custom guardrail function. Custom guardrails override built-in guardrails with
+the same name.
+
+**Parameters**:
+- `name`: Guardrail name used in DSL.
+- `func`: Callable accepting `GuardrailContent`, returning `str | bool`.
 
 ## Loader Module
 

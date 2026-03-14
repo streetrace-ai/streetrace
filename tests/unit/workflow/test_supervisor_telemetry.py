@@ -173,8 +173,8 @@ class TestSupervisorTelemetry:
 
         # Mock workload run_async to track when it happens
         async def track_run_async(
-            session,  # noqa: ARG001
-            content,  # noqa: ARG001
+            session,
+            content,
         ):
             execution_order.append("workload_run")
             mock_event = events_mocker(content="Test response")
@@ -223,8 +223,8 @@ class TestSupervisorTelemetry:
 
         # Mock workload run_async to track completion
         async def track_run_async(
-            session,  # noqa: ARG001
-            content,  # noqa: ARG001
+            session,
+            content,
         ):
             mock_event = events_mocker(content="Test response")
             yield mock_event

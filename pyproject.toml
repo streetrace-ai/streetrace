@@ -62,6 +62,7 @@ allow-star-arg-any = true
     "PLR0913", # Too many arguments in function definition
     "EM101",   # Allow inline exception messages
     "TRY003",  # Allow inline exception messages
+    "ARG001",  # allow unused function arguments (handler overrides in tests)
 ]
 
 # If using pytest
@@ -113,6 +114,10 @@ DEP002 = [
     "apscheduler",
     "fastapi-sso",
 ]
+DEP003 = [
+    # Optional ML dependencies for guardrails inference pipeline
+    "tokenizers",
+]
 
 [tool.poetry.group.dev.dependencies]
 deptry = "^0.23.0"
@@ -158,6 +163,7 @@ dotenv = "^0.9.9"
 botocore = "^1.38.0"
 httpx = "^0.28.1"
 openinference-instrumentation-google-adk = "*"
+openinference-semantic-conventions = "*"
 opentelemetry-sdk = "*"
 opentelemetry-exporter-otlp = "*"
 opentelemetry-instrumentation-mcp = "0.47.5"
@@ -173,3 +179,10 @@ orjson = "^3.11.4"
 apscheduler = "^3.11.1"
 fastapi-sso = "^0.19.0"
 lark = "^1.2.0"
+presidio-analyzer = { version = "*", optional = true }
+presidio-anonymizer = { version = "*", optional = true }
+spacy = { version = "*", optional = true }
+onnxruntime = { version = "*", optional = true }
+
+[tool.poetry.extras]
+guardrails = ["presidio-analyzer", "presidio-anonymizer", "spacy", "onnxruntime"]

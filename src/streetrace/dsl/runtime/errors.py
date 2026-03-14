@@ -40,6 +40,29 @@ class AbortError(DslRuntimeError):
     """
 
 
+class MissingDependencyError(DslRuntimeError):
+    """Raised when a required optional dependency is not installed.
+
+    Provide a clear error message with the package name
+    and exact install command so the user can resolve it.
+    """
+
+    def __init__(self, package: str, install_command: str) -> None:
+        """Initialize with package name and install instructions.
+
+        Args:
+            package: Name of the missing dependency.
+            install_command: Shell command the user should run.
+
+        """
+        self.package = package
+        self.install_command = install_command
+        super().__init__(
+            f"Required package '{package}' is not installed. "
+            f"Install it with: {install_command}",
+        )
+
+
 class JSONParseError(DslRuntimeError):
     """Raised when LLM response cannot be parsed as JSON.
 

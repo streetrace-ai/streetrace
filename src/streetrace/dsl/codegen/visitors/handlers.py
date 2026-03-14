@@ -147,9 +147,22 @@ class HandlerVisitor:
 
         if node.condition:
             condition = self._expr_visitor.visit(node.condition)
-            self._emitter.emit(f"if {condition}:", source_line=source_line)
-            self._emitter.indent()
             message = node.message or "Warning condition triggered"
+
+            # If condition is a simple name, treat it as a guardrail check
+            if condition.startswith("ctx.vars['") and condition.endswith("']"):
+                guardrail_name = condition[len("ctx.vars['") : -len("']")]
+                self._emitter.emit(
+                    f"if await ctx.guardrails.check("
+                    f"'{guardrail_name}', ctx.message):",
+                    source_line=source_line,
+                )
+            else:
+                self._emitter.emit(
+                    f"if {condition}:", source_line=source_line,
+                )
+
+            self._emitter.indent()
             self._emitter.emit(f"ctx.warn('{message}')")
             self._emitter.dedent()
         elif node.message:

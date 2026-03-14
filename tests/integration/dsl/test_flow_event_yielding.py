@@ -163,8 +163,8 @@ class TestSingleAgentFlowYieldsAllAdkEvents:
 
         # Mock run_agent to yield our events
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             yield event1
             yield event2
@@ -217,8 +217,8 @@ class TestSingleAgentFlowYieldsAllAdkEvents:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -300,7 +300,7 @@ class TestMultipleAgentFlowYieldsInterleavedEvents:
 
         async def mock_run_agent(
             agent_name: str,
-            *args: object,  # noqa: ARG001
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             nonlocal call_count
             ctx = workflow._context  # noqa: SLF001
@@ -497,8 +497,8 @@ class TestMixedFlowYieldsCorrectEventSequence:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -837,8 +837,8 @@ class TestResultCaptureWorksCorrectly:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -896,9 +896,9 @@ class TestAgentEntryPointYieldsEvents:
 
         # Mock _execute_agent to yield events
         async def mock_execute_agent(
-            agent_name: str,  # noqa: ARG001
-            session: "Session",  # noqa: ARG001
-            message: "Content | None",  # noqa: ARG001
+            agent_name: str,
+            session: "Session",
+            message: "Content | None",
         ) -> AsyncGenerator["Event", None]:
             yield event1
             yield event2

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from google.adk import Runner
     from google.adk.agents import BaseAgent
     from google.adk.events import Event
+    from google.adk.plugins import BasePlugin
     from google.adk.sessions import Session
     from google.adk.sessions.base_session_service import BaseSessionService
     from google.genai import types as genai_types
@@ -410,7 +411,7 @@ class CompactingRunner:
     - For pre-existing session events: Estimate using litellm.token_counter
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         *,
         session_service: "BaseSessionService",
@@ -418,6 +419,7 @@ class CompactingRunner:
         max_tokens: int | None = None,
         model: str = "gpt-4",
         token_estimator: TokenEstimator | None = None,
+        plugins: list["BasePlugin"] | None = None,
     ) -> None:
         """Initialize the compacting runner.
 
@@ -428,6 +430,7 @@ class CompactingRunner:
             max_tokens: Maximum context window tokens. If None, uses model default.
             model: Model identifier for token estimation.
             token_estimator: Optional custom token estimator for testing.
+            plugins: Optional list of ADK plugins to pass to Runner.
 
         """
         self._session_service = session_service
@@ -435,6 +438,7 @@ class CompactingRunner:
         self._max_tokens = max_tokens
         self._model = model
         self._token_estimator = token_estimator or estimate_event_tokens
+        self._plugins = plugins or []
         self._runner_factory: RunnerFactory | None = None
 
     async def run(
@@ -570,6 +574,7 @@ class CompactingRunner:
             app_name=session.app_name,
             session_service=self._session_service,
             agent=agent,
+            plugins=self._plugins or None,
         )
 
     def _calculate_threshold(self) -> int:

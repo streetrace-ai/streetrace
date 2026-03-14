@@ -172,8 +172,8 @@ class TestNormalizedEscalationE2E:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -237,8 +237,8 @@ class TestNormalizedEscalationE2E:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -308,8 +308,8 @@ class TestEscalationWithReturnValue:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -385,7 +385,7 @@ class TestEscalationWithContinue:
         call_count = 0
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
+            agent_name: str,
             *args: object,
         ) -> AsyncGenerator["Event", None]:
             nonlocal call_count
@@ -460,8 +460,8 @@ class TestEscalationWithAbort:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -521,8 +521,8 @@ class TestBackwardCompatibility:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -595,8 +595,8 @@ class TestMultipleEscalationOperators:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -665,8 +665,8 @@ class TestMultipleEscalationOperators:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -735,8 +735,8 @@ class TestMultipleEscalationOperators:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -807,8 +807,8 @@ class TestMultipleEscalationOperators:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -1000,8 +1000,8 @@ class TestLoopWithEscalationPatterns:
         iteration = 0
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             nonlocal iteration
             iteration += 1
@@ -1086,7 +1086,7 @@ class TestLoopWithEscalationPatterns:
         )
 
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
+            agent_name: str,
             *args: object,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
@@ -1197,7 +1197,7 @@ class TestCompleteResolverExample:
 
         async def mock_run_agent(
             agent_name: str,
-            *args: object,  # noqa: ARG001
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             nonlocal call_count
             call_count += 1

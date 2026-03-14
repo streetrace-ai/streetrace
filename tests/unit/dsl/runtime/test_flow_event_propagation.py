@@ -303,9 +303,9 @@ class TestRunAsyncYieldsFlowEvents:
 
         # Mock _execute_agent to yield events
         async def mock_execute_agent(
-            name: str,  # noqa: ARG001
-            session: "Session",  # noqa: ARG001
-            message: "Content | None",  # noqa: ARG001
+            name: str,
+            session: "Session",
+            message: "Content | None",
         ) -> AsyncGenerator["Event", None]:
             yield mock_event
 
@@ -559,7 +559,7 @@ class TestSequentialAgentsYieldInterleavedEvents:
 
         async def mock_run_agent(
             agent_name: str,
-            *args: object,  # noqa: ARG001
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             nonlocal call_count
             if agent_name == "agent1":
@@ -645,8 +645,8 @@ class TestMixedFlowYieldsCorrectEventSequence:
 
         # Mock run_agent
         async def mock_run_agent(
-            agent_name: str,  # noqa: ARG001
-            *args: object,  # noqa: ARG001
+            agent_name: str,
+            *args: object,
         ) -> AsyncGenerator["Event", None]:
             yield agent_event
 
@@ -655,7 +655,7 @@ class TestMixedFlowYieldsCorrectEventSequence:
         # We also need to mock the context's call_llm method
         async def patched_execute_flow(
             flow_name: str,
-            session: "Session",  # noqa: ARG001
+            session: "Session",
             message: "Content | None",
         ) -> AsyncGenerator["Event | FlowEvent", None]:
             flow_method = getattr(workflow, f"flow_{flow_name}", None)
@@ -668,9 +668,9 @@ class TestMixedFlowYieldsCorrectEventSequence:
 
             # Mock call_llm on context
             async def mock_call_llm(
-                prompt_name: str,  # noqa: ARG001
-                *args: object,  # noqa: ARG001
-                model: str | None = None,  # noqa: ARG001
+                prompt_name: str,
+                *args: object,
+                model: str | None = None,
             ) -> AsyncGenerator[FlowEvent, None]:
                 yield llm_call_event
                 yield llm_response_event

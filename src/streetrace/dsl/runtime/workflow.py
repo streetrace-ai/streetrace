@@ -21,6 +21,7 @@ from streetrace.log import get_logger
 if TYPE_CHECKING:
     from google.adk.agents import BaseAgent
     from google.adk.events import Event
+    from google.adk.plugins import BasePlugin
     from google.adk.sessions import Session
     from google.adk.sessions.base_session_service import BaseSessionService
     from google.genai.types import Content
@@ -236,7 +237,13 @@ class DslAgentWorkflow:
         self._system_context = system_context
         self._session_service = session_service
         self._agent_factory = agent_factory
-        self._executor = AgentExecutor(session_service=session_service)
+
+        plugins = self._build_plugins()
+        self._executor = AgentExecutor(
+            session_service=session_service,
+            plugins=plugins,
+        )
+        self._plugins = plugins
         self._compaction_params_cls = CompactionParams
         self._session_deriver = SessionDeriver(session_service=session_service)
         self._compaction = CompactionOrchestrator(
@@ -249,6 +256,24 @@ class DslAgentWorkflow:
         self._created_agents: list[BaseAgent] = []
 
         logger.debug("Created %s", self.__class__.__name__)
+
+    def _build_plugins(self) -> "list[BasePlugin]":
+        """Build the list of ADK plugins for this workflow.
+
+        Create a GuardrailPlugin only if the generated subclass
+        overrides at least one event handler.
+
+        Returns:
+            List of BasePlugin instances (may be empty).
+
+        """
+        from streetrace.dsl.runtime.guardrail_plugin import GuardrailPlugin
+
+        plugin = GuardrailPlugin(workflow=self)
+        if plugin.has_any_handler():
+            logger.debug("GuardrailPlugin activated for %s", self.__class__.__name__)
+            return [plugin]
+        return []
 
     def _derive_session_identifiers(
         self,

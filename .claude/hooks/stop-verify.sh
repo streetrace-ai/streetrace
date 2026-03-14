@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Stop hook verification gate for streetrace.
-# Runs make check before allowing the agent to stop.
+# Runs make check_ci before allowing the agent to stop.
 # Blocks with reason if checks fail; allows stop if checks pass.
 
 set -euo pipefail
@@ -15,12 +15,12 @@ fi
 
 cd "$CLAUDE_PROJECT_DIR"
 
-CHECK_OUTPUT=$(make check 2>&1) || {
+CHECK_OUTPUT=$(make check_ci 2>&1) || {
   # Truncate output to last 800 chars to fit in the block reason
   TRIMMED="${CHECK_OUTPUT: -800}"
   # Escape for JSON
   ESCAPED=$(echo "$TRIMMED" | jq -Rs .)
-  echo "{\"decision\": \"block\", \"reason\": \"make check failed. Fix the issues and try again:\\n\"${ESCAPED}}"
+  echo "{\"decision\": \"block\", \"reason\": \"make check_ci failed. Fix the issues and try again:\\n\"${ESCAPED}}"
   exit 0
 }
 

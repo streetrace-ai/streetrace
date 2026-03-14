@@ -358,17 +358,18 @@ class TestDslAgentWorkflowRunAgentGenerator:
 
         def capture_runner(
             *,
-            app_name: str,  # noqa: ARG001
-            session_service: object,  # noqa: ARG001
-            agent: object,  # noqa: ARG001
+            app_name: str,
+            session_service: object,
+            agent: object,
+            plugins: object,
         ) -> MagicMock:
             nonlocal mock_runner
             return mock_runner
 
         def capture_run_async(
             *,
-            user_id: str,  # noqa: ARG001
-            session_id: str,  # noqa: ARG001
+            user_id: str,
+            session_id: str,
             new_message: object,
         ) -> AsyncGenerator:
             nonlocal captured_message
@@ -596,9 +597,10 @@ class TestMultipleAgentInterleaving:
 
         def make_runner(
             *,
-            app_name: str,  # noqa: ARG001
-            session_service: object,  # noqa: ARG001
-            agent: object,  # noqa: ARG001
+            app_name: str,
+            session_service: object,
+            agent: object,
+            plugins: object,
         ) -> MagicMock:
             nonlocal call_count
             mock_runner = MagicMock()

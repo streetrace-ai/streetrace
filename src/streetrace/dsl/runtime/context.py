@@ -6,12 +6,15 @@ Provide the execution context for generated DSL workflows.
 from __future__ import annotations
 
 import json
-import re
 from typing import TYPE_CHECKING
 
 from streetrace.dsl.runtime.events import (
     EscalationEvent,
     FlowEvent,
+)
+from streetrace.dsl.runtime.guardrail_provider import (
+    GuardrailContent,
+    GuardrailProvider,
 )
 from streetrace.log import get_logger
 
@@ -30,114 +33,6 @@ if TYPE_CHECKING:
     from streetrace.ui.ui_bus import UiBus
 
 logger = get_logger(__name__)
-
-# PII masking patterns
-_EMAIL_PATTERN = re.compile(
-    r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-)
-"""Pattern to match email addresses."""
-
-_PHONE_PATTERN = re.compile(
-    r"(?:\+?1[-.\s]?)?"  # Optional country code
-    r"(?:\(?\d{3}\)?[-.\s]?)"  # Area code
-    r"\d{3}[-.\s]?"  # First 3 digits
-    r"\d{4}",  # Last 4 digits
-)
-"""Pattern to match phone numbers in various formats."""
-
-_SSN_PATTERN = re.compile(
-    r"\d{3}[-.\s]?\d{2}[-.\s]?\d{4}",
-)
-"""Pattern to match Social Security Numbers."""
-
-_CREDIT_CARD_PATTERN = re.compile(
-    r"\d{4}[-.\s]?\d{4}[-.\s]?\d{4}[-.\s]?\d{4}",
-)
-"""Pattern to match credit card numbers."""
-
-# Jailbreak detection patterns (case insensitive)
-_JAILBREAK_PATTERNS = [
-    re.compile(r"ignore.*(?:previous|all).*instructions", re.IGNORECASE),
-    re.compile(r"(?:you are|act as).*(?:DAN|do anything)", re.IGNORECASE),
-    re.compile(r"pretend.*(?:no|without).*(?:restrictions|rules)", re.IGNORECASE),
-    re.compile(
-        r"(?:show|reveal|what is).*(?:system|initial).*(?:prompt|instruction)",
-        re.IGNORECASE,
-    ),
-    re.compile(r"bypass.*(?:safety|security|restrictions)", re.IGNORECASE),
-    re.compile(r"jailbreak", re.IGNORECASE),
-    re.compile(r"ignore.*(?:ethics|guidelines|policies)", re.IGNORECASE),
-]
-"""Patterns to detect common jailbreak attempts."""
-
-
-class GuardrailProvider:
-    """Provider for guardrail operations.
-
-    Handle masking, checking, and other guardrail actions.
-    """
-
-    async def mask(self, guardrail: str, message: str) -> str:
-        """Mask sensitive content in a message.
-
-        Apply regex-based masking for common PII types including
-        emails, phone numbers, SSNs, and credit card numbers.
-
-        Args:
-            guardrail: Name of the guardrail (e.g., 'pii').
-            message: Message to mask.
-
-        Returns:
-            Message with sensitive content masked.
-
-        """
-        logger.debug("Masking %s in message", guardrail)
-
-        if guardrail != "pii":
-            logger.warning("Unknown guardrail type for masking: %s", guardrail)
-            return message
-
-        result = message
-
-        # Mask credit cards first (16 digits can contain SSN/phone patterns)
-        result = _CREDIT_CARD_PATTERN.sub("[CREDIT_CARD]", result)
-
-        # Mask SSNs (before phones, as they have similar patterns)
-        result = _SSN_PATTERN.sub("[SSN]", result)
-
-        # Mask phone numbers
-        result = _PHONE_PATTERN.sub("[PHONE]", result)
-
-        # Mask emails
-        return _EMAIL_PATTERN.sub("[EMAIL]", result)
-
-    async def check(self, guardrail: str, message: str) -> bool:
-        """Check if a message triggers a guardrail.
-
-        Use pattern-based detection to identify common jailbreak
-        attempts and other security concerns.
-
-        Args:
-            guardrail: Name of the guardrail (e.g., 'jailbreak').
-            message: Message to check.
-
-        Returns:
-            True if the guardrail is triggered.
-
-        """
-        logger.debug("Checking %s guardrail", guardrail)
-
-        if guardrail != "jailbreak":
-            logger.warning("Unknown guardrail type for checking: %s", guardrail)
-            return False
-
-        # Check against jailbreak patterns
-        for pattern in _JAILBREAK_PATTERNS:
-            if pattern.search(message):
-                logger.warning("Jailbreak attempt detected: pattern match")
-                return True
-
-        return False
 
 
 class WorkflowContext:
@@ -159,11 +54,16 @@ class WorkflowContext:
         self.vars: dict[str, object] = {}
         """Variable storage for workflow execution."""
 
-        self.message: str = ""
+        self.message: GuardrailContent = ""
         """Current message being processed."""
+
+        self.event_phase: str = ""
+        """Current event phase for OTEL span attribution."""
 
         self.guardrails = GuardrailProvider()
         """Guardrail provider for security operations."""
+
+        self.guardrails._parent_ctx = self  # noqa: SLF001
 
         self._workflow = workflow
         """Reference to parent workflow for delegation."""

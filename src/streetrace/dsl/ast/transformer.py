@@ -1127,8 +1127,13 @@ class AstTransformer(Transformer):
         return items[0]
 
     def mask_action(self, items: TransformerItems) -> MaskAction:
-        """Transform mask_action rule."""
-        return MaskAction(guardrail=items[0])
+        """Transform mask_action rule.
+
+        Handle the form: "mask" identifier
+        The first item may be the MASK token due to keep_all_tokens=True.
+        """
+        filtered = _filter_children(items)
+        return MaskAction(guardrail=filtered[0])
 
     def block_action(self, items: TransformerItems) -> BlockAction:
         """Transform block_action rule.

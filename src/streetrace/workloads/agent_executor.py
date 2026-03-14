@@ -14,6 +14,7 @@ from streetrace.log import get_logger
 if TYPE_CHECKING:
     from google.adk.agents import BaseAgent
     from google.adk.events import Event
+    from google.adk.plugins import BasePlugin
     from google.adk.sessions import Session
     from google.adk.sessions.base_session_service import BaseSessionService
     from google.genai.types import Content
@@ -50,14 +51,17 @@ class AgentExecutor:
         self,
         *,
         session_service: "BaseSessionService",
+        plugins: list["BasePlugin"] | None = None,
     ) -> None:
         """Initialize the executor.
 
         Args:
             session_service: ADK session service for conversation persistence.
+            plugins: Optional list of ADK plugins to pass to Runner.
 
         """
         self._session_service = session_service
+        self._plugins = plugins or []
 
     async def run(
         self,
@@ -122,6 +126,7 @@ class AgentExecutor:
             app_name=session.app_name,
             session_service=self._session_service,
             agent=agent,
+            plugins=self._plugins or None,
         )
 
         event_stream = runner.run_async(
@@ -163,6 +168,7 @@ class AgentExecutor:
             compaction_strategy=compaction.strategy,
             max_tokens=compaction.max_tokens,
             model=compaction.model or "",
+            plugins=self._plugins or None,
         )
 
         event_stream = compacting_runner.run(
