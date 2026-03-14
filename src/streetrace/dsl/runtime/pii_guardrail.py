@@ -14,6 +14,18 @@ logger = get_logger(__name__)
 INSTALL_COMMAND = "pip install 'streetrace[guardrails]'"
 """Command users should run to install guardrail dependencies."""
 
+_EXCLUDED_ENTITY_TYPES = frozenset({
+    "URL",
+    "DATE_TIME",
+})
+"""Entity types excluded from PII masking.
+
+URLs and dates are not personally identifiable information. Presidio's
+URL recognizer false-positives on file paths (``README.md``) and its
+DATE_TIME recognizer matches time references (``5 minutes``) in
+documentation content.
+"""
+
 
 class _PresidioBackend:
     """Wrap Presidio analyzer and anonymizer engines.
@@ -43,7 +55,11 @@ class _PresidioBackend:
         """
         from presidio_anonymizer.entities import OperatorConfig
 
-        results = self._analyzer.analyze(text=text, language="en")
+        all_results = self._analyzer.analyze(text=text, language="en")
+        results = [
+            r for r in all_results
+            if r.entity_type not in _EXCLUDED_ENTITY_TYPES
+        ]
         operators = {
             r.entity_type: OperatorConfig(
                 "replace",

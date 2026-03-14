@@ -6,6 +6,8 @@ Designed for sub-2ms performance on typical inputs.
 
 from __future__ import annotations
 
+import re
+
 from streetrace.guardrails.prompt_proxy.patterns import (
     PATTERN_REGISTRY,
     PatternMatch,
@@ -20,6 +22,34 @@ SEVERITY_LEVELS: dict[str, int] = {
     "high": 2,
 }
 """Map severity names to numeric levels for threshold comparison."""
+
+_FENCED_CODE_BLOCK = re.compile(
+    r"^```[^\n]*\n.*?^```\s*$",
+    re.MULTILINE | re.DOTALL,
+)
+"""Match markdown fenced code blocks (triple-backtick delimited)."""
+
+_INLINE_CODE = re.compile(r"`[^`\n]+`")
+"""Match markdown inline code spans (single-backtick delimited)."""
+
+
+def _strip_markdown_code(text: str) -> str:
+    """Remove markdown code blocks and inline code from text.
+
+    Code blocks in documentation contain example commands that
+    would otherwise false-positive on shell injection patterns.
+    Stripping them preserves detection of actual injection
+    attempts in prose text.
+
+    Args:
+        text: Input text potentially containing markdown.
+
+    Returns:
+        Text with code blocks and inline code replaced by spaces.
+
+    """
+    stripped = _FENCED_CODE_BLOCK.sub(" ", text)
+    return _INLINE_CODE.sub(" ", stripped)
 
 
 class SyntacticFilter:
@@ -46,6 +76,9 @@ class SyntacticFilter:
     def check(self, text: str) -> list[PatternMatch]:
         """Check text against all registered patterns.
 
+        Strip markdown code blocks before scanning to avoid
+        false positives on documentation content.
+
         Args:
             text: Input text to scan.
 
@@ -53,6 +86,7 @@ class SyntacticFilter:
             List of pattern matches above the severity threshold.
 
         """
+        scannable = _strip_markdown_code(text)
         matches: list[PatternMatch] = []
 
         for category, patterns in PATTERN_REGISTRY.items():
@@ -61,7 +95,7 @@ class SyntacticFilter:
                 if entry_level < self._threshold_level:
                     continue
 
-                m = entry.pattern.search(text)
+                m = entry.pattern.search(scannable)
                 if m:
                     matches.append(
                         PatternMatch(
