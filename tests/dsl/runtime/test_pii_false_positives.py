@@ -45,6 +45,8 @@ def _build_backend_with_results(
     mock_anonymizer.anonymize.return_value = mock_anonymized
     backend._anonymizer = mock_anonymizer  # noqa: SLF001
 
+    backend._operator_config = MagicMock()  # noqa: SLF001
+
     return backend
 
 

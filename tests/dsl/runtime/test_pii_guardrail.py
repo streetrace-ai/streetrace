@@ -66,6 +66,7 @@ class TestPresidioBackendMasking:
         mock_anonymizer = MagicMock()
         mock_anonymizer.anonymize.return_value = mock_anonymized
         backend._anonymizer = mock_anonymizer  # noqa: SLF001
+        backend._operator_config = MagicMock()  # noqa: SLF001
 
         result = backend.mask_pii("Hi John at john@example.com")
 
@@ -92,6 +93,7 @@ class TestPresidioBackendMasking:
         mock_anonymizer = MagicMock()
         mock_anonymizer.anonymize.return_value = mock_anonymized
         backend._anonymizer = mock_anonymizer  # noqa: SLF001
+        backend._operator_config = MagicMock()  # noqa: SLF001
 
         result = backend.mask_pii("No PII here")
 

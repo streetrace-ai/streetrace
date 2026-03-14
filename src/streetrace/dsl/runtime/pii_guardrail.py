@@ -38,9 +38,11 @@ class _PresidioBackend:
         """Initialize Presidio engines."""
         import presidio_analyzer
         import presidio_anonymizer
+        from presidio_anonymizer.entities import OperatorConfig
 
         self._analyzer = presidio_analyzer.AnalyzerEngine()
         self._anonymizer = presidio_anonymizer.AnonymizerEngine()
+        self._operator_config = OperatorConfig
 
     def mask_pii(self, text: str) -> str:
         """Detect and anonymize PII in *text*.
@@ -53,15 +55,13 @@ class _PresidioBackend:
             such as ``[MASKED_EMAIL_ADDRESS]`` or ``[MASKED_PHONE_NUMBER]``.
 
         """
-        from presidio_anonymizer.entities import OperatorConfig
-
         all_results = self._analyzer.analyze(text=text, language="en")
         results = [
             r for r in all_results
             if r.entity_type not in _EXCLUDED_ENTITY_TYPES
         ]
         operators = {
-            r.entity_type: OperatorConfig(
+            r.entity_type: self._operator_config(
                 "replace",
                 {"new_value": f"[MASKED_{r.entity_type}]"},
             )
