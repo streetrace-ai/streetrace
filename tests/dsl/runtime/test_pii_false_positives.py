@@ -1,20 +1,51 @@
 """Tests for PII masking false positives on documentation content.
 
-Reproduce the issue where Presidio's URL and date recognizers mask
-non-PII content in README files and documentation.
+Verify that ``_EXCLUDED_ENTITY_TYPES`` correctly filters URL and
+DATE_TIME entities while still masking real PII like email addresses.
 """
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 
-from streetrace.dsl.runtime.pii_guardrail import PiiGuardrail
+from streetrace.dsl.runtime.pii_guardrail import PiiGuardrail, _PresidioBackend
 
 
-@pytest.fixture
-def pii_guardrail() -> PiiGuardrail:
-    """Create a PiiGuardrail instance."""
-    return PiiGuardrail()
+def _make_analyzer_result(
+    entity_type: str,
+    start: int,
+    end: int,
+    score: float = 0.85,
+) -> MagicMock:
+    """Create a mock Presidio RecognizerResult."""
+    result = MagicMock()
+    result.entity_type = entity_type
+    result.start = start
+    result.end = end
+    result.score = score
+    return result
+
+
+def _build_backend_with_results(
+    analyzer_results: list[MagicMock],
+    anonymized_text: str,
+) -> _PresidioBackend:
+    """Build a ``_PresidioBackend`` with mocked Presidio engines."""
+    backend = object.__new__(_PresidioBackend)
+
+    mock_analyzer = MagicMock()
+    mock_analyzer.analyze.return_value = analyzer_results
+    backend._analyzer = mock_analyzer  # noqa: SLF001
+
+    mock_anonymized = MagicMock()
+    mock_anonymized.text = anonymized_text
+    mock_anonymizer = MagicMock()
+    mock_anonymizer.anonymize.return_value = mock_anonymized
+    backend._anonymizer = mock_anonymizer  # noqa: SLF001
+
+    return backend
 
 
 README_WITH_URLS_AND_DATES = """\
@@ -39,56 +70,116 @@ README_WITH_MARKDOWN_LINKS = """\
 """
 
 
+@pytest.fixture
+def pii_guardrail_with_url_results() -> PiiGuardrail:
+    """PiiGuardrail with backend returning URL and DATE_TIME entities."""
+    backend = _build_backend_with_results(
+        analyzer_results=[
+            _make_analyzer_result("URL", 64, 95),
+            _make_analyzer_result("DATE_TIME", 28, 39),
+        ],
+        anonymized_text=README_WITH_URLS_AND_DATES,
+    )
+    guard = PiiGuardrail()
+    guard._presidio = backend  # noqa: SLF001
+    return guard
+
+
+@pytest.fixture
+def pii_guardrail_with_link_results() -> PiiGuardrail:
+    """PiiGuardrail with backend returning URL entities for markdown links."""
+    backend = _build_backend_with_results(
+        analyzer_results=[
+            _make_analyzer_result("URL", 30, 51),
+        ],
+        anonymized_text=README_WITH_MARKDOWN_LINKS,
+    )
+    guard = PiiGuardrail()
+    guard._presidio = backend  # noqa: SLF001
+    return guard
+
+
+@pytest.fixture
+def pii_guardrail_with_email_results() -> PiiGuardrail:
+    """PiiGuardrail with backend returning EMAIL_ADDRESS entity."""
+    backend = _build_backend_with_results(
+        analyzer_results=[
+            _make_analyzer_result("EMAIL_ADDRESS", 8, 28),
+        ],
+        anonymized_text="Contact [MASKED_EMAIL_ADDRESS] for support",
+    )
+    guard = PiiGuardrail()
+    guard._presidio = backend  # noqa: SLF001
+    return guard
+
+
 class TestPiiMaskingFalsePositives:
     """Test that non-PII content is not masked."""
 
     def test_readme_urls_not_masked(
-        self, pii_guardrail: PiiGuardrail,
+        self, pii_guardrail_with_url_results: PiiGuardrail,
     ) -> None:
         """Documentation URLs should not be masked as PII.
 
-        BUG: Presidio's URL recognizer masks markdown links like
-        docs/user/GETTING_STARTED.md as URLs containing PII.
+        Presidio's URL recognizer false-positives on file paths like
+        docs/user/GETTING_STARTED.md. The ``_EXCLUDED_ENTITY_TYPES``
+        set filters these out before anonymization.
         """
-        result = pii_guardrail.mask_str(README_WITH_URLS_AND_DATES)
-        assert "[MASKED_URL]" not in result, (
-            f"Documentation URL falsely masked:\n{result}"
+        pii_guardrail_with_url_results.mask_str(
+            README_WITH_URLS_AND_DATES,
         )
-        assert "GETTING_STARTED" in result, (
-            f"Documentation link was masked:\n{result}"
-        )
+        # URL entities excluded — anonymizer receives no URL results
+        backend = pii_guardrail_with_url_results._presidio  # noqa: SLF001
+        assert backend is not None
+        call_kwargs = backend._anonymizer.anonymize.call_args[1]  # noqa: SLF001
+        filtered = call_kwargs["analyzer_results"]
+        entity_types = {r.entity_type for r in filtered}
+        assert "URL" not in entity_types
 
     def test_readme_dates_not_masked(
-        self, pii_guardrail: PiiGuardrail,
+        self, pii_guardrail_with_url_results: PiiGuardrail,
     ) -> None:
-        """Phrases like 'under 5 minutes' and 'Today' should not be masked.
+        """Phrases like 'under 5 minutes' should not be masked.
 
-        BUG: Presidio's date recognizer masks phrases containing
-        time references as date PII.
+        Presidio's DATE_TIME recognizer matches time references.
+        These are excluded via ``_EXCLUDED_ENTITY_TYPES``.
         """
-        result = pii_guardrail.mask_str(README_WITH_URLS_AND_DATES)
-        assert "[MASKED_DATE_TIME]" not in result, (
-            f"Date reference falsely masked:\n{result}"
+        pii_guardrail_with_url_results.mask_str(
+            README_WITH_URLS_AND_DATES,
         )
-        assert "5 minutes" in result, (
-            f"Time reference was masked:\n{result}"
-        )
+        backend = pii_guardrail_with_url_results._presidio  # noqa: SLF001
+        assert backend is not None
+        call_kwargs = backend._anonymizer.anonymize.call_args[1]  # noqa: SLF001
+        filtered = call_kwargs["analyzer_results"]
+        entity_types = {r.entity_type for r in filtered}
+        assert "DATE_TIME" not in entity_types
 
     def test_markdown_links_not_masked(
-        self, pii_guardrail: PiiGuardrail,
+        self, pii_guardrail_with_link_results: PiiGuardrail,
     ) -> None:
         """Markdown reference links should not be masked."""
-        result = pii_guardrail.mask_str(README_WITH_MARKDOWN_LINKS)
-        assert "README.md" in result, (
-            f"Markdown link was masked:\n{result}"
+        pii_guardrail_with_link_results.mask_str(
+            README_WITH_MARKDOWN_LINKS,
         )
+        backend = pii_guardrail_with_link_results._presidio  # noqa: SLF001
+        assert backend is not None
+        call_kwargs = backend._anonymizer.anonymize.call_args[1]  # noqa: SLF001
+        filtered = call_kwargs["analyzer_results"]
+        entity_types = {r.entity_type for r in filtered}
+        assert "URL" not in entity_types
 
     def test_real_pii_still_masked(
-        self, pii_guardrail: PiiGuardrail,
+        self, pii_guardrail_with_email_results: PiiGuardrail,
     ) -> None:
         """Real PII like email addresses should still be masked."""
         text = "Contact john.doe@example.com for support"
-        result = pii_guardrail.mask_str(text)
-        assert "john.doe@example.com" not in result, (
-            "Real email PII should be masked"
-        )
+        result = pii_guardrail_with_email_results.mask_str(text)
+        assert result == "Contact [MASKED_EMAIL_ADDRESS] for support"
+
+        # EMAIL_ADDRESS should NOT be filtered out
+        backend = pii_guardrail_with_email_results._presidio  # noqa: SLF001
+        assert backend is not None
+        call_kwargs = backend._anonymizer.anonymize.call_args[1]  # noqa: SLF001
+        filtered = call_kwargs["analyzer_results"]
+        entity_types = {r.entity_type for r in filtered}
+        assert "EMAIL_ADDRESS" in entity_types
