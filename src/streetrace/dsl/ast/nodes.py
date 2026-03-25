@@ -268,6 +268,14 @@ class RetryStepStmt:
     meta: SourcePosition | None = None
 
 
+@dataclass
+class FailStmt:
+    """Fail tool-call statement node."""
+
+    message: AstNode
+    meta: SourcePosition | None = None
+
+
 # =============================================================================
 # Control Flow Nodes
 # =============================================================================
@@ -481,6 +489,7 @@ class AgentDef:
     prompt_meta: "SourcePosition | None" = None  # Position of prompt field
     produces: str | None = None  # Default output variable name
     history: str | None = None  # History management: "summarize" or "truncate"
+    handlers: list["EventHandler"] = field(default_factory=list)  # Scoped handlers
     meta: SourcePosition | None = None
 
 

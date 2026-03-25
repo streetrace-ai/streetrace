@@ -22,6 +22,7 @@ from streetrace.dsl.ast.nodes import (
     EscalationCondition,
     EscalationHandler,
     EventHandler,
+    FailStmt,
     FailureBlock,
     FilterExpr,
     FlowDef,
@@ -50,6 +51,7 @@ from streetrace.dsl.ast.nodes import (
     RetryAction,
     RetryPolicyDef,
     ReturnStmt,
+    RetryStepStmt,
     RunStmt,
     SchemaDef,
     SchemaField,
@@ -1255,17 +1257,37 @@ class AstTransformer(Transformer):
             prompt_meta=body.get("prompt_meta"),
             produces=body.get("produces"),
             history=body.get("history"),
+            handlers=body.get("handlers", []),
             meta=_meta_to_position(meta),
         )
 
     def agent_body(self, items: TransformerItems) -> dict:
-        """Transform agent_body rule."""
+        """Transform agent_body rule.
+
+        Accumulate agent properties and scoped event handlers from agent items.
+        """
         result = {}
         filtered = _filter_children(items)
         for item in filtered:
             if isinstance(item, dict):
-                result.update(item)
+                # Handle merged properties and the special 'handlers' list
+                for key, value in item.items():
+                    if key == "handlers" and key in result:
+                        result[key].extend(value)
+                    else:
+                        result[key] = value
         return result
+
+    def agent_item(self, items: TransformerItems) -> dict:
+        """Transform agent_item rule."""
+        filtered = _filter_children(items)
+        return filtered[0] if filtered else {}
+
+    def agent_event_handler(self, items: TransformerItems) -> dict:
+        """Transform agent_event_handler rule."""
+        filtered = _filter_children(items)
+        handler = filtered[0] if filtered else None
+        return {"handlers": [handler]} if handler else {}
 
     def agent_property(self, items: TransformerItems) -> AstNode:
         """Transform agent_property rule - pass through."""

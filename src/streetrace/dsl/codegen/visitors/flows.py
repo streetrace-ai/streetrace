@@ -16,6 +16,7 @@ from streetrace.dsl.ast.nodes import (
     ContinueStmt,
     EscalateStmt,
     EscalationHandler,
+    FailStmt,
     FailureBlock,
     FlowDef,
     ForLoop,
@@ -853,6 +854,20 @@ class FlowVisitor:
         message = self._expr_visitor.visit(node.message)
         self._emitter.emit(
             f"raise RetryStepError({message})",
+            source_line=source_line,
+        )
+
+    def _visit_fail_stmt(self, node: FailStmt) -> None:
+        """Generate code for fail tool-call statement.
+
+        Args:
+            node: Fail tool-call statement node.
+
+        """
+        source_line = node.meta.line if node.meta else None
+        message = self._expr_visitor.visit(node.message)
+        self._emitter.emit(
+            f"raise FailError({message})",
             source_line=source_line,
         )
 

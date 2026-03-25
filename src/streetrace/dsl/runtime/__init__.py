@@ -8,6 +8,7 @@ from streetrace.dsl.runtime.errors import (
     AbortError,
     BlockedInputError,
     DslRuntimeError,
+    FailError,
     RetryInputError,
     RetryStepError,
 )
@@ -19,6 +20,7 @@ __all__ = [
     "BlockedInputError",
     "DslAgentWorkflow",
     "DslRuntimeError",
+    "FailError",
     "RetryInputError",
     "RetryStepError",
     "WorkflowContext",

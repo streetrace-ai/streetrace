@@ -325,6 +325,8 @@ def _count_definitions(ast: DslFile) -> dict[str, int]:
             counts["models"] += 1
         elif isinstance(stmt, AgentDef):
             counts["agents"] += 1
+            # Also count scoped handlers
+            counts["handlers"] += len(stmt.handlers)
         elif isinstance(stmt, FlowDef):
             counts["flows"] += 1
         elif isinstance(stmt, EventHandler):

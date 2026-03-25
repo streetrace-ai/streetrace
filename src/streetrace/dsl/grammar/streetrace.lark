@@ -264,7 +264,10 @@ expression_stmt: function_call
 
 agent_def: "agent" NAME? ":" _NL _INDENT agent_body _DEDENT
 
-agent_body: agent_property+
+agent_body: agent_item+
+
+agent_item: agent_property
+          | event_handler _NL?                        -> agent_event_handler
 
 agent_property: "tools" name_list _NL                 -> agent_tools
               | "instruction" NAME _NL                -> agent_instruction
@@ -507,7 +510,7 @@ contextual_keyword: "escalate" | "match" | "from" | "to" | "agent" | "model"
                   | "fixed" | "exponential" | "linear" | "basic" | "bearer"
                   | "backoff" | "times" | "instruction" | "tools" | "description"
                   | "expecting" | "using" | "inherit" | "delegate" | "loop" | "max"
-                  | "filter" | "where" | "with" | "produces" | "history"
+                  | "filter" | "where" | "with" | "produces" | "history" | "fail"
 
 // Contextual names - includes NAME and contextual keywords
 // Used for property access where keywords can appear after dot

@@ -193,6 +193,12 @@ class WorkflowVisitor:
         for handler in self._handlers:
             handler_visitor.visit(handler)
 
+        # Emit agent scoped handlers
+        for agent in self._agents:
+            if agent.name and agent.handlers:
+                for handler in agent.handlers:
+                    handler_visitor.visit(handler, agent_name=agent.name)
+
         # Emit flow methods
         agents_by_name = {a.name: a for a in self._agents if a.name}
         flow_visitor = FlowVisitor(self._emitter, agents=agents_by_name)
