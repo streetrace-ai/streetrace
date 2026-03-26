@@ -207,7 +207,7 @@ def _resolve_builtin_refs(
     """
     if "fs_readonly" in ref_key:
         return [
-            StreetraceToolRef(module="fs_tool", function=func)
+            StreetraceToolRef(module="fs_readonly_tool", function=func)
             for func in fs_readonly_functions
         ]
     if "fs" in ref_key:

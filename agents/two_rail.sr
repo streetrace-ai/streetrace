@@ -24,6 +24,7 @@ schema SafetyScore:
 
 # --- TOOLS ---
 tool fs = builtin streetrace.fs
+tool fs_readonly = builtin streetrace.fs_readonly
 
 # --- POLICIES ---
 # Implements "Forcing Intent Realignment" via compaction
@@ -31,24 +32,12 @@ tool fs = builtin streetrace.fs
 policy intent_realignment:
     strategy: summarize
     preserve: ["initial_user_prompt", "goals", "plan"]
-    trigger: completion_count > 0 
+    trigger: completion_count > 0
 
 # --- PROMPTS ---
-prompt planner_instruction: """You are a PLANNING AGENT.
+prompt planner_instruction expecting PhasedPlan: """You are a PLANNING AGENT.
 Your goal is to create a rigid blueprint (PhasedPlan) before any action is taken.
-You have READ-ONLY access. Do not attempt to modify any system state.
-
-Respond ONLY with JSON matching this schema:
-{
-  "goals": ["string"],
-  "tasks": [
-    {
-      "id": "string",
-      "description": "string",
-      "expected_outcome": "string"
-    }
-  ]
-}"""
+You have READ-ONLY access. Do not attempt to modify any system state."""
 
 prompt safety_judge: """Evaluate the proposed action provided in the context against the plan.
 
@@ -65,13 +54,13 @@ Follow the provided plan strictly. Mark tasks as complete when done."""
 # --- AGENTS ---
 agent Planner:
     instruction planner_instruction
-    produces plan # PhasedPlan
+    tools fs_readonly
 
 agent Actor:
     instruction actor_instruction
     tools fs
     history intent_realignment
-    
+
     # Scoped Safety Rail for Actor
     on tool-call do
         # Trigger a "second opinion" from the thinking rail
