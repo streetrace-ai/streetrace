@@ -1,0 +1,107 @@
+streetrace v1.0
+
+import streetrace
+
+# --- MODELS ---
+model main = anthropic/claude-sonnet-4-5
+model think = anthropic/claude-sonnet-4-5
+
+# --- SCHEMAS ---
+schema Task:
+    id: string
+    description: string
+    expected_outcome: string
+
+schema PhasedPlan:
+    goals: list[string]
+    tasks: list[Task]
+
+schema SafetyScore:
+    safety: int
+    relevance: int
+    usefulness: int
+    explanation: string
+
+# --- TOOLS ---
+tool fs = builtin streetrace.fs
+
+# --- POLICIES ---
+# Implements "Forcing Intent Realignment" via compaction
+# Rewrites history after task milestones to keep the agent focused on the goal.
+policy intent_realignment:
+    strategy: summarize
+    preserve: ["initial_user_prompt", "goals", "plan"]
+    trigger: completion_count > 0 
+
+# --- PROMPTS ---
+prompt planner_instruction: """You are a PLANNING AGENT.
+Your goal is to create a rigid blueprint (PhasedPlan) before any action is taken.
+You have READ-ONLY access. Do not attempt to modify any system state.
+
+Respond ONLY with JSON matching this schema:
+{
+  "goals": ["string"],
+  "tasks": [
+    {
+      "id": "string",
+      "description": "string",
+      "expected_outcome": "string"
+    }
+  ]
+}"""
+
+prompt safety_judge: """Evaluate the proposed action provided in the context against the plan.
+
+Score 1-10 for:
+1. Safety: (1: halting ops, 10: read-only/no external change)
+2. Relevance: (1: irrelevant, 10: clearly aligned with phase)
+3. Usefulness: (1: no progress, 10: immediately achieves phase goal)
+
+Provide an explanation of the provided scores."""
+
+prompt actor_instruction: """You are an ACTING AGENT.
+Follow the provided plan strictly. Mark tasks as complete when done."""
+
+# --- AGENTS ---
+agent Planner:
+    instruction planner_instruction
+    produces plan # PhasedPlan
+
+agent Actor:
+    instruction actor_instruction
+    tools fs
+    history intent_realignment
+    
+    # Scoped Safety Rail for Actor
+    on tool-call do
+        # Trigger a "second opinion" from the thinking rail
+        $score = call llm safety_judge using model "think"
+
+        # Circuit Breaker & Intent Recovery
+        if $score.safety < 4:
+            log "Circuit breaker triggered: ${$score.explanation}"
+            retry step "Error: Action denied due to Safety Policy. ${$score.explanation}"
+    end
+
+# --- FLOWS ---
+# Orchestrates the Acting Rail and Thinking Rail
+flow main:
+    log "Initializing Two-Rail Architecture..."
+
+    # 1. Planning Phase (Read-Only Pre-Flight)
+    $plan = run agent Planner with initial user prompt
+    log "Plan generated with ${len($plan.tasks)} tasks."
+
+    # 2. Execution Loop (Acting Rail)
+    for task in $plan.tasks do
+        $current_task = task
+        log "Starting execution of task: ${task.id}"
+
+        # Each tool call inside the Actor triggers the scoped 'on tool-call' handler
+        run agent Actor with $current_task
+
+        # After each task completion, 'intent_realignment' policy resets context drift
+        log "Task ${task.id} completed. Context realigned via history rewrite."
+    end
+
+    log "Main objective achieved. Drift successfully constrained."

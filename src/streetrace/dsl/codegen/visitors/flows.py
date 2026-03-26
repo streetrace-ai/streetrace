@@ -393,8 +393,9 @@ class FlowVisitor:
 
         # Assign result to target or produces variable
         if node.target:
+            target_name = node.target.lstrip("$")
             self._emitter.emit(
-                f"ctx.vars['{node.target}'] = ctx.get_last_result()",
+                f"ctx.vars['{target_name}'] = ctx.get_last_result()",
             )
         elif produces_name:
             self._emitter.emit(
@@ -796,7 +797,7 @@ class FlowVisitor:
 
         """
         parts = var_expr.split(".")
-        base = parts[0].strip()
+        base = parts[0].strip().lstrip("$")
         result = f"ctx.vars['{base}']"
 
         for prop in parts[1:]:

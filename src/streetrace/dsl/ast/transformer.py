@@ -2315,7 +2315,9 @@ class AstTransformer(Transformer):
     def var_dotted(self, items: TransformerItems) -> PropertyAccess:
         """Transform var_dotted rule (e.g., $var.prop.nested)."""
         filtered = _filter_children(items)
-        dotted_name = filtered[0]
+        # Skip leading $ if present - ensure string comparison for tokens
+        first_val = str(filtered[0]) if filtered else ""
+        dotted_name = filtered[1] if first_val == "$" else filtered[0]
         parts = dotted_name.split(".")
         base = VarRef(name=parts[0])
         return PropertyAccess(base=base, properties=parts[1:])
