@@ -569,6 +569,7 @@ class DslAgentWorkflow:
         self,
         agent_name: str,
         *args: object,
+        history: list[dict[str, object]] | None = None,
     ) -> AsyncGenerator["Event | FlowEvent", None]:
         """Run an agent from within a flow, yielding events.
 
@@ -583,6 +584,7 @@ class DslAgentWorkflow:
         Args:
             agent_name: Name of the agent to run.
             *args: Arguments to pass to the agent.
+            history: Optional conversation history to seed the session.
 
         Yields:
             ADK events from agent execution.
@@ -595,7 +597,9 @@ class DslAgentWorkflow:
         schema_info = self._resolve_agent_schema(agent_name)
 
         # Execute agent and collect response
-        final_response, events = await self._execute_agent_run(agent_name, *args)
+        final_response, events = await self._execute_agent_run(
+            agent_name, *args, history=history,
+        )
 
         # Yield all collected events
         for event in events:
@@ -615,6 +619,7 @@ class DslAgentWorkflow:
                     raw_response=str(final_response) if final_response else "",
                     schema_info=schema_info,
                     args=args,
+                    history=history,
                 )
                 self._context._last_call_result = result  # noqa: SLF001
 
@@ -630,6 +635,7 @@ class DslAgentWorkflow:
         self,
         agent_name: str,
         *args: object,
+        history: list[dict[str, object]] | None = None,
     ) -> tuple[object, list["Event"]]:
         """Execute an agent from a flow, collecting events and final response.
 
@@ -639,11 +645,13 @@ class DslAgentWorkflow:
         Args:
             agent_name: Name of the agent to run.
             *args: Arguments to pass to the agent.
+            history: Optional conversation history to seed the session.
 
         Returns:
             Tuple of (final_response, collected_events).
 
         """
+        from google.adk.events import Event as AdkEvent
         from google.genai import types as genai_types
 
         agent = await self._create_agent(agent_name)
@@ -673,6 +681,38 @@ class DslAgentWorkflow:
             app_name, user_id, session_id,
         )
 
+        # Seed session with history if provided
+        if history:
+            logger.debug("_execute_agent_run(%s): seeding history with %d items", agent_name, len(history))
+            adk_events = []
+            for msg in history:
+                if not isinstance(msg, dict):
+                    # Fallback for unexpected string items in history
+                    logger.warning("_execute_agent_run(%s): history item is not a dict: %r", agent_name, msg)
+                    text = str(msg)
+                    role = "user"
+                else:
+                    role = str(msg.get("role", "user"))
+                    text = str(msg.get("content", ""))
+                
+                # ADK roles are "user" or agent name
+                author = "user" if role == "user" else agent_name
+                adk_event = AdkEvent(
+                    author=author,
+                    content=genai_types.Content(
+                        role="user" if role == "user" else "model",
+                        parts=[genai_types.Part.from_text(text=text)],
+                    ),
+                )
+                adk_events.append(adk_event)
+
+            # Replace events in the session with provided history
+            # This effectively "seeds" the conversation
+            await self._session_service.replace_events(
+                session=existing,
+                new_events=adk_events,
+            )
+
         # Resolve compaction parameters
         compaction = self._build_compaction_params(agent_name)
 
@@ -698,6 +738,7 @@ class DslAgentWorkflow:
         raw_response: str,
         schema_info: SchemaInfo,
         args: tuple[object, ...],
+        history: list[dict[str, object]] | None = None,
     ) -> object:
         """Validate agent result with one retry on failure.
 
@@ -706,6 +747,7 @@ class DslAgentWorkflow:
             raw_response: The raw response text to validate.
             schema_info: Resolved schema information.
             args: Original args for retry.
+            history: Optional conversation history to seed the session.
 
         Returns:
             Validated result, or empty fallback on failure.
@@ -734,7 +776,9 @@ class DslAgentWorkflow:
         )
         retry_args = (*args, error_feedback)
 
-        retry_response, _ = await self._execute_agent_run(agent_name, *retry_args)
+        retry_response, _ = await self._execute_agent_run(
+            agent_name, *retry_args, history=history,
+        )
 
         # Second attempt
         try:

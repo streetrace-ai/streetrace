@@ -16,28 +16,32 @@ schema PhasedPlan:
     goals: list[string]
     tasks: list[Task]
 
-schema SafetyScore:
-    safety: int
-    relevance: int
-    usefulness: int
-    explanation: string
-
 # --- TOOLS ---
 tool fs = builtin streetrace.fs
 tool fs_readonly = builtin streetrace.fs_readonly
 
 # --- POLICIES ---
-# Implements "Forcing Intent Realignment" via compaction
-# Rewrites history after task milestones to keep the agent focused on the goal.
 policy intent_realignment:
     strategy: summarize
     preserve: ["initial_user_prompt", "goals", "plan"]
-    trigger: completion_count > 0
+    trigger: completion_count > 0 
 
 # --- PROMPTS ---
 prompt planner_instruction expecting PhasedPlan: """You are a PLANNING AGENT.
 Your goal is to create a rigid blueprint (PhasedPlan) before any action is taken.
-You have READ-ONLY access. Do not attempt to modify any system state."""
+You have READ-ONLY access. Do not attempt to modify any system state.
+
+Respond ONLY with JSON matching this schema:
+{
+  "goals": ["string"],
+  "tasks": [
+    {
+      "id": "string",
+      "description": "string",
+      "expected_outcome": "string"
+    }
+  ]
+}"""
 
 prompt safety_judge: """Evaluate the proposed action provided in the context against the plan.
 
@@ -60,7 +64,7 @@ agent Actor:
     instruction actor_instruction
     tools fs
     history intent_realignment
-
+    
     # Scoped Safety Rail for Actor
     on tool-call do
         # Trigger a "second opinion" from the thinking rail
@@ -76,21 +80,29 @@ agent Actor:
 # Orchestrates the Acting Rail and Thinking Rail
 flow main:
     log "Initializing Two-Rail Architecture..."
+    $history = []
 
     # 1. Planning Phase (Read-Only Pre-Flight)
     $plan = run agent Planner with initial user prompt
     log "Plan generated with ${len($plan.tasks)} tasks."
+    
+    # Seed history with the initial intent and the generated plan
+    push initial user prompt as user to $history
+    push $plan as assistant to $history
 
     # 2. Execution Loop (Acting Rail)
     for task in $plan.tasks do
         $current_task = task
         log "Starting execution of task: ${task.id}"
 
-        # Each tool call inside the Actor triggers the scoped 'on tool-call' handler
-        run agent Actor with $current_task
+        # Run Actor with the accumulated history
+        $result = run agent Actor with $current_task history $history
 
-        # After each task completion, 'intent_realignment' policy resets context drift
-        log "Task ${task.id} completed. Context realigned via history rewrite."
+        # Update history for the next task
+        push "Next Task: ${task.description}" as user to $history
+        push $result as assistant to $history
+
+        log "Task ${task.id} completed."
     end
 
     log "Main objective achieved. Drift successfully constrained."

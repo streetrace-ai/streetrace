@@ -370,10 +370,12 @@ assignment: variable "=" expression
 // Agent names and flow names can be keywords (identifier allows this)
 // Flows are called with "run flow_name [args]" syntax
 // Optional escalation_handler: ", on escalate <action>"
-run_stmt: variable "=" "run" "agent" identifier ("with" expression)? escalation_handler?
-        | "run" "agent" identifier ("with" expression)? escalation_handler?
+run_stmt: variable "=" "run" "agent" identifier ("with" expression)? history_clause? escalation_handler?
+        | "run" "agent" identifier ("with" expression)? history_clause? escalation_handler?
         | variable "=" "run" identifier ("with" expression)? escalation_handler?  -> run_flow_assign
         | "run" identifier ("with" expression)? escalation_handler?  -> run_flow
+
+history_clause: "history" variable
 
 // Escalation handler for run statements
 // Syntax: , on escalate <action>
@@ -390,7 +392,7 @@ call_modifiers: "using" "model" interpolated_string
 
 return_stmt: "return" expression
 
-push_stmt: "push" expression "to" variable
+push_stmt: "push" expression ["as" identifier] "to" variable
 
 escalate_stmt: "escalate" "to" "human" STRING?
 
@@ -506,11 +508,12 @@ contextual_keyword: "escalate" | "match" | "from" | "to" | "agent" | "model"
                   | "jailbreak" | "pii" | "not" | "item" | "items"
                   | "last" | "messages" | "goal" | "drift" | "trajectory"
                   | "detect" | "get" | "builtin" | "mcp" | "process"
-                  | "timeout" | "initial" | "user" | "llm" | "step"
+                  | "timeout" | "initial" | "user" | "assistant" | "system" | "llm" | "step"
                   | "fixed" | "exponential" | "linear" | "basic" | "bearer"
                   | "backoff" | "times" | "instruction" | "tools" | "description"
                   | "expecting" | "using" | "inherit" | "delegate" | "loop" | "max"
                   | "filter" | "where" | "with" | "produces" | "history" | "fail"
+                  | "as"
 
 // Contextual names - includes NAME and contextual keywords
 // Used for property access where keywords can appear after dot

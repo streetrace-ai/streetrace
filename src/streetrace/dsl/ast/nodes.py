@@ -181,6 +181,7 @@ class RunStmt:
     target: str | None  # None if no assignment
     agent: str  # Agent or flow name
     input: AstNode | None = None  # Optional input expression (with keyword)
+    history: str | None = None  # Optional history variable reference
     meta: SourcePosition | None = None
     is_flow: bool = False  # True for flow calls, False for agent calls
     escalation_handler: "EscalationHandler | None" = None  # on escalate clause
@@ -207,10 +208,11 @@ class ReturnStmt:
 
 @dataclass
 class PushStmt:
-    """Push statement node (e.g., push $item to $results)."""
+    """Push statement node (e.g., push user $item to $results)."""
 
     value: AstNode
     target: str
+    role: str | None = None  # user, assistant, system
     meta: SourcePosition | None = None
 
 

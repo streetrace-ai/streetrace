@@ -337,10 +337,12 @@ class FlowVisitor:
             source_line: Source line number for mapping.
 
         """
+        history_arg = f", history=ctx.resolve('{node.history}')" if node.history else ""
+
         if input_str:
-            call = f"ctx.run_agent_with_escalation('{node.agent}', {input_str})"
+            call = f"ctx.run_agent_with_escalation('{node.agent}', {input_str}{history_arg})"
         else:
-            call = f"ctx.run_agent_with_escalation('{node.agent}')"
+            call = f"ctx.run_agent_with_escalation('{node.agent}'{history_arg})"
 
         self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
         self._emitter.indent()
@@ -381,10 +383,12 @@ class FlowVisitor:
 
         """
         method = "run_flow" if node.is_flow else "run_agent"
+        history_arg = f", history=ctx.resolve('{node.history}')" if node.history and not node.is_flow else ""
+
         if input_str:
-            call = f"ctx.{method}('{node.agent}', {input_str})"
+            call = f"ctx.{method}('{node.agent}', {input_str}{history_arg})"
         else:
-            call = f"ctx.{method}('{node.agent}')"
+            call = f"ctx.{method}('{node.agent}'{history_arg})"
 
         self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
         self._emitter.indent()
@@ -474,16 +478,28 @@ class FlowVisitor:
     def _visit_push_stmt(self, node: PushStmt) -> None:
         """Generate code for push statement.
 
+        If a role is specified, push a conversation message dictionary.
+        Otherwise, push the raw value.
+
         Args:
             node: Push statement node.
 
         """
         source_line = node.meta.line if node.meta else None
         value = self._expr_visitor.visit(node.value)
-        self._emitter.emit(
-            f"ctx.vars['{node.target}'].append({value})",
-            source_line=source_line,
-        )
+
+        if node.role:
+            # Push a conversation message: {"role": role, "content": value}
+            self._emitter.emit(
+                f"ctx.vars['{node.target}'].append({{'role': '{node.role}', 'content': {value}}})",
+                source_line=source_line,
+            )
+        else:
+            # Push raw value
+            self._emitter.emit(
+                f"ctx.vars['{node.target}'].append({value})",
+                source_line=source_line,
+            )
 
     def _visit_for_loop(self, node: ForLoop) -> None:
         """Generate code for for loop.

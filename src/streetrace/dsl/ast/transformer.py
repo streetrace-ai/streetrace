@@ -229,12 +229,14 @@ def _filter_children(items: TransformerItems) -> list:
                 "FAILURE",
                 "INITIAL",
                 "USER",
+                "ASSISTANT",
+                "SYSTEM",
                 "DETECT",
                 "GET",
                 "GOAL",
                 "PROCESS",
-                "AND",
-                "OR",
+                "AS",
+                "HISTORY",
                 "NOT",
                 "CONTAINS",
                 "TRUE",
@@ -245,7 +247,6 @@ def _filter_children(items: TransformerItems) -> list:
                 "TOOLS",
                 "INSTRUCTION",
                 "PRODUCES",
-                "HISTORY",
                 "FILTER",
                 "WHERE",
             }:
@@ -1909,22 +1910,25 @@ class AstTransformer(Transformer):
         """Transform run_stmt rule.
 
         Handle run statement forms:
-        - variable "=" "run" "agent" identifier ("with" expression)? escalation_handler?
-        - "run" "agent" identifier ("with" expression)? escalation_handler?
+        - variable "=" "run" "agent" identifier ("with" expression)? history_clause? escalation_handler?
+        - "run" "agent" identifier ("with" expression)? history_clause? escalation_handler?
         """
         target = None
         agent = None
         input_expr: AstNode | None = None
+        history: str | None = None
         escalation: EscalationHandler | None = None
 
         # Keywords to skip (Lark tokens that should not be treated as identifiers)
-        skip_tokens = {"=", "run", "agent", "with"}
+        skip_tokens = {"=", "run", "agent", "with", "history"}
 
         for i, item in enumerate(items):
             if isinstance(item, EscalationHandler):
                 escalation = item
             elif isinstance(item, VarRef) and target is None and i == 0:
                 target = item.name
+            elif isinstance(item, dict) and "history" in item:
+                history = item["history"]
             elif isinstance(item, NameRef):
                 if agent is None:
                     agent = item.name
@@ -1956,9 +1960,18 @@ class AstTransformer(Transformer):
             target=target,
             agent=agent or "",
             input=input_expr,
+            history=history,
             meta=_meta_to_position(meta),
             escalation_handler=escalation,
         )
+
+    def history_clause(self, items: TransformerItems) -> dict:
+        """Transform history_clause rule."""
+        # Directly extract variable from items to avoid _filter_children skipping keywords
+        for item in items:
+            if isinstance(item, VarRef):
+                return {"history": item.name}
+        return {}
 
     @v_args(meta=True)
     def run_flow_assign(  # noqa: C901, PLR0912
@@ -2124,19 +2137,72 @@ class AstTransformer(Transformer):
         value = filtered[0] if filtered else None
         return ReturnStmt(value=value, meta=_meta_to_position(meta))
 
-    def push_stmt(self, items: TransformerItems) -> PushStmt:
+    @v_args(meta=True)
+    def push_stmt(self, meta: object, items: TransformerItems) -> PushStmt:
         """Transform push_stmt rule.
 
-        Grammar: push_stmt: "push" expression "to" variable
-        With keep_all_tokens, items include keyword tokens.
+        Grammar: push_stmt: "push" expression ["as" identifier] "to" variable
         """
-        filtered = _filter_children(items)
-        value = filtered[0]
-        target_var = filtered[1]
+        # We need to find: expression, optional role, and variable
+        # Since keep_all_tokens=True, keywords like 'as', 'user' are tokens.
+        # But some items are already transformed (like expression).
+        
+        # Strategy: 
+        # 1. Skip 'push' token
+        # 2. First non-keyword item is the expression
+        # 3. If 'as' token is present, next item is the role
+        # 4. Last non-keyword item is the target variable
+        
+        filtered = []
+        has_as = False
+        for item in items:
+            if isinstance(item, Token):
+                if item.type == "PUSH":
+                    continue
+                if item.type == "AS":
+                    has_as = True
+                    continue
+                if item.type == "TO":
+                    continue
+                if item.type == "DOLLAR":
+                    continue
+                # If it's one of the role tokens, and we have 'as', keep it as role
+                if has_as and len(filtered) == 1:
+                    filtered.append(str(item))
+                    continue
+                # Skip other keyword tokens that are part of noise but not values
+                if item.type in NOISE_TOKENS or item.type in {
+                    "SCHEMA", "MODEL", "TOOL", "AGENT", "FLOW", "PROMPT"
+                }:
+                    continue
+            filtered.append(item)
+
+        role = None
+        if has_as and len(filtered) >= 3:
+            # Format: push expression as role to variable
+            # expression is everything before role
+            # role is second to last item (if as was present)
+            # variable is last item
+            role = str(filtered[-2])
+            target_var = filtered[-1]
+            value = filtered[0] # Simplification, should ideally be BinaryOp if multiple
+        elif len(filtered) >= 2:
+            # Format: push expression to variable
+            target_var = filtered[-1]
+            value = filtered[0]
+        else:
+            msg = f"Invalid push statement: {filtered}"
+            raise ValueError(msg)
+
         target_str = (
             target_var.name if isinstance(target_var, VarRef) else str(target_var)
         )
-        return PushStmt(value=value, target=target_str)
+        return PushStmt(
+            value=value,
+            target=target_str,
+            role=role,
+            meta=_meta_to_position(meta),
+        )
 
     def escalate_stmt(self, items: TransformerItems) -> EscalateStmt:
         """Transform escalate_stmt rule."""
