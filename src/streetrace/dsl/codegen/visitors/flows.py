@@ -5,7 +5,6 @@ Generate Python code for flow definitions and control flow statements.
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 from streetrace.dsl.ast.nodes import (
@@ -16,11 +15,11 @@ from streetrace.dsl.ast.nodes import (
     ContinueStmt,
     EscalateStmt,
     EscalationHandler,
+    FailStmt,
     FailureBlock,
     FlowDef,
     ForLoop,
     IfBlock,
-    Literal,
     LogStmt,
     LoopBlock,
     MatchBlock,
@@ -85,6 +84,7 @@ class FlowVisitor:
             ContinueStmt: self._visit_continue_stmt,  # type: ignore[dict-item]
             AbortStmt: self._visit_abort_stmt,  # type: ignore[dict-item]
             RetryStepStmt: self._visit_retry_step_stmt,  # type: ignore[dict-item]
+            FailStmt: self._visit_fail_stmt,  # type: ignore[dict-item]
             LoopBlock: self._visit_loop_block,  # type: ignore[dict-item]
         }
 
@@ -336,10 +336,17 @@ class FlowVisitor:
             source_line: Source line number for mapping.
 
         """
+        history_arg = ""
+        if node.history:
+            history_arg = f", history=ctx.resolve_object('{node.history}')"
+
         if input_str:
-            call = f"ctx.run_agent_with_escalation('{node.agent}', {input_str})"
+            call = (
+                f"ctx.run_agent_with_escalation('{node.agent}', "
+                f"{input_str}{history_arg})"
+            )
         else:
-            call = f"ctx.run_agent_with_escalation('{node.agent}')"
+            call = f"ctx.run_agent_with_escalation('{node.agent}'{history_arg})"
 
         self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
         self._emitter.indent()
@@ -380,10 +387,14 @@ class FlowVisitor:
 
         """
         method = "run_flow" if node.is_flow else "run_agent"
+        history_arg = ""
+        if node.history and not node.is_flow:
+            history_arg = f", history=ctx.resolve_object('{node.history}')"
+
         if input_str:
-            call = f"ctx.{method}('{node.agent}', {input_str})"
+            call = f"ctx.{method}('{node.agent}', {input_str}{history_arg})"
         else:
-            call = f"ctx.{method}('{node.agent}')"
+            call = f"ctx.{method}('{node.agent}'{history_arg})"
 
         self._emitter.emit(f"async for _event in {call}:", source_line=source_line)
         self._emitter.indent()
@@ -392,8 +403,9 @@ class FlowVisitor:
 
         # Assign result to target or produces variable
         if node.target:
+            target_name = node.target.lstrip("$")
             self._emitter.emit(
-                f"ctx.vars['{node.target}'] = ctx.get_last_result()",
+                f"ctx.vars['{target_name}'] = ctx.get_last_result()",
             )
         elif produces_name:
             self._emitter.emit(
@@ -472,16 +484,32 @@ class FlowVisitor:
     def _visit_push_stmt(self, node: PushStmt) -> None:
         """Generate code for push statement.
 
+        If a role is specified, push a conversation message dictionary.
+        Otherwise, push the raw value.
+
         Args:
             node: Push statement node.
 
         """
         source_line = node.meta.line if node.meta else None
         value = self._expr_visitor.visit(node.value)
-        self._emitter.emit(
-            f"ctx.vars['{node.target}'].append({value})",
-            source_line=source_line,
-        )
+
+        if node.role:
+            # Push a conversation message: {"role": role, "content": value}
+            push_code = (
+                f"ctx.vars['{node.target}'].append("
+                f"{{'role': '{node.role}', 'content': {value}}})"
+            )
+            self._emitter.emit(
+                push_code,
+                source_line=source_line,
+            )
+        else:
+            # Push raw value
+            self._emitter.emit(
+                f"ctx.vars['{node.target}'].append({value})",
+                source_line=source_line,
+            )
 
     def _visit_for_loop(self, node: ForLoop) -> None:
         """Generate code for for loop.
@@ -667,7 +695,7 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        message_code = self._process_interpolated_message(node.message)
+        message_code = self._expr_visitor.visit(node.message)
         self._emitter.emit(f"ctx.log({message_code})", source_line=source_line)
 
     def _visit_notify_stmt(self, node: NotifyStmt) -> None:
@@ -678,130 +706,8 @@ class FlowVisitor:
 
         """
         source_line = node.meta.line if node.meta else None
-        message_code = self._process_interpolated_message(node.message)
+        message_code = self._expr_visitor.visit(node.message)
         self._emitter.emit(f"ctx.notify({message_code})", source_line=source_line)
-
-    def _process_interpolated_message(self, message: object) -> str:
-        """Process a message expression, handling string interpolation.
-
-        If the message is a string literal containing ${...} patterns,
-        convert it to an f-string expression with proper variable/expression
-        substitution.
-
-        Args:
-            message: Message AST node.
-
-        Returns:
-            Python expression string for the message.
-
-        """
-        # Only process Literal strings
-        if not isinstance(message, Literal) or message.literal_type != "string":
-            return self._expr_visitor.visit(message)
-
-        text = str(message.value)
-
-        # Check if interpolation is needed
-        if "${" not in text:
-            return self._expr_visitor.visit(message)
-
-        # Process interpolation patterns: ${expr} where expr can be:
-        # - variable: diff_chunks
-        # - dotted access: chunk.title
-        # - function call: len(diff_chunks), len(chunk.items)
-        return self._build_interpolated_fstring(text)
-
-    def _build_interpolated_fstring(self, text: str) -> str:
-        """Build an f-string expression from interpolated text.
-
-        Escape literal braces so they survive the f-string wrapper,
-        then replace ``${expr}`` patterns with Python expressions.
-
-        Args:
-            text: String containing ${...} interpolation patterns.
-
-        Returns:
-            Python f-string expression.
-
-        """
-        # Sentinel-based approach: protect ${expr} before escaping braces
-        sentinel_prefix = "\x00SR_EXPR:"
-        sentinel_suffix = "\x00"
-        placeholders: list[str] = []
-
-        pattern = r"\$\{([^}]+)\}"
-
-        def capture_expr(match: re.Match[str]) -> str:
-            expr = match.group(1).strip()
-            replacement = "{" + self._convert_dsl_expr_to_python(expr) + "}"
-            idx = len(placeholders)
-            placeholders.append(replacement)
-            return f"{sentinel_prefix}{idx}{sentinel_suffix}"
-
-        processed = re.sub(pattern, capture_expr, text)
-
-        # Escape literal braces
-        processed = processed.replace("{", "{{")
-        processed = processed.replace("}", "}}")
-
-        # Restore sentinels
-        for idx, replacement in enumerate(placeholders):
-            processed = processed.replace(
-                f"{sentinel_prefix}{idx}{sentinel_suffix}",
-                replacement,
-            )
-
-        # Escape backslashes and quotes for f-string
-        processed = processed.replace("\\", "\\\\")
-        processed = processed.replace('"', '\\"')
-
-        return f'f"{processed}"'
-
-    def _convert_dsl_expr_to_python(self, expr: str) -> str:
-        """Convert a DSL expression inside ${...} to Python code.
-
-        Handles:
-        - Simple variables: diff_chunks -> ctx.vars['diff_chunks']
-        - Dotted access: chunk.title -> ctx.vars['chunk']['title']
-        - Function calls: len(var) -> len(ctx.vars['var'])
-        - Nested: len(chunk.items) -> len(ctx.vars['chunk']['items'])
-
-        Args:
-            expr: DSL expression string.
-
-        Returns:
-            Python expression string.
-
-        """
-        # Match function call pattern: func(arg) or func(arg.prop.prop)
-        func_match = re.match(r"(\w+)\(([^)]+)\)", expr)
-        if func_match:
-            func_name = func_match.group(1)
-            arg = func_match.group(2).strip()
-            python_arg = self._convert_var_to_python(arg)
-            return f"{func_name}({python_arg})"
-
-        # Otherwise, treat as variable or dotted access
-        return self._convert_var_to_python(expr)
-
-    def _convert_var_to_python(self, var_expr: str) -> str:
-        """Convert a variable expression to Python accessor.
-
-        Args:
-            var_expr: Variable expression (e.g., 'chunk' or 'chunk.title').
-
-        Returns:
-            Python code to access the variable.
-
-        """
-        parts = var_expr.split(".")
-        base = parts[0].strip()
-        result = f"ctx.vars['{base}']"
-
-        for prop in parts[1:]:
-            result = f"{result}['{prop.strip()}']"
-
-        return result
 
     def _visit_escalate_stmt(self, node: EscalateStmt) -> None:
         """Generate code for escalate statement.
@@ -853,6 +759,20 @@ class FlowVisitor:
         message = self._expr_visitor.visit(node.message)
         self._emitter.emit(
             f"raise RetryStepError({message})",
+            source_line=source_line,
+        )
+
+    def _visit_fail_stmt(self, node: FailStmt) -> None:
+        """Generate code for fail tool-call statement.
+
+        Args:
+            node: Fail tool-call statement node.
+
+        """
+        source_line = node.meta.line if node.meta else None
+        message = self._expr_visitor.visit(node.message)
+        self._emitter.emit(
+            f"raise FailError({message})",
             source_line=source_line,
         )
 

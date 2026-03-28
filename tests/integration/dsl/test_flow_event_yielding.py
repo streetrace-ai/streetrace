@@ -165,6 +165,7 @@ class TestSingleAgentFlowYieldsAllAdkEvents:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             yield event1
             yield event2
@@ -219,6 +220,7 @@ class TestSingleAgentFlowYieldsAllAdkEvents:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -301,6 +303,7 @@ class TestMultipleAgentFlowYieldsInterleavedEvents:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             nonlocal call_count
             ctx = workflow._context  # noqa: SLF001
@@ -499,6 +502,7 @@ class TestMixedFlowYieldsCorrectEventSequence:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:
@@ -839,6 +843,7 @@ class TestResultCaptureWorksCorrectly:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             ctx = workflow._context  # noqa: SLF001
             if ctx is not None:

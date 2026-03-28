@@ -198,7 +198,7 @@ class TestCreateBuiltinToolRefs:
             "fs_readonly", {"builtin_ref": "streetrace.fs_readonly"},
         )
         assert len(result) == 3
-        assert all(ref.module == "fs_tool" for ref in result)
+        assert all(ref.module == "fs_readonly_tool" for ref in result)
         function_names = {ref.function for ref in result}
         assert function_names == {"read_file", "list_directory", "find_in_files"}
 
@@ -216,7 +216,7 @@ class TestCreateBuiltinToolRefs:
         """Test inferring fs_readonly from tool name."""
         result = create_builtin_tool_refs("fs_readonly", {})
         assert len(result) == 3
-        assert all(ref.module == "fs_tool" for ref in result)
+        assert all(ref.module == "fs_readonly_tool" for ref in result)
 
     def test_fs_full_not_affected_by_readonly(self) -> None:
         """Test that full fs tool still returns all functions."""

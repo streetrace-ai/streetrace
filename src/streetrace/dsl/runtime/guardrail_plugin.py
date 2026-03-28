@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from google.adk.plugins import BasePlugin
 
-from streetrace.dsl.runtime.errors import BlockedInputError
+from streetrace.dsl.runtime.errors import BlockedInputError, FailError
 from streetrace.dsl.runtime.guardrail_provider import (
     ToolCallContent,
     ToolResultContent,
@@ -68,20 +68,25 @@ class GuardrailPlugin(BasePlugin):
     # -- handler existence check ------------------------------------------
 
     def _has_handler(self, name: str) -> bool:
-        """Check if the workflow subclass overrides a handler.
+        """Check if the workflow provides a specific handler.
 
         Args:
-            name: Handler method name (e.g. ``on_input``).
+            name: Handler method name (e.g. ``on_input``, ``on_tool_call_Actor``).
 
         Returns:
-            True if the subclass provides its own implementation.
+            True if the workflow subclass provides the handler.
 
         """
         from streetrace.dsl.runtime.workflow import DslAgentWorkflow
 
-        subclass_method = getattr(type(self._workflow), name, None)
-        base_method = getattr(DslAgentWorkflow, name, None)
-        return subclass_method is not base_method
+        # Check if it's a built-in handler being overridden
+        if hasattr(DslAgentWorkflow, name):
+            subclass_method = getattr(type(self._workflow), name, None)
+            base_method = getattr(DslAgentWorkflow, name, None)
+            return subclass_method is not base_method
+
+        # Check if it's a custom/scoped handler defined on the subclass
+        return hasattr(type(self._workflow), name)
 
     def has_any_handler(self) -> bool:
         """Check if the workflow has any overridden event handlers.
@@ -224,17 +229,17 @@ class GuardrailPlugin(BasePlugin):
 
         return None
 
-    async def before_tool_callback(
+    async def before_tool_callback(  # noqa: C901
         self,
         *,
-        tool: BaseTool,  # noqa: ARG002
+        tool: BaseTool,
         tool_args: dict[str, object],
         tool_context: ToolContext,
     ) -> dict[str, object] | None:
         """Dispatch to on_tool_call and after_tool_call before tool execution.
 
         Args:
-            tool: The tool about to be called (unused).
+            tool: The tool about to be called.
             tool_args: Arguments about to be passed to the tool.
             tool_context: ADK tool context with session info.
 
@@ -242,9 +247,26 @@ class GuardrailPlugin(BasePlugin):
             Dict with error key if blocked, None otherwise.
 
         """
-        has_on = self._has_handler("on_tool_call")
-        has_after = self._has_handler("after_tool_call")
-        if not has_on and not has_after:
+        agent_name = tool_context.agent_name
+
+        # Collect all relevant handlers
+        handlers = []
+        if self._has_handler("on_tool_call"):
+            handlers.append("on_tool_call")
+        if agent_name:
+            scoped_on = f"on_tool_call_{agent_name}"
+            if self._has_handler(scoped_on):
+                handlers.append(scoped_on)
+
+        after_handlers = []
+        if self._has_handler("after_tool_call"):
+            after_handlers.append("after_tool_call")
+        if agent_name:
+            scoped_after = f"after_tool_call_{agent_name}"
+            if self._has_handler(scoped_after):
+                after_handlers.append(scoped_after)
+
+        if not handlers and not after_handlers:
             return None
 
         ctx = self._get_or_create_context()
@@ -252,30 +274,47 @@ class GuardrailPlugin(BasePlugin):
         ctx.event_phase = "tool_call"
         ctx.message = ToolCallContent(data=tool_args)
 
+        # Populate event object for DSL access
+        ctx.vars["event"] = {
+            "tool": tool.name,
+            "args": tool_args,
+            "agent": agent_name,
+        }
+
         try:
-            if has_on:
-                await self._workflow.on_tool_call(ctx)
-            if has_after:
-                await self._workflow.after_tool_call(ctx)
+            for handler_name in handlers:
+                handler = getattr(self._workflow, handler_name)
+                await handler(ctx)
+
+            for handler_name in after_handlers:
+                handler = getattr(self._workflow, handler_name)
+                await handler(ctx)
+
         except BlockedInputError:
             logger.warning("Tool call blocked by guardrail")
             return {"error": BLOCKED_MESSAGE}
+        except FailError as e:
+            logger.info("Tool call blocked by FailError: %s", e)
+            return {"error": str(e)}
+        finally:
+            # Clean up event object
+            ctx.vars.pop("event", None)
 
         return None
 
-    async def after_tool_callback(
+    async def after_tool_callback(  # noqa: C901, PLR0912
         self,
         *,
-        tool: BaseTool,  # noqa: ARG002
-        tool_args: dict[str, object],  # noqa: ARG002
+        tool: BaseTool,
+        tool_args: dict[str, object],
         tool_context: ToolContext,
         result: dict[str, object],
     ) -> dict[str, object] | None:
         """Dispatch to on_tool_result and after_tool_result after tool.
 
         Args:
-            tool: The tool that was called (unused).
-            tool_args: Arguments passed to the tool (unused).
+            tool: The tool that was called.
+            tool_args: Arguments passed to the tool.
             tool_context: ADK tool context with session info.
             result: The tool's return value.
 
@@ -283,9 +322,26 @@ class GuardrailPlugin(BasePlugin):
             Modified result dict if changed, None otherwise.
 
         """
-        has_on = self._has_handler("on_tool_result")
-        has_after = self._has_handler("after_tool_result")
-        if not has_on and not has_after:
+        agent_name = tool_context.agent_name
+
+        # Collect all relevant handlers
+        handlers = []
+        if self._has_handler("on_tool_result"):
+            handlers.append("on_tool_result")
+        if agent_name:
+            scoped_on = f"on_tool_result_{agent_name}"
+            if self._has_handler(scoped_on):
+                handlers.append(scoped_on)
+
+        after_handlers = []
+        if self._has_handler("after_tool_result"):
+            after_handlers.append("after_tool_result")
+        if agent_name:
+            scoped_after = f"after_tool_result_{agent_name}"
+            if self._has_handler(scoped_after):
+                after_handlers.append(scoped_after)
+
+        if not handlers and not after_handlers:
             return None
 
         if result is None:
@@ -298,10 +354,30 @@ class GuardrailPlugin(BasePlugin):
         ctx.event_phase = "tool_result"
         ctx.message = original
 
-        if has_on:
-            await self._workflow.on_tool_result(ctx)
-        if has_after:
-            await self._workflow.after_tool_result(ctx)
+        # Populate event object for DSL access
+        ctx.vars["event"] = {
+            "tool": tool.name,
+            "args": tool_args,
+            "result": result,
+            "agent": agent_name,
+        }
+
+        try:
+            for handler_name in handlers:
+                handler = getattr(self._workflow, handler_name)
+                await handler(ctx)
+
+            for handler_name in after_handlers:
+                handler = getattr(self._workflow, handler_name)
+                await handler(ctx)
+
+        except FailError as e:
+            logger.info("Tool result processing blocked by FailError: %s", e)
+            # For after_tool_callback, FailError returns an error result
+            return {"error": str(e)}
+        finally:
+            # Clean up event object
+            ctx.vars.pop("event", None)
 
         if ctx.message is not original and ctx.message != original:
             if isinstance(ctx.message, ToolResultContent):

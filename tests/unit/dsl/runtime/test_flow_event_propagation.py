@@ -560,6 +560,7 @@ class TestSequentialAgentsYieldInterleavedEvents:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             nonlocal call_count
             if agent_name == "agent1":
@@ -647,6 +648,7 @@ class TestMixedFlowYieldsCorrectEventSequence:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             yield agent_event
 

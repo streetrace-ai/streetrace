@@ -32,6 +32,24 @@ class RetryStepError(DslRuntimeError):
     """
 
 
+class FailError(DslRuntimeError):
+    """Raised when a tool-call should fail with a message.
+
+    The model will receive the error message as a tool result
+    and can choose how to respond or recover.
+    """
+
+    def __init__(self, message: str) -> None:
+        """Initialize with the failure message.
+
+        Args:
+            message: The message to return to the model as a tool error.
+
+        """
+        self.message = message
+        super().__init__(message)
+
+
 class AbortError(DslRuntimeError):
     """Raised when a workflow should be aborted.
 

@@ -535,7 +535,8 @@ class TestWorkflowContextRunAgentGenerator:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
-        ) -> AsyncGenerator[MagicMock, None]:
+            history: list[dict[str, object]] | None = None,
+        ) -> AsyncGenerator["Event", None]:
             captured_args.extend([agent_name, *args])
             yield create_mock_event(is_final=True, text="result")
 

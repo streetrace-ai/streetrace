@@ -227,12 +227,14 @@ def _filter_children(items: TransformerItems) -> list:
                 "FAILURE",
                 "INITIAL",
                 "USER",
+                "ASSISTANT",
+                "SYSTEM",
                 "DETECT",
                 "GET",
                 "GOAL",
                 "PROCESS",
-                "AND",
-                "OR",
+                "AS",
+                "HISTORY",
                 "NOT",
                 "CONTAINS",
                 "TRUE",
@@ -243,7 +245,6 @@ def _filter_children(items: TransformerItems) -> list:
                 "TOOLS",
                 "INSTRUCTION",
                 "PRODUCES",
-                "HISTORY",
                 "FILTER",
                 "WHERE",
             }:
@@ -1110,6 +1111,10 @@ class AstTransformer(Transformer):
         """Transform event_tool_result rule."""
         return "tool-result"
 
+    def event_role(self, items: TransformerItems) -> str:
+        """Transform event_role rule."""
+        return str(items[0])
+
     def handler_body(self, items: TransformerItems) -> list:
         """Transform handler_body rule."""
         return [item for item in items if item is not None]
@@ -1255,17 +1260,37 @@ class AstTransformer(Transformer):
             prompt_meta=body.get("prompt_meta"),
             produces=body.get("produces"),
             history=body.get("history"),
+            handlers=body.get("handlers", []),
             meta=_meta_to_position(meta),
         )
 
     def agent_body(self, items: TransformerItems) -> dict:
-        """Transform agent_body rule."""
-        result = {}
+        """Transform agent_body rule.
+
+        Accumulate agent properties and scoped event handlers from agent items.
+        """
+        result: dict[str, Any] = {}
         filtered = _filter_children(items)
         for item in filtered:
             if isinstance(item, dict):
-                result.update(item)
+                # Handle merged properties and the special 'handlers' list
+                for key, value in item.items():
+                    if key == "handlers" and key in result:
+                        result[key].extend(value)
+                    else:
+                        result[key] = value
         return result
+
+    def agent_item(self, items: TransformerItems) -> dict:
+        """Transform agent_item rule."""
+        filtered = _filter_children(items)
+        return filtered[0] if filtered else {}
+
+    def agent_event_handler(self, items: TransformerItems) -> dict:
+        """Transform agent_event_handler rule."""
+        filtered = _filter_children(items)
+        handler = filtered[0] if filtered else None
+        return {"handlers": [handler]} if handler else {}
 
     def agent_property(self, items: TransformerItems) -> AstNode:
         """Transform agent_property rule - pass through."""
@@ -1292,7 +1317,7 @@ class AstTransformer(Transformer):
             if isinstance(item, str):
                 return {"instruction": item}
             if isinstance(item, Token):
-                return {"instruction": _get_token_value(item)}
+                return {"instruction": str(item)}
         return {"instruction": ""}
 
     @v_args(meta=True)
@@ -1304,7 +1329,7 @@ class AstTransformer(Transformer):
                 return {"prompt": item, "prompt_meta": _meta_to_position(meta)}
             if isinstance(item, Token):
                 return {
-                    "prompt": _get_token_value(item),
+                    "prompt": str(item),
                     "prompt_meta": _meta_to_position(meta),
                 }
         return {}
@@ -1316,7 +1341,7 @@ class AstTransformer(Transformer):
             if isinstance(item, str):
                 return {"produces": item}
             if isinstance(item, Token):
-                return {"produces": _get_token_value(item)}
+                return {"produces": str(item)}
         return {}
 
     def agent_history(self, items: TransformerItems) -> dict:
@@ -1326,7 +1351,7 @@ class AstTransformer(Transformer):
             if isinstance(item, str):
                 return {"history": item}
             if isinstance(item, Token):
-                return {"history": _get_token_value(item)}
+                return {"history": str(item)}
         return {}
 
     def agent_retry(self, items: TransformerItems) -> dict:
@@ -1336,7 +1361,7 @@ class AstTransformer(Transformer):
             if isinstance(item, str):
                 return {"retry": item}
             if isinstance(item, Token):
-                return {"retry": _get_token_value(item)}
+                return {"retry": str(item)}
         return {}
 
     def agent_timeout(self, items: TransformerItems) -> dict:
@@ -1388,7 +1413,7 @@ class AstTransformer(Transformer):
 
     def timeout_ref(self, items: TransformerItems) -> dict:
         """Transform timeout_ref rule."""
-        return {"timeout_ref": items[0]}
+        return {"timeout_ref": str(items[0])}
 
     def timeout_literal(self, items: TransformerItems) -> dict:
         """Transform timeout_literal rule."""
@@ -1467,7 +1492,7 @@ class AstTransformer(Transformer):
                 name, body = self._categorize_prompt_string(item, name, body)
             elif isinstance(item, Token):
                 if name is None:
-                    name = _get_token_value(item)
+                    name = str(item)
             elif isinstance(item, dict):
                 modifiers.update(item)
             elif isinstance(item, EscalationCondition):
@@ -1529,13 +1554,11 @@ class AstTransformer(Transformer):
 
     def expecting_single(self, items: TransformerItems) -> str:
         """Transform expecting_single rule (e.g., Finding)."""
-        filtered = _filter_children(items)
-        return str(filtered[0])
+        return str(items[0])
 
     def expecting_array(self, items: TransformerItems) -> str:
         """Transform expecting_array rule (e.g., Finding[])."""
-        filtered = _filter_children(items)
-        return f"{filtered[0]}[]"
+        return f"{items[0]}[]"
 
     def prompt_inherit(self, items: TransformerItems) -> dict:
         """Transform prompt_inherit rule."""
@@ -1887,22 +1910,25 @@ class AstTransformer(Transformer):
         """Transform run_stmt rule.
 
         Handle run statement forms:
-        - variable "=" "run" "agent" identifier ("with" expression)? escalation_handler?
-        - "run" "agent" identifier ("with" expression)? escalation_handler?
+        - $v = run agent a with $e history $h , on escalate return $r
+        - run agent a with $e history $h , on escalate return $r
         """
         target = None
         agent = None
         input_expr: AstNode | None = None
+        history: str | None = None
         escalation: EscalationHandler | None = None
 
         # Keywords to skip (Lark tokens that should not be treated as identifiers)
-        skip_tokens = {"=", "run", "agent", "with"}
+        skip_tokens = {"=", "run", "agent", "with", "history"}
 
         for i, item in enumerate(items):
             if isinstance(item, EscalationHandler):
                 escalation = item
             elif isinstance(item, VarRef) and target is None and i == 0:
                 target = item.name
+            elif isinstance(item, dict) and "history" in item:
+                history = item["history"]
             elif isinstance(item, NameRef):
                 if agent is None:
                     agent = item.name
@@ -1934,9 +1960,19 @@ class AstTransformer(Transformer):
             target=target,
             agent=agent or "",
             input=input_expr,
+            history=history,
             meta=_meta_to_position(meta),
             escalation_handler=escalation,
         )
+
+    def history_clause(self, items: TransformerItems) -> dict:
+        """Transform history_clause rule."""
+        # Directly extract variable from items to avoid _filter_children
+        # skipping keywords
+        for item in items:
+            if isinstance(item, VarRef):
+                return {"history": item.name}
+        return {}
 
     @v_args(meta=True)
     def run_flow_assign(  # noqa: C901, PLR0912
@@ -2102,19 +2138,72 @@ class AstTransformer(Transformer):
         value = filtered[0] if filtered else None
         return ReturnStmt(value=value, meta=_meta_to_position(meta))
 
-    def push_stmt(self, items: TransformerItems) -> PushStmt:
+    @v_args(meta=True)
+    def push_stmt(self, meta: object, items: TransformerItems) -> PushStmt:  # noqa: C901
         """Transform push_stmt rule.
 
-        Grammar: push_stmt: "push" expression "to" variable
-        With keep_all_tokens, items include keyword tokens.
+        Grammar: push_stmt: "push" expression ["as" identifier] "to" variable
         """
-        filtered = _filter_children(items)
-        value = filtered[0]
-        target_var = filtered[1]
+        # We need to find: expression, optional role, and variable
+        # Since keep_all_tokens=True, keywords like 'as', 'user' are tokens.
+        # But some items are already transformed (like expression).
+
+        # Strategy:
+        # 1. Skip 'push' token
+        # 2. First non-keyword item is the expression
+        # 3. If 'as' token is present, next item is the role
+        # 4. Last non-keyword item is the target variable
+
+        filtered: list[Any] = []
+        has_as = False
+        for item in items:
+            if isinstance(item, Token):
+                if item.type == "PUSH":
+                    continue
+                if item.type == "AS":
+                    has_as = True
+                    continue
+                if item.type == "TO":
+                    continue
+                if item.type == "DOLLAR":
+                    continue
+                # If it's one of the role tokens, and we have 'as', keep it as role
+                if has_as and len(filtered) == 1:
+                    filtered.append(str(item))
+                    continue
+                # Skip other keyword tokens that are part of noise but not values
+                if item.type in NOISE_TOKENS or item.type in {
+                    "SCHEMA", "MODEL", "TOOL", "AGENT", "FLOW", "PROMPT",
+                }:
+                    continue
+            filtered.append(item)
+
+        role = None
+        if has_as and len(filtered) >= 3:  # noqa: PLR2004
+            # Format: push expression as role to variable
+            # expression is everything before role
+            # role is second to last item (if as was present)
+            # variable is last item
+            role = str(filtered[-2])
+            target_var = filtered[-1]
+            value = filtered[0] # Simplification, should ideally be BinaryOp if multiple
+        elif len(filtered) >= 2:  # noqa: PLR2004
+            # Format: push expression to variable
+            target_var = filtered[-1]
+            value = filtered[0]
+        else:
+            msg = f"Invalid push statement: {filtered}"
+            raise ValueError(msg)
+
         target_str = (
             target_var.name if isinstance(target_var, VarRef) else str(target_var)
         )
-        return PushStmt(value=value, target=target_str)
+        return PushStmt(
+            value=value,
+            target=target_str,
+            role=role,
+            meta=_meta_to_position(meta),
+        )
 
     def escalate_stmt(self, items: TransformerItems) -> EscalateStmt:
         """Transform escalate_stmt rule."""
@@ -2293,7 +2382,9 @@ class AstTransformer(Transformer):
     def var_dotted(self, items: TransformerItems) -> PropertyAccess:
         """Transform var_dotted rule (e.g., $var.prop.nested)."""
         filtered = _filter_children(items)
-        dotted_name = filtered[0]
+        # Skip leading $ if present - ensure string comparison for tokens
+        first_val = str(filtered[0]) if filtered else ""
+        dotted_name = filtered[1] if first_val == "$" else filtered[0]
         parts = dotted_name.split(".")
         base = VarRef(name=parts[0])
         return PropertyAccess(base=base, properties=parts[1:])

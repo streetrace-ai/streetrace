@@ -706,6 +706,7 @@ class TestWorkflowContextDelegation:
         async def mock_run_agent_gen(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             yield mock_event
 
@@ -743,6 +744,7 @@ class TestWorkflowContextDelegation:
         async def mock_run_agent_gen(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             yield mock_event
 

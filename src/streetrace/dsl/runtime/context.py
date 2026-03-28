@@ -160,6 +160,29 @@ class WorkflowContext:
 
         raise UndefinedVariableError(name)
 
+    def resolve_object(self, name: str) -> object:
+        """Resolve a name to its raw object value.
+
+        Unlike ``resolve()``, this does not call ``stringify()`` on the result.
+        Useful for passing structured data (lists, dicts) between agents.
+
+        Args:
+            name: Variable name to resolve.
+
+        Returns:
+            Raw object value from ctx.vars.
+
+        Raises:
+            UndefinedVariableError: If the variable is not found.
+
+        """
+        if name in self.vars:
+            return self.vars[name]
+
+        from streetrace.dsl.runtime.errors import UndefinedVariableError
+
+        raise UndefinedVariableError(name)
+
     def resolve_property(self, name: str, *properties: str) -> str:
         """Resolve a dotted property path like ``${chunk.title}``.
 
@@ -319,6 +342,7 @@ class WorkflowContext:
         self,
         agent_name: str,
         *args: object,
+        history: list[dict[str, object]] | None = None,
     ) -> AsyncGenerator[Event | FlowEvent, None]:
         """Run a named agent with arguments, yielding events.
 
@@ -327,18 +351,20 @@ class WorkflowContext:
         Args:
             agent_name: Name of the agent to run.
             *args: Arguments to pass to the agent (joined as prompt text).
+            history: Optional conversation history to seed the session.
 
         Yields:
             ADK events from agent execution.
 
         """
-        async for event in self._workflow.run_agent(agent_name, *args):
+        async for event in self._workflow.run_agent(agent_name, *args, history=history):
             yield event
 
     async def run_agent_with_escalation(
         self,
         agent_name: str,
         *args: object,
+        history: list[dict[str, object]] | None = None,
     ) -> AsyncGenerator[Event | FlowEvent, None]:
         """Run agent and check for escalation.
 
@@ -353,6 +379,7 @@ class WorkflowContext:
         Args:
             agent_name: Name of the agent to run.
             *args: Arguments to pass to the agent.
+            history: Optional conversation history to seed the session.
 
         Yields:
             ADK events from agent execution, followed by EscalationEvent
@@ -369,7 +396,7 @@ class WorkflowContext:
         last_adk_event: AdkEvent | None = None
 
         # Delegate to workflow's run_agent (yielding events)
-        async for event in self._workflow.run_agent(agent_name, *args):
+        async for event in self._workflow.run_agent(agent_name, *args, history=history):
             if isinstance(event, AdkEvent):
                 last_adk_event = event
             yield event

@@ -86,6 +86,7 @@ class TestFlowExecution:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             captured_calls.append((agent_name, args))
             # Set result in context for retrieval
@@ -117,6 +118,7 @@ class TestFlowExecution:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             nonlocal call_count
             result = "step1 result" if call_count == 0 else "step2 result"
@@ -180,6 +182,7 @@ class TestSequentialFlowExecution:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             execution_order.append(agent_name)
             workflow_context._last_call_result = f"{agent_name} result"  # noqa: SLF001
@@ -232,6 +235,7 @@ class TestFlowWithDataTransformation:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             nonlocal call_count
             result = results[call_count]

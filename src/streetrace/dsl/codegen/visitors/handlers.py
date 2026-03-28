@@ -33,14 +33,15 @@ class HandlerVisitor:
         self._emitter = emitter
         self._expr_visitor = ExpressionVisitor()
 
-    def visit(self, node: EventHandler) -> None:
+    def visit(self, node: EventHandler, *, agent_name: str | None = None) -> None:
         """Visit an event handler and generate Python code.
 
         Args:
             node: Event handler AST node.
+            agent_name: Optional name of the agent this handler is scoped to.
 
         """
-        method_name = self._get_method_name(node)
+        method_name = self._get_method_name(node, agent_name=agent_name)
         source_line = node.meta.line if node.meta else None
 
         # Emit method definition
@@ -58,18 +59,25 @@ class HandlerVisitor:
         self._emitter.dedent()
         self._emitter.emit_blank()
 
-    def _get_method_name(self, node: EventHandler) -> str:
+    def _get_method_name(
+        self,
+        node: EventHandler,
+        *,
+        agent_name: str | None = None,
+    ) -> str:
         """Get the method name for an event handler.
 
         Args:
             node: Event handler node.
+            agent_name: Optional name of the agent this handler is scoped to.
 
         Returns:
             Python method name for the handler.
 
         """
         event_type = node.event_type.replace("-", "_")
-        return f"{node.timing}_{event_type}"
+        suffix = f"_{agent_name}" if agent_name else ""
+        return f"{node.timing}_{event_type}{suffix}"
 
     def _visit_handler_body(self, body: list[object]) -> None:
         """Visit and emit handler body statements.
