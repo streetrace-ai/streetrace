@@ -683,18 +683,16 @@ class DslAgentWorkflow:
 
         # Seed session with history if provided
         if history:
-            logger.debug("_execute_agent_run(%s): seeding history with %d items", agent_name, len(history))
             adk_events = []
             for msg in history:
                 if not isinstance(msg, dict):
                     # Fallback for unexpected string items in history
-                    logger.warning("_execute_agent_run(%s): history item is not a dict: %r", agent_name, msg)
                     text = str(msg)
                     role = "user"
                 else:
                     role = str(msg.get("role", "user"))
                     text = str(msg.get("content", ""))
-                
+
                 # ADK roles are "user" or agent name
                 author = "user" if role == "user" else agent_name
                 adk_event = AdkEvent(
@@ -708,7 +706,7 @@ class DslAgentWorkflow:
 
             # Replace events in the session with provided history
             # This effectively "seeds" the conversation
-            await self._session_service.replace_events(
+            await self._session_service.replace_events(  # type: ignore[attr-defined]
                 session=existing,
                 new_events=adk_events,
             )

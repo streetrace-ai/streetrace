@@ -229,7 +229,7 @@ class GuardrailPlugin(BasePlugin):
 
         return None
 
-    async def before_tool_callback(
+    async def before_tool_callback(  # noqa: C901
         self,
         *,
         tool: BaseTool,
@@ -247,9 +247,7 @@ class GuardrailPlugin(BasePlugin):
             Dict with error key if blocked, None otherwise.
 
         """
-        agent_name = (
-            tool_context.metadata.get("agent_name") if tool_context.metadata else None
-        )
+        agent_name = tool_context.agent_name
 
         # Collect all relevant handlers
         handlers = []
@@ -304,7 +302,7 @@ class GuardrailPlugin(BasePlugin):
 
         return None
 
-    async def after_tool_callback(
+    async def after_tool_callback(  # noqa: C901, PLR0912
         self,
         *,
         tool: BaseTool,
@@ -324,9 +322,7 @@ class GuardrailPlugin(BasePlugin):
             Modified result dict if changed, None otherwise.
 
         """
-        agent_name = (
-            tool_context.metadata.get("agent_name") if tool_context.metadata else None
-        )
+        agent_name = tool_context.agent_name
 
         # Collect all relevant handlers
         handlers = []

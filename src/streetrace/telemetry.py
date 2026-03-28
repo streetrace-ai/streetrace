@@ -10,6 +10,10 @@ def init_telemetry() -> object | None:
         TracerProvider if telemetry is configured, None otherwise
 
     """
+    # Check if OTEL is enabled
+    if os.environ.get("OTEL_ENABLED", "false").lower() != "true":
+        return None
+
     # Check if OTEL is configured
     if not (
         os.environ.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")

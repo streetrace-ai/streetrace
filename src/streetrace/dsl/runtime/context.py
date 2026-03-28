@@ -160,6 +160,29 @@ class WorkflowContext:
 
         raise UndefinedVariableError(name)
 
+    def resolve_object(self, name: str) -> object:
+        """Resolve a name to its raw object value.
+
+        Unlike ``resolve()``, this does not call ``stringify()`` on the result.
+        Useful for passing structured data (lists, dicts) between agents.
+
+        Args:
+            name: Variable name to resolve.
+
+        Returns:
+            Raw object value from ctx.vars.
+
+        Raises:
+            UndefinedVariableError: If the variable is not found.
+
+        """
+        if name in self.vars:
+            return self.vars[name]
+
+        from streetrace.dsl.runtime.errors import UndefinedVariableError
+
+        raise UndefinedVariableError(name)
+
     def resolve_property(self, name: str, *properties: str) -> str:
         """Resolve a dotted property path like ``${chunk.title}``.
 

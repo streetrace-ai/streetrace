@@ -160,6 +160,7 @@ _.policy_custom  # unused method - called by Lark transformer
 _.policy_trigger  # unused method - called by Lark transformer
 _.preserve_list  # unused method - called by Lark transformer
 _.preserve_item  # unused method - called by Lark transformer
+_.event_role  # unused method - called by Lark transformer
 _.event_handler  # unused method - called by Lark transformer
 _.timing_on  # unused method - called by Lark transformer
 _.timing_after  # unused method - called by Lark transformer
@@ -182,7 +183,9 @@ _.flow_statement  # unused method - called by Lark transformer
 _.expression_stmt  # unused method - called by Lark transformer
 _.agent_def  # unused method - called by Lark transformer
 _.agent_body  # unused method - called by Lark transformer
+_.agent_item  # unused method - called by Lark transformer
 _.agent_property  # unused method - called by Lark transformer
+_.agent_event_handler  # unused method - called by Lark transformer
 _.agent_tools  # unused method - called by Lark transformer
 _.agent_instruction  # unused method - called by Lark transformer
 _.agent_retry  # unused method - called by Lark transformer
@@ -216,6 +219,7 @@ _.failure_body  # unused method - called by Lark transformer
 _.statement_body  # unused method - called by Lark transformer
 _.assignment  # unused method - called by Lark transformer
 _.run_stmt  # unused method - called by Lark transformer
+_.history_clause  # unused method - called by Lark transformer
 _.call_stmt  # unused method - called by Lark transformer
 _.call_modifiers  # unused method - called by Lark transformer
 _.return_stmt  # unused method - called by Lark transformer
@@ -369,6 +373,7 @@ PiiGuardrail  # unused class (pii_guardrail.py) - registered in GuardrailProvide
 event_phase  # unused attribute (context.py) - set by guardrail plugin, read by provider for OTEL spans
 guardrails  # unused attribute (context.py) - public attribute for guardrail provider
 _.run_agent  # unused method (context.py) - public API for running agents
+_.resolve_object  # unused method (context.py) - called by generated code for history resolution
 _.call_llm  # unused method (context.py) - public API for LLM calls
 _.log  # unused method (context.py) - public API for workflow logging
 _.warn  # unused method (context.py) - public API for workflow warnings

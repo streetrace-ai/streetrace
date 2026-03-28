@@ -178,6 +178,7 @@ event_type: "start"                                   -> event_start
           | "output"                                  -> event_output
           | "tool-call"                               -> event_tool_call
           | "tool-result"                             -> event_tool_result
+          | identifier                                -> event_role
 
 handler_body: handler_statement+
 
@@ -270,19 +271,18 @@ agent_item: agent_property
           | event_handler _NL?                        -> agent_event_handler
 
 agent_property: "tools" name_list _NL                 -> agent_tools
-              | "instruction" NAME _NL                -> agent_instruction
-              | "prompt" NAME _NL                     -> agent_prompt
-              | "produces" NAME _NL                   -> agent_produces
-              | "retry" NAME _NL                      -> agent_retry
-              | "timeout" timeout_value _NL           -> agent_timeout
-              | "description" STRING _NL              -> agent_description
-              | "delegate" name_list _NL              -> agent_delegate
-              | "use" name_list _NL                   -> agent_use
-              | "history" NAME _NL                    -> agent_history
+               | "instruction" identifier _NL          -> agent_instruction
+               | "prompt" identifier _NL               -> agent_prompt
+               | "produces" identifier _NL             -> agent_produces
+               | "retry" identifier _NL                -> agent_retry
+               | "timeout" timeout_value _NL           -> agent_timeout
+               | "description" STRING _NL              -> agent_description
+               | "delegate" name_list _NL              -> agent_delegate
+               | "use" name_list _NL                   -> agent_use
+               | "history" identifier _NL              -> agent_history
 
-timeout_value: NAME                                   -> timeout_ref
+timeout_value: identifier                                   -> timeout_ref
              | INT time_unit                          -> timeout_literal
-
 name_list: tool_name ("," tool_name)*
 
 tool_name: NAME
@@ -301,8 +301,8 @@ tool_name: NAME
 //   # ... agents and flows ...
 //   prompt reviewer: """Prompt text here"""              # body definition
 
-prompt_def: "prompt" NAME prompt_modifiers?                                      -> prompt_decl
-          | "prompt" NAME prompt_modifiers? ":" prompt_body escalation_clause?   -> prompt_full
+prompt_def: "prompt" identifier prompt_modifiers?                                      -> prompt_decl
+          | "prompt" identifier prompt_modifiers? ":" prompt_body escalation_clause?   -> prompt_full
 
 prompt_modifiers: prompt_modifier+
 
@@ -310,9 +310,8 @@ prompt_modifier: "using" "model" interpolated_string  -> prompt_using_model
                | "expecting" expecting_type           -> prompt_expecting
                | "inherit" variable                   -> prompt_inherit
 
-expecting_type: NAME                                  -> expecting_single
-             | NAME LSQB RSQB                         -> expecting_array
-
+expecting_type: identifier                                  -> expecting_single
+              | identifier LSQB RSQB                         -> expecting_array
 // Prompt body uses triple-quoted string for multi-line text
 // This approach works better with Lark's lexer-first architecture
 prompt_body: TRIPLE_QUOTED_STRING
@@ -507,7 +506,7 @@ contextual_keyword: "escalate" | "match" | "from" | "to" | "agent" | "model"
                   | "debit" | "credit" | "result" | "results" | "data"
                   | "jailbreak" | "pii" | "not" | "item" | "items"
                   | "last" | "messages" | "goal" | "drift" | "trajectory"
-                  | "detect" | "get" | "builtin" | "mcp" | "process"
+                  | "detect" | "get" | "builtin" | "mcp" | "process" | "name"
                   | "timeout" | "initial" | "user" | "assistant" | "system" | "llm" | "step"
                   | "fixed" | "exponential" | "linear" | "basic" | "bearer"
                   | "backoff" | "times" | "instruction" | "tools" | "description"

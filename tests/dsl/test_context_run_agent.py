@@ -36,6 +36,7 @@ class TestRunAgentDelegation:
         async def mock_run_agent_gen(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             yield mock_event
 
@@ -73,6 +74,7 @@ class TestRunAgentDelegation:
         async def mock_run_agent_gen(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             captured_args.append((agent_name, args))
             yield MagicMock()
@@ -103,6 +105,7 @@ class TestRunAgentDelegation:
         async def mock_run_agent_gen(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             yield mock_event1
             yield mock_event2
@@ -130,6 +133,7 @@ class TestRunAgentDelegation:
         async def mock_run_agent_gen(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator["Event", None]:
             captured_args.append((agent_name, args))
             yield MagicMock()

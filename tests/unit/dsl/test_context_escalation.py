@@ -6,9 +6,13 @@ methods in WorkflowContext.
 """
 
 from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+if TYPE_CHECKING:
+    from google.adk.events import Event
 
 from streetrace.dsl.runtime.context import WorkflowContext
 from streetrace.dsl.runtime.escalation_handler import EscalationHandler
@@ -181,9 +185,10 @@ class TestRunAgentWithEscalation:
         from streetrace.dsl.runtime.workflow import EscalationSpec, PromptSpec
 
         async def mock_run_agent(
-            _agent_name: str,
-            *_args: object,
-        ) -> AsyncGenerator[object, None]:
+            agent_name: str,
+            *args: object,
+            history: list[dict[str, object]] | None = None,
+        ) -> AsyncGenerator["Event", None]:
             yield MagicMock()
 
         mock_workflow.run_agent = mock_run_agent
@@ -214,9 +219,10 @@ class TestRunAgentWithEscalation:
         from streetrace.dsl.runtime.workflow import EscalationSpec, PromptSpec
 
         async def mock_run_agent(
-            _agent_name: str,
-            *_args: object,
-        ) -> AsyncGenerator[object, None]:
+            agent_name: str,
+            *args: object,
+            history: list[dict[str, object]] | None = None,
+        ) -> AsyncGenerator["Event", None]:
             event = MagicMock()
             event.is_final_response.return_value = True
             event.content.parts = [MagicMock(text="DRIFTING")]

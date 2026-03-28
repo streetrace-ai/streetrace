@@ -99,6 +99,7 @@ class TestEscalationEventYielding:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator[Event, None]:
             context._last_call_result = "**Drifting.**"  # noqa: SLF001
             yield mock_adk_event
@@ -154,6 +155,7 @@ class TestEscalationEventYielding:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator[Event, None]:
             context._last_call_result = "SUCCESS"  # noqa: SLF001
             yield mock_adk_event
@@ -195,6 +197,7 @@ class TestEscalationEventYielding:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator[Event, None]:
             context._last_call_result = "DRIFTING"  # noqa: SLF001
             yield mock_adk_event
@@ -241,6 +244,7 @@ class TestEscalationEventYielding:
         async def mock_run_agent(
             agent_name: str,
             *args: object,
+            history: list[dict[str, object]] | None = None,
         ) -> AsyncGenerator[Event, None]:
             yield mock_event1
             yield mock_event2
@@ -298,6 +302,7 @@ class TestEscalationEventYielding:
             async def mock_run_agent(
                 agent_name: str,
                 *args: object,
+                history: list[dict[str, object]] | None = None,
                 result_value: str = result,
                 event: MagicMock = mock_adk_event,
             ) -> AsyncGenerator[Event, None]:

@@ -6,19 +6,12 @@ Generate Python code for event handlers.
 from streetrace.dsl.ast.nodes import (
     BlockAction,
     EventHandler,
-    FailStmt,
     MaskAction,
     RetryAction,
     WarnAction,
 )
 from streetrace.dsl.codegen.emitter import CodeEmitter
 from streetrace.dsl.codegen.visitors.expressions import ExpressionVisitor
-from streetrace.dsl.runtime import (
-    BlockedInputError,
-    FailError,
-    RetryInputError,
-    WorkflowContext,
-)
 from streetrace.log import get_logger
 
 logger = get_logger(__name__)
@@ -66,7 +59,12 @@ class HandlerVisitor:
         self._emitter.dedent()
         self._emitter.emit_blank()
 
-    def _get_method_name(self, node: EventHandler, *, agent_name: str | None = None) -> str:
+    def _get_method_name(
+        self,
+        node: EventHandler,
+        *,
+        agent_name: str | None = None,
+    ) -> str:
         """Get the method name for an event handler.
 
         Args:

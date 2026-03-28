@@ -5,6 +5,7 @@ Generate Python expressions from DSL expression AST nodes.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from lark import Token
@@ -41,8 +42,15 @@ class ExpressionVisitor:
     Visit expression nodes and produce Python expression strings.
     """
 
-    def __init__(self) -> None:
-        """Initialize the expression visitor."""
+    def __init__(self, *, use_resolve: bool = False) -> None:
+        """Initialize the expression visitor.
+
+        Args:
+            use_resolve: If True, use ctx.resolve() for variables instead of
+                ctx.vars access. This is needed for prompt interpolation.
+
+        """
+        self._use_resolve = use_resolve
         self._dispatch: dict[type, Callable[..., str]] = {
             VarRef: self._visit_var_ref,
             PropertyAccess: self._visit_property_access,
@@ -94,10 +102,12 @@ class ExpressionVisitor:
             node: Variable reference node.
 
         Returns:
-            Python code to access the variable via ctx.vars.
+            Python code to access the variable via ctx.vars or ctx.resolve.
 
         """
         name = node.name.lstrip("$")
+        if self._use_resolve:
+            return f"ctx.resolve('{name}')"
         return f"ctx.vars['{name}']"
 
     def _visit_property_access(self, node: PropertyAccess) -> str:
@@ -110,6 +120,13 @@ class ExpressionVisitor:
             Python code for accessing nested properties.
 
         """
+        if self._use_resolve and isinstance(node.base, (VarRef, NameRef)):
+            # If we're in resolve mode and base is a simple variable,
+            # use resolve_property for the whole chain.
+            base_name = node.base.name.lstrip("$")
+            prop_args = ", ".join(f"'{p}'" for p in node.properties)
+            return f"ctx.resolve_property('{base_name}', {prop_args})"
+
         base = self.visit(node.base)
         # Build chain of property accesses
         for prop in node.properties:
@@ -127,9 +144,8 @@ class ExpressionVisitor:
 
         """
         if node.literal_type == "string":
-            # Escape string properly
-            escaped = str(node.value).replace("\\", "\\\\").replace('"', '\\"')
-            return f'"{escaped}"'
+            return self._visit_string_literal(str(node.value))
+
         if node.literal_type == "bool":
             return "True" if node.value else "False"
         if node.literal_type == "null":
@@ -137,6 +153,30 @@ class ExpressionVisitor:
         if node.literal_type == "list":
             return "[]"
         return str(node.value)
+
+    def _visit_string_literal(self, text: str) -> str:
+        """Generate code for string literal with proper escaping.
+
+        Args:
+            text: String value to generate code for.
+
+        Returns:
+            Python string literal.
+
+        """
+        # If it has interpolation patterns or literal braces, we need f-string
+        if "${" in text or "{" in text or "}" in text:
+            return self._interpolate(text)
+
+        # Multiline string
+        if "\n" in text:
+            # Escape backslashes first, then triple quotes
+            escaped = text.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+            return f'"""{escaped}"""'
+
+        # Escape string properly
+        escaped = text.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
 
     def _visit_binary_op(self, node: BinaryOp) -> str:
         """Generate code for binary operation.
@@ -247,9 +287,11 @@ class ExpressionVisitor:
             node: Name reference node.
 
         Returns:
-            Python code to access the variable via ctx.vars.
+            Python code to access the variable via ctx.vars or ctx.resolve.
 
         """
+        if self._use_resolve:
+            return f"ctx.resolve('{node.name}')"
         return f"ctx.vars['{node.name}']"
 
     def _visit_implicit_property(self, node: ImplicitProperty) -> str:
@@ -288,3 +330,108 @@ class ExpressionVisitor:
         list_code = self.visit(node.list_expr)
         condition_code = self.visit(node.condition)
         return f"[_item for _item in {list_code} if {condition_code}]"
+
+    def _interpolate(self, text: str) -> str:
+        """Build an f-string expression from interpolated text.
+
+        Escape literal braces so they survive the f-string wrapper,
+        then replace ``${expr}`` patterns with Python expressions.
+
+        Args:
+            text: String containing ${...} interpolation patterns.
+
+        Returns:
+            Python f-string expression.
+
+        """
+        # Sentinel-based approach: protect ${expr} before escaping braces
+        sentinel_prefix = "\x00SR_EXPR:"
+        sentinel_suffix = "\x00"
+        placeholders: list[str] = []
+
+        pattern = r"\$\{([^}]+)\}"
+
+        def capture_expr(match: re.Match[str]) -> str:
+            expr = match.group(1).strip()
+            replacement = "{" + self._convert_dsl_expr_to_python(expr) + "}"
+            idx = len(placeholders)
+            placeholders.append(replacement)
+            return f"{sentinel_prefix}{idx}{sentinel_suffix}"
+
+        processed = re.sub(pattern, capture_expr, text)
+
+        # Escape literal braces
+        processed = processed.replace("{", "{{")
+        processed = processed.replace("}", "}}")
+
+        # Restore sentinels
+        for idx, replacement in enumerate(placeholders):
+            processed = processed.replace(
+                f"{sentinel_prefix}{idx}{sentinel_suffix}",
+                replacement,
+            )
+
+        # Use triple-quoted f-string for multiline strings
+        if "\n" in processed:
+            # Escape backslashes first, then triple quotes
+            processed = processed.replace("\\", "\\\\")
+            processed = processed.replace('"""', '\\"\\"\\"')
+            return f'f"""{processed}"""'
+
+        # Single line - use regular f-string
+        processed = processed.replace("\\", "\\\\")
+        processed = processed.replace('"', '\\"')
+        return f'f"{processed}"'
+
+    def _convert_dsl_expr_to_python(self, expr: str) -> str:
+        """Convert a DSL expression inside ${...} to Python code.
+
+        Handles:
+        - Simple variables: diff_chunks -> ctx.vars['diff_chunks']
+        - Dotted access: chunk.title -> ctx.vars['chunk']['title']
+        - Function calls: len(var) -> len(ctx.vars['var'])
+        - Nested: len(chunk.items) -> len(ctx.vars['chunk']['items'])
+
+        Args:
+            expr: DSL expression string.
+
+        Returns:
+            Python expression string.
+
+        """
+        # Match function call pattern: func(arg) or func(arg.prop.prop)
+        func_match = re.match(r"(\w+)\(([^)]+)\)", expr)
+        if func_match:
+            func_name = func_match.group(1)
+            arg = func_match.group(2).strip()
+            python_arg = self._convert_var_to_python(arg)
+            return f"{func_name}({python_arg})"
+
+        # Otherwise, treat as variable or dotted access
+        return self._convert_var_to_python(expr)
+
+    def _convert_var_to_python(self, var_expr: str) -> str:
+        """Convert a variable expression to Python accessor.
+
+        Args:
+            var_expr: Variable expression (e.g., 'chunk' or 'chunk.title').
+
+        Returns:
+            Python code to access the variable.
+
+        """
+        parts = var_expr.split(".")
+        base = parts[0].strip().lstrip("$")
+
+        if self._use_resolve:
+            if len(parts) == 1:
+                return f"ctx.resolve('{base}')"
+            prop_args = ", ".join(f"'{p.strip()}'" for p in parts[1:])
+            return f"ctx.resolve_property('{base}', {prop_args})"
+
+        result = f"ctx.vars['{base}']"
+
+        for prop in parts[1:]:
+            result = f"{result}['{prop.strip()}']"
+
+        return result
