@@ -107,7 +107,7 @@ jobs:
 
       - name: Comment on PR
         if: steps.scripts_in_pr.outputs.startup == 'true'
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@v3
         with:
           path: diff_report.md
 
